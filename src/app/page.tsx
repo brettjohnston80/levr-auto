@@ -1,0 +1,19 @@
+import { CtaSection } from "@/components/cta-section";
+import { Guarantee } from "@/components/guarantee";
+import { Hero } from "@/components/hero";
+import { HowItWorks } from "@/components/how-it-works";
+import { IntakeFilter } from "@/components/intake-filter";
+import { WhyLevr } from "@/components/why-levr";
+
+export default function Home() {
+  return (
+    <>
+      <Hero />
+      <HowItWorks />
+      <IntakeFilter />
+      <Guarantee />
+      <WhyLevr />
+      <CtaSection />
+    </>
+  );
+}

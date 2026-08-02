@@ -1,0 +1,448 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { COLORS, MAKES, MAKES_AND_MODELS, TIER_PRICING } from "@/lib/vehicle-data";
+import { estimateMatches } from "@/lib/match-counter";
+
+type VehicleSlot = {
+  id: number;
+  make: string;
+  model: string;
+  trim: string;
+  colors: string[];
+};
+
+function createVehicle(id: number): VehicleSlot {
+  return { id, make: "", model: "", trim: "", colors: [] };
+}
+
+function toggleInArray(list: string[], value: string): string[] {
+  return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
+}
+
+function ChevronIcon() {
+  return (
+    <svg
+      className="pointer-events-none absolute top-1/2 right-4 h-4 w-4 -translate-y-1/2 text-zinc-500"
+      viewBox="0 0 20 20"
+      fill="none"
+    >
+      <path
+        d="M5 7.5L10 12.5L15 7.5"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+      <path
+        d="M1.5 5L4 7.5L8.5 2"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function PinIcon() {
+  return (
+    <svg
+      className="pointer-events-none absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-zinc-500"
+      viewBox="0 0 20 20"
+      fill="none"
+    >
+      <path
+        d="M10 18s6-5.2 6-9.7A6 6 0 0 0 4 8.3C4 12.8 10 18 10 18Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <circle cx="10" cy="8.3" r="2" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+function SelectField({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+  placeholder: string;
+  disabled?: boolean;
+}) {
+  return (
+    <label className="block">
+      <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">{label}</span>
+      <div className="relative mt-2">
+        <select
+          value={value}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full appearance-none rounded-xl border border-white/10 bg-zinc-900/80 px-4 py-3 text-sm font-medium text-white shadow-inner shadow-black/20 transition-colors focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <option value="">{placeholder}</option>
+          {options.map((opt) => (
+            <option key={opt} value={opt}>
+              {opt}
+            </option>
+          ))}
+        </select>
+        <ChevronIcon />
+      </div>
+    </label>
+  );
+}
+
+function MatchCounter({ vehicle, zip }: { vehicle: VehicleSlot; zip: string }) {
+  const count = useMemo(
+    () => estimateMatches(vehicle, zip, COLORS.length),
+    [vehicle, zip]
+  );
+  const [pulse, setPulse] = useState(false);
+  const prevCount = useRef(count);
+
+  useEffect(() => {
+    if (prevCount.current !== count) {
+      prevCount.current = count;
+      setPulse(true);
+      const t = window.setTimeout(() => setPulse(false), 350);
+      return () => window.clearTimeout(t);
+    }
+  }, [count]);
+
+  if (count === null) {
+    return (
+      <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-1.5 text-xs text-zinc-500">
+        Select a make to see live matches
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-semibold transition-colors duration-300 ${
+        pulse
+          ? "border-emerald-400 bg-emerald-500/25 text-emerald-300"
+          : "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+      }`}
+    >
+      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+      {count.toLocaleString()} vehicles match right now
+    </div>
+  );
+}
+
+export function IntakeFilter() {
+  const [vehicles, setVehicles] = useState<VehicleSlot[]>([createVehicle(1)]);
+  const [zip, setZip] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+  const nextId = useRef(2);
+
+  const zipTouched = zip.length > 0;
+  const zipValid = /^\d{5}$/.test(zip);
+  const allVehiclesComplete = vehicles.every((v) => v.make && v.model);
+  const canSubmit = allVehiclesComplete && zipValid;
+  const price = TIER_PRICING[vehicles.length];
+
+  const totalMatches = vehicles.reduce(
+    (sum, v) => sum + (estimateMatches(v, zip, COLORS.length) ?? 0),
+    0
+  );
+  const anyMatchesReady = vehicles.some((v) => v.make);
+
+  function updateVehicle(id: number, patch: Partial<VehicleSlot>) {
+    setVehicles((prev) => prev.map((v) => (v.id === id ? { ...v, ...patch } : v)));
+  }
+
+  function addVehicle() {
+    if (vehicles.length >= 3) return;
+    setVehicles((prev) => [...prev, createVehicle(nextId.current++)]);
+  }
+
+  function removeVehicle(id: number) {
+    setVehicles((prev) => prev.filter((v) => v.id !== id));
+  }
+
+  function startOver() {
+    setVehicles([createVehicle(nextId.current++)]);
+    setZip("");
+    setSubmitted(false);
+  }
+
+  if (submitted) {
+    return (
+      <section id="get-started" className="bg-zinc-900 py-24">
+        <div className="mx-auto max-w-2xl px-6">
+          <div className="rounded-3xl border border-emerald-500/30 bg-emerald-500/10 p-10 text-center">
+            <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500 text-2xl font-bold text-zinc-950">
+              ✓
+            </span>
+            <h2 className="mt-6 text-2xl font-semibold text-white">
+              Nice pick — here&apos;s what we&apos;d search for.
+            </h2>
+            <ul className="mt-6 space-y-3 text-left">
+              {vehicles.map((v, i) => (
+                <li
+                  key={v.id}
+                  className="rounded-xl border border-white/10 bg-white/[0.04] p-4 text-sm text-zinc-300"
+                >
+                  <span className="font-semibold text-white">
+                    Vehicle {i + 1}: {v.make} {v.model}
+                  </span>
+                  <div className="mt-1 text-zinc-400">
+                    Trim: {v.trim || "Any"} · Color:{" "}
+                    {v.colors.length ? v.colors.join(", ") : "No preference"}
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-6 text-lg font-semibold text-white">
+              Total: ${price} for zip {zip}
+            </p>
+            <p className="mt-2 text-sm text-zinc-400">
+              ~{totalMatches.toLocaleString()} vehicles nationwide currently match this search.
+            </p>
+            <p className="mt-4 text-sm text-zinc-400">
+              This is a front-end preview — checkout, payment, and dealer outreach launch soon.
+              Nothing has been charged or submitted. Once you check out, you&apos;ll fine-tune
+              options like sunroof, leather, and packages before we start reaching out to
+              dealers.
+            </p>
+            <button
+              onClick={startOver}
+              className="mt-8 rounded-full border border-white/20 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+            >
+              Start Over
+            </button>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section id="get-started" className="bg-zinc-900 py-24">
+      <div className="mx-auto max-w-4xl px-6">
+        <div className="text-center">
+          <h2 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+            Tell us exactly what you want
+          </h2>
+          <p className="mt-4 text-lg text-zinc-400">
+            Make, model, trim, color. You decide the car; we do the rest.
+          </p>
+        </div>
+
+        <div className="mt-6 flex justify-center">
+          <div className="inline-flex rounded-full border border-white/10 bg-white/[0.03] p-1">
+            {[1, 2, 3].map((n) => (
+              <span
+                key={n}
+                className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                  vehicles.length === n
+                    ? "bg-emerald-500 text-zinc-950"
+                    : "text-zinc-400"
+                }`}
+              >
+                {n} {n === 1 ? "vehicle" : "vehicles"} — ${TIER_PRICING[n]}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-12 space-y-6">
+          {vehicles.map((vehicle, index) => (
+            <div
+              key={vehicle.id}
+              className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-6 shadow-xl shadow-black/20 sm:p-8"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500/15 text-sm font-bold text-emerald-400 ring-1 ring-emerald-500/30">
+                    {index + 1}
+                  </span>
+                  <h3 className="text-lg font-semibold text-white">Vehicle {index + 1}</h3>
+                </div>
+                {vehicles.length > 1 && (
+                  <button
+                    onClick={() => removeVehicle(vehicle.id)}
+                    aria-label="Remove vehicle"
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path
+                        d="M4 4L12 12M12 4L4 12"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </button>
+                )}
+              </div>
+
+              <div className="mt-4">
+                <MatchCounter vehicle={vehicle} zip={zip} />
+              </div>
+
+              <div className="mt-6 grid gap-4 sm:grid-cols-3">
+                <SelectField
+                  label="Make"
+                  value={vehicle.make}
+                  onChange={(value) => updateVehicle(vehicle.id, { make: value, model: "" })}
+                  options={MAKES}
+                  placeholder="Select make"
+                />
+                <SelectField
+                  label="Model"
+                  value={vehicle.model}
+                  onChange={(value) => updateVehicle(vehicle.id, { model: value })}
+                  options={vehicle.make ? MAKES_AND_MODELS[vehicle.make] : []}
+                  placeholder={vehicle.make ? "Select model" : "Choose a make first"}
+                  disabled={!vehicle.make}
+                />
+                <label className="block">
+                  <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
+                    Trim <span className="text-zinc-500 normal-case">(optional)</span>
+                  </span>
+                  <input
+                    type="text"
+                    value={vehicle.trim}
+                    onChange={(e) => updateVehicle(vehicle.id, { trim: e.target.value })}
+                    placeholder="e.g. XLE, Sport, Limited"
+                    className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900/80 px-4 py-3 text-sm font-medium text-white shadow-inner shadow-black/20 placeholder:text-zinc-600 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-6">
+                <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
+                  Color preference
+                </span>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => updateVehicle(vehicle.id, { colors: [] })}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-all ${
+                      vehicle.colors.length === 0
+                        ? "border-emerald-500 bg-emerald-500 text-zinc-950 shadow-md shadow-emerald-500/20"
+                        : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/25 hover:text-zinc-200"
+                    }`}
+                  >
+                    {vehicle.colors.length === 0 && <CheckIcon />}
+                    No preference
+                  </button>
+                  {COLORS.map((color) => {
+                    const active = vehicle.colors.includes(color);
+                    return (
+                      <button
+                        type="button"
+                        key={color}
+                        onClick={() =>
+                          updateVehicle(vehicle.id, { colors: toggleInArray(vehicle.colors, color) })
+                        }
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-all ${
+                          active
+                            ? "border-emerald-500 bg-emerald-500 text-zinc-950 shadow-md shadow-emerald-500/20"
+                            : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/25 hover:text-zinc-200"
+                        }`}
+                      >
+                        {active && <CheckIcon />}
+                        {color}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-3 text-xs text-zinc-500">
+                  You&apos;ll fine-tune options like sunroof, leather, and packages right after
+                  checkout — before we start reaching out to dealers.
+                </p>
+              </div>
+            </div>
+          ))}
+
+          {vehicles.length < 3 && (
+            <button
+              type="button"
+              onClick={addVehicle}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-white/20 py-4 text-sm font-semibold text-zinc-400 transition-colors hover:border-emerald-500/50 hover:text-emerald-400"
+            >
+              <span className="text-lg leading-none">+</span>
+              Add another vehicle (brings total to ${TIER_PRICING[vehicles.length + 1]})
+            </button>
+          )}
+        </div>
+
+        <div className="mt-8 rounded-3xl border border-white/10 bg-zinc-900/90 p-6 shadow-2xl shadow-black/40 sm:p-8">
+          <label className="block max-w-xs">
+            <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
+              Search zip code
+            </span>
+            <div className="relative mt-2">
+              <PinIcon />
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={5}
+                value={zip}
+                onChange={(e) => setZip(e.target.value.replace(/\D/g, "").slice(0, 5))}
+                placeholder="90210"
+                className={`w-full rounded-xl border bg-zinc-950/80 py-3 pr-4 pl-11 text-sm font-medium text-white shadow-inner shadow-black/20 placeholder:text-zinc-600 focus:outline-none ${
+                  zipTouched && !zipValid
+                    ? "border-red-500/60 focus:border-red-500"
+                    : "border-white/10 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                }`}
+              />
+            </div>
+            <span className="mt-2 block text-xs text-zinc-500">
+              We search nationwide — this just helps us calibrate delivery estimates.
+            </span>
+            {zipTouched && !zipValid && (
+              <span className="mt-1 block text-xs text-red-400">Enter a valid 5-digit zip code.</span>
+            )}
+          </label>
+
+          <div className="mt-8 flex flex-col items-center justify-between gap-4 border-t border-white/10 pt-6 sm:flex-row">
+            <div>
+              <p className="text-sm text-zinc-400">
+                {vehicles.length} {vehicles.length === 1 ? "vehicle" : "vehicles"} selected
+              </p>
+              <p className="text-2xl font-semibold text-white">${price} total</p>
+              {anyMatchesReady && (
+                <p className="mt-1 text-xs font-medium text-emerald-400">
+                  ~{totalMatches.toLocaleString()} vehicles match your search right now
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              disabled={!canSubmit}
+              onClick={() => setSubmitted(true)}
+              className="w-full rounded-full bg-emerald-500 px-8 py-3.5 text-base font-semibold text-zinc-950 transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400 sm:w-auto"
+            >
+              Continue
+            </button>
+          </div>
+          {!canSubmit && (
+            <p className="mt-3 text-right text-xs text-zinc-500">
+              Select a make and model for every vehicle and enter a valid zip code to continue.
+            </p>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
