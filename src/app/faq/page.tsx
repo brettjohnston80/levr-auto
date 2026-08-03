@@ -12,11 +12,11 @@ const FAQS = [
   },
   {
     q: "How much does it cost?",
-    a: "A flat $500 fee, paid once you're ready to move forward. That's it — no hidden charges, no commission tacked onto your deal.",
+    a: "A flat $699 fee, paid once you're ready to move forward. That's it — no hidden charges, no commission tacked onto your deal.",
   },
   {
     q: "What if you can't get me a deal below MSRP?",
-    a: "You get your full $500 back, automatically, at the end of your negotiation window. No need to ask for it.",
+    a: "You get your full $699 back, automatically, at the end of your negotiation window. No need to ask for it.",
   },
   {
     q: "Am I required to buy a car?",
@@ -36,7 +36,7 @@ const FAQS = [
   },
   {
     q: "Can I search for more than one car at a time?",
-    a: "Yes. Searching one make and model is $500. Adding a second at the same time is $600 total, and a third is $700 — that's the max. Within whichever make/model you choose, you can still be flexible on trim, color, and options at no extra cost.",
+    a: "Yes. Searching one make and model is $699. Adding a second at the same time is $899 total, and a third is $999 — that's the max. Within whichever make/model you choose, you can still be flexible on trim, color, and options at no extra cost.",
   },
   {
     q: "What if I change my mind about the car I want?",

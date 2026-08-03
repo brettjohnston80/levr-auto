@@ -41,7 +41,7 @@ export const OPTIONS = [
 ];
 
 export const TIER_PRICING: Record<number, number> = {
-  1: 500,
-  2: 600,
-  3: 700,
+  1: 699,
+  2: 899,
+  3: 999,
 };
