@@ -27,9 +27,9 @@ Either way — guarantee met or refunded — LEVR Auto continues fielding offers
 
 ## 1a. Pricing Tiers
 
-- **$500** — one make and model, with full flexibility on trim, color, and options within it. The intake form needs to support inclusion/exclusion logic (e.g., "EX or Limited trim, any color except black") — this flexibility is free and unlimited within a single make/model, no fee, no cap on how often it's adjusted.
-- **$600** — two makes/models searched concurrently (e.g., a RAV4 *or* a Highlander — whichever lands a better deal first).
-- **$700** — three makes/models concurrently. Three is the cap; no tier beyond this.
+- **$699** — one make and model, with full flexibility on trim, color, and options within it. The intake form needs to support inclusion/exclusion logic (e.g., "EX or Limited trim, any color except black") — this flexibility is free and unlimited within a single make/model, no fee, no cap on how often it's adjusted.
+- **$899** — two makes/models searched concurrently (e.g., a RAV4 *or* a Highlander — whichever lands a better deal first).
+- **$999** — three makes/models concurrently. Three is the cap; no tier beyond this.
 
 *Not on the landing page* — this lives in the FAQ/terms only, per your call.
 
@@ -54,7 +54,7 @@ Sections you'll want, with a few drafted as starting language and the rest flagg
 
 **2.2 Scope of Services** *(draft language)*: "LEVR Auto searches nationwide dealer inventory matching the Customer's specified vehicle criteria, contacts dealers on the Customer's behalf to solicit pricing, and presents resulting offers to the Customer. LEVR Auto is not a party to any vehicle sale, does not take title to any vehicle, and does not receive compensation from any dealer in connection with a Customer's purchase [pending legal confirmation of exact wording needed for broker-licensing purposes]."
 
-**2.3 Fee & Payment** *(draft language)*: "Customer agrees to pay LEVR Auto a fee of $500 for one make/model, $600 for two, or $700 for three (the maximum), due upon Customer's election to proceed after initial intake, in exchange for the services described in Section 2.2."
+**2.3 Fee & Payment** *(draft language)*: "Customer agrees to pay LEVR Auto a fee of $699 for one make/model, $899 for two, or $999 for three (the maximum), due upon Customer's election to proceed after initial intake, in exchange for the services described in Section 2.2."
 
 **2.4 The Guarantee** — insert Section 1 definitions and refund mechanics.
 
@@ -85,7 +85,7 @@ The step-by-step path from a customer landing on the site to a closed deal:
 ### Phase A — Discovery & Signup
 
 1. **Browse** — Customer starts at the intro page, hits "Get Started," and moves through a progressive filter: make → model → trim → color → other options, plus zip code (captured for accurate tax/registration-fee calculations, not shown to dealers beyond state/region). A live, nationwide inventory count narrows with each filter (e.g. "40,000 Toyotas" → "5,000 Highlanders" → "400 in black/white/gray" → "20 matching this trim"). No specific dealers are shown at this stage. *(Phase 2 feature, once real deal data exists: show an average-savings stat per make/model, e.g. "we help customers save $X off MSRP on a Highlander," sourced from actual completed deals and refreshed weekly/monthly.)*
-2. **Account & Payment** — Customer creates an account and pays the tiered fee ($500/$600/$700). **The Day 30/Day 60 guarantee clock starts here, at payment.**
+2. **Account & Payment** — Customer creates an account and pays the tiered fee ($699/$899/$999). **The Day 30/Day 60 guarantee clock starts here, at payment.**
 3. **Refinement Window** — Customer has up to 24 hours to fine-tune trim/color/option details (make/model is locked at this point — changing it requires the switching process). If they don't return to confirm, the system auto-solidifies using their original selections after 24 hours. Search doesn't start until solidification.
 
 ### Phase B — Search & Offers

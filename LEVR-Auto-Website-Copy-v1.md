@@ -29,7 +29,7 @@
 
 **Headline:** We guarantee it. Literally.
 
-**Body:** If we can't bring you at least one real offer below MSRP — the full sticker price, before tax, title, and fees — within your negotiation window, you get your $500 back. No questions asked. And you're never obligated to buy anything, even if we do find you a great deal.
+**Body:** If we can't bring you at least one real offer below MSRP — the full sticker price, before tax, title, and fees — within your negotiation window, you get your $699 back. No questions asked. And you're never obligated to buy anything, even if we do find you a great deal.
 
 ---
 
@@ -61,10 +61,10 @@ Terms of Service · Privacy Policy · [State availability note — pending legal
 You tell us the exact car you want, and we search dealer inventory nationwide and negotiate on your behalf. You review the offers we bring back and decide what to do next — no obligation either way.
 
 **How much does it cost?**
-A flat $500 fee, paid once you're ready to move forward. That's it — no hidden charges, no commission tacked onto your deal.
+A flat $699 fee, paid once you're ready to move forward. That's it — no hidden charges, no commission tacked onto your deal.
 
 **What if you can't get me a deal below MSRP?**
-You get your full $500 back, automatically, at the end of your negotiation window. No need to ask for it.
+You get your full $699 back, automatically, at the end of your negotiation window. No need to ask for it.
 
 **Am I required to buy a car?**
 No. You can review every offer we bring you and decide not to move forward with any of them — the fee still covers the work we did on your behalf.
@@ -79,7 +79,7 @@ No — that's the whole point. We handle the back-and-forth so you don't have to
 We connect you directly with the dealer and help walk through the paperwork, so the process is as close to fully virtual as possible.
 
 **Can I search for more than one car at a time?**
-Yes. Searching one make and model is $500. Adding a second at the same time is $600 total, and a third is $700 — that's the max. Within whichever make/model you choose, you can still be flexible on trim, color, and options at no extra cost.
+Yes. Searching one make and model is $699. Adding a second at the same time is $899 total, and a third is $999 — that's the max. Within whichever make/model you choose, you can still be flexible on trim, color, and options at no extra cost.
 
 **What if I change my mind about the car I want?**
 You can switch to a different make/model for a $100 fee, which restarts your negotiation window on the new vehicle. [Note: internal grace-period policy not for public copy.]

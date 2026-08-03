@@ -24,9 +24,9 @@
 ## Business Model
 
 **Pricing tiers:**
-- $500 — one make/model, full flexibility on trim/color/options within it (inclusion/exclusion logic)
-- $600 — two makes/models concurrently
-- $700 — three makes/models concurrently (max)
+- $699 — one make/model, full flexibility on trim/color/options within it (inclusion/exclusion logic)
+- $899 — two makes/models concurrently
+- $999 — three makes/models concurrently (max)
 
 **Guarantee:**
 - Clock starts at payment. Evaluated at **Day 30**: refund (full, automatic, within ~7 days) if no Qualifying Offer (below "Total MSRP" per the Monroney label — includes destination, excludes tax/title/doc fees/dealer add-ons) has been presented.

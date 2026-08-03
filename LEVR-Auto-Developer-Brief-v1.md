@@ -58,7 +58,7 @@ Customers pick a car (make/model, with trim/color flexibility), pay a fee, and L
 ## 4. Core Data Model (sketch)
 
 - **Customer** — contact info, financing preference, uploaded documents
-- **SearchRequest** — customer_id, tier (1/2/3 models, $500/$600/$700), make(s)/model(s) with trim-color inclusion/exclusion logic, budget, Day 30 date, Day 60 date, guarantee status, extension history
+- **SearchRequest** — customer_id, tier (1/2/3 models, $699/$899/$999), make(s)/model(s) with trim-color inclusion/exclusion logic, budget, Day 30 date, Day 60 date, guarantee status, extension history
 - **Offer** — search_request_id, dealer_id, vehicle spec/VIN, negotiated price, MSRP, qualifying (below-MSRP) flag, timestamp, raw reply text
 - **Dealer** — name, contact/outreach info, brand, region
 - **ChangeRequest** — search_request_id, old model, new model, fee charged (or grace-period waiver), timestamp
@@ -86,7 +86,7 @@ Customers pick a car (make/model, with trim/color flexibility), pay a fee, and L
 *(Full detail lives in the Core Processes doc — this is just what needs to become actual code logic.)*
 
 - Guarantee evaluated at Day 30; refund auto-triggers if no qualifying offer, payout within ~7 days; search continues free through Day 60 regardless of outcome; $100 buys renewable ~30-day extensions after that.
-- Pricing: $500 (1 model) / $600 (2) / $700 (3, max).
+- Pricing: $699 (1 model) / $899 (2) / $999 (3, max).
 - Switching costs $100 and resets both Day 30/Day 60 clocks — except a 5-day unadvertised grace period allowing one free switch.
 - Financing: preference/document capture only — **no actual credit pull** (that's a regulated activity requiring a compliant vendor partnership later, not custom-built).
 - Delivery: concierge referral only in v1, no fee yet.
