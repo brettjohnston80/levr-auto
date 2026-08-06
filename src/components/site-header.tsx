@@ -18,6 +18,9 @@ export function SiteHeader() {
           <Link href="/#get-started" className="transition-colors hover:text-white">
             Build Your Search
           </Link>
+          <Link href="/matchmaker" className="transition-colors hover:text-white">
+            Matchmaker
+          </Link>
           <Link href="/faq" className="transition-colors hover:text-white">
             FAQ
           </Link>
