@@ -84,15 +84,33 @@ export const USE_CASES_BY_VEHICLE_TYPE: Record<VehicleType, string[]> = {
   ],
 };
 
-export const FAMILY_SIZES = ["Just me", "2 people", "3-4 people", "5+ people"];
+export const FAMILY_SIZES = ["1-2", "3-5", "6+"];
+
+// "6+" is only a meaningful option for vehicles that can actually seat that many.
+export const LARGE_CAPACITY_VEHICLE_TYPES: VehicleType[] = ["SUV", "Passenger Van", "Minivan"];
 
 export const POWERTRAINS: Powertrain[] = ["Gas", "Hybrid", "Electric"];
 
 export const PRICE_RANGES = [
-  "Under $25k",
-  "$25k – $40k",
-  "$40k – $60k",
-  "$60k+",
+  "Budget-Conscious (Under $30,000)",
+  "Practical ($30,000 – $45,000)",
+  "Well-Equipped ($45,000 – $60,000)",
+  "Premium ($60,000 – $80,000)",
+  "Luxurious (Over $80,000)",
+];
+
+export type Priority = { label: string; clarifier: string };
+
+export const PRIORITIES: Priority[] = [
+  { label: "Safety", clarifier: "Best crash test results" },
+  { label: "Comfort", clarifier: "Spacious, smooth ride" },
+  { label: "Cargo Space", clarifier: "Best-in-class trunk/storage room" },
+  { label: "Fuel Economy", clarifier: "Best MPG or EV range" },
+  { label: "Reliability", clarifier: "Fewest expected repairs, longest-lasting" },
+  { label: "Performance", clarifier: "Best acceleration & handling" },
+  { label: "Technology & Features", clarifier: "Most advanced tech and driver-assist features" },
+  { label: "Price/Value", clarifier: "Most car for the money" },
+  { label: "Resale Value", clarifier: "Holds its value best over time" },
 ];
 
 export type MockVehicle = {

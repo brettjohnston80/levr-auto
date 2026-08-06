@@ -4,9 +4,11 @@ import { useMemo, useState } from "react";
 import { GetStartedButton } from "@/components/get-started-button";
 import {
   FAMILY_SIZES,
+  LARGE_CAPACITY_VEHICLE_TYPES,
   MOCK_RECOMMENDATIONS,
   POWERTRAINS,
   PRICE_RANGES,
+  PRIORITIES,
   USE_CASES_BY_VEHICLE_TYPE,
   VEHICLE_TYPES,
   type MockVehicle,
@@ -20,6 +22,7 @@ type Answers = {
   familySize: string;
   powertrain: Powertrain | "";
   priceRange: string;
+  priorities: string[];
   notes: string;
 };
 
@@ -29,12 +32,13 @@ const EMPTY_ANSWERS: Answers = {
   familySize: "",
   powertrain: "",
   priceRange: "",
+  priorities: [],
   notes: "",
 };
 
 type Step = {
   id: keyof Answers;
-  kind: "select" | "text";
+  kind: "select" | "rank" | "text";
   title: string;
   subtitle?: string;
   options?: string[];
@@ -60,7 +64,7 @@ const STEPS: Step[] = [
     kind: "select",
     title: "How many people usually ride along?",
     subtitle: "Helps us gauge how much seating and cargo room you need.",
-    options: FAMILY_SIZES,
+    // options are computed per vehicle type at render time — see stepForRender in Matchmaker()
   },
   {
     id: "powertrain",
@@ -75,6 +79,12 @@ const STEPS: Step[] = [
     title: "What's your target price range?",
     subtitle: "Ballpark is fine — you can fine-tune this later.",
     options: PRICE_RANGES,
+  },
+  {
+    id: "priorities",
+    kind: "rank",
+    title: "What matters most to you?",
+    subtitle: "Pick your top 3, in order of importance.",
   },
   {
     id: "notes",
@@ -93,18 +103,18 @@ const POWERTRAIN_COLOR: Record<Powertrain | "", string> = {
 
 const FAMILY_SCALE: Record<string, number> = {
   "": 1,
-  "Just me": 0.82,
-  "2 people": 0.92,
-  "3-4 people": 1.06,
-  "5+ people": 1.2,
+  "1-2": 0.85,
+  "3-5": 1.05,
+  "6+": 1.2,
 };
 
 const PRICE_TIER: Record<string, string> = {
   "": "",
-  "Under $25k": "$",
-  "$25k – $40k": "$$",
-  "$40k – $60k": "$$$",
-  "$60k+": "$$$$",
+  "Budget-Conscious (Under $30,000)": "$",
+  "Practical ($30,000 – $45,000)": "$$",
+  "Well-Equipped ($45,000 – $60,000)": "$$$",
+  "Premium ($60,000 – $80,000)": "$$$$",
+  "Luxurious (Over $80,000)": "$$$$$",
 };
 
 const BODY_PATHS: Record<VehicleType, string> = {
@@ -224,8 +234,10 @@ function QuestionPanel({
   stepIndex,
   totalSteps,
   value,
+  rankedValues,
   onSelect,
   onTextChange,
+  onToggleRank,
   onBack,
   onContinue,
   onSkip,
@@ -234,8 +246,10 @@ function QuestionPanel({
   stepIndex: number;
   totalSteps: number;
   value: string;
+  rankedValues: string[];
   onSelect: (value: string) => void;
   onTextChange: (value: string) => void;
+  onToggleRank: (label: string) => void;
   onBack: () => void;
   onContinue: () => void;
   onSkip: () => void;
@@ -290,6 +304,61 @@ function QuestionPanel({
               </button>
             );
           })}
+        </div>
+      )}
+
+      {step.kind === "rank" && (
+        <div className="mt-8">
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+            {PRIORITIES.map((priority) => {
+              const rankPosition = rankedValues.indexOf(priority.label);
+              const selected = rankPosition !== -1;
+              const disabled = !selected && rankedValues.length >= 3;
+              return (
+                <button
+                  key={priority.label}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onToggleRank(priority.label)}
+                  className={`flex items-start gap-3 rounded-2xl border px-5 py-4 text-left transition-all ${
+                    selected
+                      ? "border-emerald-500 bg-emerald-500 text-zinc-950 shadow-md shadow-emerald-500/20"
+                      : disabled
+                        ? "cursor-not-allowed border-white/10 bg-white/[0.02] text-zinc-600 opacity-50"
+                        : "border-white/10 bg-white/[0.02] text-zinc-200 hover:border-white/25 hover:bg-white/[0.05]"
+                  }`}
+                >
+                  <span
+                    className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                      selected ? "bg-zinc-950 text-emerald-400" : "bg-white/10 text-zinc-500"
+                    }`}
+                  >
+                    {selected ? rankPosition + 1 : ""}
+                  </span>
+                  <span>
+                    <span className="block text-sm font-semibold">{priority.label}</span>
+                    <span className={`block text-xs ${selected ? "text-zinc-900/70" : "text-zinc-500"}`}>
+                      {priority.clarifier}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="mt-6 flex flex-col-reverse items-center gap-3 sm:flex-row sm:justify-between">
+            <p className="text-xs text-zinc-500">
+              {rankedValues.length}/3 selected
+              {rankedValues.length < 3 ? " — pick in order of importance" : ""}
+            </p>
+            <button
+              type="button"
+              disabled={rankedValues.length !== 3}
+              onClick={onContinue}
+              className="rounded-full bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400"
+            >
+              Continue
+            </button>
+          </div>
         </div>
       )}
 
@@ -535,24 +604,48 @@ export function Matchmaker() {
   const [done, setDone] = useState(false);
 
   const currentStep = STEPS[step];
-  const stepForRender =
-    currentStep.id === "useCase"
-      ? { ...currentStep, options: answers.vehicleType ? USE_CASES_BY_VEHICLE_TYPE[answers.vehicleType] : [] }
-      : currentStep;
+  const stepForRender = (() => {
+    if (currentStep.id === "useCase") {
+      return { ...currentStep, options: answers.vehicleType ? USE_CASES_BY_VEHICLE_TYPE[answers.vehicleType] : [] };
+    }
+    if (currentStep.id === "familySize") {
+      const allowSixPlus = answers.vehicleType ? LARGE_CAPACITY_VEHICLE_TYPES.includes(answers.vehicleType) : false;
+      return { ...currentStep, options: FAMILY_SIZES.filter((size) => size !== "6+" || allowSixPlus) };
+    }
+    return currentStep;
+  })();
+  const currentValue = answers[currentStep.id];
+  const currentStringValue = typeof currentValue === "string" ? currentValue : "";
+
+  function goNext() {
+    if (step < STEPS.length - 1) {
+      setStep((s) => s + 1);
+    } else {
+      setDone(true);
+    }
+  }
 
   function select(id: keyof Answers, value: string) {
     setAnswers((prev) => {
       const next = { ...prev, [id]: value };
       if (id === "vehicleType" && prev.vehicleType !== value) {
         next.useCase = "";
+        next.familySize = "";
       }
       return next;
     });
-    if (step < STEPS.length - 1) {
-      setStep((s) => s + 1);
-    } else {
-      setDone(true);
-    }
+    goNext();
+  }
+
+  function toggleRank(label: string) {
+    setAnswers((prev) => {
+      const current = prev.priorities;
+      if (current.includes(label)) {
+        return { ...prev, priorities: current.filter((l) => l !== label) };
+      }
+      if (current.length >= 3) return prev;
+      return { ...prev, priorities: [...current, label] };
+    });
   }
 
   function setText(id: keyof Answers, value: string) {
@@ -561,10 +654,6 @@ export function Matchmaker() {
 
   function goBack() {
     setStep((s) => Math.max(0, s - 1));
-  }
-
-  function continueFromText() {
-    setDone(true);
   }
 
   function startOver() {
@@ -597,12 +686,14 @@ export function Matchmaker() {
                 step={stepForRender}
                 stepIndex={step}
                 totalSteps={STEPS.length}
-                value={answers[currentStep.id]}
+                value={currentStringValue}
+                rankedValues={answers.priorities}
                 onSelect={(value) => select(currentStep.id, value)}
                 onTextChange={(value) => setText(currentStep.id, value)}
+                onToggleRank={toggleRank}
                 onBack={goBack}
-                onContinue={continueFromText}
-                onSkip={continueFromText}
+                onContinue={goNext}
+                onSkip={goNext}
               />
               <BuildingVisual answers={answers} currentStepId={currentStep.id} />
             </div>
