@@ -1,13 +1,88 @@
-export type VehicleType = "Car" | "Truck" | "SUV";
+export type VehicleType =
+  | "Cargo Van"
+  | "Convertible"
+  | "Coupe"
+  | "Hatchback"
+  | "Minivan"
+  | "Passenger Van"
+  | "Sedan"
+  | "SUV"
+  | "Truck";
 export type Powertrain = "Gas" | "Hybrid" | "Electric";
 
-export const VEHICLE_TYPES: VehicleType[] = ["Car", "Truck", "SUV"];
-
-export const USE_CASES = [
-  "Commuting",
-  "Hardware store & hauling trips",
-  "Full-time work use",
+export const VEHICLE_TYPES: VehicleType[] = [
+  "Sedan",
+  "Truck",
+  "SUV",
+  "Hatchback",
+  "Passenger Van",
+  "Convertible",
+  "Cargo Van",
+  "Coupe",
+  "Minivan",
 ];
+
+export const USE_CASES_BY_VEHICLE_TYPE: Record<VehicleType, string[]> = {
+  Sedan: [
+    "Daily commuting",
+    "Small family transportation",
+    "Fuel-efficient errands & city driving",
+    "Business-professional use",
+    "Long-distance highway trips",
+  ],
+  Truck: [
+    "Full-time construction/trade work",
+    "Towing (boat, trailer, equipment)",
+    "Hauling materials & cargo bed use",
+    "Off-road/outdoor recreation",
+    "Daily commuting with occasional utility needs",
+  ],
+  SUV: [
+    "Family road trips",
+    "Daily commuting with extra cargo/passenger space",
+    "Off-road/adventure use",
+    "Towing (camper, boat, small trailer)",
+    "All-weather daily driver",
+  ],
+  Hatchback: [
+    "City commuting & easy parking",
+    "Fuel-efficient daily driving",
+    "First car / budget-friendly",
+    "Weekend errands with flexible cargo space",
+    "Light gear hauling (bikes, camping basics)",
+  ],
+  "Passenger Van": [
+    "Large family transportation",
+    "Group-shuttle transportation (team, church, business)",
+    "Road trips with many passengers",
+    "Small business shuttle use",
+  ],
+  Convertible: [
+    "Weekend/recreational driving",
+    "Scenic road trips",
+    "Style/personal statement",
+    "Warm-climate daily driver",
+  ],
+  "Cargo Van": [
+    "Full-time trade/contractor work",
+    "Delivery or courier business",
+    "Mobile business use (mobile mechanic, catering, etc.)",
+    "Moving/hauling large items",
+    "Camper conversion / DIY build",
+  ],
+  Coupe: [
+    "Weekend/recreational driving",
+    "Sporty daily commuting",
+    "Style/performance-focused ownership",
+    "Low-passenger-need daily use",
+  ],
+  Minivan: [
+    "Family with young kids",
+    "Carpooling & kid activity shuttling",
+    "Road trips with lots of gear",
+    "Small business use (mobile services, light cargo + passengers)",
+  ],
+};
 
 export const FAMILY_SIZES = ["Just me", "2 people", "3-4 people", "5+ people"];
 
@@ -53,7 +128,7 @@ export const MOCK_RECOMMENDATIONS: MockVehicle[] = [
     id: "elantra",
     make: "Hyundai",
     model: "Elantra",
-    bodyType: "Car",
+    bodyType: "Sedan",
     powertrain: "Gas",
     priceEstimate: "$23,400 est.",
     rationale: "Cheap to own and easy to park for a daily commute.",
@@ -98,7 +173,7 @@ export const MOCK_RECOMMENDATIONS: MockVehicle[] = [
     id: "prius",
     make: "Toyota",
     model: "Prius",
-    bodyType: "Car",
+    bodyType: "Hatchback",
     powertrain: "Hybrid",
     priceEstimate: "$27,750 est.",
     rationale: "Best-in-class miles per gallon for a daily driver.",
@@ -107,7 +182,7 @@ export const MOCK_RECOMMENDATIONS: MockVehicle[] = [
     id: "civic",
     make: "Honda",
     model: "Civic",
-    bodyType: "Car",
+    bodyType: "Sedan",
     powertrain: "Gas",
     priceEstimate: "$24,900 est.",
     rationale: "Reliable, efficient, and cheap to maintain over time.",
