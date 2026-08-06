@@ -26,13 +26,15 @@ type Answers = {
   notes: string;
 };
 
+const DEFAULT_PRIORITY_ORDER = PRIORITIES.map((p) => p.label);
+
 const EMPTY_ANSWERS: Answers = {
   vehicleType: "",
   useCase: "",
   familySize: "",
   powertrain: "",
   priceRange: "",
-  priorities: [],
+  priorities: DEFAULT_PRIORITY_ORDER,
   notes: "",
 };
 
@@ -84,7 +86,7 @@ const STEPS: Step[] = [
     id: "priorities",
     kind: "rank",
     title: "What matters most to you?",
-    subtitle: "Pick your top 3, in order of importance.",
+    subtitle: "Drag to reorder — most important at the top.",
   },
   {
     id: "notes",
@@ -171,6 +173,118 @@ function BackArrow() {
   );
 }
 
+function DragHandleIcon() {
+  return (
+    <svg width="14" height="20" viewBox="0 0 14 20" fill="currentColor">
+      <circle cx="4" cy="4" r="1.6" />
+      <circle cx="10" cy="4" r="1.6" />
+      <circle cx="4" cy="10" r="1.6" />
+      <circle cx="10" cy="10" r="1.6" />
+      <circle cx="4" cy="16" r="1.6" />
+      <circle cx="10" cy="16" r="1.6" />
+    </svg>
+  );
+}
+
+function ChevronUpIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M3 8.5L7 4.5L11 8.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ChevronDownIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M3 5.5L7 9.5L11 5.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function PriorityRanker({ order, onChange }: { order: string[]; onChange: (next: string[]) => void }) {
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  function handleDragEnter(index: number) {
+    setDragOverIndex(index);
+    if (dragIndex === null || dragIndex === index) return;
+    const next = [...order];
+    const [moved] = next.splice(dragIndex, 1);
+    next.splice(index, 0, moved);
+    setDragIndex(index);
+    onChange(next);
+  }
+
+  function handleDragEnd() {
+    setDragIndex(null);
+    setDragOverIndex(null);
+  }
+
+  function move(index: number, delta: number) {
+    const target = index + delta;
+    if (target < 0 || target >= order.length) return;
+    const next = [...order];
+    [next[index], next[target]] = [next[target], next[index]];
+    onChange(next);
+  }
+
+  return (
+    <ol className="space-y-2">
+      {order.map((label, index) => {
+        const priority = PRIORITIES.find((p) => p.label === label);
+        if (!priority) return null;
+        return (
+          <li
+            key={label}
+            draggable
+            onDragStart={() => setDragIndex(index)}
+            onDragEnter={() => handleDragEnter(index)}
+            onDragOver={(e) => e.preventDefault()}
+            onDragEnd={handleDragEnd}
+            className={`flex cursor-grab items-center gap-3 rounded-2xl border px-4 py-3 transition-colors active:cursor-grabbing ${
+              dragOverIndex === index
+                ? "border-emerald-500/60 bg-emerald-500/[0.06]"
+                : "border-white/10 bg-white/[0.02]"
+            }`}
+          >
+            <span className="shrink-0 text-zinc-600">
+              <DragHandleIcon />
+            </span>
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-xs font-bold text-emerald-400 ring-1 ring-emerald-500/30">
+              {index + 1}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold text-white">{priority.label}</div>
+              <div className="text-xs text-zinc-500">{priority.clarifier}</div>
+            </div>
+            <div className="flex shrink-0 flex-col">
+              <button
+                type="button"
+                aria-label={`Move ${priority.label} up`}
+                disabled={index === 0}
+                onClick={() => move(index, -1)}
+                className="rounded p-1 text-zinc-500 transition-colors hover:text-white disabled:opacity-30 disabled:hover:text-zinc-500"
+              >
+                <ChevronUpIcon />
+              </button>
+              <button
+                type="button"
+                aria-label={`Move ${priority.label} down`}
+                disabled={index === order.length - 1}
+                onClick={() => move(index, 1)}
+                className="rounded p-1 text-zinc-500 transition-colors hover:text-white disabled:opacity-30 disabled:hover:text-zinc-500"
+              >
+                <ChevronDownIcon />
+              </button>
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 function BuildingVisual({ answers, currentStepId }: { answers: Answers; currentStepId: keyof Answers }) {
   const colorClass = POWERTRAIN_COLOR[answers.powertrain];
   const scale = FAMILY_SCALE[answers.familySize] ?? 1;
@@ -237,7 +351,7 @@ function QuestionPanel({
   rankedValues,
   onSelect,
   onTextChange,
-  onToggleRank,
+  onReorderPriorities,
   onBack,
   onContinue,
   onSkip,
@@ -249,7 +363,7 @@ function QuestionPanel({
   rankedValues: string[];
   onSelect: (value: string) => void;
   onTextChange: (value: string) => void;
-  onToggleRank: (label: string) => void;
+  onReorderPriorities: (order: string[]) => void;
   onBack: () => void;
   onContinue: () => void;
   onSkip: () => void;
@@ -309,52 +423,13 @@ function QuestionPanel({
 
       {step.kind === "rank" && (
         <div className="mt-8">
-          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-            {PRIORITIES.map((priority) => {
-              const rankPosition = rankedValues.indexOf(priority.label);
-              const selected = rankPosition !== -1;
-              const disabled = !selected && rankedValues.length >= 3;
-              return (
-                <button
-                  key={priority.label}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => onToggleRank(priority.label)}
-                  className={`flex items-start gap-3 rounded-2xl border px-5 py-4 text-left transition-all ${
-                    selected
-                      ? "border-emerald-500 bg-emerald-500 text-zinc-950 shadow-md shadow-emerald-500/20"
-                      : disabled
-                        ? "cursor-not-allowed border-white/10 bg-white/[0.02] text-zinc-600 opacity-50"
-                        : "border-white/10 bg-white/[0.02] text-zinc-200 hover:border-white/25 hover:bg-white/[0.05]"
-                  }`}
-                >
-                  <span
-                    className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                      selected ? "bg-zinc-950 text-emerald-400" : "bg-white/10 text-zinc-500"
-                    }`}
-                  >
-                    {selected ? rankPosition + 1 : ""}
-                  </span>
-                  <span>
-                    <span className="block text-sm font-semibold">{priority.label}</span>
-                    <span className={`block text-xs ${selected ? "text-zinc-900/70" : "text-zinc-500"}`}>
-                      {priority.clarifier}
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+          <PriorityRanker order={rankedValues} onChange={onReorderPriorities} />
           <div className="mt-6 flex flex-col-reverse items-center gap-3 sm:flex-row sm:justify-between">
-            <p className="text-xs text-zinc-500">
-              {rankedValues.length}/3 selected
-              {rankedValues.length < 3 ? " — pick in order of importance" : ""}
-            </p>
+            <p className="text-xs text-zinc-500">Drag the grip, or use the arrows, to reorder.</p>
             <button
               type="button"
-              disabled={rankedValues.length !== 3}
               onClick={onContinue}
-              className="rounded-full bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400"
+              className="rounded-full bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400"
             >
               Continue
             </button>
@@ -637,15 +712,8 @@ export function Matchmaker() {
     goNext();
   }
 
-  function toggleRank(label: string) {
-    setAnswers((prev) => {
-      const current = prev.priorities;
-      if (current.includes(label)) {
-        return { ...prev, priorities: current.filter((l) => l !== label) };
-      }
-      if (current.length >= 3) return prev;
-      return { ...prev, priorities: [...current, label] };
-    });
+  function reorderPriorities(order: string[]) {
+    setAnswers((prev) => ({ ...prev, priorities: order }));
   }
 
   function setText(id: keyof Answers, value: string) {
@@ -690,7 +758,7 @@ export function Matchmaker() {
                 rankedValues={answers.priorities}
                 onSelect={(value) => select(currentStep.id, value)}
                 onTextChange={(value) => setText(currentStep.id, value)}
-                onToggleRank={toggleRank}
+                onReorderPriorities={reorderPriorities}
                 onBack={goBack}
                 onContinue={goNext}
                 onSkip={goNext}
