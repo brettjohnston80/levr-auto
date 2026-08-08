@@ -16,7 +16,7 @@ type FaqItem = {
 const FAQS: FaqItem[] = [
   {
     q: "What exactly does LEVR Auto do?",
-    a: "You tell us the exact new vehicle you want, and we reach out to dealers nationwide on your behalf — negotiating every offer that comes back. You review what we bring you and decide what to do next, no obligation either way.",
+    a: "You tell us the exact new vehicle you want, and we reach out to dealers nationwide on your behalf — negotiating every offer. You review what we bring you and decide what to do next, no obligation either way.",
   },
   {
     q: "Do you search for used or pre-owned vehicles?",

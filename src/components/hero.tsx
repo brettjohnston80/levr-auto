@@ -16,7 +16,7 @@ export function Hero() {
         </h1>
         <p className="mt-6 max-w-2xl text-lg text-zinc-400 sm:text-xl">
           Tell us the exact car you want. We reach out to dealers nationwide, and we negotiate
-          every offer that comes back — so you never have to haggle.
+          every offer — so you never have to haggle.
         </p>
         <GetStartedButton className="mt-10 inline-flex items-center justify-center rounded-full bg-emerald-500 px-8 py-3.5 text-base font-semibold text-zinc-950 transition-colors hover:bg-emerald-400">
           Get Started

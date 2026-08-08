@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "LEVR Auto — Car buying, with the leverage on your side.",
   description:
-    "Tell us the exact car you want. We reach out to dealers nationwide and negotiate every offer that comes back — so you never have to haggle.",
+    "Tell us the exact car you want. We reach out to dealers nationwide and negotiate every offer — so you never have to haggle.",
 };
 
 export default function RootLayout({
