@@ -16,6 +16,10 @@ Full business logic lives in `LEVR-Auto-Core-Processes-v1.md` and `LEVR-Auto-Bus
 - **Built so far:** landing page with intake filter UI, `/matchmaker` page — both front-end only, no backend, mock/no data persistence
 - **Not built at all yet:** auth, database, payments, dealer matching, outreach, dashboard — everything below this line is genuinely greenfield
 
+## Pre-launch to-dos — don't forget these once there's real customer data
+
+- **Preview deployments point at the same production Supabase project as live** (same DB, same auth users — no separate staging/test project exists yet). Fine for now since there's no real customer data, but this needs a proper split — a separate Supabase project for Preview, or branch-aware config — before real launch, so a test PR can never touch live customer data.
+
 ## Tech stack (decided)
 
 - Next.js — app framework
