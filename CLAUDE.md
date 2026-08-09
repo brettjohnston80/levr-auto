@@ -24,7 +24,7 @@ Full business logic lives in `LEVR-Auto-Core-Processes-v1.md` and `LEVR-Auto-Bus
 ## Pre-launch to-dos — don't forget these once there's real customer data
 
 - **Preview deployments point at the same production Supabase project as live** (same DB, same auth users — no separate staging/test project exists yet). Fine for now since there's no real customer data, but this needs a proper split — a separate Supabase project for Preview, or branch-aware config — before real launch, so a test PR can never touch live customer data.
-- **Stripe is in test mode everywhere** (`sk_test_...` / `whsec_...`, "LEVR Auto sandbox" account). No live keys configured anywhere — local, Preview, or Production. Before real launch: switch to live keys, register a real webhook endpoint in the Stripe Dashboard (local dev used `stripe listen` for forwarding, which doesn't exist in deployed environments), and set `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET` for Production (and decide what Preview should use, given the point above).
+- **Stripe is in test mode everywhere** (`sk_test_...` / `whsec_...`, "LEVR Auto sandbox" account). No live keys configured anywhere — local, Preview, or Production. A real (test-mode) webhook endpoint is registered in the Stripe sandbox pointing at `https://levrauto.com/api/stripe/webhook` (`we_1U2cbg8FQdYEFttXePzCHvX8`, `checkout.session.completed` only), and `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET` are set on both Vercel Production and Preview (Preview shares the endpoint/keys for now, consistent with Preview sharing the production Supabase project above). Before real launch: switch to live keys, and register a separate live-mode webhook endpoint (test-mode endpoints don't receive live events).
 
 ## Tech stack (decided)
 
