@@ -10,11 +10,15 @@ Legal entity: **LEVR Holdings LLC** (Kansas). Public brand: **LEVR Auto**.
 
 Full business logic lives in `LEVR-Auto-Core-Processes-v1.md` and `LEVR-Auto-Business-Plan-and-Roadmap.md` in this repo — read those for anything not covered here.
 
-## Current state (as of this file's creation)
+## Current state (updated 2026-08-09 — keep this current, it's the first thing read each session)
 
 - **Live site:** levrauto.com (Next.js + Tailwind, deployed on Vercel, GitHub repo `brettjohnston80/levr-auto`)
-- **Built so far:** landing page with intake filter UI, `/matchmaker` page — both front-end only, no backend, mock/no data persistence
-- **Not built at all yet:** auth, database, payments, dealer matching, outreach, dashboard — everything below this line is genuinely greenfield
+- **Built and live:**
+  - Database schema — `agents`, `customers`, `customer_searches`, `listings`, `qualifying_offers`, RLS on all five (`supabase/migrations/`)
+  - Auth — Supabase Auth email/password sign-up + login (`/login`, `/signup`, `/account`), a DB trigger auto-creates the matching `customers` row on signup
+  - Intake flow → real DB — the homepage intake filter (make/model/trim/color/zip) writes real `customer_searches` rows. Not signed in? An inline modal prompts login/signup right at the "Continue" click (not before) — no separate nav entry point exists for this on purpose. Rows land at `search_status = 'pending_refinement'` / `guarantee_status = 'pending'` / `paid_at = null` by default, correctly reflecting that payment (and the 24h post-payment refinement window before search_status → `'searching'`) hasn't happened yet.
+  - `/matchmaker` page — still front-end only, mock data, not wired to the DB
+- **Not built yet:** payment (Stripe), MarketCheck integration, outreach engine, dealer-reply parsing, customer dashboard, change-request logic, financing/document flow, delivery coordination, admin views — see Build order below for the sequence
 
 ## Pre-launch to-dos — don't forget these once there's real customer data
 
@@ -33,10 +37,10 @@ Full business logic lives in `LEVR-Auto-Core-Processes-v1.md` and `LEVR-Auto-Bus
 
 ## Build order (do in this sequence)
 
-1. **Database schema first** (see below) — everything else depends on this
-2. Auth (Supabase Auth)
-3. Intake flow → writes to real DB (replace the current mock intake filter)
-4. Payment (Stripe) tied to the 3 tiers: $699 / $899 / $999
+1. ~~**Database schema first**~~ — **done**
+2. ~~Auth (Supabase Auth)~~ — **done**
+3. ~~Intake flow → writes to real DB~~ — **done**
+4. **Payment (Stripe) tied to the 3 tiers: $699 / $899 / $999 — next up**
 5. MarketCheck integration — nightly/weekly sync per the demand-driven refresh strategy below
 6. Outreach engine — **mechanism deliberately unproven, deferred.** Don't over-build automation here yet; keep this manual/lightweight until real-world dealer response patterns are observed
 7. Inbound reply parsing (Claude API) → populates `qualifying_offers`
