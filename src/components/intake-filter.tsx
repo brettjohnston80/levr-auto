@@ -5,6 +5,7 @@ import { COLORS, MAKES, MAKES_AND_MODELS, TIER_PRICING } from "@/lib/vehicle-dat
 import { estimateMatches } from "@/lib/match-counter";
 import { createClient } from "@/lib/supabase/client";
 import { saveIntakeSearches } from "@/lib/intake-actions";
+import { createCheckoutSession } from "@/lib/payment-actions";
 import { AuthGateModal } from "@/components/auth-gate-modal";
 
 type VehicleSlot = {
@@ -182,6 +183,9 @@ export function IntakeFilter() {
   const [authGateOpen, setAuthGateOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [searchIds, setSearchIds] = useState<string[]>([]);
+  const [payingNow, setPayingNow] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
   const nextId = useRef(2);
   const resumeChecked = useRef(false);
 
@@ -224,7 +228,23 @@ export function IntakeFilter() {
     }
 
     clearPendingIntake();
+    setSearchIds(result.searchIds);
     setSubmitted(true);
+  }
+
+  async function handleCheckout() {
+    setPayingNow(true);
+    setPayError(null);
+
+    const result = await createCheckoutSession(searchIds);
+
+    if (!result.ok) {
+      setPayingNow(false);
+      setPayError(result.error);
+      return;
+    }
+
+    window.location.href = result.url;
   }
 
   // Resume-after-email-confirmation: if a pending intake was stashed before a
@@ -274,6 +294,8 @@ export function IntakeFilter() {
     setZip("");
     setSubmitted(false);
     setSaveError(null);
+    setSearchIds([]);
+    setPayError(null);
   }
 
   if (submitted) {
@@ -310,16 +332,29 @@ export function IntakeFilter() {
               ~{totalMatches.toLocaleString()} vehicles nationwide currently match this search.
             </p>
             <p className="mt-4 text-sm text-zinc-400">
-              Checkout and payment come next — nothing has been charged yet. Once you check out,
-              you&apos;ll fine-tune options like sunroof, leather, and packages before we start
-              reaching out to dealers.
+              Nothing has been charged yet. Once you check out, you&apos;ll fine-tune options like
+              sunroof, leather, and packages before we start reaching out to dealers.
             </p>
+            {payError && (
+              <p className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+                {payError}
+              </p>
+            )}
             <button
-              onClick={startOver}
-              className="mt-8 rounded-full border border-white/20 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+              onClick={handleCheckout}
+              disabled={payingNow}
+              className="mt-8 w-full rounded-full bg-emerald-500 px-8 py-3.5 text-base font-semibold text-zinc-950 transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400 sm:w-auto"
             >
-              Start Over
+              {payingNow ? "Redirecting to checkout…" : `Proceed to Payment — $${price}`}
             </button>
+            <div>
+              <button
+                onClick={startOver}
+                className="mt-4 rounded-full border border-white/20 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+              >
+                Start Over
+              </button>
+            </div>
           </div>
         </div>
       </section>

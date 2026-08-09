@@ -16,13 +16,15 @@ Full business logic lives in `LEVR-Auto-Core-Processes-v1.md` and `LEVR-Auto-Bus
 - **Built and live:**
   - Database schema — `agents`, `customers`, `customer_searches`, `listings`, `qualifying_offers`, RLS on all five (`supabase/migrations/`)
   - Auth — Supabase Auth email/password sign-up + login (`/login`, `/signup`, `/account`), a DB trigger auto-creates the matching `customers` row on signup
-  - Intake flow → real DB — the homepage intake filter (make/model/trim/color/zip) writes real `customer_searches` rows. Not signed in? An inline modal prompts login/signup right at the "Continue" click (not before) — no separate nav entry point exists for this on purpose. Rows land at `search_status = 'pending_refinement'` / `guarantee_status = 'pending'` / `paid_at = null` by default, correctly reflecting that payment (and the 24h post-payment refinement window before search_status → `'searching'`) hasn't happened yet.
+  - Intake flow → real DB — the homepage intake filter (make/model/trim/color/zip) writes real `customer_searches` rows. Not signed in? An inline modal prompts login/signup right at the "Continue" click (not before) — no separate nav entry point exists for this on purpose. Rows land at `search_status = 'pending_refinement'` / `guarantee_status = 'pending'` / `paid_at = null` by default.
+  - Payment — Stripe Checkout (test mode), tied to the 3 tiers. After saving the intake rows, "Proceed to Payment" creates a Checkout Session (via `createCheckoutSession`, `src/lib/payment-actions.ts`) and redirects to Stripe's hosted page. On `checkout.session.completed` (`src/app/api/stripe/webhook/route.ts`), the webhook sets `paid_at` and `stripe_checkout_session_id` on the paid `customer_searches` row(s) — this is the Day-30/Day-60 guarantee clock anchor. Verified end-to-end with a real test-mode payment and a real webhook delivery (via `stripe listen`), including a replay test proving the `paid_at IS NULL` guard makes it idempotent. Deliberately does **not** touch `search_status` — that only moves to `'searching'` once the 24h post-payment refinement window closes, which is separate, unbuilt logic. Live keys not configured anywhere — test mode only until the business is actually ready to take real money.
   - `/matchmaker` page — still front-end only, mock data, not wired to the DB
-- **Not built yet:** payment (Stripe), MarketCheck integration, outreach engine, dealer-reply parsing, customer dashboard, change-request logic, financing/document flow, delivery coordination, admin views — see Build order below for the sequence
+- **Not built yet:** MarketCheck integration, outreach engine, dealer-reply parsing, customer dashboard, change-request logic (incl. the 24h refinement window → `search_status = 'searching'` transition), financing/document flow, delivery coordination, admin views — see Build order below for the sequence
 
 ## Pre-launch to-dos — don't forget these once there's real customer data
 
 - **Preview deployments point at the same production Supabase project as live** (same DB, same auth users — no separate staging/test project exists yet). Fine for now since there's no real customer data, but this needs a proper split — a separate Supabase project for Preview, or branch-aware config — before real launch, so a test PR can never touch live customer data.
+- **Stripe is in test mode everywhere** (`sk_test_...` / `whsec_...`, "LEVR Auto sandbox" account). No live keys configured anywhere — local, Preview, or Production. Before real launch: switch to live keys, register a real webhook endpoint in the Stripe Dashboard (local dev used `stripe listen` for forwarding, which doesn't exist in deployed environments), and set `STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET` for Production (and decide what Preview should use, given the point above).
 
 ## Tech stack (decided)
 
@@ -40,8 +42,8 @@ Full business logic lives in `LEVR-Auto-Core-Processes-v1.md` and `LEVR-Auto-Bus
 1. ~~**Database schema first**~~ — **done**
 2. ~~Auth (Supabase Auth)~~ — **done**
 3. ~~Intake flow → writes to real DB~~ — **done**
-4. **Payment (Stripe) tied to the 3 tiers: $699 / $899 / $999 — next up**
-5. MarketCheck integration — nightly/weekly sync per the demand-driven refresh strategy below
+4. ~~Payment (Stripe) tied to the 3 tiers: $699 / $899 / $999~~ — **done, test mode**
+5. **MarketCheck integration — nightly/weekly sync per the demand-driven refresh strategy below — next up**
 6. Outreach engine — **mechanism deliberately unproven, deferred.** Don't over-build automation here yet; keep this manual/lightweight until real-world dealer response patterns are observed
 7. Inbound reply parsing (Claude API) → populates `qualifying_offers`
 8. Dashboard (customer-facing)

@@ -9,7 +9,9 @@ export type IntakeVehicle = {
   colors: string[];
 };
 
-export type SaveIntakeResult = { ok: true } | { ok: false; error: string; requiresAuth?: boolean };
+export type SaveIntakeResult =
+  | { ok: true; searchIds: string[] }
+  | { ok: false; error: string; requiresAuth?: boolean };
 
 // Writes one customer_searches row per vehicle in the package, all sharing the
 // same package_size (1/2/3, matching the $699/$899/$999 tiers). No payment
@@ -41,11 +43,11 @@ export async function saveIntakeSearches(
     package_size: packageSize,
   }));
 
-  const { error } = await supabase.from("customer_searches").insert(rows);
+  const { data, error } = await supabase.from("customer_searches").insert(rows).select("id");
 
   if (error) {
     return { ok: false, error: error.message };
   }
 
-  return { ok: true };
+  return { ok: true, searchIds: data.map((row) => row.id) };
 }
