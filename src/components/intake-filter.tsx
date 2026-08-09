@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { COLORS, MAKES, MAKES_AND_MODELS, TIER_PRICING } from "@/lib/vehicle-data";
 import { estimateMatches } from "@/lib/match-counter";
+import { createClient } from "@/lib/supabase/client";
+import { saveIntakeSearches } from "@/lib/intake-actions";
+import { AuthGateModal } from "@/components/auth-gate-modal";
 
 type VehicleSlot = {
   id: number;
@@ -14,6 +17,32 @@ type VehicleSlot = {
 
 function createVehicle(id: number): VehicleSlot {
   return { id, make: "", model: "", trim: "", colors: [] };
+}
+
+const PENDING_INTAKE_KEY = "levr_pending_intake";
+const PENDING_INTAKE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+type PendingIntake = { vehicles: VehicleSlot[]; zip: string; savedAt: number };
+
+function stashPendingIntake(vehicles: VehicleSlot[], zip: string) {
+  const payload: PendingIntake = { vehicles, zip, savedAt: Date.now() };
+  window.localStorage.setItem(PENDING_INTAKE_KEY, JSON.stringify(payload));
+}
+
+function readPendingIntake(): PendingIntake | null {
+  const raw = window.localStorage.getItem(PENDING_INTAKE_KEY);
+  if (!raw) return null;
+  try {
+    const parsed: PendingIntake = JSON.parse(raw);
+    if (Date.now() - parsed.savedAt > PENDING_INTAKE_TTL_MS) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function clearPendingIntake() {
+  window.localStorage.removeItem(PENDING_INTAKE_KEY);
 }
 
 function toggleInArray(list: string[], value: string): string[] {
@@ -150,7 +179,11 @@ export function IntakeFilter() {
   const [vehicles, setVehicles] = useState<VehicleSlot[]>([createVehicle(1)]);
   const [zip, setZip] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [authGateOpen, setAuthGateOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const nextId = useRef(2);
+  const resumeChecked = useRef(false);
 
   const zipTouched = zip.length > 0;
   const zipValid = /^\d{5}$/.test(zip);
@@ -163,6 +196,65 @@ export function IntakeFilter() {
     0
   );
   const anyMatchesReady = vehicles.some((v) => v.make);
+
+  async function performSave(vehiclesToSave: VehicleSlot[], zipToSave: string) {
+    setSaving(true);
+    setSaveError(null);
+
+    const result = await saveIntakeSearches(
+      vehiclesToSave.map((v) => ({
+        make: v.make,
+        model: v.model,
+        trim: v.trim,
+        colors: v.colors,
+      })),
+      zipToSave
+    );
+
+    setSaving(false);
+
+    if (!result.ok) {
+      if (result.requiresAuth) {
+        stashPendingIntake(vehiclesToSave, zipToSave);
+        setAuthGateOpen(true);
+      } else {
+        setSaveError(result.error);
+      }
+      return;
+    }
+
+    clearPendingIntake();
+    setSubmitted(true);
+  }
+
+  // Resume-after-email-confirmation: if a pending intake was stashed before a
+  // signup and the user is now signed in (e.g. they clicked the confirmation
+  // link and landed back here), finish the save automatically.
+  useEffect(() => {
+    if (resumeChecked.current) return;
+    resumeChecked.current = true;
+
+    const pending = readPendingIntake();
+    if (!pending) return;
+
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      setVehicles(pending.vehicles);
+      setZip(pending.zip);
+      performSave(pending.vehicles, pending.zip);
+    });
+  }, []);
+
+  async function handleContinue() {
+    if (!canSubmit || saving) return;
+    await performSave(vehicles, zip);
+  }
+
+  function handleAuthenticated() {
+    setAuthGateOpen(false);
+    performSave(vehicles, zip);
+  }
 
   function updateVehicle(id: number, patch: Partial<VehicleSlot>) {
     setVehicles((prev) => prev.map((v) => (v.id === id ? { ...v, ...patch } : v)));
@@ -181,6 +273,7 @@ export function IntakeFilter() {
     setVehicles([createVehicle(nextId.current++)]);
     setZip("");
     setSubmitted(false);
+    setSaveError(null);
   }
 
   if (submitted) {
@@ -192,7 +285,7 @@ export function IntakeFilter() {
               ✓
             </span>
             <h2 className="mt-6 text-2xl font-semibold text-white">
-              Nice pick — here&apos;s what we&apos;d search for.
+              Nice pick — your search is saved.
             </h2>
             <ul className="mt-6 space-y-3 text-left">
               {vehicles.map((v, i) => (
@@ -217,10 +310,9 @@ export function IntakeFilter() {
               ~{totalMatches.toLocaleString()} vehicles nationwide currently match this search.
             </p>
             <p className="mt-4 text-sm text-zinc-400">
-              This is a front-end preview — checkout, payment, and dealer outreach launch soon.
-              Nothing has been charged or submitted. Once you check out, you&apos;ll fine-tune
-              options like sunroof, leather, and packages before we start reaching out to
-              dealers.
+              Checkout and payment come next — nothing has been charged yet. Once you check out,
+              you&apos;ll fine-tune options like sunroof, leather, and packages before we start
+              reaching out to dealers.
             </p>
             <button
               onClick={startOver}
@@ -429,11 +521,11 @@ export function IntakeFilter() {
             </div>
             <button
               type="button"
-              disabled={!canSubmit}
-              onClick={() => setSubmitted(true)}
+              disabled={!canSubmit || saving}
+              onClick={handleContinue}
               className="w-full rounded-full bg-emerald-500 px-8 py-3.5 text-base font-semibold text-zinc-950 transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400 sm:w-auto"
             >
-              Continue
+              {saving ? "Saving…" : "Continue"}
             </button>
           </div>
           {!canSubmit && (
@@ -441,8 +533,17 @@ export function IntakeFilter() {
               Select a make and model for every vehicle and enter a valid zip code to continue.
             </p>
           )}
+          {saveError && (
+            <p className="mt-3 text-right text-xs text-red-400">{saveError}</p>
+          )}
         </div>
       </div>
+
+      <AuthGateModal
+        open={authGateOpen}
+        onClose={() => setAuthGateOpen(false)}
+        onAuthenticated={handleAuthenticated}
+      />
     </section>
   );
 }
