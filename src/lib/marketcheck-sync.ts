@@ -4,6 +4,21 @@ import { searchActiveListings, type MarketCheckListing } from "./marketcheck";
 
 const PAGE_SIZE = 50;
 
+/**
+ * MarketCheck's own car_type=new filter isn't fully reliable on its own —
+ * verified against real data that it still lets through listings for older
+ * model years (e.g. a 2019 model tagged car_type: new). A model year of the
+ * current year or one year ahead (accounts for early release of next-model-
+ * year vehicles) is the trustworthiness bar; anything older, or missing a
+ * year entirely, is excluded rather than stored as if it were real new
+ * inventory.
+ */
+function isTrustworthyNewListingYear(year: number | null | undefined): boolean {
+  if (year == null) return false;
+  const currentYear = new Date().getFullYear();
+  return year === currentYear || year === currentYear + 1;
+}
+
 function toListingRow(listing: MarketCheckListing, fallbackMake: string, fallbackModel: string) {
   return {
     vin: listing.vin,
@@ -44,6 +59,7 @@ export async function syncListingsForMakeModel(
   let start = 0;
   let totalFound = 0;
   let upserted = 0;
+  let excludedForYear = 0;
   let pages = 0;
 
   for (let page = 0; page < maxPages; page++) {
@@ -53,9 +69,11 @@ export async function syncListingsForMakeModel(
 
     if (result.listings.length === 0) break;
 
-    const rows = result.listings
-      .filter((listing) => !!listing.vin)
-      .map((listing) => toListingRow(listing, make, model));
+    const withVin = result.listings.filter((listing) => !!listing.vin);
+    const trusted = withVin.filter((listing) => isTrustworthyNewListingYear(listing.build?.year));
+    excludedForYear += withVin.length - trusted.length;
+
+    const rows = trusted.map((listing) => toListingRow(listing, make, model));
 
     if (rows.length > 0) {
       const { error } = await supabase.from("listings").upsert(rows, { onConflict: "vin" });
@@ -69,5 +87,5 @@ export async function syncListingsForMakeModel(
     if (start >= totalFound) break;
   }
 
-  return { make, model, totalFound, upserted, pages };
+  return { make, model, totalFound, upserted, excludedForYear, pages };
 }
