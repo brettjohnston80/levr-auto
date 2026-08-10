@@ -69,12 +69,34 @@ export async function logout() {
   redirect("/");
 }
 
-// Used by /auth/reset-password. Relies on the session already established by
-// /auth/callback's code exchange (the recovery email link routes through
-// there first) — updateUser() acts on whatever session is currently active.
-// Signs out afterward so the user has to log back in with the new password,
-// matching the redirect-to-login UX and doubling as a real verification that
-// the new password actually works.
+// Used by /forgot-password. Always redirects with the same generic message
+// regardless of whether the email actually has an account — resetPasswordForEmail
+// doesn't error on an unknown address, and echoing a different message for
+// "not found" would let someone enumerate real accounts by email.
+export async function requestPasswordReset(formData: FormData) {
+  const email = formData.get("email") as string;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+
+  if (email) {
+    const supabase = await createClient();
+    await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${siteUrl}/auth/reset-password`,
+    });
+  }
+
+  redirect(
+    `/forgot-password?message=${encodeURIComponent(
+      "If an account exists for that email, a reset link is on its way."
+    )}`
+  );
+}
+
+// Used by /auth/reset-password, which establishes the session itself
+// client-side (parses the recovery link's hash-fragment tokens and calls
+// setSession()) before this ever runs — updateUser() just acts on whatever
+// session is currently active. Signs out afterward so the user has to log
+// back in with the new password, matching the redirect-to-login UX and
+// doubling as a real verification that the new password actually works.
 export async function updatePasswordFromRecovery(formData: FormData) {
   const password = formData.get("password") as string;
 

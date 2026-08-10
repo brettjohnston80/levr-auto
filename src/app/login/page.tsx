@@ -47,7 +47,15 @@ export default async function LoginPage({
             />
           </label>
           <label className="block">
-            <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">Password</span>
+            <div className="flex items-baseline justify-between">
+              <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">Password</span>
+              <Link
+                href="/forgot-password"
+                className="text-xs text-emerald-400 transition-colors hover:text-emerald-300"
+              >
+                Forgot password?
+              </Link>
+            </div>
             <input
               type="password"
               name="password"
