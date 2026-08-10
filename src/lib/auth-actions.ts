@@ -69,6 +69,30 @@ export async function logout() {
   redirect("/");
 }
 
+// Used by /auth/reset-password. Relies on the session already established by
+// /auth/callback's code exchange (the recovery email link routes through
+// there first) — updateUser() acts on whatever session is currently active.
+// Signs out afterward so the user has to log back in with the new password,
+// matching the redirect-to-login UX and doubling as a real verification that
+// the new password actually works.
+export async function updatePasswordFromRecovery(formData: FormData) {
+  const password = formData.get("password") as string;
+
+  if (!password || password.length < 8) {
+    return { ok: false, error: "Password must be at least 8 characters." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.updateUser({ password });
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  await supabase.auth.signOut();
+  return { ok: true };
+}
+
 // Inline versions — used by the intake-flow auth gate modal. Return a result
 // instead of redirecting, so the caller can stay on the same page.
 
