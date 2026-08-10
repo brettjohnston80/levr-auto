@@ -15,14 +15,30 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // This project's recovery emails use the implicit flow: Supabase
-    // redirects here with access_token/refresh_token in the URL hash
-    // fragment, which is client-only and never reaches the server — so
-    // there's no ?code= to exchange server-side via /auth/callback. The
-    // session has to be established here, client-side, via setSession().
+    // Preferred path: /auth/confirm already established a real session
+    // (via an explicit user click, not an auto-fetched link) before
+    // redirecting here — just use it.
+    //
+    // Fallback path: a direct Supabase recovery link (implicit flow —
+    // access_token/refresh_token in the URL hash fragment, client-only,
+    // never reaches the server) landed here directly. Kept working for
+    // backwards compatibility and for generating quick test links without
+    // going through the email template.
+    //
     // All setState calls are deferred into a microtask so React doesn't see
     // a synchronous setState-in-effect.
     Promise.resolve().then(async () => {
+      const supabase = createClient();
+
+      const {
+        data: { user: existingUser },
+      } = await supabase.auth.getUser();
+
+      if (existingUser) {
+        setReady(true);
+        return;
+      }
+
       const hash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : "";
       const params = new URLSearchParams(hash);
       const accessToken = params.get("access_token");
@@ -34,7 +50,6 @@ export default function ResetPasswordPage() {
         return;
       }
 
-      const supabase = createClient();
       const { error } = await supabase.auth.setSession({
         access_token: accessToken,
         refresh_token: refreshToken,
