@@ -69,6 +69,46 @@ export default async function SignupPage({
             />
             <span className="mt-2 block text-xs text-zinc-500">At least 6 characters.</span>
           </label>
+
+          <label className="block">
+            <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
+              How should we update you?
+            </span>
+            <select
+              name="communicationChannel"
+              defaultValue="email"
+              className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900/80 px-4 py-3 text-sm font-medium text-white shadow-inner shadow-black/20 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
+            >
+              <option value="email">Email</option>
+              <option value="text">Text message</option>
+              <option value="agent_callback">A personal agent will call me</option>
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
+              How often?
+            </span>
+            <select
+              name="communicationFrequency"
+              defaultValue="real_time"
+              className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900/80 px-4 py-3 text-sm font-medium text-white shadow-inner shadow-black/20 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
+            >
+              <option value="real_time">As soon as it happens</option>
+              <option value="daily_digest">Once-a-day digest</option>
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
+              Phone number <span className="text-zinc-500 normal-case">(required for text updates)</span>
+            </span>
+            <input
+              type="tel"
+              name="phone"
+              autoComplete="tel"
+              className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900/80 px-4 py-3 text-sm font-medium text-white shadow-inner shadow-black/20 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
+            />
+          </label>
+
           <button
             type="submit"
             className="w-full rounded-full bg-emerald-500 px-6 py-3 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400"

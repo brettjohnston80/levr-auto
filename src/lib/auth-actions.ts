@@ -9,20 +9,35 @@ async function attemptLogin(email: string, password: string) {
   return { ok: !error, error: error?.message };
 }
 
+export interface CommunicationPreferences {
+  frequency: "real_time" | "daily_digest";
+  channel: "text" | "email" | "agent_callback";
+  phone?: string;
+}
+
 async function attemptSignup(
   email: string,
   password: string,
   fullName: string | undefined,
-  redirectPath: string
+  redirectPath: string,
+  communicationPreferences?: CommunicationPreferences
 ) {
   const supabase = await createClient();
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+
+  const metadata: Record<string, string> = {};
+  if (fullName) metadata.full_name = fullName;
+  if (communicationPreferences) {
+    metadata.communication_frequency = communicationPreferences.frequency;
+    metadata.communication_channel = communicationPreferences.channel;
+    if (communicationPreferences.phone) metadata.phone = communicationPreferences.phone;
+  }
 
   const { error } = await supabase.auth.signUp({
     email,
     password,
     options: {
-      data: fullName ? { full_name: fullName } : undefined,
+      data: Object.keys(metadata).length > 0 ? metadata : undefined,
       emailRedirectTo: `${siteUrl}${redirectPath}`,
     },
   });
@@ -48,12 +63,20 @@ export async function login(formData: FormData) {
 
 export async function signup(formData: FormData) {
   const fullName = formData.get("fullName") as string;
+  const frequency = formData.get("communicationFrequency") as CommunicationPreferences["frequency"];
+  const channel = formData.get("communicationChannel") as CommunicationPreferences["channel"];
+  const phone = (formData.get("phone") as string)?.trim();
+
+  if (channel === "text" && !phone) {
+    redirect(`/signup?error=${encodeURIComponent("A phone number is required for text updates.")}`);
+  }
 
   const result = await attemptSignup(
     formData.get("email") as string,
     formData.get("password") as string,
     fullName || undefined,
-    "/auth/callback"
+    "/auth/callback",
+    { frequency, channel, phone: phone || undefined }
   );
 
   if (!result.ok) {
