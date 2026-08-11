@@ -3,6 +3,9 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { logout } from "@/lib/auth-actions";
 import { getCustomerDashboard, type DashboardSearch } from "@/lib/customer-dashboard";
+import { OfferResponseButtons } from "@/components/offer-response-buttons";
+import { SwitchSearchForm } from "@/components/switch-search-form";
+import { AddonRemovalButton } from "@/components/addon-removal-button";
 
 export const metadata: Metadata = {
   title: "Your Account — LEVR Auto",
@@ -18,6 +21,15 @@ const SEARCH_STATUS_COPY: Record<string, string> = {
   closed: "Search closed.",
   switched: "Superseded by a newer search.",
 };
+
+const ADDON_REMOVAL_STATUS_COPY: Record<string, string> = {
+  pending: "Removal requested — waiting on the dealer",
+  dealer_accepted: "Dealer agreed to remove this",
+  dealer_declined: "Dealer declined to remove this",
+  dealer_countered: "Dealer countered",
+};
+
+const ADDON_REREQUESTABLE_STATUSES = ["none", "dealer_declined", "dealer_countered"];
 
 function formatCents(cents: number): string {
   return `$${(cents / 100).toLocaleString()}`;
@@ -125,12 +137,45 @@ function SearchCard({ search }: { search: DashboardSearch }) {
                 </p>
                 <p className="mt-1 text-xs text-zinc-500">
                   Delivered {formatDate(offer.deliveredAt)} — status: {offer.status.replace(/_/g, " ")}
+                  {offer.customerRespondedAt && ` on ${formatDate(offer.customerRespondedAt)}`}
                 </p>
+                {offer.status === "pending" && <OfferResponseButtons offerId={offer.id} />}
+
+                {offer.addons.length > 0 && (
+                  <div className="mt-3 border-t border-white/5 pt-3">
+                    <p className="text-xs font-semibold text-zinc-400 uppercase">Add-ons</p>
+                    <ul className="mt-2 space-y-2">
+                      {offer.addons.map((addon) => (
+                        <li key={addon.id} className="text-sm">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-zinc-300">
+                              {addon.description} — {formatCents(addon.amountCents)}
+                            </span>
+                            {ADDON_REREQUESTABLE_STATUSES.includes(addon.removalStatus) ? (
+                              <AddonRemovalButton addonId={addon.id} />
+                            ) : (
+                              <span className="text-xs text-zinc-500">
+                                {ADDON_REMOVAL_STATUS_COPY[addon.removalStatus] ?? addon.removalStatus}
+                              </span>
+                            )}
+                          </div>
+                          {addon.dealerResponse && (
+                            <p className="mt-1 text-xs text-zinc-500">&ldquo;{addon.dealerResponse}&rdquo;</p>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </li>
             ))}
           </ul>
         )}
       </div>
+
+      {search.searchStatus !== "switched" && search.searchStatus !== "closed" && (
+        <SwitchSearchForm searchId={search.id} />
+      )}
     </div>
   );
 }

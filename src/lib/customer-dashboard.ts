@@ -1,6 +1,14 @@
 import "server-only";
 import { createAdminClient } from "./supabase/admin";
 
+export interface DashboardAddon {
+  id: string;
+  description: string;
+  amountCents: number;
+  removalStatus: string;
+  dealerResponse: string | null;
+}
+
 export interface DashboardOffer {
   id: string;
   dealerName: string;
@@ -10,6 +18,8 @@ export interface DashboardOffer {
   status: string;
   receivedAt: string;
   deliveredAt: string;
+  customerRespondedAt: string | null;
+  addons: DashboardAddon[];
 }
 
 export interface DashboardSearch {
@@ -54,13 +64,39 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
   const { data: offers, error: offersError } = await supabase
     .from("qualifying_offers")
     .select(
-      "id, customer_search_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at"
+      "id, customer_search_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at"
     )
     .in("customer_search_id", searchIds)
     .order("received_at", { ascending: false });
 
   if (offersError) {
     throw new Error(`Failed to load qualifying offers: ${offersError.message}`);
+  }
+
+  const offerIds = (offers ?? []).map((o) => o.id);
+  const addonsByOfferId = new Map<string, DashboardAddon[]>();
+
+  if (offerIds.length > 0) {
+    const { data: addons, error: addonsError } = await supabase
+      .from("offer_addons")
+      .select("id, qualifying_offer_id, description, amount_cents, removal_status, dealer_response")
+      .in("qualifying_offer_id", offerIds);
+
+    if (addonsError) {
+      throw new Error(`Failed to load offer add-ons: ${addonsError.message}`);
+    }
+
+    for (const addon of addons ?? []) {
+      const list = addonsByOfferId.get(addon.qualifying_offer_id) ?? [];
+      list.push({
+        id: addon.id,
+        description: addon.description,
+        amountCents: addon.amount_cents,
+        removalStatus: addon.removal_status,
+        dealerResponse: addon.dealer_response,
+      });
+      addonsByOfferId.set(addon.qualifying_offer_id, list);
+    }
   }
 
   const undelivered = (offers ?? []).filter((o) => !o.delivered_at).map((o) => o.id);
@@ -91,6 +127,8 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
       status: offer.status,
       receivedAt: offer.received_at,
       deliveredAt: offer.delivered_at ?? deliveredAtNow!,
+      customerRespondedAt: offer.customer_responded_at,
+      addons: addonsByOfferId.get(offer.id) ?? [],
     });
     offersBySearchId.set(offer.customer_search_id, list);
   }

@@ -22,6 +22,15 @@ export interface OutreachListing {
   dealerPhone: string | null;
 }
 
+export interface OutreachAddon {
+  id: string;
+  description: string;
+  amountCents: number;
+  removalStatus: string;
+  removalRequestedAt: string | null;
+  dealerResponse: string | null;
+}
+
 export interface OutreachOffer {
   id: string;
   dealerName: string;
@@ -30,6 +39,10 @@ export interface OutreachOffer {
   isBelowMsrp: boolean;
   status: string;
   receivedAt: string;
+  deliveredAt: string | null;
+  customerRespondedAt: string | null;
+  vehicleSoldAt: string | null;
+  addons: OutreachAddon[];
 }
 
 export interface OutreachSearch {
@@ -91,12 +104,43 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
     ),
     supabase
       .from("qualifying_offers")
-      .select("id, customer_search_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at")
+      .select(
+        "id, customer_search_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at, vehicle_sold_at"
+      )
       .in("customer_search_id", searchIds),
   ]);
 
   if (offersError) {
     throw new Error(`Failed to load qualifying offers: ${offersError.message}`);
+  }
+
+  const offerIds = (offers ?? []).map((o) => o.id);
+  const addonsByOfferId = new Map<string, OutreachAddon[]>();
+
+  if (offerIds.length > 0) {
+    const { data: addons, error: addonsError } = await supabase
+      .from("offer_addons")
+      .select(
+        "id, qualifying_offer_id, description, amount_cents, removal_status, removal_requested_at, dealer_response"
+      )
+      .in("qualifying_offer_id", offerIds);
+
+    if (addonsError) {
+      throw new Error(`Failed to load offer add-ons: ${addonsError.message}`);
+    }
+
+    for (const addon of addons ?? []) {
+      const list = addonsByOfferId.get(addon.qualifying_offer_id) ?? [];
+      list.push({
+        id: addon.id,
+        description: addon.description,
+        amountCents: addon.amount_cents,
+        removalStatus: addon.removal_status,
+        removalRequestedAt: addon.removal_requested_at,
+        dealerResponse: addon.dealer_response,
+      });
+      addonsByOfferId.set(addon.qualifying_offer_id, list);
+    }
   }
 
   const customerEmailById = new Map((customers ?? []).map((c) => [c.id, c.email as string]));
@@ -114,6 +158,10 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
       isBelowMsrp: offer.is_below_msrp,
       status: offer.status,
       receivedAt: offer.received_at,
+      deliveredAt: offer.delivered_at,
+      customerRespondedAt: offer.customer_responded_at,
+      vehicleSoldAt: offer.vehicle_sold_at,
+      addons: addonsByOfferId.get(offer.id) ?? [],
     });
     offersBySearchId.set(offer.customer_search_id, list);
   }

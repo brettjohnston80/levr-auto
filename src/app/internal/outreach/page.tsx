@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { requireAgent } from "@/lib/agent-auth";
 import { getOutreachQueue } from "@/lib/outreach-queue";
 import { LogOfferForm } from "@/components/log-offer-form";
+import { MarkSoldButton } from "@/components/mark-sold-button";
+import { AddOfferAddonForm } from "@/components/add-offer-addon-form";
+import { ResolveAddonRemovalForm } from "@/components/resolve-addon-removal-form";
 
 export const metadata: Metadata = {
   title: "Outreach Queue — LEVR Auto Internal",
@@ -60,11 +63,40 @@ export default async function OutreachQueuePage() {
                 {search.offers.length > 0 && (
                   <div className="mt-4">
                     <h3 className="text-sm font-semibold text-zinc-300">Offers logged ({search.offers.length})</h3>
-                    <ul className="mt-2 space-y-1 text-sm text-zinc-400">
+                    <ul className="mt-2 space-y-3 text-sm text-zinc-400">
                       {search.offers.map((offer) => (
                         <li key={offer.id}>
                           {offer.dealerName} — ${(offer.offerPriceCents / 100).toLocaleString()}
                           {offer.isBelowMsrp ? " (below MSRP)" : " (at/above MSRP)"} — {offer.status}
+                          {offer.vehicleSoldAt ? (
+                            <span className="ml-2 text-amber-400">sold to another buyer</span>
+                          ) : (
+                            offer.isBelowMsrp && <MarkSoldButton offerId={offer.id} />
+                          )}
+
+                          {offer.addons.length > 0 && (
+                            <ul className="mt-1 ml-4 space-y-1 border-l border-white/10 pl-3">
+                              {offer.addons.map((addon) => (
+                                <li key={addon.id}>
+                                  <div>
+                                    {addon.description} — ${(addon.amountCents / 100).toLocaleString()}
+                                    {addon.removalStatus !== "none" && (
+                                      <span className="ml-2 text-zinc-500">[{addon.removalStatus.replace(/_/g, " ")}]</span>
+                                    )}
+                                  </div>
+                                  {addon.dealerResponse && (
+                                    <p className="text-xs text-zinc-500">&ldquo;{addon.dealerResponse}&rdquo;</p>
+                                  )}
+                                  {addon.removalStatus === "pending" && (
+                                    <ResolveAddonRemovalForm addonId={addon.id} />
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          <div className="ml-4">
+                            <AddOfferAddonForm offerId={offer.id} />
+                          </div>
                         </li>
                       ))}
                     </ul>
