@@ -9,6 +9,17 @@ export interface DashboardAddon {
   dealerResponse: string | null;
 }
 
+export interface DashboardDealProgress {
+  availabilityReconfirmedAt: string | null;
+  depositAmountCents: number | null;
+  depositConfirmedAt: string | null;
+  financingChoice: string | null;
+  financingIncomeRange: string | null;
+  financingDownPaymentCents: number | null;
+  financingDesiredTermMonths: number | null;
+  financingProofUploadedAt: string | null;
+}
+
 export interface DashboardOffer {
   id: string;
   dealerName: string;
@@ -20,6 +31,7 @@ export interface DashboardOffer {
   deliveredAt: string;
   customerRespondedAt: string | null;
   addons: DashboardAddon[];
+  dealProgress: DashboardDealProgress | null;
 }
 
 export interface DashboardSearch {
@@ -99,6 +111,52 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
     }
   }
 
+  const dealProgressByOfferId = new Map<string, DashboardDealProgress>();
+
+  if (offerIds.length > 0) {
+    const [{ data: progressRows, error: progressError }, { data: financingDocs, error: docsError }] =
+      await Promise.all([
+        supabase
+          .from("deal_progress")
+          .select(
+            "qualifying_offer_id, availability_reconfirmed_at, deposit_amount_cents, deposit_confirmed_at, financing_choice, financing_income_range, financing_down_payment_cents, financing_desired_term_months"
+          )
+          .in("qualifying_offer_id", offerIds),
+        supabase
+          .from("documents")
+          .select("qualifying_offer_id, uploaded_at")
+          .eq("type", "financing_proof")
+          .in("qualifying_offer_id", offerIds)
+          .order("uploaded_at", { ascending: false }),
+      ]);
+
+    if (progressError) {
+      throw new Error(`Failed to load deal progress: ${progressError.message}`);
+    }
+    if (docsError) {
+      throw new Error(`Failed to load financing documents: ${docsError.message}`);
+    }
+
+    const latestUploadByOfferId = new Map<string, string>();
+    for (const doc of financingDocs ?? []) {
+      if (!doc.uploaded_at || latestUploadByOfferId.has(doc.qualifying_offer_id)) continue;
+      latestUploadByOfferId.set(doc.qualifying_offer_id, doc.uploaded_at);
+    }
+
+    for (const row of progressRows ?? []) {
+      dealProgressByOfferId.set(row.qualifying_offer_id, {
+        availabilityReconfirmedAt: row.availability_reconfirmed_at,
+        depositAmountCents: row.deposit_amount_cents,
+        depositConfirmedAt: row.deposit_confirmed_at,
+        financingChoice: row.financing_choice,
+        financingIncomeRange: row.financing_income_range,
+        financingDownPaymentCents: row.financing_down_payment_cents,
+        financingDesiredTermMonths: row.financing_desired_term_months,
+        financingProofUploadedAt: latestUploadByOfferId.get(row.qualifying_offer_id) ?? null,
+      });
+    }
+  }
+
   const undelivered = (offers ?? []).filter((o) => !o.delivered_at).map((o) => o.id);
   let deliveredAtNow: string | null = null;
 
@@ -129,6 +187,7 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
       deliveredAt: offer.delivered_at ?? deliveredAtNow!,
       customerRespondedAt: offer.customer_responded_at,
       addons: addonsByOfferId.get(offer.id) ?? [],
+      dealProgress: dealProgressByOfferId.get(offer.id) ?? null,
     });
     offersBySearchId.set(offer.customer_search_id, list);
   }

@@ -217,3 +217,108 @@ export async function resolveAddonRemoval(
   revalidatePath("/account");
   return { ok: true };
 }
+
+async function getAcceptedOfferOrError(admin: ReturnType<typeof createAdminClient>, offerId: string) {
+  const { data: offer, error } = await admin
+    .from("qualifying_offers")
+    .select("id, status")
+    .eq("id", offerId)
+    .maybeSingle();
+
+  if (error || !offer) {
+    return { ok: false as const, error: "That offer no longer exists." };
+  }
+  if (offer.status !== "customer_accepted") {
+    return { ok: false as const, error: "This offer hasn't been accepted yet." };
+  }
+  return { ok: true as const };
+}
+
+export interface ConfirmAvailabilityResult {
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * Dealer re-confirms the specific unit is still available (Step 11) —
+ * learned by the agent on a call/email, recorded manually, never automated.
+ * Upserts deal_progress since it may not have a row yet (it's 1:1 with the
+ * offer, created lazily by whichever of these actions fires first).
+ */
+export async function confirmAvailability(offerId: string): Promise<ConfirmAvailabilityResult> {
+  const agent = await getAuthorizedAgent();
+  if (!agent) {
+    return { ok: false, error: "Not authorized." };
+  }
+
+  const admin = createAdminClient();
+
+  const offerCheck = await getAcceptedOfferOrError(admin, offerId);
+  if (!offerCheck.ok) {
+    return offerCheck;
+  }
+
+  const { error } = await admin.from("deal_progress").upsert(
+    { qualifying_offer_id: offerId, availability_reconfirmed_at: new Date().toISOString() },
+    { onConflict: "qualifying_offer_id" }
+  );
+
+  if (error) {
+    return { ok: false, error: `Failed to confirm availability: ${error.message}` };
+  }
+
+  revalidatePath("/internal/outreach");
+  revalidatePath("/account");
+  return { ok: true };
+}
+
+export interface ConfirmDepositResult {
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * Records that the dealer confirmed receiving the reservation deposit
+ * directly from the customer — LEVR never processes or holds this money.
+ * amountRaw is whatever the agent is told the dealer collected, not a
+ * LEVR-set figure. Sets both the amount and the confirmation timestamp in
+ * one action, since realistically both come from the same phone call.
+ */
+export async function confirmDepositReceived(
+  offerId: string,
+  amountRaw: string
+): Promise<ConfirmDepositResult> {
+  const agent = await getAuthorizedAgent();
+  if (!agent) {
+    return { ok: false, error: "Not authorized." };
+  }
+
+  const amountCents = Math.round(parseFloat(amountRaw) * 100);
+  if (!Number.isFinite(amountCents) || amountCents <= 0) {
+    return { ok: false, error: "Deposit amount must be a positive number." };
+  }
+
+  const admin = createAdminClient();
+
+  const offerCheck = await getAcceptedOfferOrError(admin, offerId);
+  if (!offerCheck.ok) {
+    return offerCheck;
+  }
+
+  const { error } = await admin.from("deal_progress").upsert(
+    {
+      qualifying_offer_id: offerId,
+      deposit_amount_cents: amountCents,
+      deposit_confirmed_at: new Date().toISOString(),
+    },
+    { onConflict: "qualifying_offer_id" }
+  );
+
+  if (error) {
+    return { ok: false, error: `Failed to confirm deposit: ${error.message}` };
+  }
+
+  revalidatePath("/internal/outreach");
+  revalidatePath("/account");
+  return { ok: true };
+}

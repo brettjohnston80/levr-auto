@@ -99,7 +99,10 @@ export default async function SignupPage({
           </label>
           <label className="block">
             <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
-              Phone number <span className="text-zinc-500 normal-case">(required for text updates)</span>
+              Phone number{" "}
+              <span className="text-zinc-500 normal-case">
+                (required for text or agent-callback updates)
+              </span>
             </span>
             <input
               type="tel"

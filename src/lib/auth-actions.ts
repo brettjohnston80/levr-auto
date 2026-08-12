@@ -2,17 +2,17 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import {
+  channelRequiresPhone,
+  type CommunicationChannel,
+  type CommunicationFrequency,
+  type CommunicationPreferences,
+} from "./communication-preferences";
 
 async function attemptLogin(email: string, password: string) {
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   return { ok: !error, error: error?.message };
-}
-
-export interface CommunicationPreferences {
-  frequency: "real_time" | "daily_digest";
-  channel: "text" | "email" | "agent_callback";
-  phone?: string;
 }
 
 async function attemptSignup(
@@ -27,10 +27,14 @@ async function attemptSignup(
 
   const metadata: Record<string, string> = {};
   if (fullName) metadata.full_name = fullName;
-  if (communicationPreferences) {
+  if (communicationPreferences?.frequency) {
     metadata.communication_frequency = communicationPreferences.frequency;
+  }
+  if (communicationPreferences?.channel) {
     metadata.communication_channel = communicationPreferences.channel;
-    if (communicationPreferences.phone) metadata.phone = communicationPreferences.phone;
+  }
+  if (communicationPreferences?.phone) {
+    metadata.phone = communicationPreferences.phone;
   }
 
   const { error } = await supabase.auth.signUp({
@@ -63,12 +67,12 @@ export async function login(formData: FormData) {
 
 export async function signup(formData: FormData) {
   const fullName = formData.get("fullName") as string;
-  const frequency = formData.get("communicationFrequency") as CommunicationPreferences["frequency"];
-  const channel = formData.get("communicationChannel") as CommunicationPreferences["channel"];
+  const frequency = formData.get("communicationFrequency") as CommunicationFrequency;
+  const channel = formData.get("communicationChannel") as CommunicationChannel;
   const phone = (formData.get("phone") as string)?.trim();
 
-  if (channel === "text" && !phone) {
-    redirect(`/signup?error=${encodeURIComponent("A phone number is required for text updates.")}`);
+  if (channelRequiresPhone(channel) && !phone) {
+    redirect(`/signup?error=${encodeURIComponent("A phone number is required for that update method.")}`);
   }
 
   const result = await attemptSignup(
@@ -145,8 +149,24 @@ export async function loginInline(email: string, password: string) {
   return attemptLogin(email, password);
 }
 
-export async function signupInline(email: string, password: string, fullName?: string) {
+export async function signupInline(
+  email: string,
+  password: string,
+  fullName?: string,
+  communicationChannel?: CommunicationChannel,
+  phone?: string
+) {
+  if (channelRequiresPhone(communicationChannel) && !phone) {
+    return { ok: false, error: "A phone number is required for that update method." };
+  }
+
   // Sends confirmed users back to the homepage (where the intake flow lives)
   // rather than /account, so the pending-search resume logic can pick up.
-  return attemptSignup(email, password, fullName, `/auth/callback?next=${encodeURIComponent("/")}`);
+  // Deliberately doesn't pass a frequency — this modal only asks for
+  // channel, keeping it lightweight; frequency defaults to 'real_time' via
+  // the same DB-trigger fallback used for any signup path that omits it.
+  return attemptSignup(email, password, fullName, `/auth/callback?next=${encodeURIComponent("/")}`, {
+    channel: communicationChannel,
+    phone,
+  });
 }

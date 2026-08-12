@@ -31,6 +31,17 @@ export interface OutreachAddon {
   dealerResponse: string | null;
 }
 
+export interface OutreachDealProgress {
+  availabilityReconfirmedAt: string | null;
+  depositAmountCents: number | null;
+  depositConfirmedAt: string | null;
+  financingChoice: string | null;
+  financingIncomeRange: string | null;
+  financingDownPaymentCents: number | null;
+  financingDesiredTermMonths: number | null;
+  financingProofUrl: string | null;
+}
+
 export interface OutreachOffer {
   id: string;
   dealerName: string;
@@ -43,6 +54,7 @@ export interface OutreachOffer {
   customerRespondedAt: string | null;
   vehicleSoldAt: string | null;
   addons: OutreachAddon[];
+  dealProgress: OutreachDealProgress | null;
 }
 
 export interface OutreachSearch {
@@ -143,6 +155,63 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
     }
   }
 
+  const dealProgressByOfferId = new Map<string, OutreachDealProgress>();
+
+  if (offerIds.length > 0) {
+    const [{ data: progressRows, error: progressError }, { data: financingDocs, error: docsError }] =
+      await Promise.all([
+        supabase
+          .from("deal_progress")
+          .select(
+            "qualifying_offer_id, availability_reconfirmed_at, deposit_amount_cents, deposit_confirmed_at, financing_choice, financing_income_range, financing_down_payment_cents, financing_desired_term_months"
+          )
+          .in("qualifying_offer_id", offerIds),
+        supabase
+          .from("documents")
+          .select("qualifying_offer_id, storage_path, uploaded_at")
+          .eq("type", "financing_proof")
+          .in("qualifying_offer_id", offerIds)
+          .order("uploaded_at", { ascending: false }),
+      ]);
+
+    if (progressError) {
+      throw new Error(`Failed to load deal progress: ${progressError.message}`);
+    }
+    if (docsError) {
+      throw new Error(`Failed to load financing documents: ${docsError.message}`);
+    }
+
+    // Most recent upload per offer, if the customer resubmitted more than once.
+    const latestFinancingProofByOfferId = new Map<string, string>();
+    for (const doc of financingDocs ?? []) {
+      if (!doc.storage_path || latestFinancingProofByOfferId.has(doc.qualifying_offer_id)) continue;
+      latestFinancingProofByOfferId.set(doc.qualifying_offer_id, doc.storage_path);
+    }
+
+    const signedUrlByOfferId = new Map<string, string>();
+    await Promise.all(
+      [...latestFinancingProofByOfferId.entries()].map(async ([offerId, path]) => {
+        const { data } = await supabase.storage.from("documents").createSignedUrl(path, 900);
+        if (data?.signedUrl) {
+          signedUrlByOfferId.set(offerId, data.signedUrl);
+        }
+      })
+    );
+
+    for (const row of progressRows ?? []) {
+      dealProgressByOfferId.set(row.qualifying_offer_id, {
+        availabilityReconfirmedAt: row.availability_reconfirmed_at,
+        depositAmountCents: row.deposit_amount_cents,
+        depositConfirmedAt: row.deposit_confirmed_at,
+        financingChoice: row.financing_choice,
+        financingIncomeRange: row.financing_income_range,
+        financingDownPaymentCents: row.financing_down_payment_cents,
+        financingDesiredTermMonths: row.financing_desired_term_months,
+        financingProofUrl: signedUrlByOfferId.get(row.qualifying_offer_id) ?? null,
+      });
+    }
+  }
+
   const customerEmailById = new Map((customers ?? []).map((c) => [c.id, c.email as string]));
   const listingsByMakeModel = new Map(
     listingsByPair.map(({ make, model, listings }) => [`${make}::${model}`, listings])
@@ -162,6 +231,7 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
       customerRespondedAt: offer.customer_responded_at,
       vehicleSoldAt: offer.vehicle_sold_at,
       addons: addonsByOfferId.get(offer.id) ?? [],
+      dealProgress: dealProgressByOfferId.get(offer.id) ?? null,
     });
     offersBySearchId.set(offer.customer_search_id, list);
   }

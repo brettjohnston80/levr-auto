@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { loginInline, signupInline } from "@/lib/auth-actions";
+import { channelRequiresPhone, type CommunicationChannel } from "@/lib/communication-preferences";
 
 type Mode = "login" | "signup";
 
@@ -18,6 +19,8 @@ export function AuthGateModal({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [communicationChannel, setCommunicationChannel] = useState<CommunicationChannel>("email");
+  const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [signupComplete, setSignupComplete] = useState(false);
@@ -31,8 +34,14 @@ export function AuthGateModal({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
     setError(null);
+
+    if (mode === "signup" && channelRequiresPhone(communicationChannel) && !phone.trim()) {
+      setError("A phone number is required for that update method.");
+      return;
+    }
+
+    setLoading(true);
 
     if (mode === "login") {
       const result = await loginInline(email, password);
@@ -43,7 +52,13 @@ export function AuthGateModal({
       }
       onAuthenticated();
     } else {
-      const result = await signupInline(email, password, fullName || undefined);
+      const result = await signupInline(
+        email,
+        password,
+        fullName || undefined,
+        communicationChannel,
+        phone.trim() || undefined
+      );
       setLoading(false);
       if (!result.ok) {
         setError(result.error ?? "Something went wrong.");
@@ -168,6 +183,37 @@ export function AuthGateModal({
                   className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900/80 px-4 py-3 text-sm font-medium text-white shadow-inner shadow-black/20 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
                 />
               </label>
+              {mode === "signup" && (
+                <label className="block">
+                  <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
+                    How should we update you?
+                  </span>
+                  <select
+                    value={communicationChannel}
+                    onChange={(e) => setCommunicationChannel(e.target.value as CommunicationChannel)}
+                    className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900/80 px-4 py-3 text-sm font-medium text-white shadow-inner shadow-black/20 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
+                  >
+                    <option value="email">Email</option>
+                    <option value="text">Text message</option>
+                    <option value="agent_callback">A personal agent will call me</option>
+                  </select>
+                </label>
+              )}
+              {mode === "signup" && channelRequiresPhone(communicationChannel) && (
+                <label className="block">
+                  <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
+                    Phone number
+                  </span>
+                  <input
+                    type="tel"
+                    required
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    autoComplete="tel"
+                    className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900/80 px-4 py-3 text-sm font-medium text-white shadow-inner shadow-black/20 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
+                  />
+                </label>
+              )}
               <button
                 type="submit"
                 disabled={loading}

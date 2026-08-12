@@ -6,6 +6,7 @@ import { getCustomerDashboard, type DashboardSearch } from "@/lib/customer-dashb
 import { OfferResponseButtons } from "@/components/offer-response-buttons";
 import { SwitchSearchForm } from "@/components/switch-search-form";
 import { AddonRemovalButton } from "@/components/addon-removal-button";
+import { FinancingCaptureForm } from "@/components/financing-capture-form";
 
 export const metadata: Metadata = {
   title: "Your Account — LEVR Auto",
@@ -165,6 +166,27 @@ function SearchCard({ search }: { search: DashboardSearch }) {
                         </li>
                       ))}
                     </ul>
+                  </div>
+                )}
+
+                {offer.status === "customer_accepted" && (
+                  <div className="mt-3 border-t border-white/5 pt-3">
+                    <p className="text-xs font-semibold text-emerald-400 uppercase">
+                      Congratulations — next steps
+                    </p>
+
+                    <p className="mt-2 text-xs text-zinc-400">
+                      {offer.dealProgress?.availabilityReconfirmedAt
+                        ? `Dealer confirmed availability on ${formatDate(offer.dealProgress.availabilityReconfirmedAt)}.`
+                        : "Waiting on the dealer to reconfirm the vehicle is still available."}
+                    </p>
+                    <p className="mt-1 text-xs text-zinc-400">
+                      {offer.dealProgress?.depositConfirmedAt
+                        ? `Deposit confirmed: ${formatCents(offer.dealProgress.depositAmountCents ?? 0)} on ${formatDate(offer.dealProgress.depositConfirmedAt)}.`
+                        : "A refundable deposit is paid directly to the dealer to reserve the car — we'll show it here once the dealer confirms they've received it."}
+                    </p>
+
+                    <FinancingCaptureForm offerId={offer.id} existing={offer.dealProgress} />
                   </div>
                 )}
               </li>

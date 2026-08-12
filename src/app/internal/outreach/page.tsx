@@ -5,6 +5,8 @@ import { LogOfferForm } from "@/components/log-offer-form";
 import { MarkSoldButton } from "@/components/mark-sold-button";
 import { AddOfferAddonForm } from "@/components/add-offer-addon-form";
 import { ResolveAddonRemovalForm } from "@/components/resolve-addon-removal-form";
+import { ConfirmAvailabilityButton } from "@/components/confirm-availability-button";
+import { ConfirmDepositForm } from "@/components/confirm-deposit-form";
 
 export const metadata: Metadata = {
   title: "Outreach Queue — LEVR Auto Internal",
@@ -97,6 +99,69 @@ export default async function OutreachQueuePage() {
                           <div className="ml-4">
                             <AddOfferAddonForm offerId={offer.id} />
                           </div>
+
+                          {offer.status === "customer_accepted" && (
+                            <div className="mt-3 ml-4 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.03] p-3">
+                              <p className="text-xs font-semibold text-emerald-400 uppercase">
+                                Accepted — closing this deal
+                              </p>
+
+                              <div className="mt-2">
+                                {offer.dealProgress?.availabilityReconfirmedAt ? (
+                                  <span className="text-xs text-zinc-400">
+                                    Availability confirmed{" "}
+                                    {new Date(offer.dealProgress.availabilityReconfirmedAt).toLocaleDateString()}
+                                  </span>
+                                ) : (
+                                  <ConfirmAvailabilityButton offerId={offer.id} />
+                                )}
+                              </div>
+
+                              <div className="mt-2">
+                                {offer.dealProgress?.depositConfirmedAt ? (
+                                  <span className="text-xs text-zinc-400">
+                                    Deposit confirmed: $
+                                    {((offer.dealProgress.depositAmountCents ?? 0) / 100).toLocaleString()} on{" "}
+                                    {new Date(offer.dealProgress.depositConfirmedAt).toLocaleDateString()}
+                                  </span>
+                                ) : (
+                                  <ConfirmDepositForm offerId={offer.id} />
+                                )}
+                              </div>
+
+                              <div className="mt-2 text-xs text-zinc-400">
+                                {offer.dealProgress?.financingChoice === "own" ? (
+                                  <>
+                                    Bringing own financing
+                                    {offer.dealProgress.financingProofUrl && (
+                                      <>
+                                        {" — "}
+                                        <a
+                                          href={offer.dealProgress.financingProofUrl}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="text-emerald-400 underline"
+                                        >
+                                          view proof
+                                        </a>
+                                      </>
+                                    )}
+                                  </>
+                                ) : offer.dealProgress?.financingChoice === "help" ? (
+                                  <>
+                                    Wants financing help — income {offer.dealProgress.financingIncomeRange ?? "?"},
+                                    down payment $
+                                    {offer.dealProgress.financingDownPaymentCents != null
+                                      ? (offer.dealProgress.financingDownPaymentCents / 100).toLocaleString()
+                                      : "?"}
+                                    , term {offer.dealProgress.financingDesiredTermMonths ?? "?"} months
+                                  </>
+                                ) : (
+                                  "Financing not yet submitted"
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </li>
                       ))}
                     </ul>
