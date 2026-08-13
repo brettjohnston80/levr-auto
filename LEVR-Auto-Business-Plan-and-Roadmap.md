@@ -6,6 +6,8 @@
 
 ## Progress Log
 
+**Aug 13, 2026 — Vercel Pro upgrade (fixes hourly cron), and the payment/finalization split shipped and verified.** Upgraded to Vercel Pro ($20/mo) to unlock sub-daily cron frequency — Hobby tier was silently capping cron jobs to once/day, and a batch of hourly-cron code had also only ever existed locally, never actually pushed. Both fixed; all 4 cron jobs confirmed registered and firing correctly in production. Then built and shipped the payment/finalization split scoped in "Full flow, resolved Aug 12, 2026" below: intake now only collects make/model/zip; `/finalize/[searchId]` lets the customer pick trim/color/required options either self-service (a Matchmaker-style flow backed by real synced listings) or by requesting a call, which now surfaces in a new "Finalization calls requested" section of `/internal/outreach` for an agent to complete on their behalf. New `awaiting_finalization` status and `finalized_at`/`call_requested_at` columns; the 24h self-edit window and the auto-solidify cron now anchor to `finalized_at` instead of `paid_at`. `/account` shows a live countdown and self-edit form during that window. Verified end-to-end against real production data via direct SQL matching the exact server-action logic, since driving an authenticated customer session isn't something this assistant can do without entering credentials; test row cleaned up after. See `CLAUDE.md` for full technical detail.
+
 **Aug 1, 2026 — Landing page built and deployed.** Next.js + Tailwind marketing site built solo in one evening using Claude Code, based on the Developer Brief and Website Copy docs. Includes the full intake filter (make/model/trim/color/options, live tier pricing, zip validation) as a working front-end UI — no backend/payment/DB yet, by design. Pushed to GitHub (`brettjohnston80/levr-auto`), deployed on Vercel, and connected to the live `levrauto.com` domain (DNS now correctly pointed after resolving a Namecheap URL-redirect-record conflict). Next up: trademark attorney outreach, MarketCheck contact, and the dealer outreach spike — see Stage 0/1 above.
 
 ---
@@ -40,14 +42,23 @@ LEVR Auto is a nationwide service that negotiates new-car deals on the buyer's b
 
 ### 3. Customer Journey
 
-1. Landing page → progressive intake filter (make → model → trim → color → options → zip) with a live nationwide inventory count.
-2. Account creation + payment. Guarantee clock starts here.
-3. 24-hour refinement window (trim/color/options only — make/model locked); auto-solidifies if untouched.
-4. Sourcing + outreach begin. Dashboard shows regional summary only at first ("10 dealers West Coast, 5 Midwest").
-5. Offers land: dealer city, car photo, itemized price/add-ons shown.
-6. Customer can request add-on removal; unlimited back-and-forth with dealer.
-7. Acceptance → refundable deposit → dealer re-confirms availability → financing path → LEVR e-sign → dealer's own paperwork → delivery/pickup → close.
-8. *(Later)* Landing page shows real average-savings-by-model stats once deal data exists.
+1. Landing page → progressive intake filter (make → model → zip) with a live nationwide inventory count. Trim/color/options are no longer collected here — see step 3.
+2. Account creation + payment (flat $699, one vehicle).
+3. **Finalization (added 2026-08-13, see "Full flow, resolved Aug 12, 2026" below):** customer either finalizes trim/color/must-have options themselves — a Matchmaker-style flow built off real current inventory — or requests a call with an agent to do it together. This explicit action, not payment, is what starts the 24-hour self-edit window.
+4. 24-hour self-edit window (trim/color/options only — make/model locked); auto-solidifies once elapsed.
+5. Sourcing + outreach begin. Dashboard shows regional summary only at first ("10 dealers West Coast, 5 Midwest").
+6. Offers land: dealer city, car photo, itemized price/add-ons shown.
+7. Customer can request add-on removal; unlimited back-and-forth with dealer.
+8. Acceptance → refundable deposit → dealer re-confirms availability → financing path → LEVR e-sign → dealer's own paperwork → delivery/pickup → close.
+9. *(Later)* Landing page shows real average-savings-by-model stats once deal data exists.
+
+### 3a. Full flow, resolved Aug 12, 2026
+
+Decisions locked in while scoping the payment/finalization split (implemented and verified 2026-08-13, see Progress Log above):
+
+- **Self-service finalization is a Matchmaker-style flow, not a simple form.** Something built off the initial Matchmaker tool that's more in-depth — trim (from real live inventory, with price ranges), color, and must-have options, one step at a time, ending in a review/confirm screen — not a bare set of dropdowns.
+- **The "schedule a call" path is manual for now.** No real calendar/scheduling integration — a customer's request just surfaces in the agent's outreach queue, same as every other manual outreach step in this business today. A real calendar app is a later addition once there's enough volume to justify it.
+- **Reuses `customer_searches`, no new table.** Finalization is new columns/status on the existing row (`finalized_at`, `call_requested_at`, `awaiting_finalization`), not a separate finalization-tracking table — keeps the whole lifecycle of one search on one row.
 
 ### 4. Technical Plan
 
