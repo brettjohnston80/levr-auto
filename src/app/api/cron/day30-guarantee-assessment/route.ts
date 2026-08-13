@@ -3,7 +3,7 @@ import { runDay30Assessment } from "@/lib/guarantee-assessment";
 
 /**
  * Vercel Cron target (see vercel.json) — resolves guarantee_status for any
- * customer_searches row at least 30 days past paid_at that's still
+ * customer_searches row at least 30 days past solidified_at that's still
  * 'pending'. Vercel automatically sends Authorization: Bearer $CRON_SECRET
  * on cron-triggered requests once CRON_SECRET is set as a project env var.
  *

@@ -27,7 +27,7 @@ LEVR Auto is a nationwide service that negotiates new-car deals on the buyer's b
 **The Guarantee:**
 - "MSRP" = Total MSRP on the Monroney label (base + factory options + destination) — excludes tax/title/doc/dealer add-ons.
 - "Qualifying Offer" = any dealer offer below that MSRP on a matching vehicle.
-- Assessed at **Day 30** from payment. No qualifying offer → automatic full refund within ~7 days. Qualifying offer found → fee earned, whether or not the customer buys.
+- Assessed at **Day 30** from solidification (when the customer's 24h refinement window closes and search criteria lock in) — not from payment. No qualifying offer → automatic full refund within ~7 days. Qualifying offer found → fee earned, whether or not the customer buys.
 - Either way, active search continues **free through Day 60**.
 - After Day 60: **$100** per renewable ~30-day extension.
 

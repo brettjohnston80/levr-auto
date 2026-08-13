@@ -14,7 +14,7 @@ This is the single most important piece of language in the whole business, becau
 
 **"Qualifying Offer" means:** any offer, from any dealer nationwide, where the total negotiated vehicle price (as defined above, excluding tax/title/license/doc fees) is lower than that vehicle's MSRP (as defined above). One qualifying offer, on any vehicle matching the customer's specified make/model/trim/required options, satisfies the guarantee — regardless of color, regardless of whether the customer likes that particular offer, and regardless of whether the customer ultimately buys anything at all.
 
-**Timing:** the guarantee is assessed at **Day 30** from when the fee is paid. If at least one Qualifying Offer has been presented by then, the guarantee is met and the fee is earned/non-refundable — even if the customer declines it. If zero Qualifying Offers have been presented by Day 30, the fee is refunded in full, automatically, within about a week (up to 7 days, accounting for holidays/weekends), without the customer needing to request it.
+**Timing:** the guarantee is assessed at **Day 30** from solidification — when the customer's refinement window closes and their make/model/trim/color/options are locked in (see Section 3, Phase A, step 3), not from when the fee is paid (step 2). The clock starts once the search criteria that determine what counts as a Qualifying Offer are final. If at least one Qualifying Offer has been presented by then, the guarantee is met and the fee is earned/non-refundable — even if the customer declines it. If zero Qualifying Offers have been presented by Day 30, the fee is refunded in full, automatically, within about a week (up to 7 days, accounting for holidays/weekends), without the customer needing to request it.
 
 Either way — guarantee met or refunded — LEVR Auto continues fielding offers through **Day 60** at no additional cost; this is part of what the customer signed up for, not conditional on the Day 30 outcome. If a refund already went out and a Qualifying Offer later shows up before Day 60, the customer keeps both the refund and the offer. The customer can opt to stop receiving notifications and further negotiation at any point before Day 60 if they'd rather be done.
 
@@ -57,7 +57,7 @@ Sections you'll want, with a few drafted as starting language and the rest flagg
 
 **2.4 The Guarantee** — insert Section 1 definitions and refund mechanics.
 
-**2.5 Negotiation Window** *(draft language)*: "LEVR Auto will actively search and negotiate on Customer's behalf for 30 days from the date the fee is paid, at which point the guarantee in Section 2.4 is assessed and, if applicable, refunded within approximately 7 days. Regardless of outcome, LEVR Auto will continue searching and presenting offers through Day 60 at no additional cost, unless Customer opts out earlier. Thereafter, Customer may pay $100 per additional ~30-day period to continue the search, renewable indefinitely."
+**2.5 Negotiation Window** *(draft language)*: "LEVR Auto will actively search and negotiate on Customer's behalf for 30 days from the date Customer's search criteria are finalized (the close of the 24-hour Refinement Window described in Section 3, Phase A), at which point the guarantee in Section 2.4 is assessed and, if applicable, refunded within approximately 7 days. Regardless of outcome, LEVR Auto will continue searching and presenting offers through Day 60 (measured from the same date) at no additional cost, unless Customer opts out earlier. Thereafter, Customer may pay $100 per additional ~30-day period to continue the search, renewable indefinitely."
 
 **2.5a Switching** — insert Section 1b switching policy and grace-period terms.
 
@@ -84,8 +84,8 @@ The step-by-step path from a customer landing on the site to a closed deal:
 ### Phase A — Discovery & Signup
 
 1. **Browse** — Customer starts at the intro page, hits "Get Started," and moves through a progressive filter: make → model → trim → color → other options, plus zip code (captured for accurate tax/registration-fee calculations, not shown to dealers beyond state/region). A live, nationwide inventory count narrows with each filter (e.g. "40,000 Toyotas" → "5,000 Highlanders" → "400 in black/white/gray" → "20 matching this trim"). No specific dealers are shown at this stage. *(Phase 2 feature, once real deal data exists: show an average-savings stat per make/model, e.g. "we help customers save $X off MSRP on a Highlander," sourced from actual completed deals and refreshed weekly/monthly.)*
-2. **Account & Payment** — Customer creates an account and pays the flat $699 fee. **The Day 30/Day 60 guarantee clock starts here, at payment.**
-3. **Refinement Window** — Customer has up to 24 hours to fine-tune trim/color/option details (make/model is locked at this point — changing it requires the switching process). If they don't return to confirm, the system auto-solidifies using their original selections after 24 hours. Search doesn't start until solidification.
+2. **Account & Payment** — Customer creates an account and pays the flat $699 fee.
+3. **Refinement Window** — Customer has up to 24 hours to fine-tune trim/color/option details (make/model is locked at this point — changing it requires the switching process). If they don't return to confirm, the system auto-solidifies using their original selections after 24 hours. Search doesn't start until solidification. **The Day 30/Day 60 guarantee clock starts here, at solidification — not at payment in step 2.** The customer has locked in every decision that determines what counts as a Qualifying Offer before the clock starts; assessing from payment would start it before the search criteria are even final.
 
 ### Phase B — Search & Offers
 

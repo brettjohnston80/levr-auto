@@ -6,7 +6,10 @@ const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
  * Searches due for their Day-30 guarantee determination: at least 30 days
- * have elapsed since paid_at, and guarantee_status is still 'pending'.
+ * have elapsed since solidified_at (not paid_at) — the guarantee clock
+ * starts once the customer has locked in make/model and all refinement
+ * decisions (see search-solidification.ts), not at the moment of payment.
+ * guarantee_status must still be 'pending'.
  *
  * Deliberately an "elapsed >= 30 days" check, not "elapsed == exactly 30
  * days" — a once-daily cron that only matched an exact day would create a
@@ -16,11 +19,10 @@ const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
  * appears here once, and if a run is missed it's simply caught by the next
  * one instead of being lost.
  *
- * No search_status filter — the guarantee is anchored to paid_at (see the
- * schema comment on customer_searches), not to whether the search is still
- * actively 'searching'. A row that was later switched to a different
- * make/model already collected its fee and still owes its own Day-30
- * resolution based on whatever offers arrived on it before the switch.
+ * No search_status filter — a row that was later switched to a different
+ * make/model already solidified and collected its fee, and still owes its
+ * own Day-30 resolution based on whatever offers arrived on it before the
+ * switch.
  */
 export async function getDueSearches(): Promise<{ id: string }[]> {
   const admin = createAdminClient();
@@ -30,8 +32,8 @@ export async function getDueSearches(): Promise<{ id: string }[]> {
     .from("customer_searches")
     .select("id")
     .eq("guarantee_status", "pending")
-    .not("paid_at", "is", null)
-    .lte("paid_at", cutoff);
+    .not("solidified_at", "is", null)
+    .lte("solidified_at", cutoff);
 
   if (error) {
     throw new Error(`Failed to load searches due for guarantee assessment: ${error.message}`);
