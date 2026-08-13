@@ -40,8 +40,5 @@ export const OPTIONS = [
   "Premium Wheels",
 ];
 
-export const TIER_PRICING: Record<number, number> = {
-  1: 699,
-  2: 899,
-  3: 999,
-};
+// Flat fee, one vehicle, always — no tiers.
+export const FLAT_PRICE = 699;

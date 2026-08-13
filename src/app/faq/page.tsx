@@ -57,7 +57,7 @@ const FAQS: FaqItem[] = [
   },
   {
     q: "Can I search for more than one car at a time?",
-    a: "Yes. Searching one make and model is $699. Adding a second at the same time is $899 total, and a third is $999 — that's the max. Within whichever make/model you choose, you can still be flexible on trim, color, and options at no extra cost.",
+    a: "No — LEVR searches one make and model per engagement, for the flat $699 fee. Within that make/model, you can still be flexible on trim, color, and options at no extra cost. Want a different vehicle instead? Your agent can switch your search (see below).",
   },
   {
     q: "What if I change my mind about the car I want?",

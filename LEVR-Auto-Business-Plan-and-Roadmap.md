@@ -22,12 +22,7 @@ LEVR Auto is a nationwide service that negotiates new-car deals on the buyer's b
 
 ### 2. Business Model
 
-**Pricing (per search engagement):**
-| Tier | Price | Scope |
-|---|---|---|
-| 1 model | $699 | One make/model, unlimited free flexibility on trim/color/options |
-| 2 models | $899 | Two makes/models searched concurrently |
-| 3 models | $999 | Three makes/models (max) |
+**Pricing (per search engagement):** Flat **$699** for one make/model, with unlimited free flexibility on trim/color/options within it. No concurrent-model tiers — one vehicle per engagement, always.
 
 **The Guarantee:**
 - "MSRP" = Total MSRP on the Monroney label (base + factory options + destination) — excludes tax/title/doc/dealer add-ons.

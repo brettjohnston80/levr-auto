@@ -39,19 +39,11 @@ export async function POST(request: Request) {
     }
 
     const customerId = session.metadata?.customer_id;
-    const searchIdsRaw = session.metadata?.customer_search_ids;
+    const searchId = session.metadata?.customer_search_id;
 
-    if (!customerId || !searchIdsRaw) {
+    if (!customerId || !searchId) {
       console.error("Stripe webhook: checkout.session.completed missing expected metadata", session.id);
       return NextResponse.json({ error: "Missing metadata" }, { status: 400 });
-    }
-
-    let searchIds: string[];
-    try {
-      searchIds = JSON.parse(searchIdsRaw);
-    } catch {
-      console.error("Stripe webhook: could not parse customer_search_ids metadata", session.id);
-      return NextResponse.json({ error: "Malformed metadata" }, { status: 400 });
     }
 
     const admin = createAdminClient();
@@ -64,7 +56,7 @@ export async function POST(request: Request) {
         paid_at: new Date().toISOString(),
         stripe_checkout_session_id: session.id,
       })
-      .in("id", searchIds)
+      .eq("id", searchId)
       .eq("customer_id", customerId)
       .is("paid_at", null)
       .select("id");
