@@ -4,7 +4,10 @@ import { runSolidification } from "@/lib/search-solidification";
 /**
  * Vercel Cron target (see vercel.json) — auto-solidifies any
  * customer_searches row still 'pending_refinement' at least 24h after
- * paid_at, per the Refinement Window rule (Core-Processes-v1.md §2 step 3).
+ * finalized_at, per the Refinement Window rule (Core-Processes-v1.md §2
+ * step 3). Anchored to finalized_at, not paid_at -- finalization (trim/
+ * color/options via finalize-actions.ts or an agent call) is now a
+ * separate, explicit event that can happen well after payment.
  * Vercel automatically sends Authorization: Bearer $CRON_SECRET on
  * cron-triggered requests once CRON_SECRET is set as a project env var.
  *
