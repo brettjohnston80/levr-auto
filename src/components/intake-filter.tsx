@@ -1,22 +1,25 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { COLORS, MAKES, MAKES_AND_MODELS, FLAT_PRICE } from "@/lib/vehicle-data";
+import { MAKES, MAKES_AND_MODELS, FLAT_PRICE } from "@/lib/vehicle-data";
 import { estimateMatches } from "@/lib/match-counter";
 import { createClient } from "@/lib/supabase/client";
 import { saveIntakeSearch } from "@/lib/intake-actions";
 import { createCheckoutSession } from "@/lib/payment-actions";
 import { AuthGateModal } from "@/components/auth-gate-modal";
 
+// Make/model/zip only -- trim, color, and options are collected post-payment
+// during finalization (/finalize/[searchId]), matching the pending pivot's
+// Steps 1-6: pre-payment intake stays light (just enough to show a live
+// inventory count and start checkout), and finalizing the exact vehicle is
+// a separate, explicit step once payment has landed.
 type Vehicle = {
   make: string;
   model: string;
-  trim: string;
-  colors: string[];
 };
 
 function emptyVehicle(): Vehicle {
-  return { make: "", model: "", trim: "", colors: [] };
+  return { make: "", model: "" };
 }
 
 const PENDING_INTAKE_KEY = "levr_pending_intake";
@@ -45,10 +48,6 @@ function clearPendingIntake() {
   window.localStorage.removeItem(PENDING_INTAKE_KEY);
 }
 
-function toggleInArray(list: string[], value: string): string[] {
-  return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
-}
-
 function ChevronIcon() {
   return (
     <svg
@@ -60,20 +59,6 @@ function ChevronIcon() {
         d="M5 7.5L10 12.5L15 7.5"
         stroke="currentColor"
         strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-      <path
-        d="M1.5 5L4 7.5L8.5 2"
-        stroke="currentColor"
-        strokeWidth="1.8"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -138,7 +123,7 @@ function SelectField({
 
 function MatchCounter({ vehicle, zip }: { vehicle: Vehicle; zip: string }) {
   const count = useMemo(
-    () => estimateMatches(vehicle, zip, COLORS.length),
+    () => estimateMatches({ ...vehicle, trim: "", colors: [] }, zip, 8),
     [vehicle, zip]
   );
   const [pulse, setPulse] = useState(false);
@@ -192,7 +177,7 @@ export function IntakeFilter() {
   const vehicleComplete = Boolean(vehicle.make && vehicle.model);
   const canSubmit = vehicleComplete && zipValid;
 
-  const matches = estimateMatches(vehicle, zip, COLORS.length);
+  const matches = estimateMatches({ ...vehicle, trim: "", colors: [] }, zip, 8);
 
   async function performSave(vehicleToSave: Vehicle, zipToSave: string) {
     setSaving(true);
@@ -290,10 +275,6 @@ export function IntakeFilter() {
               <span className="font-semibold text-white">
                 {vehicle.make} {vehicle.model}
               </span>
-              <div className="mt-1 text-zinc-400">
-                Trim: {vehicle.trim || "Any"} · Color:{" "}
-                {vehicle.colors.length ? vehicle.colors.join(", ") : "No preference"}
-              </div>
             </div>
             <p className="mt-6 text-lg font-semibold text-white">
               Total: ${FLAT_PRICE} for zip {zip}
@@ -302,8 +283,9 @@ export function IntakeFilter() {
               ~{(matches ?? 0).toLocaleString()} vehicles nationwide currently match this search.
             </p>
             <p className="mt-4 text-sm text-zinc-400">
-              Nothing has been charged yet. Once you check out, you&apos;ll fine-tune options like
-              sunroof, leather, and packages before we start reaching out to dealers.
+              Nothing has been charged yet. Once you check out, you&apos;ll pick trim, color, and
+              options — either yourself or on a call with your agent — before we start reaching
+              out to dealers.
             </p>
             {payError && (
               <p className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
@@ -336,10 +318,11 @@ export function IntakeFilter() {
       <div className="mx-auto max-w-4xl px-6">
         <div className="text-center">
           <h2 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-            Tell us exactly what you want
+            Tell us what you want
           </h2>
           <p className="mt-4 text-lg text-zinc-400">
-            Make, model, trim, color. You decide the car; we do the rest.
+            Make and model. You decide the car; we do the rest — trim, color, and options come
+            right after checkout.
           </p>
         </div>
 
@@ -355,7 +338,7 @@ export function IntakeFilter() {
               <MatchCounter vehicle={vehicle} zip={zip} />
             </div>
 
-            <div className="mt-6 grid gap-4 sm:grid-cols-3">
+            <div className="mt-6 grid gap-4 sm:grid-cols-2">
               <SelectField
                 label="Make"
                 value={vehicle.make}
@@ -371,61 +354,12 @@ export function IntakeFilter() {
                 placeholder={vehicle.make ? "Select model" : "Choose a make first"}
                 disabled={!vehicle.make}
               />
-              <label className="block">
-                <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
-                  Trim <span className="text-zinc-500 normal-case">(optional)</span>
-                </span>
-                <input
-                  type="text"
-                  value={vehicle.trim}
-                  onChange={(e) => updateVehicle({ trim: e.target.value })}
-                  placeholder="e.g. XLE, Sport, Limited"
-                  className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900/80 px-4 py-3 text-sm font-medium text-white shadow-inner shadow-black/20 placeholder:text-zinc-600 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
-                />
-              </label>
             </div>
 
-            <div className="mt-6">
-              <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
-                Color preference
-              </span>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => updateVehicle({ colors: [] })}
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-all ${
-                    vehicle.colors.length === 0
-                      ? "border-emerald-500 bg-emerald-500 text-zinc-950 shadow-md shadow-emerald-500/20"
-                      : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/25 hover:text-zinc-200"
-                  }`}
-                >
-                  {vehicle.colors.length === 0 && <CheckIcon />}
-                  No preference
-                </button>
-                {COLORS.map((color) => {
-                  const active = vehicle.colors.includes(color);
-                  return (
-                    <button
-                      type="button"
-                      key={color}
-                      onClick={() => updateVehicle({ colors: toggleInArray(vehicle.colors, color) })}
-                      className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-all ${
-                        active
-                          ? "border-emerald-500 bg-emerald-500 text-zinc-950 shadow-md shadow-emerald-500/20"
-                          : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/25 hover:text-zinc-200"
-                      }`}
-                    >
-                      {active && <CheckIcon />}
-                      {color}
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="mt-3 text-xs text-zinc-500">
-                You&apos;ll fine-tune options like sunroof, leather, and packages right after
-                checkout — before we start reaching out to dealers.
-              </p>
-            </div>
+            <p className="mt-6 text-xs text-zinc-500">
+              You&apos;ll fine-tune trim, color, and options right after checkout — before we
+              start reaching out to dealers.
+            </p>
           </div>
         </div>
 

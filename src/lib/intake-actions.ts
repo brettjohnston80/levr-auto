@@ -5,8 +5,6 @@ import { createClient } from "@/lib/supabase/server";
 export type IntakeVehicle = {
   make: string;
   model: string;
-  trim: string;
-  colors: string[];
 };
 
 export type SaveIntakeResult =
@@ -14,9 +12,14 @@ export type SaveIntakeResult =
   | { ok: false; error: string; requiresAuth?: boolean };
 
 // Writes a single customer_searches row for the one vehicle a customer is
-// searching for — LEVR is flat $699 for exactly one vehicle, always. No
-// payment step yet — paid_at stays null and search_status starts at
-// 'pending_refinement', same as every other intake row until Stripe lands.
+// searching for -- LEVR is flat $699 for exactly one vehicle, always. Only
+// make/model/zip are collected here -- trim/color/options are collected
+// post-payment during finalization (/finalize/[searchId], see
+// finalize-actions.ts), matching the pending pivot's Steps 1-6: payment
+// happens against a lighter intake, and finalizing it is a separate,
+// explicit later step. No payment step yet either -- paid_at stays null and
+// search_status starts at 'awaiting_finalization' (the column default)
+// until Stripe lands.
 export async function saveIntakeSearch(
   vehicle: IntakeVehicle,
   zip: string
@@ -37,8 +40,6 @@ export async function saveIntakeSearch(
       customer_id: user.id,
       make: vehicle.make,
       model: vehicle.model,
-      trim: vehicle.trim || null,
-      colors: vehicle.colors,
       zip: zip || null,
     })
     .select("id")

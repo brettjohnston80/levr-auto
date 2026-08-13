@@ -392,3 +392,56 @@ export async function checkServiceAgreementSigningStatus(offerId: string): Promi
   revalidatePath("/account");
   return { ok: true, signed: true };
 }
+
+export interface FinalizeByAgentResult {
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * Agent-side counterpart to finalizeSelfService (finalize-actions.ts) — used
+ * after an agent actually reaches the customer on the call they requested
+ * (see getFinalizationQueue in outreach-queue.ts). Same effect as the
+ * customer's own self-service finalize: sets trim/colors/required_options,
+ * stamps finalized_at (starting the 24h self-edit window), and flips
+ * search_status to 'pending_refinement'. Agent-authorized rather than
+ * ownership-checked, matching the pattern already used for switching
+ * (switch-actions.ts AgentSwitchSearchForm) — an agent acts on the
+ * customer's behalf here, not as the customer.
+ */
+export async function finalizeSearchByAgent(
+  searchId: string,
+  details: { trim: string; colors: string[]; requiredOptions: string[] }
+): Promise<FinalizeByAgentResult> {
+  const agent = await getAuthorizedAgent();
+  if (!agent) {
+    return { ok: false, error: "Not authorized." };
+  }
+
+  const admin = createAdminClient();
+
+  const { data: updated, error } = await admin
+    .from("customer_searches")
+    .update({
+      trim: details.trim || null,
+      colors: details.colors,
+      required_options: details.requiredOptions,
+      finalized_at: new Date().toISOString(),
+      search_status: "pending_refinement",
+    })
+    .eq("id", searchId)
+    .eq("search_status", "awaiting_finalization")
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    return { ok: false, error: `Failed to finalize: ${error.message}` };
+  }
+  if (!updated) {
+    return { ok: false, error: "This search is no longer awaiting finalization." };
+  }
+
+  revalidatePath("/internal/outreach");
+  revalidatePath("/account");
+  return { ok: true };
+}

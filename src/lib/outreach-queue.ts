@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminClient } from "./supabase/admin";
+import { buildTrimOptions, type TrimOption } from "./finalize-trims";
 
 export interface OutreachDealer {
   name: string;
@@ -292,4 +293,74 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
       offers: offersBySearchId.get(search.id) ?? [],
     };
   });
+}
+
+export interface FinalizationQueueSearch {
+  id: string;
+  make: string;
+  model: string;
+  customerEmail: string | null;
+  callRequestedAt: string;
+  trimOptions: TrimOption[];
+}
+
+/**
+ * Searches where the customer chose "Schedule a call" on /finalize instead
+ * of self-service (finalize-actions.ts requestFinalizationCall). Manual
+ * outreach only, deliberately -- there's no calendar/scheduling integration
+ * yet (roadmap note: "manual for now, later build into a calendar app"), so
+ * this queue is how an agent knows who to call and, once the call happens,
+ * finalizeSearchByAgent (outreach-actions.ts) is how they record the result.
+ */
+export async function getFinalizationQueue(): Promise<FinalizationQueueSearch[]> {
+  const supabase = createAdminClient();
+
+  const { data: searches, error: searchesError } = await supabase
+    .from("customer_searches")
+    .select("id, make, model, customer_id, call_requested_at")
+    .eq("search_status", "awaiting_finalization")
+    .not("call_requested_at", "is", null)
+    .order("call_requested_at", { ascending: true });
+
+  if (searchesError) {
+    throw new Error(`Failed to load finalization queue: ${searchesError.message}`);
+  }
+
+  if (!searches || searches.length === 0) {
+    return [];
+  }
+
+  const customerIds = [...new Set(searches.map((s) => s.customer_id))];
+  const distinctMakeModels = [
+    ...new Map(searches.map((s) => [`${s.make}::${s.model}`, { make: s.make, model: s.model }])).values(),
+  ];
+
+  const [{ data: customers }, listingsByPair] = await Promise.all([
+    supabase.from("customers").select("id, email").in("id", customerIds),
+    Promise.all(
+      distinctMakeModels.map(async ({ make, model }) => {
+        const { data } = await supabase
+          .from("listings")
+          .select("trim, price_cents")
+          .eq("make", make)
+          .eq("model", model)
+          .not("trim", "is", null);
+        return { make, model, listings: data ?? [] };
+      })
+    ),
+  ]);
+
+  const customerEmailById = new Map((customers ?? []).map((c) => [c.id, c.email as string]));
+  const trimOptionsByMakeModel = new Map(
+    listingsByPair.map(({ make, model, listings }) => [`${make}::${model}`, buildTrimOptions(listings)])
+  );
+
+  return searches.map((search) => ({
+    id: search.id,
+    make: search.make,
+    model: search.model,
+    customerEmail: customerEmailById.get(search.customer_id) ?? null,
+    callRequestedAt: search.call_requested_at as string,
+    trimOptions: trimOptionsByMakeModel.get(`${search.make}::${search.model}`) ?? [],
+  }));
 }

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { logout } from "@/lib/auth-actions";
@@ -7,6 +8,7 @@ import { OfferResponseButtons } from "@/components/offer-response-buttons";
 import { AddonRemovalButton } from "@/components/addon-removal-button";
 import { FinancingCaptureForm } from "@/components/financing-capture-form";
 import { ServiceAgreementSigning } from "@/components/service-agreement-signing";
+import { FinalizeEditForm } from "@/components/finalize-edit-form";
 import { AccountFaqSection } from "@/components/account-faq-section";
 
 export const metadata: Metadata = {
@@ -16,8 +18,9 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 const SEARCH_STATUS_COPY: Record<string, string> = {
+  awaiting_finalization: "Payment received — finalize trim, color, and options to start your search.",
   pending_refinement:
-    "Finalizing your search — dealer outreach begins after your 24-hour refinement window.",
+    "Finalized — you're in the 24-hour window to change trim, color, or options before dealer outreach begins.",
   searching: "Actively searching — we'll show new offers here as they come in.",
   paused: "Search paused.",
   closed: "Search closed.",
@@ -118,6 +121,34 @@ function SearchCard({ search }: { search: DashboardSearch }) {
         <p className="mt-1 text-sm text-zinc-500">Colors: {search.colors.join(", ")}</p>
       )}
       <p className="mt-3 text-sm text-zinc-400">{SEARCH_STATUS_COPY[search.searchStatus] ?? ""}</p>
+
+      {search.searchStatus === "awaiting_finalization" && (
+        <div className="mt-4 border-t border-white/5 pt-4">
+          {search.callRequestedAt ? (
+            <p className="text-sm text-zinc-400">
+              You asked to schedule a call on {formatDate(search.callRequestedAt)} — an agent will
+              reach out to finalize the details.
+            </p>
+          ) : (
+            <Link
+              href={`/finalize/${search.id}`}
+              className="inline-flex items-center justify-center rounded-full bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400"
+            >
+              Finalize this search
+            </Link>
+          )}
+        </div>
+      )}
+
+      {search.searchStatus === "pending_refinement" && search.finalizedAt && (
+        <FinalizeEditForm
+          searchId={search.id}
+          finalizedAt={search.finalizedAt}
+          initialTrim={search.trim}
+          initialColors={search.colors}
+          initialRequiredOptions={search.requiredOptions}
+        />
+      )}
 
       <div className="mt-5">
         <h3 className="text-sm font-semibold text-zinc-300">

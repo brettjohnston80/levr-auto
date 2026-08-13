@@ -41,9 +41,13 @@ export interface DashboardSearch {
   model: string;
   trim: string | null;
   colors: string[];
+  requiredOptions: string[];
   searchStatus: string;
   guaranteeStatus: string;
   paidAt: string | null;
+  finalizedAt: string | null;
+  solidifiedAt: string | null;
+  callRequestedAt: string | null;
   offers: DashboardOffer[];
 }
 
@@ -54,13 +58,22 @@ export interface DashboardSearch {
  * receipt (see the comment on qualifying_offers in the schema). The
  * WHERE delivered_at IS NULL guard makes this idempotent: revisiting the
  * page, or a concurrent load, never re-fires or double-sets it.
+ *
+ * finalized_at, solidified_at, and call_requested_at are surfaced here so
+ * /account can render the post-payment finalize/self-edit UI: finalized_at
+ * anchors the 24h self-edit countdown (see finalize-actions.ts), solidified_at
+ * tells us the window already closed (search-solidification.ts), and
+ * call_requested_at lets the page show "an agent will reach out" instead of
+ * a dead end while a search sits in awaiting_finalization.
  */
 export async function getCustomerDashboard(customerId: string): Promise<DashboardSearch[]> {
   const supabase = createAdminClient();
 
   const { data: searches, error: searchesError } = await supabase
     .from("customer_searches")
-    .select("id, make, model, trim, colors, search_status, guarantee_status, paid_at")
+    .select(
+      "id, make, model, trim, colors, required_options, search_status, guarantee_status, paid_at, finalized_at, solidified_at, call_requested_at"
+    )
     .eq("customer_id", customerId)
     .order("created_at", { ascending: true });
 
@@ -205,9 +218,13 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
     model: search.model,
     trim: search.trim,
     colors: search.colors,
+    requiredOptions: search.required_options,
     searchStatus: search.search_status,
     guaranteeStatus: search.guarantee_status,
     paidAt: search.paid_at,
+    finalizedAt: search.finalized_at,
+    solidifiedAt: search.solidified_at,
+    callRequestedAt: search.call_requested_at,
     offers: offersBySearchId.get(search.id) ?? [],
   }));
 }

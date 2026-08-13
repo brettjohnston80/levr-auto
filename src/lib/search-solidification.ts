@@ -4,17 +4,19 @@ import { createAdminClient } from "./supabase/admin";
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Searches due to auto-solidify: still in the 24h post-payment refinement
- * window (Core-Processes-v1.md §2 step 3 — "Search doesn't start until
- * solidification"), and that window has elapsed.
+ * Searches due to auto-solidify: still in the 24h post-finalization
+ * self-edit window (Core-Processes-v1.md Section 2 step 3 -- "Search doesn't
+ * start until solidification"), and that window has elapsed.
  *
- * Built for the current flow, where solidification is purely a passive
- * 24h-elapsed timer off paid_at. This will need revisiting once the
- * pending pivot's Steps 4-6 make finalization an explicit event (a
- * self-service save or an agent call) rather than an automatic
- * payment-triggered timer — expected future rework, not a bug here.
+ * Anchored to finalized_at, not paid_at -- the pending pivot's Steps 4-6
+ * made finalization an explicit event (a self-service save via
+ * finalize-actions.ts, or an agent finalizing on a call) rather than an
+ * automatic payment-triggered timer. A row sits at search_status =
+ * 'awaiting_finalization' with finalized_at still null until that explicit
+ * action happens, however long that takes -- this query only ever matches
+ * rows that have actually been finalized.
  *
- * Deliberately an "elapsed >= 24h" check, not "elapsed == exactly 24h" —
+ * Deliberately an "elapsed >= 24h" check, not "elapsed == exactly 24h" --
  * same idempotent, catch-up-tolerant pattern as getDueSearches in
  * guarantee-assessment.ts, for the same reason: a missed run can't create a
  * permanent gap, it's just caught by the next one.
@@ -27,8 +29,8 @@ export async function getSearchesDueForSolidification(): Promise<{ id: string }[
     .from("customer_searches")
     .select("id")
     .eq("search_status", "pending_refinement")
-    .not("paid_at", "is", null)
-    .lte("paid_at", cutoff);
+    .not("finalized_at", "is", null)
+    .lte("finalized_at", cutoff);
 
   if (error) {
     throw new Error(`Failed to load searches due for solidification: ${error.message}`);
@@ -39,12 +41,12 @@ export async function getSearchesDueForSolidification(): Promise<{ id: string }[
 
 /**
  * Solidifies one search: sets solidified_at and flips search_status to
- * 'searching' together, in the same write — the two describe the same
+ * 'searching' together, in the same write -- the two describe the same
  * event. solidified_at is what the Day-30/Day-60 guarantee clock now
  * anchors to (see guarantee-assessment.ts).
  *
  * Guarded by .eq("search_status", "pending_refinement") so a
- * concurrent/overlapping run can't double-process the same row — returns
+ * concurrent/overlapping run can't double-process the same row -- returns
  * false rather than erroring if another run already solidified it first.
  */
 export async function solidifySearch(searchId: string): Promise<boolean> {
@@ -72,7 +74,7 @@ export interface SolidificationSummary {
 
 /**
  * Runs solidification across every due search, sequentially, continuing
- * past individual failures — same style as runDay30Assessment.
+ * past individual failures -- same style as runDay30Assessment.
  */
 export async function runSolidification(): Promise<SolidificationSummary> {
   const due = await getSearchesDueForSolidification();
@@ -84,7 +86,7 @@ export async function runSolidification(): Promise<SolidificationSummary> {
       if (didSolidify) {
         summary.solidified.push(id);
       }
-      // false means another run already solidified this row first — no-op.
+      // false means another run already solidified this row first -- no-op.
     } catch (error) {
       summary.errors.push({
         searchId: id,
