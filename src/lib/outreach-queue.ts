@@ -55,6 +55,7 @@ export interface OutreachOffer {
   vehicleSoldAt: string | null;
   addons: OutreachAddon[];
   dealProgress: OutreachDealProgress | null;
+  serviceAgreementSignedAt: string | null;
 }
 
 export interface OutreachSearch {
@@ -156,9 +157,10 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
   }
 
   const dealProgressByOfferId = new Map<string, OutreachDealProgress>();
+  const serviceAgreementSignedAtByOfferId = new Map<string, string>();
 
   if (offerIds.length > 0) {
-    const [{ data: progressRows, error: progressError }, { data: financingDocs, error: docsError }] =
+    const [{ data: progressRows, error: progressError }, { data: docs, error: docsError }] =
       await Promise.all([
         supabase
           .from("deal_progress")
@@ -168,8 +170,8 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
           .in("qualifying_offer_id", offerIds),
         supabase
           .from("documents")
-          .select("qualifying_offer_id, storage_path, uploaded_at")
-          .eq("type", "financing_proof")
+          .select("qualifying_offer_id, type, storage_path, uploaded_at, signed_at")
+          .in("type", ["financing_proof", "service_agreement"])
           .in("qualifying_offer_id", offerIds)
           .order("uploaded_at", { ascending: false }),
       ]);
@@ -178,14 +180,22 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
       throw new Error(`Failed to load deal progress: ${progressError.message}`);
     }
     if (docsError) {
-      throw new Error(`Failed to load financing documents: ${docsError.message}`);
+      throw new Error(`Failed to load documents: ${docsError.message}`);
     }
 
     // Most recent upload per offer, if the customer resubmitted more than once.
     const latestFinancingProofByOfferId = new Map<string, string>();
-    for (const doc of financingDocs ?? []) {
-      if (!doc.storage_path || latestFinancingProofByOfferId.has(doc.qualifying_offer_id)) continue;
-      latestFinancingProofByOfferId.set(doc.qualifying_offer_id, doc.storage_path);
+    for (const doc of docs ?? []) {
+      if (
+        doc.type === "financing_proof" &&
+        doc.storage_path &&
+        !latestFinancingProofByOfferId.has(doc.qualifying_offer_id)
+      ) {
+        latestFinancingProofByOfferId.set(doc.qualifying_offer_id, doc.storage_path);
+      }
+      if (doc.type === "service_agreement" && doc.signed_at) {
+        serviceAgreementSignedAtByOfferId.set(doc.qualifying_offer_id, doc.signed_at);
+      }
     }
 
     const signedUrlByOfferId = new Map<string, string>();
@@ -232,6 +242,7 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
       vehicleSoldAt: offer.vehicle_sold_at,
       addons: addonsByOfferId.get(offer.id) ?? [],
       dealProgress: dealProgressByOfferId.get(offer.id) ?? null,
+      serviceAgreementSignedAt: serviceAgreementSignedAtByOfferId.get(offer.id) ?? null,
     });
     offersBySearchId.set(offer.customer_search_id, list);
   }

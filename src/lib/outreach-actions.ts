@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getAuthorizedAgent } from "./agent-auth";
 import { createAdminClient } from "./supabase/admin";
+import { getDocumentStatus } from "./pandadoc/client";
 
 export interface LogOfferResult {
   ok: boolean;
@@ -321,4 +322,73 @@ export async function confirmDepositReceived(
   revalidatePath("/internal/outreach");
   revalidatePath("/account");
   return { ok: true };
+}
+
+export interface CheckSigningStatusResult {
+  ok: boolean;
+  error?: string;
+  signed?: boolean;
+}
+
+/**
+ * Manual reconciliation, independent of the client-side document.completed
+ * event (which is the primary signal, but can be missed if the customer's
+ * tab closes mid-flow or the browser call fails). Asks PandaDoc directly
+ * for the document's current status — authoritative, since it comes from
+ * PandaDoc's own server rather than a browser self-report. Exists because
+ * webhooks aren't available on the current PandaDoc plan, so there's no
+ * server-to-server push to fall back on.
+ */
+export async function checkServiceAgreementSigningStatus(offerId: string): Promise<CheckSigningStatusResult> {
+  const agent = await getAuthorizedAgent();
+  if (!agent) {
+    return { ok: false, error: "Not authorized." };
+  }
+
+  const admin = createAdminClient();
+
+  const { data: doc, error: docError } = await admin
+    .from("documents")
+    .select("id, external_signature_id, signed_at")
+    .eq("qualifying_offer_id", offerId)
+    .eq("type", "service_agreement")
+    .maybeSingle();
+
+  if (docError) {
+    return { ok: false, error: `Failed to look up the document: ${docError.message}` };
+  }
+  if (!doc || !doc.external_signature_id) {
+    return { ok: false, error: "No service agreement has been created for this offer yet." };
+  }
+  if (doc.signed_at) {
+    return { ok: true, signed: true };
+  }
+
+  let status: string;
+  try {
+    status = await getDocumentStatus(doc.external_signature_id);
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Failed to check status with PandaDoc.",
+    };
+  }
+
+  if (!status.includes("completed")) {
+    return { ok: true, signed: false };
+  }
+
+  const { error: updateError } = await admin
+    .from("documents")
+    .update({ signed_at: new Date().toISOString() })
+    .eq("id", doc.id)
+    .is("signed_at", null);
+
+  if (updateError) {
+    return { ok: false, error: `Failed to record signature: ${updateError.message}` };
+  }
+
+  revalidatePath("/internal/outreach");
+  revalidatePath("/account");
+  return { ok: true, signed: true };
 }

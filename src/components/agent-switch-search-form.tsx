@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { switchCustomerSearch } from "@/lib/switch-actions";
 
-export function SwitchSearchForm({ searchId }: { searchId: string }) {
+export function AgentSwitchSearchForm({ searchId }: { searchId: string }) {
   const [expanded, setExpanded] = useState(false);
   const [newMake, setNewMake] = useState("");
   const [newModel, setNewModel] = useState("");
@@ -27,8 +27,8 @@ export function SwitchSearchForm({ searchId }: { searchId: string }) {
       setError(res.error ?? "Something went wrong.");
       return;
     }
-    // On success, revalidatePath refreshes the page — the switched search now
-    // shows as superseded and the new one appears below.
+    // On success, revalidatePath refreshes the page — the switched search
+    // drops out of this queue (no longer search_status = 'searching').
     setExpanded(false);
     setNewMake("");
     setNewModel("");
@@ -41,7 +41,7 @@ export function SwitchSearchForm({ searchId }: { searchId: string }) {
         onClick={() => setExpanded(true)}
         className="mt-4 text-sm text-zinc-400 underline hover:text-white"
       >
-        Switch to a different make/model
+        Switch this customer to a different make/model
       </button>
     );
   }
@@ -49,7 +49,8 @@ export function SwitchSearchForm({ searchId }: { searchId: string }) {
   return (
     <form onSubmit={handleSubmit} className="mt-4 space-y-3 rounded-lg border border-white/10 bg-black/20 p-4">
       <p className="text-xs text-zinc-500">
-        This starts a new search for a different vehicle. Your current search here will be closed out.
+        Use this after the customer requests a change (phone/email). This starts a new search and closes
+        out the current one.
       </p>
       <div className="grid grid-cols-2 gap-3">
         <div>

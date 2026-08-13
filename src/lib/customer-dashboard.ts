@@ -32,6 +32,7 @@ export interface DashboardOffer {
   customerRespondedAt: string | null;
   addons: DashboardAddon[];
   dealProgress: DashboardDealProgress | null;
+  serviceAgreementSignedAt: string | null;
 }
 
 export interface DashboardSearch {
@@ -112,9 +113,10 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
   }
 
   const dealProgressByOfferId = new Map<string, DashboardDealProgress>();
+  const serviceAgreementSignedAtByOfferId = new Map<string, string>();
 
   if (offerIds.length > 0) {
-    const [{ data: progressRows, error: progressError }, { data: financingDocs, error: docsError }] =
+    const [{ data: progressRows, error: progressError }, { data: docs, error: docsError }] =
       await Promise.all([
         supabase
           .from("deal_progress")
@@ -124,8 +126,8 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
           .in("qualifying_offer_id", offerIds),
         supabase
           .from("documents")
-          .select("qualifying_offer_id, uploaded_at")
-          .eq("type", "financing_proof")
+          .select("qualifying_offer_id, type, uploaded_at, signed_at")
+          .in("type", ["financing_proof", "service_agreement"])
           .in("qualifying_offer_id", offerIds)
           .order("uploaded_at", { ascending: false }),
       ]);
@@ -134,13 +136,17 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
       throw new Error(`Failed to load deal progress: ${progressError.message}`);
     }
     if (docsError) {
-      throw new Error(`Failed to load financing documents: ${docsError.message}`);
+      throw new Error(`Failed to load documents: ${docsError.message}`);
     }
 
     const latestUploadByOfferId = new Map<string, string>();
-    for (const doc of financingDocs ?? []) {
-      if (!doc.uploaded_at || latestUploadByOfferId.has(doc.qualifying_offer_id)) continue;
-      latestUploadByOfferId.set(doc.qualifying_offer_id, doc.uploaded_at);
+    for (const doc of docs ?? []) {
+      if (doc.type === "financing_proof" && doc.uploaded_at && !latestUploadByOfferId.has(doc.qualifying_offer_id)) {
+        latestUploadByOfferId.set(doc.qualifying_offer_id, doc.uploaded_at);
+      }
+      if (doc.type === "service_agreement" && doc.signed_at) {
+        serviceAgreementSignedAtByOfferId.set(doc.qualifying_offer_id, doc.signed_at);
+      }
     }
 
     for (const row of progressRows ?? []) {
@@ -188,6 +194,7 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
       customerRespondedAt: offer.customer_responded_at,
       addons: addonsByOfferId.get(offer.id) ?? [],
       dealProgress: dealProgressByOfferId.get(offer.id) ?? null,
+      serviceAgreementSignedAt: serviceAgreementSignedAtByOfferId.get(offer.id) ?? null,
     });
     offersBySearchId.set(offer.customer_search_id, list);
   }

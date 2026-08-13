@@ -7,6 +7,8 @@ import { AddOfferAddonForm } from "@/components/add-offer-addon-form";
 import { ResolveAddonRemovalForm } from "@/components/resolve-addon-removal-form";
 import { ConfirmAvailabilityButton } from "@/components/confirm-availability-button";
 import { ConfirmDepositForm } from "@/components/confirm-deposit-form";
+import { CheckSigningStatusButton } from "@/components/check-signing-status-button";
+import { AgentSwitchSearchForm } from "@/components/agent-switch-search-form";
 
 export const metadata: Metadata = {
   title: "Outreach Queue — LEVR Auto Internal",
@@ -160,6 +162,17 @@ export default async function OutreachQueuePage() {
                                   "Financing not yet submitted"
                                 )}
                               </div>
+
+                              <div className="mt-2 text-xs text-zinc-400">
+                                {offer.serviceAgreementSignedAt ? (
+                                  `Service agreement signed ${new Date(offer.serviceAgreementSignedAt).toLocaleDateString()}`
+                                ) : (
+                                  <>
+                                    Service agreement not yet signed
+                                    <CheckSigningStatusButton offerId={offer.id} />
+                                  </>
+                                )}
+                              </div>
                             </div>
                           )}
                         </li>
@@ -169,6 +182,7 @@ export default async function OutreachQueuePage() {
                 )}
 
                 <LogOfferForm searchId={search.id} listings={search.listings} />
+                <AgentSwitchSearchForm searchId={search.id} />
               </div>
             ))}
           </div>

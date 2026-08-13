@@ -4,9 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import { logout } from "@/lib/auth-actions";
 import { getCustomerDashboard, type DashboardSearch } from "@/lib/customer-dashboard";
 import { OfferResponseButtons } from "@/components/offer-response-buttons";
-import { SwitchSearchForm } from "@/components/switch-search-form";
 import { AddonRemovalButton } from "@/components/addon-removal-button";
 import { FinancingCaptureForm } from "@/components/financing-capture-form";
+import { ServiceAgreementSigning } from "@/components/service-agreement-signing";
+import { AccountFaqSection } from "@/components/account-faq-section";
 
 export const metadata: Metadata = {
   title: "Your Account — LEVR Auto",
@@ -85,6 +86,8 @@ export default async function AccountPage() {
             ))}
           </div>
         )}
+
+        <AccountFaqSection customerEmail={customer?.email ?? user.email ?? ""} />
 
         <form action={logout} className="mt-10 text-center">
           <button
@@ -187,6 +190,11 @@ function SearchCard({ search }: { search: DashboardSearch }) {
                     </p>
 
                     <FinancingCaptureForm offerId={offer.id} existing={offer.dealProgress} />
+
+                    <ServiceAgreementSigning
+                      offerId={offer.id}
+                      initiallySigned={!!offer.serviceAgreementSignedAt}
+                    />
                   </div>
                 )}
               </li>
@@ -195,9 +203,6 @@ function SearchCard({ search }: { search: DashboardSearch }) {
         )}
       </div>
 
-      {search.searchStatus !== "switched" && search.searchStatus !== "closed" && (
-        <SwitchSearchForm searchId={search.id} />
-      )}
     </div>
   );
 }
