@@ -58,6 +58,7 @@ export async function createCheckoutSession(searchId: string): Promise<CreateChe
       },
     ],
     metadata: {
+      type: "search_payment",
       customer_id: user.id,
       customer_search_id: searchId,
     },
