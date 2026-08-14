@@ -364,3 +364,57 @@ export async function getFinalizationQueue(): Promise<FinalizationQueueSearch[]>
     trimOptions: trimOptionsByMakeModel.get(`${search.make}::${search.model}`) ?? [],
   }));
 }
+
+export interface SwitchCallQueueSearch {
+  id: string;
+  make: string;
+  model: string;
+  customerEmail: string | null;
+  switchCallRequestedAt: string;
+}
+
+/**
+ * Searches where the customer chose "have an agent handle it" on the
+ * self-service switch flow (switch-self-service-actions.ts,
+ * requestSwitchCall) instead of picking a new make/model themselves.
+ * Manual outreach only, same as the finalization-call queue above -- an
+ * agent works this list and performs the actual switch via
+ * AgentSwitchSearchForm (switch-actions.ts), the same form already used
+ * for agent-initiated switches with no prior request.
+ *
+ * Unlike the finalization queue, this isn't scoped to one search_status --
+ * a switch request can come in from any live, paid search (awaiting
+ * finalization, mid-refinement-window, or already searching). Excludes
+ * search_status = 'switched' so a request naturally drops off the list
+ * once an agent has already acted on it.
+ */
+export async function getSwitchCallQueue(): Promise<SwitchCallQueueSearch[]> {
+  const supabase = createAdminClient();
+
+  const { data: searches, error: searchesError } = await supabase
+    .from("customer_searches")
+    .select("id, make, model, customer_id, switch_call_requested_at")
+    .not("switch_call_requested_at", "is", null)
+    .neq("search_status", "switched")
+    .order("switch_call_requested_at", { ascending: true });
+
+  if (searchesError) {
+    throw new Error(`Failed to load switch call queue: ${searchesError.message}`);
+  }
+
+  if (!searches || searches.length === 0) {
+    return [];
+  }
+
+  const customerIds = [...new Set(searches.map((s) => s.customer_id))];
+  const { data: customers } = await supabase.from("customers").select("id, email").in("id", customerIds);
+  const customerEmailById = new Map((customers ?? []).map((c) => [c.id, c.email as string]));
+
+  return searches.map((search) => ({
+    id: search.id,
+    make: search.make,
+    model: search.model,
+    customerEmail: customerEmailById.get(search.customer_id) ?? null,
+    switchCallRequestedAt: search.switch_call_requested_at as string,
+  }));
+}

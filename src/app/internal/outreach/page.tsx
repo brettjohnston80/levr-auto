@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { requireAgent } from "@/lib/agent-auth";
-import { getOutreachQueue, getFinalizationQueue } from "@/lib/outreach-queue";
+import { getOutreachQueue, getFinalizationQueue, getSwitchCallQueue } from "@/lib/outreach-queue";
 import { LogOfferForm } from "@/components/log-offer-form";
 import { MarkSoldButton } from "@/components/mark-sold-button";
 import { AddOfferAddonForm } from "@/components/add-offer-addon-form";
@@ -28,7 +28,11 @@ function formatDate(iso: string): string {
 
 export default async function OutreachQueuePage() {
   const agent = await requireAgent();
-  const [queue, finalizationQueue] = await Promise.all([getOutreachQueue(), getFinalizationQueue()]);
+  const [queue, finalizationQueue, switchCallQueue] = await Promise.all([
+    getOutreachQueue(),
+    getFinalizationQueue(),
+    getSwitchCallQueue(),
+  ]);
 
   return (
     <section className="min-h-screen bg-zinc-950 py-16">
@@ -63,6 +67,32 @@ export default async function OutreachQueuePage() {
                     model={search.model}
                     trimOptions={search.trimOptions}
                   />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-10">
+          <h2 className="text-lg font-semibold text-white">
+            Switch calls requested ({switchCallQueue.length})
+          </h2>
+          {switchCallQueue.length === 0 ? (
+            <p className="mt-3 text-sm text-zinc-400">No customers waiting on a switch call.</p>
+          ) : (
+            <div className="mt-4 space-y-4">
+              {switchCallQueue.map((search) => (
+                <div key={search.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <h3 className="text-base font-semibold text-white">
+                      {search.make} {search.model}
+                    </h3>
+                    <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Requested {formatDate(search.switchCallRequestedAt)}
+                  </p>
+                  <AgentSwitchSearchForm searchId={search.id} />
                 </div>
               ))}
             </div>

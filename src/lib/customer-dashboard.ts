@@ -48,6 +48,7 @@ export interface DashboardSearch {
   finalizedAt: string | null;
   solidifiedAt: string | null;
   callRequestedAt: string | null;
+  switchCallRequestedAt: string | null;
   offers: DashboardOffer[];
 }
 
@@ -64,7 +65,9 @@ export interface DashboardSearch {
  * anchors the 24h self-edit countdown (see finalize-actions.ts), solidified_at
  * tells us the window already closed (search-solidification.ts), and
  * call_requested_at lets the page show "an agent will reach out" instead of
- * a dead end while a search sits in awaiting_finalization.
+ * a dead end while a search sits in awaiting_finalization. switch_call_requested_at
+ * is the same idea for the switch flow (SwitchChoice) -- lets /account show
+ * the locked call-request confirmation instead of the picker again.
  */
 export async function getCustomerDashboard(customerId: string): Promise<DashboardSearch[]> {
   const supabase = createAdminClient();
@@ -72,7 +75,7 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
   const { data: searches, error: searchesError } = await supabase
     .from("customer_searches")
     .select(
-      "id, make, model, trim, colors, required_options, search_status, guarantee_status, paid_at, finalized_at, solidified_at, call_requested_at"
+      "id, make, model, trim, colors, required_options, search_status, guarantee_status, paid_at, finalized_at, solidified_at, call_requested_at, switch_call_requested_at"
     )
     .eq("customer_id", customerId)
     .order("created_at", { ascending: true });
@@ -225,6 +228,7 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
     finalizedAt: search.finalized_at,
     solidifiedAt: search.solidified_at,
     callRequestedAt: search.call_requested_at,
+    switchCallRequestedAt: search.switch_call_requested_at,
     offers: offersBySearchId.get(search.id) ?? [],
   }));
 }

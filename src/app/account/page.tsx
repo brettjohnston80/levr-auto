@@ -10,6 +10,7 @@ import { FinancingCaptureForm } from "@/components/financing-capture-form";
 import { ServiceAgreementSigning } from "@/components/service-agreement-signing";
 import { FinalizeEditForm } from "@/components/finalize-edit-form";
 import { AccountFaqSection } from "@/components/account-faq-section";
+import { SwitchChoice } from "@/components/switch-choice";
 
 export const metadata: Metadata = {
   title: "Your Account — LEVR Auto",
@@ -17,6 +18,14 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
+// awaiting_finalization has two very different real meanings depending on
+// paid_at: "just paid, ready to finalize" (the common case) vs. "checkout
+// was started but abandoned/never completed" (paid_at still null -- intake
+// creates this row before the customer ever reaches Stripe). The unpaid
+// case used SEARCH_STATUS_COPY's normal "Payment received..." text before
+// this fix, which was wrong, plus a live "Finalize this search" link that
+// dead-ended at /finalize's own paid_at guard. See getStatusCopy below,
+// which branches on paidAt before falling back to this table.
 const SEARCH_STATUS_COPY: Record<string, string> = {
   awaiting_finalization: "Payment received — finalize trim, color, and options to start your search.",
   pending_refinement:
@@ -26,6 +35,34 @@ const SEARCH_STATUS_COPY: Record<string, string> = {
   closed: "Search closed.",
   switched: "Superseded by a newer search.",
 };
+
+const UNPAID_AWAITING_FINALIZATION_COPY =
+  "Checkout wasn't completed — this search hasn't been paid for, so it hasn't started.";
+
+function getStatusCopy(search: DashboardSearch): string {
+  if (search.searchStatus === "awaiting_finalization" && !search.paidAt) {
+    return UNPAID_AWAITING_FINALIZATION_COPY;
+  }
+  return SEARCH_STATUS_COPY[search.searchStatus] ?? "";
+}
+
+// The raw search_status badge (below) says "awaiting finalization" even when
+// paid_at is null, which visually contradicts getStatusCopy's accurate body
+// text for that same unpaid case ("hasn't been paid for, so it hasn't
+// started"). This branches the badge the same way.
+function getStatusBadge(search: DashboardSearch): string {
+  if (search.searchStatus === "awaiting_finalization" && !search.paidAt) {
+    return "checkout incomplete";
+  }
+  return search.searchStatus.replace(/_/g, " ");
+}
+
+// Switching only makes sense for a search that's actually live and paid --
+// not an abandoned/unpaid row (nothing to switch away from yet), and not
+// one that's already switched or closed.
+function canSwitch(search: DashboardSearch): boolean {
+  return search.paidAt !== null && !["switched", "closed"].includes(search.searchStatus);
+}
 
 const ADDON_REMOVAL_STATUS_COPY: Record<string, string> = {
   pending: "Removal requested — waiting on the dealer",
@@ -114,15 +151,23 @@ function SearchCard({ search }: { search: DashboardSearch }) {
           {search.trim ? ` — ${search.trim}` : ""}
         </h2>
         <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
-          {search.searchStatus.replace(/_/g, " ")}
+          {getStatusBadge(search)}
         </span>
       </div>
       {search.colors.length > 0 && (
         <p className="mt-1 text-sm text-zinc-500">Colors: {search.colors.join(", ")}</p>
       )}
-      <p className="mt-3 text-sm text-zinc-400">{SEARCH_STATUS_COPY[search.searchStatus] ?? ""}</p>
+      <p className="mt-3 text-sm text-zinc-400">{getStatusCopy(search)}</p>
 
-      {search.searchStatus === "awaiting_finalization" && (
+      {search.searchStatus === "awaiting_finalization" && !search.paidAt && (
+        <div className="mt-4 border-t border-white/5 pt-4">
+          <Link href="/" className="text-sm text-emerald-400 underline hover:text-emerald-300">
+            Head back to the homepage to try again
+          </Link>
+        </div>
+      )}
+
+      {search.searchStatus === "awaiting_finalization" && search.paidAt && (
         <div className="mt-4 border-t border-white/5 pt-4">
           {search.callRequestedAt ? (
             <p className="text-sm text-zinc-400">
@@ -148,6 +193,17 @@ function SearchCard({ search }: { search: DashboardSearch }) {
           initialColors={search.colors}
           initialRequiredOptions={search.requiredOptions}
         />
+      )}
+
+      {canSwitch(search) && (
+        <div className="mt-4 border-t border-white/5 pt-4">
+          <SwitchChoice
+            searchId={search.id}
+            make={search.make}
+            model={search.model}
+            switchCallAlreadyRequested={!!search.switchCallRequestedAt}
+          />
+        </div>
       )}
 
       <div className="mt-5">
