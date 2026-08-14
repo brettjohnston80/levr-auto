@@ -47,3 +47,6 @@ next-env.d.ts
 .agents/
 .claude/skills/
 skills-lock.json
+
+# one-time data-import artifacts (not source code, applied manually via Supabase Table Editor)
+/supabase/zip_coordinates_import.csv

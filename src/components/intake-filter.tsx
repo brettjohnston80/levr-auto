@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MAKES, MAKES_AND_MODELS, FLAT_PRICE } from "@/lib/vehicle-data";
-import { estimateMatches } from "@/lib/match-counter";
+import { countNearbyInventory } from "@/lib/inventory-count";
+import { INVENTORY_RADIUS_MILES } from "@/lib/inventory-radius";
 import { createClient } from "@/lib/supabase/client";
 import { saveIntakeSearch } from "@/lib/intake-actions";
 import { createCheckoutSession } from "@/lib/payment-actions";
@@ -121,16 +122,24 @@ function SelectField({
   );
 }
 
-function MatchCounter({ vehicle, zip }: { vehicle: Vehicle; zip: string }) {
-  const count = useMemo(
-    () => estimateMatches({ ...vehicle, trim: "", colors: [] }, zip, 8),
-    [vehicle, zip]
-  );
+// Presentational only -- IntakeFilter owns the actual fetch (debounced, one
+// real countNearbyInventory call) so the badge here and the two other
+// "~N vehicles" mentions on the page all share one result instead of each
+// re-querying independently.
+function MatchCounter({
+  ready,
+  loading,
+  count,
+}: {
+  ready: boolean;
+  loading: boolean;
+  count: number | null;
+}) {
   const [pulse, setPulse] = useState(false);
   const prevCount = useRef(count);
 
   useEffect(() => {
-    if (prevCount.current !== count) {
+    if (count !== null && prevCount.current !== count) {
       prevCount.current = count;
       setPulse(true);
       const t = window.setTimeout(() => setPulse(false), 350);
@@ -138,10 +147,26 @@ function MatchCounter({ vehicle, zip }: { vehicle: Vehicle; zip: string }) {
     }
   }, [count]);
 
-  if (count === null) {
+  if (!ready) {
     return (
       <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-1.5 text-xs text-zinc-500">
-        Select a make to see live matches
+        Select a make, model, and zip to see live matches
+      </div>
+    );
+  }
+
+  if (loading || count === null) {
+    return (
+      <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-1.5 text-xs text-zinc-500">
+        Checking live inventory…
+      </div>
+    );
+  }
+
+  if (count === 0) {
+    return (
+      <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-1.5 text-xs font-semibold text-amber-300">
+        0 matching listings tracked near you right now — our nationwide outreach can still source it
       </div>
     );
   }
@@ -155,7 +180,7 @@ function MatchCounter({ vehicle, zip }: { vehicle: Vehicle; zip: string }) {
       }`}
     >
       <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-      {count.toLocaleString()} vehicles match right now
+      {count.toLocaleString()} {count === 1 ? "vehicle" : "vehicles"} within {INVENTORY_RADIUS_MILES} miles
     </div>
   );
 }
@@ -177,7 +202,34 @@ export function IntakeFilter() {
   const vehicleComplete = Boolean(vehicle.make && vehicle.model);
   const canSubmit = vehicleComplete && zipValid;
 
-  const matches = estimateMatches({ ...vehicle, trim: "", colors: [] }, zip, 8);
+  const [matchCount, setMatchCount] = useState<number | null>(null);
+  const [matchLoading, setMatchLoading] = useState(false);
+  const matchReady = vehicleComplete && zipValid;
+
+  // Debounced -- this is now a real DB round trip (listings + zip_coordinates),
+  // not a synchronous calculation, so it shouldn't fire on every keystroke.
+  useEffect(() => {
+    if (!matchReady) {
+      setMatchCount(null);
+      setMatchLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setMatchLoading(true);
+
+    const t = window.setTimeout(async () => {
+      const result = await countNearbyInventory(vehicle.make, vehicle.model, zip);
+      if (cancelled) return;
+      setMatchLoading(false);
+      setMatchCount(result.ok ? result.count : null);
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [matchReady, vehicle.make, vehicle.model, zip]);
 
   async function performSave(vehicleToSave: Vehicle, zipToSave: string) {
     setSaving(true);
@@ -280,7 +332,11 @@ export function IntakeFilter() {
               Total: ${FLAT_PRICE} for zip {zip}
             </p>
             <p className="mt-2 text-sm text-zinc-400">
-              ~{(matches ?? 0).toLocaleString()} vehicles nationwide currently match this search.
+              {matchCount === null
+                ? "Outreach begins right after checkout."
+                : matchCount === 0
+                  ? `0 matching listings tracked near you right now — our nationwide outreach can still source it.`
+                  : `${matchCount.toLocaleString()} ${matchCount === 1 ? "vehicle" : "vehicles"} within ${INVENTORY_RADIUS_MILES} miles currently match this search.`}
             </p>
             <p className="mt-4 text-sm text-zinc-400">
               Nothing has been charged yet. Once you check out, you&apos;ll pick trim, color, and
@@ -335,7 +391,7 @@ export function IntakeFilter() {
         <div className="mt-12 space-y-6">
           <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-6 shadow-xl shadow-black/20 sm:p-8">
             <div className="mt-4">
-              <MatchCounter vehicle={vehicle} zip={zip} />
+              <MatchCounter ready={matchReady} loading={matchLoading} count={matchCount} />
             </div>
 
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -395,9 +451,13 @@ export function IntakeFilter() {
           <div className="mt-8 flex flex-col items-center justify-between gap-4 border-t border-white/10 pt-6 sm:flex-row">
             <div>
               <p className="text-2xl font-semibold text-white">${FLAT_PRICE} total</p>
-              {vehicle.make && (
-                <p className="mt-1 text-xs font-medium text-emerald-400">
-                  ~{(matches ?? 0).toLocaleString()} vehicles match your search right now
+              {matchReady && !matchLoading && matchCount !== null && (
+                <p
+                  className={`mt-1 text-xs font-medium ${matchCount === 0 ? "text-amber-400" : "text-emerald-400"}`}
+                >
+                  {matchCount === 0
+                    ? `0 matching listings tracked near you right now — nationwide outreach can still source it`
+                    : `${matchCount.toLocaleString()} ${matchCount === 1 ? "vehicle matches" : "vehicles match"} within ${INVENTORY_RADIUS_MILES} miles`}
                 </p>
               )}
             </div>
