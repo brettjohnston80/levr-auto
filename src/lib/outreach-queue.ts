@@ -480,3 +480,53 @@ export async function getOverdueFollowUpQueue(): Promise<OverdueFollowUpSearch[]
     paidAt: search.paid_at as string,
   }));
 }
+
+export interface StalePausedSearch {
+  id: string;
+  make: string;
+  model: string;
+  customerEmail: string | null;
+  pausedAt: string;
+}
+
+/**
+ * Searches the day60-pause-overdue-searches cron paused (search_status =
+ * 'paused', paused_at set) more than 7 days ago -- past the self-service
+ * resume window (pay $100, resume immediately). No automatic status change
+ * happens after this point; it's a manual worklist for an agent, same
+ * pattern as the other queues. What an agent actually does with one of
+ * these (comp an extension, write it off, etc.) is a decision for a later
+ * pass, not this one -- no action form yet.
+ */
+export async function getStalePausedSearchesQueue(): Promise<StalePausedSearch[]> {
+  const supabase = createAdminClient();
+  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  const { data: searches, error: searchesError } = await supabase
+    .from("customer_searches")
+    .select("id, make, model, customer_id, paused_at")
+    .eq("search_status", "paused")
+    .not("paused_at", "is", null)
+    .lte("paused_at", cutoff)
+    .order("paused_at", { ascending: true });
+
+  if (searchesError) {
+    throw new Error(`Failed to load stale paused searches: ${searchesError.message}`);
+  }
+
+  if (!searches || searches.length === 0) {
+    return [];
+  }
+
+  const customerIds = [...new Set(searches.map((s) => s.customer_id))];
+  const { data: customers } = await supabase.from("customers").select("id, email").in("id", customerIds);
+  const customerEmailById = new Map((customers ?? []).map((c) => [c.id, c.email as string]));
+
+  return searches.map((search) => ({
+    id: search.id,
+    make: search.make,
+    model: search.model,
+    customerEmail: customerEmailById.get(search.customer_id) ?? null,
+    pausedAt: search.paused_at as string,
+  }));
+}
