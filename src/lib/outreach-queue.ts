@@ -418,3 +418,65 @@ export async function getSwitchCallQueue(): Promise<SwitchCallQueueSearch[]> {
     switchCallRequestedAt: search.switch_call_requested_at as string,
   }));
 }
+
+const OVERDUE_FOLLOW_UP_HOURS = 48;
+
+export interface OverdueFollowUpSearch {
+  id: string;
+  make: string;
+  model: string;
+  customerEmail: string | null;
+  paidAt: string;
+}
+
+/**
+ * Paid searches nobody has acted on -- no self-service finalization, no
+ * call requested -- 48+ hours after payment. Single clock anchored to
+ * paid_at, covers both original signups and switches (both set paid_at,
+ * see the switch_fee_flow migration's p_paid_at param). Manual outreach
+ * only, same as the finalization/switch-call queues above.
+ *
+ * Filters on search_status = 'awaiting_finalization' as an allow-list
+ * (not a switched/paused/closed block-list) -- search_status's CHECK
+ * constraint allows 6 values, but only 4 are ever actually written
+ * anywhere in this codebase (confirmed by grep, not inferred); paused/
+ * closed are legal but written by nobody today, reserved for not-yet-built
+ * admin views. An allow-list fails closed (excludes) rather than open
+ * (includes) if a 7th value is ever introduced without this query being
+ * revisited -- deliberately more defensive than mirroring the other
+ * queues' block-list style.
+ */
+export async function getOverdueFollowUpQueue(): Promise<OverdueFollowUpSearch[]> {
+  const supabase = createAdminClient();
+  const cutoff = new Date(Date.now() - OVERDUE_FOLLOW_UP_HOURS * 60 * 60 * 1000).toISOString();
+
+  const { data: searches, error: searchesError } = await supabase
+    .from("customer_searches")
+    .select("id, make, model, customer_id, paid_at")
+    .eq("search_status", "awaiting_finalization")
+    .not("paid_at", "is", null)
+    .lte("paid_at", cutoff)
+    .is("finalized_at", null)
+    .is("call_requested_at", null)
+    .order("paid_at", { ascending: true });
+
+  if (searchesError) {
+    throw new Error(`Failed to load overdue follow-up queue: ${searchesError.message}`);
+  }
+
+  if (!searches || searches.length === 0) {
+    return [];
+  }
+
+  const customerIds = [...new Set(searches.map((s) => s.customer_id))];
+  const { data: customers } = await supabase.from("customers").select("id, email").in("id", customerIds);
+  const customerEmailById = new Map((customers ?? []).map((c) => [c.id, c.email as string]));
+
+  return searches.map((search) => ({
+    id: search.id,
+    make: search.make,
+    model: search.model,
+    customerEmail: customerEmailById.get(search.customer_id) ?? null,
+    paidAt: search.paid_at as string,
+  }));
+}

@@ -122,6 +122,14 @@ The build is not the risky part — it's well-specified. The two things that cou
 16. Scaled/automated customer support layer — direction is set, design work hasn't started.
 17. **In-house review video content** (see Future Feature Ideas below) — real scope shift into media production, deferred deliberately.
 
+### Three Dashboards (long-term product vision)
+
+The long-term product is three connected dashboards, one per audience. Item 16 above ("scaled/automated customer support layer") is the agent dashboard below — this section formalizes what that placeholder actually points at.
+
+1. **Client dashboard — exists today, this is its seed, not a separate build.** Already live at `/account`: search status, offers, accept/decline, add-on negotiation, switch UI, finalization. Future work here is incremental (more of the same categories of self-service), not a rebuild.
+2. **Agent dashboard — not started.** Today there's only `/internal/outreach`, a manual page built as a series of individually-added queue sections (matching-dealer lookup, offer logging, finalization calls, switch calls, deal-progress actions) — functional, but not designed as a unified workspace. The real vision: one view that optimizes an agent's full day across all three things an agent actually does — dealer outreach, salesman/dealership interaction, and client follow-up (including the 48-hour follow-up clocks described below). `/internal/outreach`'s queue-section pattern (each new customer-facing flow gets its own section) is the seed of this, the same way `/account` is the seed of the client dashboard — but it needs real design work once there's enough real usage to know what an agent's day actually looks like, not just more sections bolted on ad hoc.
+3. **Dealership dashboard — already loosely captured as a Stage 3 concept, formalized here as the third pillar.** Dealers see regional buyer demand and bid in directly (see Stage 4 item 15, and the Core Processes doc's Stage 3 concept). Explicitly sequenced after real deal volume exists — not being built now, and not useful to build before there's real demand data to show dealers.
+
 ---
 
 ## Future Feature Ideas

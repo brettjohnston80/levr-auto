@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import { requireAgent } from "@/lib/agent-auth";
-import { getOutreachQueue, getFinalizationQueue, getSwitchCallQueue } from "@/lib/outreach-queue";
+import {
+  getOutreachQueue,
+  getFinalizationQueue,
+  getSwitchCallQueue,
+  getOverdueFollowUpQueue,
+} from "@/lib/outreach-queue";
 import { LogOfferForm } from "@/components/log-offer-form";
 import { MarkSoldButton } from "@/components/mark-sold-button";
 import { AddOfferAddonForm } from "@/components/add-offer-addon-form";
@@ -26,12 +31,19 @@ function formatDate(iso: string): string {
   });
 }
 
+function formatHoursOverdue(paidAt: string): string {
+  const hoursSincePaid = Math.floor((Date.now() - new Date(paidAt).getTime()) / (60 * 60 * 1000));
+  const hoursOverdue = hoursSincePaid - 48;
+  return `${hoursOverdue}h overdue (paid ${formatDate(paidAt)})`;
+}
+
 export default async function OutreachQueuePage() {
   const agent = await requireAgent();
-  const [queue, finalizationQueue, switchCallQueue] = await Promise.all([
+  const [queue, finalizationQueue, switchCallQueue, overdueFollowUpQueue] = await Promise.all([
     getOutreachQueue(),
     getFinalizationQueue(),
     getSwitchCallQueue(),
+    getOverdueFollowUpQueue(),
   ]);
 
   return (
@@ -93,6 +105,29 @@ export default async function OutreachQueuePage() {
                     Requested {formatDate(search.switchCallRequestedAt)}
                   </p>
                   <AgentSwitchSearchForm searchId={search.id} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-10">
+          <h2 className="text-lg font-semibold text-white">
+            Overdue follow-ups ({overdueFollowUpQueue.length})
+          </h2>
+          {overdueFollowUpQueue.length === 0 ? (
+            <p className="mt-3 text-sm text-zinc-400">No paid searches are overdue for follow-up.</p>
+          ) : (
+            <div className="mt-4 space-y-4">
+              {overdueFollowUpQueue.map((search) => (
+                <div key={search.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <h3 className="text-base font-semibold text-white">
+                      {search.make} {search.model}
+                    </h3>
+                    <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-amber-400">{formatHoursOverdue(search.paidAt)}</p>
                 </div>
               ))}
             </div>

@@ -1,0 +1,21 @@
+-- Fixes a real bug found via the overdue-follow-up scratch test's setup
+-- call failing with a Postgres "function is not unique" error.
+--
+-- 20260814130000_switch_fee_flow.sql's "create or replace function" on
+-- switch_customer_search added a 4th parameter (p_paid_at). Postgres
+-- identifies a function by (name, argument types), not just name -- adding
+-- a parameter creates a NEW overload rather than replacing the original
+-- 3-parameter function, so both now coexist in the database. Any 3-argument
+-- call is ambiguous between them and errors instead of silently resolving
+-- to either one.
+--
+-- All three production call sites (switch-actions.ts's agent path, the
+-- Stripe webhook's switch_fee branch in api/stripe/webhook/route.ts, and
+-- executeFreeSwitch in switch-self-service-actions.ts) were re-audited by
+-- reading the current code, not from memory -- all three already pass
+-- p_paid_at explicitly on every call, so this was never a live production
+-- bug. It only affected 3-arg callers, which today is only the scratch
+-- test (fixed separately to pass p_paid_at too). Dropping the stale
+-- overload removes the ambiguity at the source instead of relying on every
+-- future caller remembering to pass all 4 arguments.
+drop function public.switch_customer_search(uuid, text, text);
