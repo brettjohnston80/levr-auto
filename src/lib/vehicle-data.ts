@@ -42,3 +42,7 @@ export const OPTIONS = [
 
 // Flat fee, one vehicle, always — no tiers.
 export const FLAT_PRICE = 699;
+
+// $100 per switch (after the free grace-period switch) and per ~30-day
+// Day-60 extension — same flat fee for both, per Core-Processes-v1.md.
+export const EXTENSION_FEE = 100;

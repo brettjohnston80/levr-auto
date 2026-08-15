@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { syncListingsForMakeModel } from "@/lib/marketcheck-sync";
+import { addDays, effectiveDeadline } from "@/lib/day60-extension";
 
 // Stripe webhook: the only place paid_at ever gets set. Runs with no user
 // session, so it uses the service_role admin client -- customers have no RLS
@@ -47,6 +48,10 @@ export async function POST(request: Request) {
 
     if (paymentType === "switch_fee") {
       return handleSwitchFeePayment(session);
+    }
+
+    if (paymentType === "extension_fee") {
+      return handleExtensionFeePayment(session);
     }
 
     const customerId = session.metadata?.customer_id;
@@ -167,6 +172,82 @@ async function handleSwitchFeePayment(session: Stripe.Checkout.Session): Promise
   // above -- deliberately deferred, see CLAUDE.md "Pricing Pivot Tracking",
   // Step 3b: a freshly-switched search hits /finalize's existing empty-
   // listings fallback until this is built.
+
+  return NextResponse.json({ received: true });
+}
+
+// extension_fee Checkout Sessions (extension-actions.ts) pay $100 to push a
+// search's Day-60 deadline out 30 more days, and resume a search paused
+// within its 7-day self-service window.
+async function handleExtensionFeePayment(session: Stripe.Checkout.Session): Promise<NextResponse> {
+  const searchId = session.metadata?.search_id;
+
+  if (!searchId) {
+    console.error(
+      "Stripe webhook: checkout.session.completed (extension_fee) missing expected metadata",
+      session.id
+    );
+    return NextResponse.json({ error: "Missing metadata" }, { status: 400 });
+  }
+
+  const admin = createAdminClient();
+
+  const { data: row, error: fetchError } = await admin
+    .from("customer_searches")
+    .select("id, solidified_at, search_deadline_at, last_extension_session_id")
+    .eq("id", searchId)
+    .maybeSingle();
+
+  if (fetchError || !row) {
+    console.error("Stripe webhook: extension_fee row lookup failed", searchId, fetchError?.message);
+    return NextResponse.json({ error: "Search not found" }, { status: 400 });
+  }
+
+  if (!row.solidified_at) {
+    console.error("Stripe webhook: extension_fee row has no solidified_at, can't compute deadline", searchId);
+    return NextResponse.json({ error: "Search has no solidification anchor" }, { status: 400 });
+  }
+
+  const currentDeadline = effectiveDeadline({
+    solidified_at: row.solidified_at,
+    search_deadline_at: row.search_deadline_at,
+  });
+  const newDeadline = addDays(currentDeadline.toISOString(), 30);
+
+  // Idempotency guard, deliberately NOT a plain .neq("last_extension_session_id",
+  // session.id) as originally proposed: last_extension_session_id starts NULL
+  // on every search's first-ever extension, and SQL's `NULL <> x` evaluates to
+  // NULL (falsy in a WHERE clause) -- a bare .neq() would silently match zero
+  // rows and block every first extension, not just retries. This OR explicitly
+  // allows the null case through, while still no-opping a retry carrying the
+  // same session id.
+  const { data: updated, error: updateError } = await admin
+    .from("customer_searches")
+    .update({
+      search_deadline_at: newDeadline.toISOString(),
+      search_status: "searching",
+      paused_at: null,
+      last_extension_session_id: session.id,
+    })
+    .eq("id", searchId)
+    .or(`last_extension_session_id.is.null,last_extension_session_id.neq.${session.id}`)
+    .select("id");
+
+  if (updateError) {
+    console.error("Stripe webhook: extension_fee update failed", updateError.message);
+    return NextResponse.json({ error: "Database update failed" }, { status: 500 });
+  }
+
+  if (!updated || updated.length === 0) {
+    console.log(
+      `Stripe webhook: extension_fee session ${session.id} already processed for search ${searchId} -- idempotent retry`
+    );
+    return NextResponse.json({ received: true, skipped: "already processed" });
+  }
+
+  console.log(
+    `Stripe webhook: extended search ${searchId} deadline to ${newDeadline.toISOString()} for session ${session.id}`
+  );
 
   return NextResponse.json({ received: true });
 }

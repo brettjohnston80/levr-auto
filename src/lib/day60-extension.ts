@@ -5,12 +5,12 @@ import { sendEmail } from "./email";
 const DEFAULT_SEARCH_DAYS = 60;
 const REMINDER_WINDOW_DAYS = 7;
 
-interface DeadlineInput {
+export interface DeadlineInput {
   solidified_at: string;
   search_deadline_at: string | null;
 }
 
-function addDays(iso: string, days: number): Date {
+export function addDays(iso: string, days: number): Date {
   const date = new Date(iso);
   date.setUTCDate(date.getUTCDate() + days);
   return date;
@@ -25,7 +25,7 @@ function addDays(iso: string, days: number): Date {
  * as getOverdueFollowUpQueue's hours-overdue math and inventory-count.ts's
  * Haversine calculation.
  */
-function effectiveDeadline(row: DeadlineInput): Date {
+export function effectiveDeadline(row: DeadlineInput): Date {
   return row.search_deadline_at
     ? new Date(row.search_deadline_at)
     : addDays(row.solidified_at, DEFAULT_SEARCH_DAYS);
