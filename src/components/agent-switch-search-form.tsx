@@ -2,11 +2,14 @@
 
 import { useState, type FormEvent } from "react";
 import { switchCustomerSearch } from "@/lib/switch-actions";
+import { BYPASS_REASON_CATEGORIES } from "@/lib/agent-bypass-reasons";
 
 export function AgentSwitchSearchForm({ searchId }: { searchId: string }) {
   const [expanded, setExpanded] = useState(false);
   const [newMake, setNewMake] = useState("");
   const [newModel, setNewModel] = useState("");
+  const [reasonCategory, setReasonCategory] = useState("");
+  const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,6 +22,8 @@ export function AgentSwitchSearchForm({ searchId }: { searchId: string }) {
     formData.set("old_search_id", searchId);
     formData.set("new_make", newMake);
     formData.set("new_model", newModel);
+    formData.set("reason_category", reasonCategory);
+    formData.set("notes", notes);
 
     const res = await switchCustomerSearch(formData);
     setSubmitting(false);
@@ -32,6 +37,8 @@ export function AgentSwitchSearchForm({ searchId }: { searchId: string }) {
     setExpanded(false);
     setNewMake("");
     setNewModel("");
+    setReasonCategory("");
+    setNotes("");
   }
 
   if (!expanded) {
@@ -71,6 +78,35 @@ export function AgentSwitchSearchForm({ searchId }: { searchId: string }) {
             className="mt-1 w-full rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
           />
         </div>
+      </div>
+
+      <div>
+        <label className="block text-xs text-zinc-400">Reason *</label>
+        <select
+          required
+          value={reasonCategory}
+          onChange={(e) => setReasonCategory(e.target.value)}
+          className="mt-1 w-full rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
+        >
+          <option value="" disabled>
+            Select a reason…
+          </option>
+          {BYPASS_REASON_CATEGORIES.map((reason) => (
+            <option key={reason} value={reason}>
+              {reason}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-xs text-zinc-400">Notes (optional)</label>
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={2}
+          className="mt-1 w-full rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
+        />
       </div>
 
       {error && <p className="text-sm text-red-400">{error}</p>}

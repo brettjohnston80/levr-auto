@@ -29,6 +29,16 @@ export interface SwitchSearchResult {
  * set on the customer so a later self-service switch attempt sees the free
  * grace-period switch as already used, rather than granting a second free
  * one through this path.
+ *
+ * Retrofitted (2026-08-16, Pass 3 of the Day-60 paused-state policy — see
+ * CLAUDE.md) to require a reason: every agent-comped switch through this
+ * form is already exactly the kind of no-Stripe fee waiver the hidden
+ * bypass audit trail exists for, so this closes that gap in place rather
+ * than leaving it as a separate, still-unaudited path. reason_category is
+ * validated here AND re-validated inside switch_customer_search itself
+ * (defense in depth) — the RPC inserts the agent_bypass_log row in the same
+ * transaction as the switch, so a failed audit write rolls back the switch
+ * too rather than succeeding unlogged.
  */
 export async function switchCustomerSearch(formData: FormData): Promise<SwitchSearchResult> {
   const agent = await getAuthorizedAgent();
@@ -39,9 +49,14 @@ export async function switchCustomerSearch(formData: FormData): Promise<SwitchSe
   const oldSearchId = formData.get("old_search_id")?.toString();
   const newMake = formData.get("new_make")?.toString().trim();
   const newModel = formData.get("new_model")?.toString().trim();
+  const reasonCategory = formData.get("reason_category")?.toString();
+  const notes = formData.get("notes")?.toString().trim() || null;
 
   if (!oldSearchId || !newMake || !newModel) {
     return { ok: false, error: "Make and model are required." };
+  }
+  if (!reasonCategory) {
+    return { ok: false, error: "A reason is required." };
   }
 
   const admin = createAdminClient();
@@ -64,6 +79,9 @@ export async function switchCustomerSearch(formData: FormData): Promise<SwitchSe
     p_new_make: newMake,
     p_new_model: newModel,
     p_paid_at: new Date().toISOString(),
+    p_agent_id: agent.id,
+    p_reason_category: reasonCategory,
+    p_notes: notes,
   });
 
   if (rpcError) {

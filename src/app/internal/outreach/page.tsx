@@ -16,6 +16,7 @@ import { ConfirmDepositForm } from "@/components/confirm-deposit-form";
 import { CheckSigningStatusButton } from "@/components/check-signing-status-button";
 import { AgentSwitchSearchForm } from "@/components/agent-switch-search-form";
 import { AgentFinalizeSearchForm } from "@/components/agent-finalize-search-form";
+import { AgentBypassLookup } from "@/components/agent-bypass-lookup";
 
 export const metadata: Metadata = {
   title: "Outreach Queue — LEVR Auto Internal",
@@ -63,6 +64,17 @@ export default async function OutreachQueuePage() {
         <p className="mt-1 text-sm text-zinc-400">
           Signed in as {agent.name} ({agent.email})
         </p>
+
+        <div className="mt-10">
+          <h2 className="text-lg font-semibold text-white">Grant extension bypass</h2>
+          <p className="mt-1 text-sm text-zinc-400">
+            Case-by-case only — waives the $100 extension fee without Stripe, works on any search regardless of
+            status. Logged, never referenced in customer-facing text.
+          </p>
+          <div className="mt-4">
+            <AgentBypassLookup />
+          </div>
+        </div>
 
         <div className="mt-10">
           <h2 className="text-lg font-semibold text-white">
