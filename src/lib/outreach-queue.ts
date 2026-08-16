@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "./supabase/admin";
 import { buildTrimOptions, type TrimOption } from "./finalize-trims";
+import { RESUME_WINDOW_DAYS } from "./vehicle-data";
 
 export interface OutreachDealer {
   name: string;
@@ -491,16 +492,20 @@ export interface StalePausedSearch {
 
 /**
  * Searches the day60-pause-overdue-searches cron paused (search_status =
- * 'paused', paused_at set) more than 7 days ago -- past the self-service
- * resume window (pay $100, resume immediately). No automatic status change
- * happens after this point; it's a manual worklist for an agent, same
- * pattern as the other queues. What an agent actually does with one of
- * these (comp an extension, write it off, etc.) is a decision for a later
- * pass, not this one -- no action form yet.
+ * 'paused', paused_at set) more than RESUME_WINDOW_DAYS ago -- past the
+ * self-service resume window (pay $100, resume immediately). No automatic
+ * status change happens after this point; it's a manual worklist for an
+ * agent, same pattern as the other queues. What an agent actually does with
+ * one of these (comp an extension, write it off, etc.) is a decision for a
+ * later pass, not this one -- no action form yet.
+ *
+ * Threshold only, not the broadening to show every currently-paused search
+ * -- that's Pass 2 of the Day-60 paused-state policy (CLAUDE.md), not this
+ * pass.
  */
 export async function getStalePausedSearchesQueue(): Promise<StalePausedSearch[]> {
   const supabase = createAdminClient();
-  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const cutoff = new Date(Date.now() - RESUME_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
   const { data: searches, error: searchesError } = await supabase
     .from("customer_searches")

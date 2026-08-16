@@ -46,3 +46,11 @@ export const FLAT_PRICE = 699;
 // $100 per switch (after the free grace-period switch) and per ~30-day
 // Day-60 extension — same flat fee for both, per Core-Processes-v1.md.
 export const EXTENSION_FEE = 100;
+
+// How long a paused search can be resumed self-service (pay the extension
+// fee, no agent involved) before it needs agent intervention. Single named
+// constant so this never has to be hunted down across files again — used by
+// createExtensionCheckoutSession's eligibility gate, getStalePausedSearchesQueue's
+// threshold, and the paused-state dashboard copy. Changed from 7 to 30 days
+// as part of the finalized Day-60 paused-state policy (CLAUDE.md, 2026-08-15).
+export const RESUME_WINDOW_DAYS = 30;

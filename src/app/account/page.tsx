@@ -11,6 +11,7 @@ import { ServiceAgreementSigning } from "@/components/service-agreement-signing"
 import { FinalizeEditForm } from "@/components/finalize-edit-form";
 import { AccountFaqSection } from "@/components/account-faq-section";
 import { SwitchChoice } from "@/components/switch-choice";
+import { RESUME_WINDOW_DAYS } from "@/lib/vehicle-data";
 
 export const metadata: Metadata = {
   title: "Your Account — LEVR Auto",
@@ -31,6 +32,10 @@ const SEARCH_STATUS_COPY: Record<string, string> = {
   pending_refinement:
     "Finalized — you're in the 24-hour window to change trim, color, or options before dealer outreach begins.",
   searching: "Actively searching — we'll show new offers here as they come in.",
+  // Defensive fallback only -- a real paused row always has paused_at set
+  // (day60-extension.ts's pauseOverdueSearches sets both together), so
+  // getStatusCopy branches to getPausedStatusCopy's countdown/expired copy
+  // before this is ever actually shown.
   paused: "Search paused.",
   closed: "Search closed.",
   switched: "Superseded by a newer search.",
@@ -39,9 +44,34 @@ const SEARCH_STATUS_COPY: Record<string, string> = {
 const UNPAID_AWAITING_FINALIZATION_COPY =
   "Checkout wasn't completed — this search hasn't been paid for, so it hasn't started.";
 
+const PAUSED_EXPIRED_COPY = "This search has ended. To continue, you'll need to start a new search.";
+
+// Locked copy from the finalized Day-60 paused-state policy (CLAUDE.md,
+// 2026-08-15) -- deliberately no hint of the hidden agent bypass (Pass 3)
+// anywhere in either branch, expired or not.
+function getPausedStatusCopy(pausedAt: string | null): string {
+  if (!pausedAt) {
+    return SEARCH_STATUS_COPY.paused;
+  }
+
+  const resumeWindowEnds = new Date(pausedAt);
+  resumeWindowEnds.setUTCDate(resumeWindowEnds.getUTCDate() + RESUME_WINDOW_DAYS);
+  const msRemaining = resumeWindowEnds.getTime() - Date.now();
+
+  if (msRemaining <= 0) {
+    return PAUSED_EXPIRED_COPY;
+  }
+
+  const daysRemaining = Math.ceil(msRemaining / (24 * 60 * 60 * 1000));
+  return `Your search is paused. You have ${daysRemaining} day${daysRemaining === 1 ? "" : "s"} left to resume it by extending — after that, you'll need to start a new search.`;
+}
+
 function getStatusCopy(search: DashboardSearch): string {
   if (search.searchStatus === "awaiting_finalization" && !search.paidAt) {
     return UNPAID_AWAITING_FINALIZATION_COPY;
+  }
+  if (search.searchStatus === "paused") {
+    return getPausedStatusCopy(search.pausedAt);
   }
   return SEARCH_STATUS_COPY[search.searchStatus] ?? "";
 }

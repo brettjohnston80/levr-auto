@@ -160,6 +160,19 @@ The long-term product is three connected dashboards, one per audience. Item 16 a
 - Review video links: start with a manually curated mapping of popular models → trusted reviewer channels (Doug DeMuro, Consumer Reports, MotorTrend, etc.); a live YouTube API search is a fancier v2, not needed for launch.
 - Open question to resolve before building: standalone page, or an optional "not sure which car?" branch inside the main intake flow?
 
+### LEVRating (future idea — not started)
+
+**Concept:** LEVR Auto's own internal dealership rating system — a scorecard and relationship-management tool for LEVR's own team, not a public-facing rating. Distinct from the "Dealership dashboard" pillar in the Three Dashboards section above — that one is dealer-facing/external (dealers seeing demand and bidding in); LEVRating is internal-only, LEVR's own view *of* dealerships, not something dealers see or interact with.
+
+**Real prerequisite: dealerships would need to become a first-class entity in the schema.** Today "dealer" only exists as denormalized fields on synced `listings` rows (`dealer_name`, `dealer_city`, etc.) — there's no standalone, trackable dealership record with history. This is real data modeling work, not a small add-on, and would need to happen before any of the below could be built.
+
+**Components:**
+- **A salesperson roster per dealership** (name, phone, email) — lets an agent go back to a specific person who was good to work with, rather than starting cold with the dealership again on the next deal.
+- **Two-sided rating feeding one score per dealership** — agent-side (against criteria to be defined later: communication, willingness to deal, etc.) and customer-side (specifically post-handoff experience — did the dealership stay pleasant once LEVR's part of the deal was done).
+- **Google Reviews synced in alongside LEVR's own score, shown side by side** — an addition to the public rating, not a replacement for it. A new external API integration, the same category of work as the ZeptoMail integration was — not just a checkbox to flip on.
+
+**Scope: internal/agent-facing only for now.** Surfacing any of this to customers is explicitly a "maybe later," not in scope. Worth noting LEVRating could plausibly gate access to the future dealer-facing portal eventually (e.g. a minimum score to participate) — but that's speculative, not decided.
+
 ### In-House Review Video Content (Stage 4 — deliberately deferred)
 
 **Concept:** Eventually produce LEVR Auto's own in-depth vehicle review videos, rather than only linking to third-party reviews.

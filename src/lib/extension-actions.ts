@@ -2,11 +2,9 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { getStripe } from "@/lib/stripe";
-import { EXTENSION_FEE } from "@/lib/vehicle-data";
+import { EXTENSION_FEE, RESUME_WINDOW_DAYS } from "@/lib/vehicle-data";
 
 export type CreateExtensionCheckoutResult = { ok: true; url: string } | { ok: false; error: string };
-
-const RESUME_WINDOW_DAYS = 7;
 
 // Starts a Stripe Checkout Session for a $100 Day-60 extension payment.
 // Mirrors createCheckoutSession (payment-actions.ts) — inline price_data, no
@@ -17,9 +15,9 @@ const RESUME_WINDOW_DAYS = 7;
 // Server-side eligibility check, never trusting a client-side gate alone
 // (same standard as executeFreeSwitch): a search is extendable if it's
 // still actively searching (always eligible to extend early, no restriction
-// on how far from the deadline) or if it was paused within the last 7 days
-// (the self-service resume window). A search paused longer than that needs
-// agent intervention, not a checkout button.
+// on how far from the deadline) or if it was paused within the last
+// RESUME_WINDOW_DAYS (the self-service resume window). A search paused
+// longer than that needs agent intervention, not a checkout button.
 export async function createExtensionCheckoutSession(searchId: string): Promise<CreateExtensionCheckoutResult> {
   const supabase = await createClient();
   const {
@@ -50,7 +48,7 @@ export async function createExtensionCheckoutSession(searchId: string): Promise<
     if (new Date() > resumeWindowEnds) {
       return {
         ok: false,
-        error: "This search has been paused too long to resume automatically — contact your agent.",
+        error: `This search was paused more than ${RESUME_WINDOW_DAYS} days ago and can no longer be resumed automatically — contact your agent.`,
       };
     }
   } else if (row.search_status !== "searching") {
