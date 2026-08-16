@@ -5,6 +5,7 @@
     { "path": "/api/cron/day30-guarantee-assessment", "schedule": "0 8 * * *" },
     { "path": "/api/cron/solidify-pending-searches", "schedule": "0 * * * *" },
     { "path": "/api/cron/day60-deadline-reminder", "schedule": "0 8 * * *" },
-    { "path": "/api/cron/day60-pause-overdue-searches", "schedule": "0 9 * * *" }
+    { "path": "/api/cron/day60-pause-overdue-searches", "schedule": "0 9 * * *" },
+    { "path": "/api/cron/day60-resume-reminder", "schedule": "0 10 * * *" }
   ]
 }

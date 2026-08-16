@@ -482,41 +482,39 @@ export async function getOverdueFollowUpQueue(): Promise<OverdueFollowUpSearch[]
   }));
 }
 
-export interface StalePausedSearch {
+export interface PausedSearch {
   id: string;
   make: string;
   model: string;
   customerEmail: string | null;
   pausedAt: string;
+  // Negative once a search is past its resume window -- e.g. -3 means 3
+  // days overdue. Callers sort ascending on this to surface the most
+  // urgent rows (most overdue, then soonest-to-expire) first.
+  daysRemaining: number;
 }
 
 /**
- * Searches the day60-pause-overdue-searches cron paused (search_status =
- * 'paused', paused_at set) more than RESUME_WINDOW_DAYS ago -- past the
- * self-service resume window (pay $100, resume immediately). No automatic
- * status change happens after this point; it's a manual worklist for an
- * agent, same pattern as the other queues. What an agent actually does with
- * one of these (comp an extension, write it off, etc.) is a decision for a
- * later pass, not this one -- no action form yet.
- *
- * Threshold only, not the broadening to show every currently-paused search
- * -- that's Pass 2 of the Day-60 paused-state policy (CLAUDE.md), not this
- * pass.
+ * Every currently paused search (search_status = 'paused'), each with a
+ * live days-remaining figure computed against RESUME_WINDOW_DAYS -- agents
+ * stay aware throughout the window, not just alerted once it's already
+ * stale. Broadens the original getStalePausedSearchesQueue (which only
+ * surfaced rows already past the window) -- see CLAUDE.md's Day-60
+ * paused-state policy, Pass 2. What an agent actually does with a given row
+ * (comp an extension, write it off, etc.) is a decision for a later pass,
+ * not this one -- no action form yet.
  */
-export async function getStalePausedSearchesQueue(): Promise<StalePausedSearch[]> {
+export async function getPausedSearchesQueue(): Promise<PausedSearch[]> {
   const supabase = createAdminClient();
-  const cutoff = new Date(Date.now() - RESUME_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
   const { data: searches, error: searchesError } = await supabase
     .from("customer_searches")
     .select("id, make, model, customer_id, paused_at")
     .eq("search_status", "paused")
-    .not("paused_at", "is", null)
-    .lte("paused_at", cutoff)
-    .order("paused_at", { ascending: true });
+    .not("paused_at", "is", null);
 
   if (searchesError) {
-    throw new Error(`Failed to load stale paused searches: ${searchesError.message}`);
+    throw new Error(`Failed to load paused searches: ${searchesError.message}`);
   }
 
   if (!searches || searches.length === 0) {
@@ -527,11 +525,23 @@ export async function getStalePausedSearchesQueue(): Promise<StalePausedSearch[]
   const { data: customers } = await supabase.from("customers").select("id, email").in("id", customerIds);
   const customerEmailById = new Map((customers ?? []).map((c) => [c.id, c.email as string]));
 
-  return searches.map((search) => ({
-    id: search.id,
-    make: search.make,
-    model: search.model,
-    customerEmail: customerEmailById.get(search.customer_id) ?? null,
-    pausedAt: search.paused_at as string,
-  }));
+  const now = Date.now();
+
+  const withDaysRemaining: PausedSearch[] = searches.map((search) => {
+    const pausedAt = search.paused_at as string;
+    const windowEnds = new Date(pausedAt);
+    windowEnds.setUTCDate(windowEnds.getUTCDate() + RESUME_WINDOW_DAYS);
+    const daysRemaining = Math.ceil((windowEnds.getTime() - now) / (24 * 60 * 60 * 1000));
+
+    return {
+      id: search.id,
+      make: search.make,
+      model: search.model,
+      customerEmail: customerEmailById.get(search.customer_id) ?? null,
+      pausedAt,
+      daysRemaining,
+    };
+  });
+
+  return withDaysRemaining.sort((a, b) => a.daysRemaining - b.daysRemaining);
 }

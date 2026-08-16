@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "./supabase/admin";
 import { sendEmail } from "./email";
+import { RESUME_WINDOW_DAYS } from "./vehicle-data";
 
 const DEFAULT_SEARCH_DAYS = 60;
 const REMINDER_WINDOW_DAYS = 7;
@@ -184,6 +185,119 @@ export async function pauseOverdueSearches(): Promise<Day60PauseSummary> {
     } else {
       summary.paused.push(search.id);
     }
+  }
+
+  return summary;
+}
+
+export interface ResumeReminderSummary {
+  remindersSent: string[];
+  errors: { searchId: string; error: string }[];
+}
+
+/**
+ * Sends the "your paused search will end soon" email to any paused search
+ * within REMINDER_WINDOW_DAYS of its resume window (RESUME_WINDOW_DAYS
+ * after paused_at) closing, mirroring sendDay60Reminders' exact pattern --
+ * same email utility, same dedup approach. resume_reminder_sent_for stores
+ * the paused_at value the reminder was last sent for, not a boolean (see
+ * 20260816120000_resume_reminder_sent_for.sql's column comment) --
+ * self-correcting if a search is ever paused a second time after a later
+ * resume, since the new paused_at naturally stops matching the stored
+ * value.
+ */
+export async function sendResumeReminders(): Promise<ResumeReminderSummary> {
+  const supabase = createAdminClient();
+
+  const { data: searches, error } = await supabase
+    .from("customer_searches")
+    .select("id, make, model, customer_id, paused_at, resume_reminder_sent_for")
+    .eq("search_status", "paused")
+    .not("paused_at", "is", null);
+
+  if (error) {
+    throw new Error(`Failed to load searches for resume reminder: ${error.message}`);
+  }
+
+  const now = Date.now();
+  const windowEnd = now + REMINDER_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+
+  const due = (searches ?? []).filter((search) => {
+    const pausedAt = search.paused_at as string;
+    const resumeDeadline = addDays(pausedAt, RESUME_WINDOW_DAYS).getTime();
+    if (resumeDeadline <= now || resumeDeadline > windowEnd) return false;
+    if (
+      search.resume_reminder_sent_for &&
+      new Date(search.resume_reminder_sent_for).getTime() === new Date(pausedAt).getTime()
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  const summary: ResumeReminderSummary = { remindersSent: [], errors: [] };
+  if (due.length === 0) return summary;
+
+  const customerIds = [...new Set(due.map((s) => s.customer_id))];
+  const { data: customers } = await supabase
+    .from("customers")
+    .select("id, email, full_name")
+    .in("id", customerIds);
+  const customerById = new Map((customers ?? []).map((c) => [c.id, c]));
+
+  for (const search of due) {
+    const customer = customerById.get(search.customer_id);
+    if (!customer?.email) {
+      summary.errors.push({ searchId: search.id, error: "No customer email on file" });
+      continue;
+    }
+
+    const pausedAt = search.paused_at as string;
+    const resumeDeadline = addDays(pausedAt, RESUME_WINDOW_DAYS);
+    const resumeDeadlineLabel = resumeDeadline.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+    // Same NEXT_PUBLIC_SITE_URL-with-localhost-fallback convention already
+    // used in auth-actions.ts, payment-actions.ts, and sendDay60Reminders
+    // above, not a new one.
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+    const accountUrl = `${siteUrl}/account`;
+
+    try {
+      await sendEmail({
+        to: customer.email,
+        toName: customer.full_name ?? undefined,
+        subject: "Your paused search will end soon — extend now",
+        html:
+          `<p>Your LEVR Auto search for a ${search.make} ${search.model} is paused, and the window to resume ` +
+          `it closes on ${resumeDeadlineLabel}. After that, you'll need to start a completely new search. ` +
+          `Extending is easy: just <a href="${accountUrl}">log into your account</a> to pick up right where ` +
+          `you left off.</p>`,
+      });
+    } catch (err) {
+      summary.errors.push({
+        searchId: search.id,
+        error: err instanceof Error ? err.message : "Send failed",
+      });
+      continue;
+    }
+
+    const { error: updateError } = await supabase
+      .from("customer_searches")
+      .update({ resume_reminder_sent_for: pausedAt })
+      .eq("id", search.id);
+
+    if (updateError) {
+      summary.errors.push({
+        searchId: search.id,
+        error: `Email sent but failed to record resume_reminder_sent_for: ${updateError.message}`,
+      });
+      continue;
+    }
+
+    summary.remindersSent.push(search.id);
   }
 
   return summary;
