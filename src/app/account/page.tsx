@@ -11,7 +11,11 @@ import { ServiceAgreementSigning } from "@/components/service-agreement-signing"
 import { FinalizeEditForm } from "@/components/finalize-edit-form";
 import { AccountFaqSection } from "@/components/account-faq-section";
 import { SwitchChoice } from "@/components/switch-choice";
+import { ExtendSearchButton } from "@/components/extend-search-button";
+import { AutoRenewToggle } from "@/components/auto-renew-toggle";
+import { AutoRenewOffLink } from "@/components/auto-renew-off-link";
 import { RESUME_WINDOW_DAYS } from "@/lib/vehicle-data";
+import { effectiveDeadline, REMINDER_WINDOW_DAYS } from "@/lib/day60-extension";
 
 export const metadata: Metadata = {
   title: "Your Account — LEVR Auto",
@@ -48,10 +52,13 @@ const PAUSED_EXPIRED_COPY = "This search has ended. To continue, you'll need to 
 
 // Locked copy from the finalized Day-60 paused-state policy (CLAUDE.md,
 // 2026-08-15) -- deliberately no hint of the hidden agent bypass (Pass 3)
-// anywhere in either branch, expired or not.
-function getPausedStatusCopy(pausedAt: string | null): string {
+// anywhere in either branch, expired or not. withinWindow gates whether
+// ExtendSearchButton renders -- matches createExtensionCheckoutSession's
+// own eligibility gate (RESUME_WINDOW_DAYS after paused_at), so the button
+// never appears somewhere the RPC would just reject it.
+function getPausedResumeInfo(pausedAt: string | null): { copy: string; withinWindow: boolean } {
   if (!pausedAt) {
-    return SEARCH_STATUS_COPY.paused;
+    return { copy: SEARCH_STATUS_COPY.paused, withinWindow: false };
   }
 
   const resumeWindowEnds = new Date(pausedAt);
@@ -59,11 +66,14 @@ function getPausedStatusCopy(pausedAt: string | null): string {
   const msRemaining = resumeWindowEnds.getTime() - Date.now();
 
   if (msRemaining <= 0) {
-    return PAUSED_EXPIRED_COPY;
+    return { copy: PAUSED_EXPIRED_COPY, withinWindow: false };
   }
 
   const daysRemaining = Math.ceil(msRemaining / (24 * 60 * 60 * 1000));
-  return `Your search is paused. You have ${daysRemaining} day${daysRemaining === 1 ? "" : "s"} left to resume it by extending — after that, you'll need to start a new search.`;
+  return {
+    copy: `Your search is paused. You have ${daysRemaining} day${daysRemaining === 1 ? "" : "s"} left to resume it by extending — after that, you'll need to start a new search.`,
+    withinWindow: true,
+  };
 }
 
 function getStatusCopy(search: DashboardSearch): string {
@@ -71,9 +81,43 @@ function getStatusCopy(search: DashboardSearch): string {
     return UNPAID_AWAITING_FINALIZATION_COPY;
   }
   if (search.searchStatus === "paused") {
-    return getPausedStatusCopy(search.pausedAt);
+    return getPausedResumeInfo(search.pausedAt).copy;
   }
   return SEARCH_STATUS_COPY[search.searchStatus] ?? "";
+}
+
+// Reminder banner -- locked copy from CLAUDE.md (2026-08-15), never actually
+// built until now (confirmed via grep before this pass: no prior
+// implementation existed). Shown only within REMINDER_WINDOW_DAYS of a
+// still-searching row's deadline -- matches the "banner-only" extend scope
+// recommendation, not a general "extend anytime" action on every search.
+function getReminderBannerCopy(search: DashboardSearch): string | null {
+  if (search.searchStatus !== "searching" || !search.solidifiedAt) {
+    return null;
+  }
+
+  const deadline = effectiveDeadline({
+    solidified_at: search.solidifiedAt,
+    search_deadline_at: search.searchDeadlineAt,
+  });
+  const msRemaining = deadline.getTime() - Date.now();
+  const windowMs = REMINDER_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+
+  if (msRemaining <= 0 || msRemaining > windowMs) {
+    return null;
+  }
+
+  const daysRemaining = Math.ceil(msRemaining / (24 * 60 * 60 * 1000));
+
+  // auto_renew_enabled branches this banner's copy entirely (spec,
+  // 2026-08-17), same window/trigger as the email above -- the customer
+  // doesn't need to be asked to act, just told the charge is coming and
+  // where to turn it off.
+  if (search.autoRenewEnabled) {
+    return `Auto-renew is on — your card will be charged $100 in ${daysRemaining} day${daysRemaining === 1 ? "" : "s"} to keep this search active.`;
+  }
+
+  return `Your search pauses in ${daysRemaining} day${daysRemaining === 1 ? "" : "s"} unless extended. Extend now to keep us actively searching for 30 more days.`;
 }
 
 // The raw search_status badge (below) says "awaiting finalization" even when
@@ -173,6 +217,9 @@ export default async function AccountPage() {
 }
 
 function SearchCard({ search }: { search: DashboardSearch }) {
+  const reminderBannerCopy = getReminderBannerCopy(search);
+  const pausedInfo = search.searchStatus === "paused" ? getPausedResumeInfo(search.pausedAt) : null;
+
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -188,6 +235,27 @@ function SearchCard({ search }: { search: DashboardSearch }) {
         <p className="mt-1 text-sm text-zinc-500">Colors: {search.colors.join(", ")}</p>
       )}
       <p className="mt-3 text-sm text-zinc-400">{getStatusCopy(search)}</p>
+
+      {reminderBannerCopy && (
+        <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+          <p className="text-sm text-amber-300">{reminderBannerCopy}</p>
+          {search.autoRenewEnabled ? (
+            <AutoRenewOffLink searchId={search.id} />
+          ) : (
+            <ExtendSearchButton searchId={search.id} showAutoRenewOption />
+          )}
+        </div>
+      )}
+
+      {pausedInfo?.withinWindow && (
+        <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+          <ExtendSearchButton searchId={search.id} showAutoRenewOption={!search.autoRenewEnabled} />
+        </div>
+      )}
+
+      {search.autoRenewEnabled && ["searching", "paused"].includes(search.searchStatus) && (
+        <AutoRenewToggle searchId={search.id} />
+      )}
 
       {search.searchStatus === "awaiting_finalization" && !search.paidAt && (
         <div className="mt-4 border-t border-white/5 pt-4">

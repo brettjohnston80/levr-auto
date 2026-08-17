@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     ok: true,
     paused: summary.paused,
+    autoRenewed: summary.autoRenewed,
     errors: summary.errors,
   });
 }

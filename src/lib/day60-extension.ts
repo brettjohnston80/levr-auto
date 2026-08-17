@@ -1,10 +1,11 @@
 import "server-only";
 import { createAdminClient } from "./supabase/admin";
 import { sendEmail } from "./email";
-import { RESUME_WINDOW_DAYS } from "./vehicle-data";
+import { getStripe } from "./stripe";
+import { EXTENSION_FEE, RESUME_WINDOW_DAYS } from "./vehicle-data";
 
 const DEFAULT_SEARCH_DAYS = 60;
-const REMINDER_WINDOW_DAYS = 7;
+export const REMINDER_WINDOW_DAYS = 7;
 
 export interface DeadlineInput {
   solidified_at: string;
@@ -55,7 +56,9 @@ export async function sendDay60Reminders(): Promise<Day60ReminderSummary> {
 
   const { data: searches, error } = await supabase
     .from("customer_searches")
-    .select("id, make, model, customer_id, solidified_at, search_deadline_at, deadline_reminder_sent_for")
+    .select(
+      "id, make, model, customer_id, solidified_at, search_deadline_at, deadline_reminder_sent_for, auto_renew_enabled"
+    )
     .eq("search_status", "searching")
     .not("solidified_at", "is", null);
 
@@ -101,21 +104,40 @@ export async function sendDay60Reminders(): Promise<Day60ReminderSummary> {
       day: "numeric",
       year: "numeric",
     });
+    const daysRemaining = Math.ceil((deadline.getTime() - now) / (24 * 60 * 60 * 1000));
     // Same NEXT_PUBLIC_SITE_URL-with-localhost-fallback convention already
     // used in auth-actions.ts and payment-actions.ts, not a new one.
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
     const accountUrl = `${siteUrl}/account`;
 
+    // auto_renew_enabled branches this reminder's copy entirely (spec,
+    // 2026-08-17) -- same trigger/window as the manual-extend reminder
+    // above, just telling the customer the charge is already handled
+    // instead of asking them to act.
+    const { subject, html } = search.auto_renew_enabled
+      ? {
+          subject: `Your card will be charged $100 in ${daysRemaining} day${daysRemaining === 1 ? "" : "s"} to keep your search active`,
+          html:
+            `<p>Your LEVR Auto search for a ${search.make} ${search.model} has auto-renew turned on — ` +
+            `we'll automatically charge your card $100 on ${deadlineLabel} to keep searching for 30 more days. ` +
+            `Don't want this? Turn off auto-renew anytime before then from your ` +
+            `<a href="${accountUrl}">account</a>.</p>`,
+        }
+      : {
+          subject: `Your search pauses on ${deadlineLabel} unless extended`,
+          html:
+            `<p>Your LEVR Auto search for a ${search.make} ${search.model} will stop on ${deadlineLabel} ` +
+            `— we will be unable to continue searching for new offers unless you extend. Extending is easy: ` +
+            `just <a href="${accountUrl}">log into your account</a> anytime before then, and we'll keep ` +
+            `actively searching for 30 more days.</p>`,
+        };
+
     try {
       await sendEmail({
         to: customer.email,
         toName: customer.full_name ?? undefined,
-        subject: `Your search pauses on ${deadlineLabel} unless extended`,
-        html:
-          `<p>Your LEVR Auto search for a ${search.make} ${search.model} will stop on ${deadlineLabel} ` +
-          `— we will be unable to continue searching for new offers unless you extend. Extending is easy: ` +
-          `just <a href="${accountUrl}">log into your account</a> anytime before then, and we'll keep ` +
-          `actively searching for 30 more days.</p>`,
+        subject,
+        html,
       });
     } catch (err) {
       summary.errors.push({
@@ -146,7 +168,138 @@ export async function sendDay60Reminders(): Promise<Day60ReminderSummary> {
 
 export interface Day60PauseSummary {
   paused: string[];
+  autoRenewed: string[];
   errors: { searchId: string; error: string }[];
+}
+
+type AutoRenewCandidate = DeadlineInput & { id: string; customer_id: string };
+
+/**
+ * Attempts one off-session $100 charge for a search whose deadline just
+ * passed and has auto_renew_enabled -- the trigger point decided 2026-08-16:
+ * reuse this cron rather than a new parallel one, attempt the charge before
+ * deciding to pause. Returns true only on a genuinely completed charge +
+ * DB update; any failure (missing payment method, card declined, DB error)
+ * returns false and the caller falls straight into the normal pause flow --
+ * no special retry logic, per the approved spec.
+ */
+async function attemptAutoRenewCharge(
+  supabase: ReturnType<typeof createAdminClient>,
+  search: AutoRenewCandidate
+): Promise<boolean> {
+  const { data: customer } = await supabase
+    .from("customers")
+    .select("email, full_name, stripe_customer_id, stripe_default_payment_method_id")
+    .eq("id", search.customer_id)
+    .maybeSingle();
+
+  if (!customer?.stripe_customer_id || !customer?.stripe_default_payment_method_id) {
+    console.error(`Day-60 auto-renew: search ${search.id} has auto_renew_enabled but no saved payment method`);
+    return false;
+  }
+
+  const currentDeadline = effectiveDeadline(search);
+  const newDeadline = addDays(currentDeadline.toISOString(), 30);
+
+  // Idempotency key is tied to the deadline value being extended, not the
+  // current timestamp -- a retried cron run within the same overdue window
+  // reuses the same key, so Stripe itself refuses to double-charge even
+  // before the DB-level guard below runs. Same "condition that becomes
+  // false after first success" idiom as last_extension_session_id
+  // elsewhere, applied to an external side effect this time.
+  const idempotencyKey = `auto_renew_${search.id}_${currentDeadline.toISOString()}`;
+
+  let paymentIntent;
+  try {
+    paymentIntent = await getStripe().paymentIntents.create(
+      {
+        amount: EXTENSION_FEE * 100,
+        currency: "usd",
+        customer: customer.stripe_customer_id,
+        payment_method: customer.stripe_default_payment_method_id,
+        off_session: true,
+        confirm: true,
+        metadata: {
+          type: "extension_fee_auto_renew",
+          search_id: search.id,
+        },
+      },
+      { idempotencyKey }
+    );
+  } catch (err) {
+    console.error(
+      `Day-60 auto-renew: charge failed for search ${search.id}:`,
+      err instanceof Error ? err.message : err
+    );
+    return false;
+  }
+
+  if (paymentIntent.status !== "succeeded") {
+    console.error(
+      `Day-60 auto-renew: payment_intent ${paymentIntent.id} for search ${search.id} did not succeed (status: ${paymentIntent.status})`
+    );
+    return false;
+  }
+
+  // Same OR-guard idiom as the webhook's extension_fee branch: prevents a
+  // second write if this function is ever invoked twice for the same
+  // successful charge (e.g. an overlapping cron run), without breaking on
+  // last_extension_session_id starting NULL.
+  const { data: updated, error: updateError } = await supabase
+    .from("customer_searches")
+    .update({
+      search_deadline_at: newDeadline.toISOString(),
+      last_extension_session_id: paymentIntent.id,
+    })
+    .eq("id", search.id)
+    .or(`last_extension_session_id.is.null,last_extension_session_id.neq.${paymentIntent.id}`)
+    .select("id");
+
+  if (updateError) {
+    console.error(
+      `Day-60 auto-renew: DB update failed for search ${search.id} after a successful charge (${paymentIntent.id}):`,
+      updateError.message
+    );
+    return false;
+  }
+
+  if (!updated || updated.length === 0) {
+    console.log(
+      `Day-60 auto-renew: search ${search.id} already processed for payment_intent ${paymentIntent.id} -- idempotent retry`
+    );
+    return true;
+  }
+
+  if (customer.email) {
+    const newDeadlineLabel = newDeadline.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+    try {
+      await sendEmail({
+        to: customer.email,
+        toName: customer.full_name ?? undefined,
+        subject: "Your LEVR Auto search was automatically extended",
+        html:
+          `<p>Your search was about to pause, so we automatically charged the $100 extension fee to the ` +
+          `card on file and kept things going for 30 more days. Your search will now run through ` +
+          `${newDeadlineLabel}.</p>` +
+          `<p>You can turn off automatic extensions anytime from your <a href="${siteUrl}/account">account page</a>.</p>`,
+      });
+    } catch (err) {
+      console.error(
+        `Day-60 auto-renew: charged and extended search ${search.id} but confirmation email failed:`,
+        err instanceof Error ? err.message : err
+      );
+    }
+  }
+
+  console.log(
+    `Day-60 auto-renew: charged ${paymentIntent.id} and extended search ${search.id} to ${newDeadline.toISOString()}`
+  );
+  return true;
 }
 
 /**
@@ -154,13 +307,17 @@ export interface Day60PauseSummary {
  * extension -- hard cutoff, no grace period. Each update is individually
  * guarded by .eq("search_status", "searching") so a concurrent/retried run
  * can't double-process a row (same idempotency idiom as solidifySearch).
+ *
+ * A search with auto_renew_enabled gets one off-session charge attempt
+ * first (attemptAutoRenewCharge) -- success skips the pause entirely and
+ * extends normally, any failure falls straight into the pause flow below.
  */
 export async function pauseOverdueSearches(): Promise<Day60PauseSummary> {
   const supabase = createAdminClient();
 
   const { data: searches, error } = await supabase
     .from("customer_searches")
-    .select("id, solidified_at, search_deadline_at")
+    .select("id, customer_id, solidified_at, search_deadline_at, auto_renew_enabled")
     .eq("search_status", "searching")
     .not("solidified_at", "is", null);
 
@@ -171,9 +328,17 @@ export async function pauseOverdueSearches(): Promise<Day60PauseSummary> {
   const now = Date.now();
   const overdue = (searches ?? []).filter((search) => effectiveDeadline(search).getTime() <= now);
 
-  const summary: Day60PauseSummary = { paused: [], errors: [] };
+  const summary: Day60PauseSummary = { paused: [], autoRenewed: [], errors: [] };
 
   for (const search of overdue) {
+    if (search.auto_renew_enabled) {
+      const renewed = await attemptAutoRenewCharge(supabase, search);
+      if (renewed) {
+        summary.autoRenewed.push(search.id);
+        continue;
+      }
+    }
+
     const { error: updateError } = await supabase
       .from("customer_searches")
       .update({ search_status: "paused", paused_at: new Date().toISOString() })

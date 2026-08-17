@@ -50,6 +50,8 @@ export interface DashboardSearch {
   callRequestedAt: string | null;
   switchCallRequestedAt: string | null;
   pausedAt: string | null;
+  searchDeadlineAt: string | null;
+  autoRenewEnabled: boolean;
   offers: DashboardOffer[];
 }
 
@@ -78,7 +80,7 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
   const { data: searches, error: searchesError } = await supabase
     .from("customer_searches")
     .select(
-      "id, make, model, trim, colors, required_options, search_status, guarantee_status, paid_at, finalized_at, solidified_at, call_requested_at, switch_call_requested_at, paused_at"
+      "id, make, model, trim, colors, required_options, search_status, guarantee_status, paid_at, finalized_at, solidified_at, call_requested_at, switch_call_requested_at, paused_at, search_deadline_at, auto_renew_enabled"
     )
     .eq("customer_id", customerId)
     .order("created_at", { ascending: true });
@@ -233,6 +235,8 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
     callRequestedAt: search.call_requested_at,
     switchCallRequestedAt: search.switch_call_requested_at,
     pausedAt: search.paused_at,
+    searchDeadlineAt: search.search_deadline_at,
+    autoRenewEnabled: search.auto_renew_enabled,
     offers: offersBySearchId.get(search.id) ?? [],
   }));
 }

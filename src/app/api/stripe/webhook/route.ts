@@ -194,7 +194,7 @@ async function handleExtensionFeePayment(session: Stripe.Checkout.Session): Prom
 
   const { data: row, error: fetchError } = await admin
     .from("customer_searches")
-    .select("id, solidified_at, search_deadline_at, last_extension_session_id")
+    .select("id, customer_id, solidified_at, search_deadline_at, last_extension_session_id")
     .eq("id", searchId)
     .maybeSingle();
 
@@ -249,5 +249,77 @@ async function handleExtensionFeePayment(session: Stripe.Checkout.Session): Prom
     `Stripe webhook: extended search ${searchId} deadline to ${newDeadline.toISOString()} for session ${session.id}`
   );
 
+  // Auto-renew opt-in: capture the payment method setup_future_usage saved
+  // off this charge, and flip the flag the Day-60 pause cron reads. Only
+  // reached on a fresh (non-retry) success above, so this can't re-fire on
+  // a redelivered webhook event.
+  if (session.metadata?.enable_auto_renew === "true" && row.customer_id) {
+    await captureAutoRenewPaymentMethod(session, row.customer_id, searchId);
+  }
+
   return NextResponse.json({ received: true });
+}
+
+// Retrieves the PaymentIntent behind this Checkout Session to find the
+// PaymentMethod setup_future_usage vaulted for later off-session use, then
+// persists it plus flips auto_renew_enabled on the search. Failures here are
+// logged but don't fail the webhook or undo the extension that already
+// succeeded above — the customer paid and got their 30 days either way; a
+// failed opt-in just means they'll be offered the checkbox again next time.
+async function captureAutoRenewPaymentMethod(
+  session: Stripe.Checkout.Session,
+  customerId: string,
+  searchId: string
+): Promise<void> {
+  if (!session.payment_intent) {
+    console.error("Stripe webhook: extension_fee auto-renew opt-in but session has no payment_intent", session.id);
+    return;
+  }
+
+  const paymentIntentId =
+    typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent.id;
+
+  try {
+    const paymentIntent = await getStripe().paymentIntents.retrieve(paymentIntentId);
+    const paymentMethodId =
+      typeof paymentIntent.payment_method === "string"
+        ? paymentIntent.payment_method
+        : paymentIntent.payment_method?.id;
+
+    if (!paymentMethodId) {
+      console.error(
+        "Stripe webhook: extension_fee auto-renew opt-in but payment_intent has no payment_method",
+        paymentIntentId
+      );
+      return;
+    }
+
+    const admin = createAdminClient();
+    const { error: customerUpdateError } = await admin
+      .from("customers")
+      .update({ stripe_default_payment_method_id: paymentMethodId })
+      .eq("id", customerId);
+
+    if (customerUpdateError) {
+      console.error("Stripe webhook: failed to persist stripe_default_payment_method_id", customerUpdateError.message);
+      return;
+    }
+
+    const { error: searchUpdateError } = await admin
+      .from("customer_searches")
+      .update({ auto_renew_enabled: true })
+      .eq("id", searchId);
+
+    if (searchUpdateError) {
+      console.error("Stripe webhook: failed to set auto_renew_enabled", searchUpdateError.message);
+      return;
+    }
+
+    console.log(`Stripe webhook: auto-renew enabled for search ${searchId}, payment method ${paymentMethodId} saved`);
+  } catch (err) {
+    console.error(
+      "Stripe webhook: failed to capture auto-renew payment method",
+      err instanceof Error ? err.message : err
+    );
+  }
 }
