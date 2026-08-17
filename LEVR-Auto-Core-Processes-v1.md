@@ -1,4 +1,4 @@
-# LEVR Auto — Core Business Processes (Working Draft v1, updated with pricing tiers + switching policy)
+# LEVR Auto — Core Business Processes (Working Draft v1, updated with flat pricing + switching policy)
 
 *This is a working draft to think through and iterate on — not legal advice, and not ready to use with real customers until an attorney has reviewed it (especially the guarantee/refund language and the broker-licensing question still pending).*
 

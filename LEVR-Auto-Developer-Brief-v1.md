@@ -2,6 +2,8 @@
 
 *For your friend, to read alongside the Core Processes doc and Website Copy doc. This one's about what to actually build; those two cover what it needs to say and do in detail.*
 
+**Pricing note (corrected Aug 17, 2026):** This doc originally described a 3-tier pricing structure ($699/$899/$999 for 1/2/3 concurrent makes/models). That was simplified to a single flat $699, one vehicle per engagement, always, on 2026-08-12 — the live code, database schema, and CLAUDE.md all reflect this. Every tiered-pricing reference below has been corrected to match.
+
 ---
 
 ## 1. What This App Does
@@ -58,7 +60,7 @@ Customers pick a car (make/model, with trim/color flexibility), pay a fee, and L
 ## 4. Core Data Model (sketch)
 
 - **Customer** — contact info, financing preference, uploaded documents
-- **SearchRequest** — customer_id, tier (1/2/3 models, $699/$899/$999), make(s)/model(s) with trim-color inclusion/exclusion logic, budget, Day 30 date, Day 60 date, guarantee status, extension history
+- **SearchRequest** — customer_id, make/model with trim-color inclusion/exclusion logic, budget, Day 30 date, Day 60 date, guarantee status, extension history (one vehicle per engagement, always, for the flat $699 fee — no tier/package field)
 - **Offer** — search_request_id, dealer_id, vehicle spec/VIN, negotiated price, MSRP, qualifying (below-MSRP) flag, timestamp, raw reply text
 - **Dealer** — name, contact/outreach info, brand, region
 - **ChangeRequest** — search_request_id, old model, new model, fee charged (or grace-period waiver), timestamp
@@ -86,7 +88,7 @@ Customers pick a car (make/model, with trim/color flexibility), pay a fee, and L
 *(Full detail lives in the Core Processes doc — this is just what needs to become actual code logic.)*
 
 - Guarantee evaluated at Day 30; refund auto-triggers if no qualifying offer, payout within ~7 days; search continues free through Day 60 regardless of outcome; $100 buys renewable ~30-day extensions after that.
-- Pricing: $699 (1 model) / $899 (2) / $999 (3, max).
+- Pricing: flat **$699**, one make/model per engagement, no tiers.
 - Switching costs $100 and resets both Day 30/Day 60 clocks — except a 5-day unadvertised grace period allowing one free switch.
 - Financing: preference/document capture only — **no actual credit pull** (that's a regulated activity requiring a compliant vendor partnership later, not custom-built).
 - Delivery: concierge referral only in v1, no fee yet.
@@ -95,7 +97,7 @@ Customers pick a car (make/model, with trim/color flexibility), pay a fee, and L
 
 ## 7. Suggested Build Order
 
-1. Auth + intake form + Stripe payment (tiered pricing)
+1. Auth + intake form + Stripe payment (flat $699 pricing)
 2. MarketCheck integration + basic dealer matching
 3. Outbound email engine (ADF/XML generation + sending) — this is the riskiest unknown, worth proving early with a small real-dealer test batch
 4. Inbound reply parsing (Claude API) + offer dashboard

@@ -79,10 +79,10 @@ No — that's the whole point. We handle the back-and-forth so you don't have to
 We connect you directly with the dealer and help walk through the paperwork, so the process is as close to fully virtual as possible.
 
 **Can I search for more than one car at a time?**
-Yes. Searching one make and model is $699. Adding a second at the same time is $899 total, and a third is $999 — that's the max. Within whichever make/model you choose, you can still be flexible on trim, color, and options at no extra cost.
+No — LEVR searches one make and model per engagement, for the flat $699 fee. Within that make/model, you can still be flexible on trim, color, and options at no extra cost. Want a different vehicle instead? Your agent can switch your search (see below). *(Corrected Aug 17, 2026 to match live copy in `src/app/faq/page.tsx` — this doc originally described a 3-tier $699/$899/$999 concurrent-search structure that was simplified to a single flat fee on 2026-08-12.)*
 
 **What if I change my mind about the car I want?**
-You can switch to a different make/model for a $100 fee, which restarts your negotiation window on the new vehicle. [Note: internal grace-period policy not for public copy.]
+You can switch to a different make/model for a $100 fee, which restarts your 30-day guarantee window on the new vehicle. [Note: internal grace-period policy not for public copy.]
 
 **Is LEVR Auto available in my state?**
 We're rolling out carefully, state by state, to make sure we do this right everywhere we operate. [Placeholder — depends on the licensing research still in progress.]

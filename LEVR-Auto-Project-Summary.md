@@ -2,6 +2,8 @@
 
 *Paste this into a new chat to pick up where we left off. The four detailed docs already created still exist and can be re-uploaded for full fidelity if needed — this is the compact version.*
 
+**Superseded, kept for historical reference only:** this was an early one-time snapshot. `LEVR-Auto-Business-Plan-and-Roadmap.md` and `CLAUDE.md` are now the actively maintained sources of truth for current status — treat everything below as a point-in-time snapshot, not current. Pricing below was corrected Aug 17, 2026 to match the flat $699 model; other sections are not being kept in sync going forward.
+
 ---
 
 ## Brand & Identity
@@ -23,10 +25,8 @@
 
 ## Business Model
 
-**Pricing tiers:**
-- $699 — one make/model, full flexibility on trim/color/options within it (inclusion/exclusion logic)
-- $899 — two makes/models concurrently
-- $999 — three makes/models concurrently (max)
+**Pricing:**
+- **Flat $699** — one make/model, full flexibility on trim/color/options within it (inclusion/exclusion logic). No concurrent-model tiers — simplified from an original 3-tier $699/$899/$999 structure on 2026-08-12. A customer who wants a different vehicle uses the agent-mediated switching policy ($100 fee, see below) instead of paying for a second concurrent search.
 
 **Guarantee:**
 - Clock starts at payment. Evaluated at **Day 30**: refund (full, automatic, within ~7 days) if no Qualifying Offer (below "Total MSRP" per the Monroney label — includes destination, excludes tax/title/doc fees/dealer add-ons) has been presented.
@@ -46,7 +46,7 @@
 ## Customer-Facing Flow
 
 1. Landing page → "Get Started" → progressive filter (make → model → trim → color → options → **zip code**, captured for tax/registration purposes, never shown to dealers beyond state/region) with a **live nationwide inventory count** narrowing per filter. No dealer names shown yet.
-2. Account creation + payment (tiered fee). Guarantee clock starts here.
+2. Account creation + payment (flat $699 fee). Guarantee clock starts here.
 3. 24-hour refinement window to fine-tune trim/color/options (not make/model) — auto-solidifies with original selections if the customer doesn't return.
 4. Sourcing + outreach begin. Dashboard initially shows a regional summary only (e.g. "10 dealers West Coast, 5 Midwest").
 5. As real offers land: dashboard shows dealer city, a photo of the actual car, itemized price and add-ons.
