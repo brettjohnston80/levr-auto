@@ -290,7 +290,7 @@ Four related ideas Brett raised together: knowing real dealer cost to negotiate 
 - [ ] Reach out to 2–3 attorneys: one quote for trademark clearance, one for the state licensing survey
 - [ ] Draft the 30–50 dealer test list and send the outreach spike
 - [ ] Email MarketCheck for API access/pricing
-- [ ] Decide the Qualifying-Offer-sold-elsewhere edge case and update the Core Processes doc
+- [x] ~~Decide the Qualifying-Offer-sold-elsewhere edge case and update the Core Processes doc~~ — **done (Aug 17, 2026).** This was actually already decided well before this checklist item was written — the 24-hour response-window rule has been live in CLAUDE.md's guarantee section (and built into the app as `evaluateOfferGuaranteeContribution`) since early on. This pass just propagated that resolution into `LEVR-Auto-Core-Processes-v1.md`, which had never been updated to match and was still listing it as an open decision.
 - [ ] Set up the GitHub repo + CLAUDE.md for your friend to start building from
 
 ---

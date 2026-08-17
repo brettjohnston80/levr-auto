@@ -20,8 +20,7 @@ Either way — guarantee met or refunded — LEVR Auto continues fielding offers
 
 **Past Day 60:** the customer can pay an additional **$100** to continue active searching for another fixed period (~30 days), renewable indefinitely at $100 per period. These extension periods aren't attached to a new guarantee — the original below-MSRP promise was already resolved at Day 30.
 
-**Open decisions to make before this goes live:**
-- What happens if a Qualifying Offer arrives but the specific unit sells to someone else before the customer decides — does that offer still "count" toward the guarantee since it existed?
+**Sold-to-someone-else edge case (resolved):** the customer gets a 24-hour response window from when a Qualifying Offer is delivered. If the customer doesn't respond within 24 hours and the unit sells before they do, the offer still counts — the guarantee is satisfied. If the customer responds within the window but the unit sells before the deal goes through anyway, it doesn't count, and LEVR keeps searching.
 
 ---
 
@@ -153,6 +152,5 @@ The step-by-step path from a customer landing on the site to a closed deal:
 
 - Section 2.9 waits on the state licensing research.
 - Trademark clearance on "LEVR" is still pending — affects how much you want to commit to this name in signed customer contracts before that comes back.
-- Whether a Qualifying Offer that later sells to someone else still "counts" toward the Day 30 guarantee (Section 1, open decision).
 - Lender referral fees and the transporter marketplace fee are intentionally not built into v1 — the workflow captures the data/coordination now, monetization on both gets designed once real lender/transporter partnerships exist.
 - Scaled/automated customer support (Step 12) is a stated direction, not yet designed — worth its own pass once the core build is further along.
