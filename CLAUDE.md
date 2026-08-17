@@ -10,7 +10,7 @@ Legal entity: **LEVR Holdings LLC** (Kansas). Public brand: **LEVR Auto**.
 
 Full business logic lives in `LEVR-Auto-Core-Processes-v1.md` and `LEVR-Auto-Business-Plan-and-Roadmap.md` in this repo — read those for anything not covered here.
 
-## Current state (updated 2026-08-13 — keep this current, it's the first thing read each session)
+## Current state (updated 2026-08-17 — keep this current, it's the first thing read each session)
 
 - **Live site:** levrauto.com (Next.js + Tailwind, deployed on Vercel, GitHub repo `brettjohnston80/levr-auto`)
 - **Built and live:**
