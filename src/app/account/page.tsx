@@ -361,6 +361,16 @@ function SearchCard({ search }: { search: DashboardSearch }) {
                   Delivered {formatDate(offer.deliveredAt)} — status: {offer.status.replace(/_/g, " ")}
                   {offer.customerRespondedAt && ` on ${formatDate(offer.customerRespondedAt)}`}
                 </p>
+                {offer.offerSheetUrl && (
+                  <a
+                    href={offer.offerSheetUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-1 inline-block text-xs text-emerald-400 underline hover:text-emerald-300"
+                  >
+                    View offer sheet (PDF)
+                  </a>
+                )}
                 {offer.status === "pending" && <OfferResponseButtons offerId={offer.id} />}
 
                 {offer.addons.length > 0 && (

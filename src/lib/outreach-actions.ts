@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { getAuthorizedAgent } from "./agent-auth";
 import { createAdminClient } from "./supabase/admin";
@@ -10,11 +11,36 @@ export interface LogOfferResult {
   error?: string;
 }
 
+interface AddonLine {
+  description: string;
+  amountCents: number;
+}
+
+function parseAddonsJson(raw: string | undefined): AddonLine[] | null {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+    return parsed.map((a) => ({
+      description: String(a.description ?? "").trim(),
+      amountCents: Math.round(Number(a.amountCents) || 0),
+    }));
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Logs a real, itemized dealer offer into qualifying_offers. Never touches
+ * Logs a real, itemized dealer offer into qualifying_offers -- optionally in
+ * the same submission as any itemized add-on lines (offer_addons) and an
+ * offer-sheet PDF (documents, type 'offer_sheet'), when the agent used the
+ * AI-parse step (offer-parsing-actions.ts) that pre-fills this form. Nothing
+ * about parsing itself ever persists -- this is still the only write path,
+ * exactly as before extending it, just now able to take addons/a PDF in the
+ * same call instead of requiring separate follow-up steps. Never touches
  * delivered_at or status — those belong to the customer dashboard/24h
- * response-window flow, which isn't built yet. Re-checks agent auth here
- * rather than trusting the calling page's own gate.
+ * response-window flow. Re-checks agent auth here rather than trusting the
+ * calling page's own gate.
  */
 export async function logQualifyingOffer(formData: FormData): Promise<LogOfferResult> {
   const agent = await getAuthorizedAgent();
@@ -29,9 +55,19 @@ export async function logQualifyingOffer(formData: FormData): Promise<LogOfferRe
   const offerPriceRaw = formData.get("offer_price")?.toString();
   const msrpRaw = formData.get("msrp")?.toString();
   const notes = formData.get("notes")?.toString().trim() || null;
+  const addons = parseAddonsJson(formData.get("addons_json")?.toString());
+  const pdf = formData.get("offer_sheet_pdf");
 
   if (!customerSearchId || !dealerName || !offerPriceRaw || !msrpRaw) {
     return { ok: false, error: "Dealer name, offer price, and MSRP are required." };
+  }
+  if (addons === null) {
+    return { ok: false, error: "Invalid add-on data." };
+  }
+  for (const a of addons) {
+    if (!a.description || !Number.isFinite(a.amountCents) || a.amountCents <= 0) {
+      return { ok: false, error: "Each add-on needs a description and a positive amount." };
+    }
   }
 
   const offerPriceCents = Math.round(parseFloat(offerPriceRaw) * 100);
@@ -56,18 +92,64 @@ export async function logQualifyingOffer(formData: FormData): Promise<LogOfferRe
     return { ok: false, error: "That search no longer exists." };
   }
 
-  const { error: insertError } = await admin.from("qualifying_offers").insert({
-    customer_search_id: customerSearchId,
-    listing_id: listingId,
-    dealer_name: dealerName,
-    dealer_contact: dealerContact,
-    offer_price_cents: offerPriceCents,
-    msrp_cents: msrpCents,
-    notes,
-  });
+  const { data: newOffer, error: insertError } = await admin
+    .from("qualifying_offers")
+    .insert({
+      customer_search_id: customerSearchId,
+      listing_id: listingId,
+      dealer_name: dealerName,
+      dealer_contact: dealerContact,
+      offer_price_cents: offerPriceCents,
+      msrp_cents: msrpCents,
+      notes,
+    })
+    .select("id")
+    .single();
 
-  if (insertError) {
-    return { ok: false, error: `Failed to save offer: ${insertError.message}` };
+  if (insertError || !newOffer) {
+    return { ok: false, error: `Failed to save offer: ${insertError?.message}` };
+  }
+
+  if (addons.length > 0) {
+    const { error: addonsError } = await admin.from("offer_addons").insert(
+      addons.map((a) => ({
+        qualifying_offer_id: newOffer.id,
+        description: a.description,
+        amount_cents: a.amountCents,
+      }))
+    );
+    if (addonsError) {
+      return {
+        ok: false,
+        error: `Offer saved, but add-ons failed to save: ${addonsError.message}. Add them individually below.`,
+      };
+    }
+  }
+
+  if (pdf instanceof File && pdf.size > 0) {
+    const path = `${newOffer.id}/${randomUUID()}-${pdf.name}`;
+    const { error: uploadError } = await admin.storage.from("documents").upload(path, pdf, {
+      contentType: pdf.type || undefined,
+    });
+    if (uploadError) {
+      return {
+        ok: false,
+        error: `Offer saved, but the offer-sheet PDF failed to upload: ${uploadError.message}.`,
+      };
+    }
+
+    const { error: docError } = await admin.from("documents").insert({
+      qualifying_offer_id: newOffer.id,
+      type: "offer_sheet",
+      storage_path: path,
+      uploaded_at: new Date().toISOString(),
+    });
+    if (docError) {
+      return {
+        ok: false,
+        error: `Offer saved, but the offer-sheet record failed to save: ${docError.message}.`,
+      };
+    }
   }
 
   revalidatePath("/internal/outreach");

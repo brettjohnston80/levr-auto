@@ -33,6 +33,7 @@ export interface DashboardOffer {
   addons: DashboardAddon[];
   dealProgress: DashboardDealProgress | null;
   serviceAgreementSignedAt: string | null;
+  offerSheetUrl: string | null;
 }
 
 export interface DashboardSearch {
@@ -137,6 +138,7 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
 
   const dealProgressByOfferId = new Map<string, DashboardDealProgress>();
   const serviceAgreementSignedAtByOfferId = new Map<string, string>();
+  const offerSheetUrlByOfferId = new Map<string, string>();
 
   if (offerIds.length > 0) {
     const [{ data: progressRows, error: progressError }, { data: docs, error: docsError }] =
@@ -149,8 +151,9 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
           .in("qualifying_offer_id", offerIds),
         supabase
           .from("documents")
-          .select("qualifying_offer_id, type, uploaded_at, signed_at")
-          .in("type", ["financing_proof", "service_agreement"])
+          .select("qualifying_offer_id, type, uploaded_at, signed_at, storage_path")
+          .in("type", ["financing_proof", "service_agreement", "offer_sheet"])
+          .is("deleted_at", null)
           .in("qualifying_offer_id", offerIds)
           .order("uploaded_at", { ascending: false }),
       ]);
@@ -163,6 +166,12 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
     }
 
     const latestUploadByOfferId = new Map<string, string>();
+    // Offer-sheet PDFs never get a customer-browser-usable URL from
+    // storage_path directly (storage.objects has no RLS policies at all,
+    // service_role only) -- signed fresh below, same 15-minute TTL and
+    // "mint on every page load, never persist" convention already used for
+    // financing_proof on the agent side (getOutreachQueue).
+    const offerSheetPathByOfferId = new Map<string, string>();
     for (const doc of docs ?? []) {
       if (doc.type === "financing_proof" && doc.uploaded_at && !latestUploadByOfferId.has(doc.qualifying_offer_id)) {
         latestUploadByOfferId.set(doc.qualifying_offer_id, doc.uploaded_at);
@@ -170,7 +179,19 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
       if (doc.type === "service_agreement" && doc.signed_at) {
         serviceAgreementSignedAtByOfferId.set(doc.qualifying_offer_id, doc.signed_at);
       }
+      if (doc.type === "offer_sheet" && doc.storage_path && !offerSheetPathByOfferId.has(doc.qualifying_offer_id)) {
+        offerSheetPathByOfferId.set(doc.qualifying_offer_id, doc.storage_path);
+      }
     }
+
+    await Promise.all(
+      [...offerSheetPathByOfferId.entries()].map(async ([offerId, path]) => {
+        const { data } = await supabase.storage.from("documents").createSignedUrl(path, 900);
+        if (data?.signedUrl) {
+          offerSheetUrlByOfferId.set(offerId, data.signedUrl);
+        }
+      })
+    );
 
     for (const row of progressRows ?? []) {
       dealProgressByOfferId.set(row.qualifying_offer_id, {
@@ -218,6 +239,7 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
       addons: addonsByOfferId.get(offer.id) ?? [],
       dealProgress: dealProgressByOfferId.get(offer.id) ?? null,
       serviceAgreementSignedAt: serviceAgreementSignedAtByOfferId.get(offer.id) ?? null,
+      offerSheetUrl: offerSheetUrlByOfferId.get(offer.id) ?? null,
     });
     offersBySearchId.set(offer.customer_search_id, list);
   }
