@@ -42,6 +42,7 @@ export interface OutreachDealProgress {
   financingDownPaymentCents: number | null;
   financingDesiredTermMonths: number | null;
   financingProofUrl: string | null;
+  deliveryMethod: string | null;
 }
 
 export interface OutreachOffer {
@@ -167,7 +168,7 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
         supabase
           .from("deal_progress")
           .select(
-            "qualifying_offer_id, availability_reconfirmed_at, deposit_amount_cents, deposit_confirmed_at, financing_choice, financing_income_range, financing_down_payment_cents, financing_desired_term_months"
+            "qualifying_offer_id, availability_reconfirmed_at, deposit_amount_cents, deposit_confirmed_at, financing_choice, financing_income_range, financing_down_payment_cents, financing_desired_term_months, delivery_method"
           )
           .in("qualifying_offer_id", offerIds),
         supabase
@@ -220,6 +221,7 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
         financingDownPaymentCents: row.financing_down_payment_cents,
         financingDesiredTermMonths: row.financing_desired_term_months,
         financingProofUrl: signedUrlByOfferId.get(row.qualifying_offer_id) ?? null,
+        deliveryMethod: row.delivery_method,
       });
     }
   }

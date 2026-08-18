@@ -108,3 +108,52 @@ export async function submitFinancingChoice(formData: FormData): Promise<SubmitF
   revalidatePath("/internal/outreach");
   return { ok: true };
 }
+
+export interface SubmitDeliveryPreferenceResult {
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * Captures the customer's pickup/delivery preference (Build order item 11)
+ * -- pure record-keeping, same pattern as submitFinancingChoice. LEVR
+ * doesn't coordinate transporters or charge a delivery fee yet; the dealer
+ * and customer arrange delivery logistics directly. Freely re-submittable.
+ */
+export async function submitDeliveryPreference(formData: FormData): Promise<SubmitDeliveryPreferenceResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { ok: false, error: "Not signed in." };
+  }
+
+  const offerId = formData.get("qualifying_offer_id")?.toString();
+  const method = formData.get("delivery_method")?.toString();
+
+  if (!offerId || (method !== "pickup" && method !== "delivery")) {
+    return { ok: false, error: "Invalid submission." };
+  }
+
+  const admin = createAdminClient();
+
+  const ownership = await verifyOwnedAcceptedOffer(admin, offerId, user.id);
+  if (!ownership.ok) {
+    return ownership;
+  }
+
+  const { error } = await admin.from("deal_progress").upsert(
+    { qualifying_offer_id: offerId, delivery_method: method },
+    { onConflict: "qualifying_offer_id" }
+  );
+
+  if (error) {
+    return { ok: false, error: `Failed to save: ${error.message}` };
+  }
+
+  revalidatePath("/account");
+  revalidatePath("/internal/outreach");
+  return { ok: true };
+}

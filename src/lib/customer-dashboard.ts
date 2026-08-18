@@ -18,6 +18,7 @@ export interface DashboardDealProgress {
   financingDownPaymentCents: number | null;
   financingDesiredTermMonths: number | null;
   financingProofUploadedAt: string | null;
+  deliveryMethod: string | null;
 }
 
 export interface DashboardOffer {
@@ -146,7 +147,7 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
         supabase
           .from("deal_progress")
           .select(
-            "qualifying_offer_id, availability_reconfirmed_at, deposit_amount_cents, deposit_confirmed_at, financing_choice, financing_income_range, financing_down_payment_cents, financing_desired_term_months"
+            "qualifying_offer_id, availability_reconfirmed_at, deposit_amount_cents, deposit_confirmed_at, financing_choice, financing_income_range, financing_down_payment_cents, financing_desired_term_months, delivery_method"
           )
           .in("qualifying_offer_id", offerIds),
         supabase
@@ -203,6 +204,7 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
         financingDownPaymentCents: row.financing_down_payment_cents,
         financingDesiredTermMonths: row.financing_desired_term_months,
         financingProofUploadedAt: latestUploadByOfferId.get(row.qualifying_offer_id) ?? null,
+        deliveryMethod: row.delivery_method,
       });
     }
   }

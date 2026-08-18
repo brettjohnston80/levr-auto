@@ -54,3 +54,9 @@ export const EXTENSION_FEE = 100;
 // threshold, and the paused-state dashboard copy. Changed from 7 to 30 days
 // as part of the finalized Day-60 paused-state policy (CLAUDE.md, 2026-08-15).
 export const RESUME_WINDOW_DAYS = 30;
+
+// Transporter referral (Build order item 11 follow-on) -- inert placeholder.
+// No vendor is signed and no referral mechanism exists yet. Flip this to
+// true only once a real partner agreement (commission terms, referral
+// mechanism, and any state-licensing check) is actually in place.
+export const TRANSPORTER_REFERRAL_ENABLED = false;

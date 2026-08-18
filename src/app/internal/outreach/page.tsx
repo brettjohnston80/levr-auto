@@ -362,6 +362,14 @@ export default async function OutreachQueuePage() {
                                 </div>
 
                                 <div className="mt-2 text-xs text-zinc-400">
+                                  {offer.dealProgress?.deliveryMethod === "pickup"
+                                    ? "Pickup"
+                                    : offer.dealProgress?.deliveryMethod === "delivery"
+                                    ? "Delivery"
+                                    : "Delivery preference not yet selected"}
+                                </div>
+
+                                <div className="mt-2 text-xs text-zinc-400">
                                   {offer.serviceAgreementSignedAt ? (
                                     `Service agreement signed ${new Date(offer.serviceAgreementSignedAt).toLocaleDateString()}`
                                   ) : (

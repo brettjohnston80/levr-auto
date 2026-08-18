@@ -7,6 +7,7 @@ import { getCustomerDashboard, type DashboardSearch } from "@/lib/customer-dashb
 import { OfferResponseButtons } from "@/components/offer-response-buttons";
 import { AddonRemovalButton } from "@/components/addon-removal-button";
 import { FinancingCaptureForm } from "@/components/financing-capture-form";
+import { DeliveryPreferenceForm } from "@/components/delivery-preference-form";
 import { ServiceAgreementSigning } from "@/components/service-agreement-signing";
 import { FinalizeEditForm } from "@/components/finalize-edit-form";
 import { AccountFaqSection } from "@/components/account-faq-section";
@@ -418,6 +419,8 @@ function SearchCard({ search }: { search: DashboardSearch }) {
                     </p>
 
                     <FinancingCaptureForm offerId={offer.id} existing={offer.dealProgress} />
+
+                    <DeliveryPreferenceForm offerId={offer.id} existing={offer.dealProgress} />
 
                     <ServiceAgreementSigning
                       offerId={offer.id}
