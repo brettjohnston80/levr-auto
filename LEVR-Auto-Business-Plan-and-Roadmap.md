@@ -101,7 +101,7 @@ Decisions locked in while scoping the payment/finalization split (implemented an
 | Customer agreement | Drafted, not attorney-reviewed |
 | Dealer agreement | Drafted, not attorney-reviewed |
 
-**Total spend to date: ~$116.** Budget ceiling: <$10k for first 3–6 months, part-time nights/weekends.
+**Total spend to date: ~$121.** Budget ceiling: <$10k for first 3–6 months, part-time nights/weekends.
 
 ---
 
@@ -313,7 +313,8 @@ Four related ideas Brett raised together: knowing real dealer cost to negotiate 
 |---|---|
 | Domains | ~$31 |
 | Kansas LLC | ~$85 |
-| **Spent so far** | **~$116** |
+| Anthropic API credits | ~$5 |
+| **Spent so far** | **~$121** |
 | Trademark clearance opinion (est.) | $300–500 |
 | State licensing survey (est.) | varies by attorney/scope |
 | MarketCheck API (est.) | TBD from quote |
