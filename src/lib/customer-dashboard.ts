@@ -52,6 +52,8 @@ export interface DashboardSearch {
   pausedAt: string | null;
   searchDeadlineAt: string | null;
   autoRenewEnabled: boolean;
+  cancellationCallRequestedAt: string | null;
+  purchasedAt: string | null;
   offers: DashboardOffer[];
 }
 
@@ -80,7 +82,7 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
   const { data: searches, error: searchesError } = await supabase
     .from("customer_searches")
     .select(
-      "id, make, model, trim, colors, required_options, search_status, guarantee_status, paid_at, finalized_at, solidified_at, call_requested_at, switch_call_requested_at, paused_at, search_deadline_at, auto_renew_enabled"
+      "id, make, model, trim, colors, required_options, search_status, guarantee_status, paid_at, finalized_at, solidified_at, call_requested_at, switch_call_requested_at, paused_at, search_deadline_at, auto_renew_enabled, cancellation_call_requested_at, purchased_at"
     )
     .eq("customer_id", customerId)
     .order("created_at", { ascending: true });
@@ -237,6 +239,8 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
     pausedAt: search.paused_at,
     searchDeadlineAt: search.search_deadline_at,
     autoRenewEnabled: search.auto_renew_enabled,
+    cancellationCallRequestedAt: search.cancellation_call_requested_at,
+    purchasedAt: search.purchased_at,
     offers: offersBySearchId.get(search.id) ?? [],
   }));
 }

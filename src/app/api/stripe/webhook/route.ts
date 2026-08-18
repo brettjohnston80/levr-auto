@@ -4,6 +4,17 @@ import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { syncListingsForMakeModel } from "@/lib/marketcheck-sync";
 import { addDays, effectiveDeadline } from "@/lib/day60-extension";
+import { recordPayment } from "@/lib/payments";
+import { FLAT_PRICE, EXTENSION_FEE } from "@/lib/vehicle-data";
+
+// Extracts a PaymentIntent id from a Checkout Session's payment_intent
+// field, which Stripe sends as either a bare string id or an expanded
+// object depending on how the session was fetched -- same narrowing
+// already used by captureAutoRenewPaymentMethod below.
+function paymentIntentIdFromSession(session: Stripe.Checkout.Session): string | null {
+  if (!session.payment_intent) return null;
+  return typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent.id;
+}
 
 // Stripe webhook: the only place paid_at ever gets set. Runs with no user
 // session, so it uses the service_role admin client -- customers have no RLS
@@ -96,6 +107,21 @@ export async function POST(request: Request) {
     // no-data fallback, and the customer has already paid either way.
     if (data.length > 0) {
       const { make, model } = data[0];
+
+      const paymentIntentId = paymentIntentIdFromSession(session);
+      if (paymentIntentId) {
+        await recordPayment(admin, {
+          customerId,
+          searchId,
+          paymentType: "search_fee",
+          stripeCheckoutSessionId: session.id,
+          stripePaymentIntentId: paymentIntentId,
+          amountCents: session.amount_total ?? FLAT_PRICE * 100,
+        });
+      } else {
+        console.error("Stripe webhook: search_payment session has no payment_intent, not recorded", session.id);
+      }
+
       try {
         await syncListingsForMakeModel(make, model);
       } catch (syncError) {
@@ -145,7 +171,10 @@ async function handleSwitchFeePayment(session: Stripe.Checkout.Session): Promise
 
   const admin = createAdminClient();
 
-  const { error } = await admin.rpc("switch_customer_search", {
+  // Captures the new row (previously discarded) -- needed so the switch fee
+  // payment can be recorded against it (payments.search_id for a switch_fee
+  // row is the NEW row, mirroring how paid_at already lands there).
+  const { data: newSearch, error } = await admin.rpc("switch_customer_search", {
     p_old_search_id: oldSearchId,
     p_new_make: newMake,
     p_new_model: newModel,
@@ -167,6 +196,22 @@ async function handleSwitchFeePayment(session: Stripe.Checkout.Session): Promise
   }
 
   console.log(`Stripe webhook: switched search ${oldSearchId} to ${newMake} ${newModel} for session ${session.id}`);
+
+  if (newSearch) {
+    const paymentIntentId = paymentIntentIdFromSession(session);
+    if (paymentIntentId) {
+      await recordPayment(admin, {
+        customerId: newSearch.customer_id,
+        searchId: newSearch.id,
+        paymentType: "switch_fee",
+        stripeCheckoutSessionId: session.id,
+        stripePaymentIntentId: paymentIntentId,
+        amountCents: session.amount_total ?? EXTENSION_FEE * 100,
+      });
+    } else {
+      console.error("Stripe webhook: switch_fee session has no payment_intent, not recorded", session.id);
+    }
+  }
 
   // No on-demand MarketCheck sync here yet, unlike the search_payment branch
   // above -- deliberately deferred, see CLAUDE.md "Pricing Pivot Tracking",
@@ -248,6 +293,22 @@ async function handleExtensionFeePayment(session: Stripe.Checkout.Session): Prom
   console.log(
     `Stripe webhook: extended search ${searchId} deadline to ${newDeadline.toISOString()} for session ${session.id}`
   );
+
+  if (row.customer_id) {
+    const paymentIntentId = paymentIntentIdFromSession(session);
+    if (paymentIntentId) {
+      await recordPayment(admin, {
+        customerId: row.customer_id,
+        searchId,
+        paymentType: "extension_fee",
+        stripeCheckoutSessionId: session.id,
+        stripePaymentIntentId: paymentIntentId,
+        amountCents: session.amount_total ?? EXTENSION_FEE * 100,
+      });
+    } else {
+      console.error("Stripe webhook: extension_fee session has no payment_intent, not recorded", session.id);
+    }
+  }
 
   // Auto-renew opt-in: capture the payment method setup_future_usage saved
   // off this charge, and flip the flag the Day-60 pause cron reads. Only

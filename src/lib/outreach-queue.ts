@@ -420,6 +420,54 @@ export async function getSwitchCallQueue(): Promise<SwitchCallQueueSearch[]> {
   }));
 }
 
+export interface CancellationCallQueueSearch {
+  id: string;
+  customerId: string;
+  make: string;
+  model: string;
+  customerEmail: string | null;
+  cancellationCallRequestedAt: string;
+}
+
+/**
+ * Searches where the customer chose "Request a call with an agent" on
+ * CancellationChoice instead of (or before) self-service cancelling.
+ * Same shape as getSwitchCallQueue -- excludes search_status = 'cancelled'
+ * so a request naturally drops off once an agent has already resolved it
+ * (via AgentCancellationResolutionForm, which calls cancel_search()).
+ */
+export async function getCancellationCallQueue(): Promise<CancellationCallQueueSearch[]> {
+  const supabase = createAdminClient();
+
+  const { data: searches, error: searchesError } = await supabase
+    .from("customer_searches")
+    .select("id, make, model, customer_id, cancellation_call_requested_at")
+    .not("cancellation_call_requested_at", "is", null)
+    .neq("search_status", "cancelled")
+    .order("cancellation_call_requested_at", { ascending: true });
+
+  if (searchesError) {
+    throw new Error(`Failed to load cancellation call queue: ${searchesError.message}`);
+  }
+
+  if (!searches || searches.length === 0) {
+    return [];
+  }
+
+  const customerIds = [...new Set(searches.map((s) => s.customer_id))];
+  const { data: customers } = await supabase.from("customers").select("id, email").in("id", customerIds);
+  const customerEmailById = new Map((customers ?? []).map((c) => [c.id, c.email as string]));
+
+  return searches.map((search) => ({
+    id: search.id,
+    customerId: search.customer_id,
+    make: search.make,
+    model: search.model,
+    customerEmail: customerEmailById.get(search.customer_id) ?? null,
+    cancellationCallRequestedAt: search.cancellation_call_requested_at as string,
+  }));
+}
+
 const OVERDUE_FOLLOW_UP_HOURS = 48;
 
 export interface OverdueFollowUpSearch {

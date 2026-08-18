@@ -6,9 +6,11 @@ import {
   getSwitchCallQueue,
   getOverdueFollowUpQueue,
   getPausedSearchesQueue,
+  getCancellationCallQueue,
 } from "@/lib/outreach-queue";
 import { LogOfferForm } from "@/components/log-offer-form";
 import { MarkSoldButton } from "@/components/mark-sold-button";
+import { MarkPurchasedButton } from "@/components/mark-purchased-button";
 import { AddOfferAddonForm } from "@/components/add-offer-addon-form";
 import { ResolveAddonRemovalForm } from "@/components/resolve-addon-removal-form";
 import { ConfirmAvailabilityButton } from "@/components/confirm-availability-button";
@@ -17,6 +19,8 @@ import { CheckSigningStatusButton } from "@/components/check-signing-status-butt
 import { AgentSwitchSearchForm } from "@/components/agent-switch-search-form";
 import { AgentFinalizeSearchForm } from "@/components/agent-finalize-search-form";
 import { AgentBypassLookup } from "@/components/agent-bypass-lookup";
+import { AgentCancellationResolutionForm } from "@/components/agent-cancellation-resolution-form";
+import { AgentCancellationLookup } from "@/components/agent-cancellation-lookup";
 
 export const metadata: Metadata = {
   title: "Outreach Queue — LEVR Auto Internal",
@@ -48,13 +52,14 @@ function formatDaysRemaining(daysRemaining: number, pausedAt: string): string {
 
 export default async function OutreachQueuePage() {
   const agent = await requireAgent();
-  const [queue, finalizationQueue, switchCallQueue, overdueFollowUpQueue, pausedSearchesQueue] =
+  const [queue, finalizationQueue, switchCallQueue, overdueFollowUpQueue, pausedSearchesQueue, cancellationCallQueue] =
     await Promise.all([
       getOutreachQueue(),
       getFinalizationQueue(),
       getSwitchCallQueue(),
       getOverdueFollowUpQueue(),
       getPausedSearchesQueue(),
+      getCancellationCallQueue(),
     ]);
 
   return (
@@ -73,6 +78,17 @@ export default async function OutreachQueuePage() {
           </p>
           <div className="mt-4">
             <AgentBypassLookup />
+          </div>
+        </div>
+
+        <div className="mt-10">
+          <h2 className="text-lg font-semibold text-white">Resolve a cancellation</h2>
+          <p className="mt-1 text-sm text-zinc-400">
+            Look up a customer to cancel a search and issue a refund (full, partial, or none) against
+            any of their payments — not just for calls already in the queue below.
+          </p>
+          <div className="mt-4">
+            <AgentCancellationLookup />
           </div>
         </div>
 
@@ -127,6 +143,32 @@ export default async function OutreachQueuePage() {
                     Requested {formatDate(search.switchCallRequestedAt)}
                   </p>
                   <AgentSwitchSearchForm searchId={search.id} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-10">
+          <h2 className="text-lg font-semibold text-white">
+            Cancellation calls requested ({cancellationCallQueue.length})
+          </h2>
+          {cancellationCallQueue.length === 0 ? (
+            <p className="mt-3 text-sm text-zinc-400">No customers waiting on a cancellation call.</p>
+          ) : (
+            <div className="mt-4 space-y-4">
+              {cancellationCallQueue.map((search) => (
+                <div key={search.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <h3 className="text-base font-semibold text-white">
+                      {search.make} {search.model}
+                    </h3>
+                    <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Requested {formatDate(search.cancellationCallRequestedAt)}
+                  </p>
+                  <AgentCancellationResolutionForm searchId={search.id} customerId={search.customerId} />
                 </div>
               ))}
             </div>
@@ -328,6 +370,10 @@ export default async function OutreachQueuePage() {
                                       <CheckSigningStatusButton offerId={offer.id} />
                                     </>
                                   )}
+                                </div>
+
+                                <div className="mt-2 text-xs text-zinc-400">
+                                  Deal closed? <MarkPurchasedButton searchId={search.id} />
                                 </div>
                               </div>
                             )}

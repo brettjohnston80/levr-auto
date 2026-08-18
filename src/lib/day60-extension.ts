@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "./supabase/admin";
 import { sendEmail } from "./email";
 import { getStripe } from "./stripe";
+import { recordPayment } from "./payments";
 import { EXTENSION_FEE, RESUME_WINDOW_DAYS } from "./vehicle-data";
 
 const DEFAULT_SEARCH_DAYS = 60;
@@ -269,6 +270,18 @@ async function attemptAutoRenewCharge(
     );
     return true;
   }
+
+  // No Checkout Session at all for an off-session charge like this one --
+  // stripeCheckoutSessionId is null, stripePaymentIntentId is the only
+  // Stripe reference that exists.
+  await recordPayment(supabase, {
+    customerId: search.customer_id,
+    searchId: search.id,
+    paymentType: "extension_fee",
+    stripeCheckoutSessionId: null,
+    stripePaymentIntentId: paymentIntent.id,
+    amountCents: paymentIntent.amount,
+  });
 
   if (customer.email) {
     const newDeadlineLabel = newDeadline.toLocaleDateString("en-US", {

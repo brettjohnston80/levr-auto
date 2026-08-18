@@ -14,6 +14,8 @@ import { SwitchChoice } from "@/components/switch-choice";
 import { ExtendSearchButton } from "@/components/extend-search-button";
 import { AutoRenewToggle } from "@/components/auto-renew-toggle";
 import { AutoRenewOffLink } from "@/components/auto-renew-off-link";
+import { CancellationChoice } from "@/components/cancellation-choice";
+import { PurchasedCelebration } from "@/components/purchased-celebration";
 import { RESUME_WINDOW_DAYS } from "@/lib/vehicle-data";
 import { effectiveDeadline, REMINDER_WINDOW_DAYS } from "@/lib/day60-extension";
 
@@ -43,6 +45,10 @@ const SEARCH_STATUS_COPY: Record<string, string> = {
   paused: "Search paused.",
   closed: "Search closed.",
   switched: "Superseded by a newer search.",
+  cancelled: "This search was cancelled. To search again, start a new $699 search from the homepage.",
+  // Defensive fallback only -- SearchCard renders PurchasedCelebration
+  // instead of this text for a purchased search, never falls through here.
+  purchased: "This search is complete — you purchased your vehicle.",
 };
 
 const UNPAID_AWAITING_FINALIZATION_COPY =
@@ -133,9 +139,24 @@ function getStatusBadge(search: DashboardSearch): string {
 
 // Switching only makes sense for a search that's actually live and paid --
 // not an abandoned/unpaid row (nothing to switch away from yet), and not
-// one that's already switched or closed.
+// one that's already switched, closed, cancelled, or purchased.
 function canSwitch(search: DashboardSearch): boolean {
-  return search.paidAt !== null && !["switched", "closed"].includes(search.searchStatus);
+  return (
+    search.paidAt !== null && !["switched", "closed", "cancelled", "purchased"].includes(search.searchStatus)
+  );
+}
+
+// Cancellable at any of these active/pending stages, per Brett's confirmed
+// policy (2026-08-17) -- deliberately not gated on how far along the search
+// is (e.g. an accepted offer with deposit/financing/e-sign in motion is
+// still cancellable). Same allow-list this codebase already prefers over a
+// block-list for defensive reasons (see getOverdueFollowUpQueue's comment)
+// -- fails closed if a new status is ever added without this being revisited.
+function canCancel(search: DashboardSearch): boolean {
+  return (
+    search.paidAt !== null &&
+    ["awaiting_finalization", "pending_refinement", "searching", "paused"].includes(search.searchStatus)
+  );
 }
 
 const ADDON_REMOVAL_STATUS_COPY: Record<string, string> = {
@@ -234,6 +255,11 @@ function SearchCard({ search }: { search: DashboardSearch }) {
       {search.colors.length > 0 && (
         <p className="mt-1 text-sm text-zinc-500">Colors: {search.colors.join(", ")}</p>
       )}
+
+      {search.searchStatus === "purchased" ? (
+        <PurchasedCelebration make={search.make} model={search.model} trim={search.trim} />
+      ) : (
+        <>
       <p className="mt-3 text-sm text-zinc-400">{getStatusCopy(search)}</p>
 
       {reminderBannerCopy && (
@@ -302,6 +328,13 @@ function SearchCard({ search }: { search: DashboardSearch }) {
             switchCallAlreadyRequested={!!search.switchCallRequestedAt}
           />
         </div>
+      )}
+
+      {canCancel(search) && (
+        <CancellationChoice
+          searchId={search.id}
+          cancellationCallAlreadyRequested={!!search.cancellationCallRequestedAt}
+        />
       )}
 
       <div className="mt-5">
@@ -387,7 +420,8 @@ function SearchCard({ search }: { search: DashboardSearch }) {
           </ul>
         )}
       </div>
-
+        </>
+      )}
     </div>
   );
 }

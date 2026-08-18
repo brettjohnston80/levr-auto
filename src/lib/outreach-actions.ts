@@ -115,6 +115,48 @@ export async function markOfferVehicleSold(offerId: string): Promise<MarkVehicle
   return { ok: true };
 }
 
+export interface MarkSearchPurchasedResult {
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * Purchased celebratory state (Part 3, plan.md) -- agent-marked only, no
+ * Stripe/deposit automation, purely a judgment call during deal-close.
+ * Flips search_status to 'purchased', which /account renders as
+ * PurchasedCelebration instead of the normal offer-tracking UI. Guarded by
+ * .eq("search_status", "searching") on the write -- idempotent against a
+ * double-click, and refuses to fire on a search that isn't actually active
+ * (already cancelled, already purchased, etc.).
+ */
+export async function markSearchPurchased(searchId: string): Promise<MarkSearchPurchasedResult> {
+  const agent = await getAuthorizedAgent();
+  if (!agent) {
+    return { ok: false, error: "Not authorized." };
+  }
+
+  const admin = createAdminClient();
+
+  const { data: updated, error: updateError } = await admin
+    .from("customer_searches")
+    .update({ search_status: "purchased", purchased_at: new Date().toISOString() })
+    .eq("id", searchId)
+    .eq("search_status", "searching")
+    .select("id")
+    .maybeSingle();
+
+  if (updateError) {
+    return { ok: false, error: `Failed to mark purchased: ${updateError.message}` };
+  }
+  if (!updated) {
+    return { ok: false, error: "This search isn't active right now — can't mark it purchased." };
+  }
+
+  revalidatePath("/internal/outreach");
+  revalidatePath("/account");
+  return { ok: true };
+}
+
 export interface LogOfferAddonResult {
   ok: boolean;
   error?: string;
