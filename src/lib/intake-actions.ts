@@ -51,3 +51,37 @@ export async function saveIntakeSearch(
 
   return { ok: true, searchId: data.id };
 }
+
+// The "not sure yet" intake path (UX review #3) -- a customer can pay and
+// create an account with zero vehicle info, deciding make/model with an
+// agent afterward in one combined consultation call (finalizeUndecidedSearch).
+// make/model are nullable specifically for this path; search_status still
+// starts at 'awaiting_finalization' (the column default), same as the
+// normal intake path.
+export async function saveUndecidedIntakeSearch(): Promise<SaveIntakeResult> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { ok: false, error: "Not signed in.", requiresAuth: true };
+  }
+
+  const { data, error } = await supabase
+    .from("customer_searches")
+    .insert({
+      customer_id: user.id,
+      make: null,
+      model: null,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  return { ok: true, searchId: data.id };
+}

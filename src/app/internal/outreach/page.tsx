@@ -7,6 +7,7 @@ import {
   getOverdueFollowUpQueue,
   getPausedSearchesQueue,
   getCancellationCallQueue,
+  getVehicleConsultationQueue,
 } from "@/lib/outreach-queue";
 import { LogOfferForm } from "@/components/log-offer-form";
 import { MarkSoldButton } from "@/components/mark-sold-button";
@@ -21,6 +22,7 @@ import { AgentFinalizeSearchForm } from "@/components/agent-finalize-search-form
 import { AgentBypassLookup } from "@/components/agent-bypass-lookup";
 import { AgentCancellationResolutionForm } from "@/components/agent-cancellation-resolution-form";
 import { AgentCancellationLookup } from "@/components/agent-cancellation-lookup";
+import { AgentUndecidedFinalizeForm } from "@/components/agent-undecided-finalize-form";
 
 export const metadata: Metadata = {
   title: "Outreach Queue — LEVR Auto Internal",
@@ -52,15 +54,23 @@ function formatDaysRemaining(daysRemaining: number, pausedAt: string): string {
 
 export default async function OutreachQueuePage() {
   const agent = await requireAgent();
-  const [queue, finalizationQueue, switchCallQueue, overdueFollowUpQueue, pausedSearchesQueue, cancellationCallQueue] =
-    await Promise.all([
-      getOutreachQueue(),
-      getFinalizationQueue(),
-      getSwitchCallQueue(),
-      getOverdueFollowUpQueue(),
-      getPausedSearchesQueue(),
-      getCancellationCallQueue(),
-    ]);
+  const [
+    queue,
+    finalizationQueue,
+    switchCallQueue,
+    overdueFollowUpQueue,
+    pausedSearchesQueue,
+    cancellationCallQueue,
+    vehicleConsultationQueue,
+  ] = await Promise.all([
+    getOutreachQueue(),
+    getFinalizationQueue(),
+    getSwitchCallQueue(),
+    getOverdueFollowUpQueue(),
+    getPausedSearchesQueue(),
+    getCancellationCallQueue(),
+    getVehicleConsultationQueue(),
+  ]);
 
   return (
     <section className="min-h-screen bg-zinc-950 py-16">
@@ -69,6 +79,32 @@ export default async function OutreachQueuePage() {
         <p className="mt-1 text-sm text-zinc-400">
           Signed in as {agent.name} ({agent.email})
         </p>
+
+        <div className="mt-10">
+          <h2 className="text-lg font-semibold text-white">
+            Vehicle consultation needed ({vehicleConsultationQueue.length})
+          </h2>
+          <p className="mt-1 text-sm text-zinc-400">
+            These customers paid without picking a make/model yet — nothing else can happen for them
+            until this call takes place.
+          </p>
+          {vehicleConsultationQueue.length === 0 ? (
+            <p className="mt-3 text-sm text-zinc-400">No customers waiting on a vehicle consultation.</p>
+          ) : (
+            <div className="mt-4 space-y-4">
+              {vehicleConsultationQueue.map((search) => (
+                <div key={search.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <h3 className="text-base font-semibold text-white">Vehicle not yet chosen</h3>
+                    <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-zinc-500">Paid {formatDate(search.paidAt)}</p>
+                  <AgentUndecidedFinalizeForm searchId={search.id} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         <div className="mt-10">
           <h2 className="text-lg font-semibold text-white">Grant extension bypass</h2>

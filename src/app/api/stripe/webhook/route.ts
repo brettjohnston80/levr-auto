@@ -122,13 +122,15 @@ export async function POST(request: Request) {
         console.error("Stripe webhook: search_payment session has no payment_intent, not recorded", session.id);
       }
 
-      try {
-        await syncListingsForMakeModel(make, model);
-      } catch (syncError) {
-        console.error(
-          `Stripe webhook: on-demand MarketCheck sync failed for ${make} ${model}:`,
-          syncError instanceof Error ? syncError.message : syncError
-        );
+      if (make && model) {
+        try {
+          await syncListingsForMakeModel(make, model);
+        } catch (syncError) {
+          console.error(
+            `Stripe webhook: on-demand MarketCheck sync failed for ${make} ${model}:`,
+            syncError instanceof Error ? syncError.message : syncError
+          );
+        }
       }
     }
   }

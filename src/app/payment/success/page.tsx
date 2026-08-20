@@ -45,6 +45,16 @@ export default async function PaymentSuccessPage({
   }
 
   if (searchId) {
+    const { data: search } = await supabase
+      .from("customer_searches")
+      .select("make, model")
+      .eq("id", searchId)
+      .maybeSingle();
+
+    if (search && !search.make && !search.model) {
+      redirect("/account");
+    }
+
     redirect(`/finalize/${searchId}`);
   }
 

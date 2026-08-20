@@ -5,7 +5,7 @@ import { MAKES, MAKES_AND_MODELS, FLAT_PRICE } from "@/lib/vehicle-data";
 import { countNearbyInventory } from "@/lib/inventory-count";
 import { INVENTORY_RADIUS_MILES } from "@/lib/inventory-radius";
 import { createClient } from "@/lib/supabase/client";
-import { saveIntakeSearch } from "@/lib/intake-actions";
+import { saveIntakeSearch, saveUndecidedIntakeSearch } from "@/lib/intake-actions";
 import { createCheckoutSession } from "@/lib/payment-actions";
 import { AuthGateModal } from "@/components/auth-gate-modal";
 
@@ -47,6 +47,23 @@ function readPendingIntake(): PendingIntake | null {
 
 function clearPendingIntake() {
   window.localStorage.removeItem(PENDING_INTAKE_KEY);
+}
+
+// "Not sure yet" path (UX review #3) -- zero fields, so there's nothing to
+// stash but the fact that this is the flow to resume once signed in. Unlike
+// PENDING_INTAKE_KEY, this is a plain flag, not a payload with a TTL.
+const PENDING_UNDECIDED_INTAKE_KEY = "levr_pending_undecided_intake";
+
+function stashPendingUndecidedIntake() {
+  window.localStorage.setItem(PENDING_UNDECIDED_INTAKE_KEY, "1");
+}
+
+function hasPendingUndecidedIntake(): boolean {
+  return window.localStorage.getItem(PENDING_UNDECIDED_INTAKE_KEY) === "1";
+}
+
+function clearPendingUndecidedIntake() {
+  window.localStorage.removeItem(PENDING_UNDECIDED_INTAKE_KEY);
 }
 
 function ChevronIcon() {
@@ -195,6 +212,8 @@ export function IntakeFilter() {
   const [searchId, setSearchId] = useState<string | null>(null);
   const [payingNow, setPayingNow] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
+  const [savingUndecided, setSavingUndecided] = useState(false);
+  const [undecidedError, setUndecidedError] = useState<string | null>(null);
   const resumeChecked = useRef(false);
 
   const zipTouched = zip.length > 0;
@@ -270,22 +289,63 @@ export function IntakeFilter() {
     window.location.href = result.url;
   }
 
-  // Resume-after-email-confirmation: if a pending intake was stashed before a
-  // signup and the user is now signed in (e.g. they clicked the confirmation
-  // link and landed back here), finish the save automatically.
+  // One action, zero fields: save the undecided search, then go straight to
+  // Stripe -- same performSave-then-handleCheckout sequence as the normal
+  // path, just skipping vehicle/zip and the intermediate "submitted" review
+  // screen entirely.
+  async function performUndecidedSave() {
+    setSavingUndecided(true);
+    setUndecidedError(null);
+
+    const result = await saveUndecidedIntakeSearch();
+
+    if (!result.ok) {
+      setSavingUndecided(false);
+      if (result.requiresAuth) {
+        stashPendingUndecidedIntake();
+        setAuthGateOpen(true);
+      } else {
+        setUndecidedError(result.error);
+      }
+      return;
+    }
+
+    clearPendingUndecidedIntake();
+
+    const checkoutResult = await createCheckoutSession(result.searchId);
+    if (!checkoutResult.ok) {
+      setSavingUndecided(false);
+      setUndecidedError(checkoutResult.error);
+      return;
+    }
+
+    window.location.href = checkoutResult.url;
+  }
+
+  // Resume-after-email-confirmation: if a pending intake (vehicle-based or
+  // undecided) was stashed before a signup and the user is now signed in
+  // (e.g. they clicked the confirmation link and landed back here), finish
+  // whichever one was in flight automatically.
   useEffect(() => {
     if (resumeChecked.current) return;
     resumeChecked.current = true;
 
+    const pendingUndecided = hasPendingUndecidedIntake();
     const pending = readPendingIntake();
-    if (!pending) return;
+    if (!pendingUndecided && !pending) return;
 
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
-      setVehicle(pending.vehicle);
-      setZip(pending.zip);
-      performSave(pending.vehicle, pending.zip);
+      if (pendingUndecided) {
+        performUndecidedSave();
+        return;
+      }
+      if (pending) {
+        setVehicle(pending.vehicle);
+        setZip(pending.zip);
+        performSave(pending.vehicle, pending.zip);
+      }
     });
   }, []);
 
@@ -294,9 +354,18 @@ export function IntakeFilter() {
     await performSave(vehicle, zip);
   }
 
+  function handleUndecidedClick() {
+    if (savingUndecided) return;
+    performUndecidedSave();
+  }
+
   function handleAuthenticated() {
     setAuthGateOpen(false);
-    performSave(vehicle, zip);
+    if (hasPendingUndecidedIntake()) {
+      performUndecidedSave();
+    } else {
+      performSave(vehicle, zip);
+    }
   }
 
   function updateVehicle(patch: Partial<Vehicle>) {
@@ -386,6 +455,20 @@ export function IntakeFilter() {
           <span className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-1.5 text-sm font-medium text-emerald-400">
             Flat ${FLAT_PRICE} — one vehicle, always
           </span>
+        </div>
+
+        <div className="mt-6 text-center">
+          <button
+            type="button"
+            onClick={handleUndecidedClick}
+            disabled={savingUndecided}
+            className="text-sm font-medium text-emerald-400 underline decoration-emerald-400/40 underline-offset-4 transition-colors hover:text-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {savingUndecided
+              ? "Redirecting to checkout…"
+              : "Not sure what you're looking for yet? Skip ahead — pay now and we'll help you decide together."}
+          </button>
+          {undecidedError && <p className="mt-2 text-xs text-red-400">{undecidedError}</p>}
         </div>
 
         <div className="mt-12 space-y-6">

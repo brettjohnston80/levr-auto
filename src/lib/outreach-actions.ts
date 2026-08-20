@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { getAuthorizedAgent } from "./agent-auth";
 import { createAdminClient } from "./supabase/admin";
 import { getDocumentStatus } from "./pandadoc/client";
+import { syncListingsForMakeModel } from "./marketcheck-sync";
 
 export interface LogOfferResult {
   ok: boolean;
@@ -567,5 +568,68 @@ export async function finalizeSearchByAgent(
 
   revalidatePath("/internal/outreach");
   revalidatePath("/account");
+  return { ok: true };
+}
+
+export interface FinalizeUndecidedSearchResult {
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * The one-combined-call path for a search that started with no make/model
+ * (the "not sure yet" intake path). Sets make/model AND finalizes trim/
+ * color/options together in one action, decided 2026-08-19 -- unlike the
+ * normal finalization flow, there's no separate "pick a vehicle" step
+ * first since nothing was synced yet. Trim is freeform text here (not
+ * pulled from MarketCheck listings, since none exist for this make/model
+ * until this action runs) -- mirrors the existing custom-trim escape hatch
+ * already used elsewhere in the finalize forms.
+ */
+export async function finalizeUndecidedSearch(
+  searchId: string,
+  input: {
+    make: string;
+    model: string;
+    trim: string;
+    colors: string[];
+    requiredOptions: string[];
+  }
+): Promise<FinalizeUndecidedSearchResult> {
+  const agent = await getAuthorizedAgent();
+  if (!agent) {
+    return { ok: false, error: "Not authorized." };
+  }
+
+  const admin = createAdminClient();
+
+  const { error } = await admin
+    .from("customer_searches")
+    .update({
+      make: input.make,
+      model: input.model,
+      trim: input.trim,
+      colors: input.colors,
+      required_options: input.requiredOptions,
+      finalized_at: new Date().toISOString(),
+      search_status: "pending_refinement",
+    })
+    .eq("id", searchId)
+    .is("make", null); // guard: only ever applies to a genuinely undecided row
+
+  if (error) {
+    return { ok: false, error: `Failed to save: ${error.message}` };
+  }
+
+  // Same on-demand sync the webhook normally does at payment time for a
+  // known make/model -- this is the first point real inventory data is
+  // possible for this search.
+  try {
+    await syncListingsForMakeModel(input.make, input.model);
+  } catch (syncError) {
+    console.error(`finalizeUndecidedSearch: sync failed for ${input.make} ${input.model}:`, syncError);
+  }
+
+  revalidatePath("/internal/outreach");
   return { ok: true };
 }

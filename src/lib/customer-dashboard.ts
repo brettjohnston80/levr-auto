@@ -39,8 +39,11 @@ export interface DashboardOffer {
 
 export interface DashboardSearch {
   id: string;
-  make: string;
-  model: string;
+  // Nullable as of 2026-08-19 -- the "not sure yet" undecided intake path
+  // (saveUndecidedIntakeSearch) creates a paid row with no vehicle picked
+  // yet. Always set together once an agent runs finalizeUndecidedSearch.
+  make: string | null;
+  model: string | null;
   trim: string | null;
   colors: string[];
   requiredOptions: string[];

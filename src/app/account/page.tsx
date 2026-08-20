@@ -84,7 +84,13 @@ function getPausedResumeInfo(pausedAt: string | null): { copy: string; withinWin
   };
 }
 
+const UNDECIDED_PAID_COPY =
+  "We're finding the right vehicle for you — your agent will reach out soon to talk through what you're looking for.";
+
 function getStatusCopy(search: DashboardSearch): string {
+  if (search.paidAt && !search.make) {
+    return UNDECIDED_PAID_COPY;
+  }
   if (search.searchStatus === "awaiting_finalization" && !search.paidAt) {
     return UNPAID_AWAITING_FINALIZATION_COPY;
   }
@@ -140,11 +146,15 @@ function getStatusBadge(search: DashboardSearch): string {
 }
 
 // Switching only makes sense for a search that's actually live and paid --
-// not an abandoned/unpaid row (nothing to switch away from yet), and not
-// one that's already switched, closed, cancelled, or purchased.
+// not an abandoned/unpaid row (nothing to switch away from yet), not a
+// still-undecided row (nothing to switch away from either -- no make/model
+// exists yet, see the "not sure yet" intake path), and not one that's
+// already switched, closed, cancelled, or purchased.
 function canSwitch(search: DashboardSearch): boolean {
   return (
-    search.paidAt !== null && !["switched", "closed", "cancelled", "purchased"].includes(search.searchStatus)
+    search.paidAt !== null &&
+    search.make !== null &&
+    !["switched", "closed", "cancelled", "purchased"].includes(search.searchStatus)
   );
 }
 
@@ -263,8 +273,9 @@ function SearchCard({ search }: { search: DashboardSearch }) {
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold text-white">
-          {search.make} {search.model}
-          {search.trim ? ` — ${search.trim}` : ""}
+          {search.make && search.model
+            ? `${search.make} ${search.model}${search.trim ? ` — ${search.trim}` : ""}`
+            : "Finding your vehicle"}
         </h2>
         <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
           {getStatusBadge(search)}
@@ -274,7 +285,7 @@ function SearchCard({ search }: { search: DashboardSearch }) {
         <p className="mt-1 text-sm text-zinc-500">Colors: {search.colors.join(", ")}</p>
       )}
 
-      {search.searchStatus === "purchased" ? (
+      {search.searchStatus === "purchased" && search.make && search.model ? (
         <PurchasedCelebration make={search.make} model={search.model} trim={search.trim} />
       ) : (
         <>
@@ -309,7 +320,7 @@ function SearchCard({ search }: { search: DashboardSearch }) {
         </div>
       )}
 
-      {search.searchStatus === "awaiting_finalization" && search.paidAt && (
+      {search.searchStatus === "awaiting_finalization" && search.paidAt && search.make && (
         <div className="mt-4 border-t border-white/5 pt-4">
           {search.callRequestedAt ? (
             <p className="text-sm text-zinc-400">
@@ -337,7 +348,7 @@ function SearchCard({ search }: { search: DashboardSearch }) {
         />
       )}
 
-      {canSwitch(search) && (
+      {canSwitch(search) && search.make && search.model && (
         <div className="mt-4 border-t border-white/5 pt-4">
           <SwitchChoice
             searchId={search.id}

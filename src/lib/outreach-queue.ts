@@ -595,3 +595,47 @@ export async function getPausedSearchesQueue(): Promise<PausedSearch[]> {
 
   return withDaysRemaining.sort((a, b) => a.daysRemaining - b.daysRemaining);
 }
+
+export interface VehicleConsultationQueueSearch {
+  id: string;
+  customerEmail: string | null;
+  paidAt: string;
+}
+
+/**
+ * Searches where the customer paid without knowing what vehicle they want
+ * yet (the "not sure yet" intake path -- saveUndecidedIntakeSearch).
+ * Always needs an agent consultation call, unlike the other call queues
+ * which are opt-in requests -- there's no self-service path here since
+ * make/model don't exist yet. Worked via finalizeUndecidedSearch /
+ * AgentUndecidedFinalizeForm, which sets make/model and finalizes
+ * trim/color/options together in one action.
+ */
+export async function getVehicleConsultationQueue(): Promise<VehicleConsultationQueueSearch[]> {
+  const supabase = createAdminClient();
+
+  const { data: searches, error: searchesError } = await supabase
+    .from("customer_searches")
+    .select("id, customer_id, paid_at")
+    .is("make", null)
+    .not("paid_at", "is", null)
+    .order("paid_at", { ascending: true });
+
+  if (searchesError) {
+    throw new Error(`Failed to load vehicle consultation queue: ${searchesError.message}`);
+  }
+
+  if (!searches || searches.length === 0) {
+    return [];
+  }
+
+  const customerIds = [...new Set(searches.map((s) => s.customer_id))];
+  const { data: customers } = await supabase.from("customers").select("id, email").in("id", customerIds);
+  const customerEmailById = new Map((customers ?? []).map((c) => [c.id, c.email as string]));
+
+  return searches.map((search) => ({
+    id: search.id,
+    customerEmail: customerEmailById.get(search.customer_id) ?? null,
+    paidAt: search.paid_at as string,
+  }));
+}

@@ -51,7 +51,7 @@ export async function createCheckoutSession(searchId: string): Promise<CreateChe
           unit_amount: FLAT_PRICE * 100,
           product_data: {
             name: "LEVR Auto — Vehicle Search",
-            description: `${row.make} ${row.model}`,
+            description: row.make && row.model ? `${row.make} ${row.model}` : "Vehicle to be decided with your agent",
           },
         },
         quantity: 1,

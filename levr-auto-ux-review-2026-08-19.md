@@ -2,7 +2,7 @@
 
 Backlog from a full walkthrough of the live site. Each item is grounded against the actual code where I could check, so this can be handed straight to Claude Code as a starting point next session. Organized by area, not by the order raised.
 
-**Status as of 2026-08-19: 10 of 11 resolved.** Only #3 still open (scoped, not yet built).
+**Status as of 2026-08-19: 11 of 11 resolved. Full backlog closed out.**
 
 ---
 
@@ -12,11 +12,7 @@ Backlog from a full walkthrough of the live site. Each item is grounded against 
 
 **2. ~~"Build Your Search" and "Get Started" go to the same place — redundant.~~ DONE (2026-08-19).** Removed the redundant "Build Your Search" nav link from `site-header.tsx`.
 
-**3. Get Started requires make, model, and zip before you can continue — no path for "I don't know yet."**
-
-Confirmed: `intake-filter.tsx`'s Continue button is disabled until a valid make, model, and zip are all filled in ("Select a make and model and enter a valid zip code to continue"). There's no way to pay the $699 and start an account without already knowing the exact vehicle.
-
-→ **Fix:** add an "I'm not sure yet" path that still lets someone create an account and pay, without requiring make/model upfront. Likely routes them toward the Matchmaker first, or defers make/model to a follow-up step. Real design question: does the $699 charge still require a make/model to exist eventually (dealer outreach needs one), or does this become a genuinely different intake shape? Needs a real design pass, not just relaxing a validation rule.
+**3. ~~Get Started requires make, model, and zip before you can continue — no path for "I don't know yet."~~ DONE (2026-08-19).** New one-click "not sure yet" intake path — zero fields, straight to $699 checkout, make/model decided with an agent afterward in one combined consultation call. Uncovered and fixed a real, live RLS bug in the same pass (see CLAUDE.md) that had been silently blocking all real customer intake since 2026-08-13.
 
 ---
 
@@ -50,6 +46,6 @@ Worth knowing up front: **the Matchmaker is explicitly labeled a prototype today
 
 ---
 
-## Suggested order, once picking up remaining items
+## Backlog closed
 
-- **Needs a design decision before building:** #3 ("I don't know yet" path)
+All 11 items resolved as of 2026-08-19. See CLAUDE.md's "Built and live" section for the full build/verification record on each.
