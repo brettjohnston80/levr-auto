@@ -2,21 +2,32 @@
 
 This file exists so any Claude Code session (yours, your collaborator's, or a future one) has full context without re-explaining the business. Read this before starting build work.
 
+## Working Preferences (read this before doing anything)
+
+- **Plan before code, always.** Propose schema, UI surfaces, and open design questions before writing any implementation code on non-trivial changes. No surprises.
+- **Verify against source files — never take documentation at face value.** Validate claims against actual implementation files, not memory or prior docs. Flag inconsistencies explicitly rather than silently resolving them — several real bugs this project has caught (an RLS policy mismatch, a stale full_name reference, a scoring function that didn't use most of its inputs) were found exactly this way.
+- **Real-data verification gate.** No feature is done until verified end-to-end with real data, not just "the code compiles." Test artifacts get cleaned up after, confirmed via grep.
+- **Migration workflow: Claude reviews, Brett runs.** Migrations are always reviewed by Claude, then run manually by Brett in the Supabase SQL Editor — never auto-run, even when confident it's correct.
+- **Customer-facing copy needs explicit sign-off** before being built or logged as approved.
+- **Secrets never in chat.** `.env.local` only — no Stripe/Supabase secret values ever pasted into a Claude Code session or a chat.
+- **Claude Code boundaries:** may self-execute CRON_SECRET-gated commands against Brett's locally-running dev server; must not start the dev server unprompted; must not delete or modify files a live Turbopack process depends on without flagging first.
+- **Output format:** plain numbered lists for step-by-step instructions, not step-card widgets. All SQL, terminal commands, and Claude Code handoff instructions delivered as plain, directly copy-pasteable code blocks in chat — never as downloadable files.
+- **Long terminal output:** write to a file and drag it from Finder into chat — line-wrapping corrupts long pastes otherwise.
+- **Session continuity:** the "Start Here" section below is designed to be copy-pasted as the opening message of every new Claude.ai chat session.
+
 ## Start Here (updated 2026-08-19)
 
-LEVR Auto — nationwide car-buying negotiation service, founder Brett Johnston. Full context in this file below, plus LEVR-Auto-Business-Plan-and-Roadmap.md and LEVR-Auto-Core-Processes-v1.md in this repo.
+LEVR Auto — nationwide car-buying negotiation service, founder Brett Johnston. Full context in this file below, plus LEVR-Auto-Business-Plan-and-Roadmap.md, LEVR-Auto-Core-Processes-v1.md, and levr-auto-ux-review-2026-08-19.md in this repo. See "Working Preferences" above for how Brett likes to work.
 
-**⚠ Needs Brett's attention — real production readiness issue, found 2026-08-19:** `MARKETCHECK_API_KEY` is currently invalid (401 Invalid authentication credentials on every sync call, confirmed across multiple unrelated make/models — a real credentials/account problem, not a per-vehicle issue). Fails gracefully today (logged, nothing crashes), but every real customer would hit empty trim options at `/finalize` with no visible error. Check the MarketCheck dashboard directly — likely an expired/rotated key or a lapsed billing/trial tier. See "Known open problems" below for the full note.
+⚠ **Needs Brett's attention, not code:** `MARKETCHECK_API_KEY` is currently returning 401 on every sync call — check the MarketCheck dashboard directly. This silently affects real inventory sync for every paying customer today.
 
-**Just finished:** Undecided-buyer intake path (UX review item #3) — the last item in the 2026-08-19 UX review backlog. **The full 11-item backlog is now resolved.** One-click "not sure yet" intake (zero fields, straight to the same $699 checkout), a new `/account` state, a new agent "Vehicle consultation needed" queue, and a combined agent action that sets make/model and finalizes trim/color/options together in one call. Also found and fixed a real, live bug in the same pass: the `customer_searches` INSERT RLS policy had required a stale `search_status` value since 2026-08-13, silently blocking all real customer intake since that date (zero real customer impact so far — pre-launch, no real customers yet — but would have blocked every real signup). Verified end-to-end under real (post-fix) RLS. Built, committed.
+**Just finished:** The full 11-item UX review backlog (levr-auto-ux-review-2026-08-19.md) is closed out — including a real, live RLS bug found and fixed along the way (customer intake had been silently failing since 2026-08-13).
 
-**Next thing to check:** the MarketCheck API key issue flagged above. Once that's resolved, Build order item 12 (Minimal admin views) is next in sequence — no UX review items remain.
+**Next up: Build order item 12, minimal admin views.** Scope decided 2026-08-19, not yet built — see the Build Order section above for the full detail (new `/internal/admin` page, manual Pause/Resume reusing `paused_at`, `closed` confirmed staying unused).
 
-**Other real open items, not started:** free USPTO TESS trademark search, attorney quote for the state licensing survey, the 30-50 dealer outreach spike, MarketCheck production pricing quote (draft ready, unsent), transporter partnership research (discovery pass done — see Roadmap doc — but no vendor outreach started).
+**Other real open items, not started:** free USPTO TESS trademark search, attorney quote for the state licensing survey, the 30–50 dealer outreach spike (still the single highest-leverage thing sitting open — determines whether the core outreach mechanism actually works), MarketCheck production-pricing email (draft ready, unsent — separate from the API key issue above), the blog/articles section (topics brainstormed in levr-auto-article-brainstorm-2026-08-19.md, no section built yet), and a possible future native app (React Native/Expo, scoped in conversation but not written down anywhere yet — Stage 3+ priority, not urgent).
 
-Standing rules: no secrets in chat, migrations get reviewed before running, customer-facing copy needs explicit sign-off, real-data verification required before anything's called done.
-
-Going forward: update this section (and only this section needs to be pasted into a new chat) at the end of every session, right before the final commit.
+Going forward: update this section at the end of every session, right before the final commit.
 
 ## What this business does
 
@@ -347,7 +358,11 @@ Discovery only, nothing built yet.
 9. ~~Change-request logic — accept/decline, the sold-before-response guarantee edge case, switching make/model, the Day-30 guarantee assessment job, and add-on negotiation~~ — **done**. The $100 switch fee/grace-period gating is a separate, still-unbuilt piece of this same build-order item (see "Not built yet" above)
 10. ~~Financing/document flow — availability re-confirmation, deposit recording, financing capture~~ — **done**. The LEVR e-sign document (PandaDoc) is a separate, still-unbuilt piece of this same build-order item, blocked on a sandbox API key (see "Not built yet" above)
 11. ~~Delivery coordination~~ — **done, lightweight scope (2026-08-19).** Customer captures a pickup/delivery preference (`deal_progress.delivery_method`), record-keeping only — LEVR doesn't coordinate transporters or charge a delivery fee. A `TRANSPORTER_REFERRAL_ENABLED` flag (`vehicle-data.ts`, currently `false`) is wired in as an inert placeholder for a future transporter partnership, not yet decided or built.
-12. Minimal admin views
+12. Minimal admin views — **scope decided 2026-08-19, not yet built:**
+    - New `/internal/admin` page — a searchable/filterable table of all `customer_searches` (customer email, make/model, status, guarantee status, paid date).
+    - Manual Pause/Resume action per row, reusing the existing `paused_at` mechanism (the same one the Day-60 cron already uses) — no new schema needed.
+    - Confirmed during planning: `closed` stays deliberately unused — this was already decided in the cancellation-flow migration (`20260818120000_cancellation_purchased_payments.sql`): "closed is deliberately left alone, still unused... two new, self-documenting values [cancelled/purchased] are cleaner than resurrecting an ambiguous one." Not being resurrected for this either.
+    - `search_lifecycle_log` doesn't exist as a table — that name appeared in an early draft of the cancellation-flow design (before reactivation was cut from scope entirely), and shipped as the narrower `cancellation_log` instead, scoped specifically to cancellations. Manual pause needs no new log table — `paused_at` alone is sufficient, same "most-recent-event pointer on the row" convention already used by `finalized_at`/`solidified_at`.
 
 ## Critical schema decisions already made — implement these correctly from the start
 
