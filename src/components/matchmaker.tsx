@@ -23,7 +23,6 @@ type Answers = {
   powertrain: Powertrain | "";
   priceRange: string;
   priorities: string[];
-  notes: string;
 };
 
 const DEFAULT_PRIORITY_ORDER = PRIORITIES.map((p) => p.label);
@@ -35,12 +34,11 @@ const EMPTY_ANSWERS: Answers = {
   powertrain: "",
   priceRange: "",
   priorities: DEFAULT_PRIORITY_ORDER,
-  notes: "",
 };
 
 type Step = {
   id: keyof Answers;
-  kind: "select" | "rank" | "text";
+  kind: "select" | "rank";
   title: string;
   subtitle?: string;
   options?: string[];
@@ -87,12 +85,6 @@ const STEPS: Step[] = [
     kind: "rank",
     title: "What matters most to you?",
     subtitle: "Drag to reorder — most important at the top.",
-  },
-  {
-    id: "notes",
-    kind: "text",
-    title: "Anything else we should know?",
-    subtitle: "Optional — towing needs, must-have features, dealbreakers, whatever matters to you.",
   },
 ];
 
@@ -350,11 +342,9 @@ function QuestionPanel({
   value,
   rankedValues,
   onSelect,
-  onTextChange,
   onReorderPriorities,
   onBack,
   onContinue,
-  onSkip,
 }: {
   step: Step;
   stepIndex: number;
@@ -362,11 +352,9 @@ function QuestionPanel({
   value: string;
   rankedValues: string[];
   onSelect: (value: string) => void;
-  onTextChange: (value: string) => void;
   onReorderPriorities: (order: string[]) => void;
   onBack: () => void;
   onContinue: () => void;
-  onSkip: () => void;
 }) {
   const progress = ((stepIndex + 1) / totalSteps) * 100;
 
@@ -436,34 +424,6 @@ function QuestionPanel({
           </div>
         </div>
       )}
-
-      {step.kind === "text" && (
-        <div className="mt-8">
-          <textarea
-            value={value}
-            onChange={(e) => onTextChange(e.target.value)}
-            placeholder="e.g. I need to tow a small trailer a few times a year, and I really don't want cloth seats."
-            rows={4}
-            className="w-full rounded-xl border border-white/10 bg-zinc-900/80 px-4 py-3 text-sm font-medium text-white shadow-inner shadow-black/20 placeholder:text-zinc-600 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
-          />
-          <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-            <button
-              type="button"
-              onClick={onSkip}
-              className="rounded-full border border-white/20 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
-            >
-              Skip
-            </button>
-            <button
-              type="button"
-              onClick={onContinue}
-              className="rounded-full bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400"
-            >
-              See My Matches
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -483,64 +443,70 @@ function VehicleCard({
 
   return (
     <div
-      className={`flex flex-col rounded-3xl border p-6 shadow-xl shadow-black/20 transition-colors ${
+      className={`flex flex-col gap-4 rounded-3xl border p-6 shadow-xl shadow-black/20 transition-colors sm:flex-row sm:items-start sm:justify-between ${
         flagged
           ? "border-emerald-500/40 bg-emerald-500/[0.06]"
           : "border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02]"
       }`}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-3 sm:block">
           <h3 className="text-lg font-semibold text-white">
             {vehicle.make} {vehicle.model}
           </h3>
-          <div className="mt-1 flex flex-wrap gap-1.5 text-xs text-zinc-400">
-            <span className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-0.5">
-              {vehicle.bodyType}
-            </span>
-            <span className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-0.5">
-              {vehicle.powertrain}
-            </span>
-          </div>
+          <span className="shrink-0 text-sm font-semibold text-emerald-400 sm:hidden">
+            {vehicle.priceEstimate}
+          </span>
         </div>
-        <span className="shrink-0 text-sm font-semibold text-emerald-400">{vehicle.priceEstimate}</span>
+        <div className="mt-1 flex flex-wrap gap-1.5 text-xs text-zinc-400">
+          <span className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-0.5">
+            {vehicle.bodyType}
+          </span>
+          <span className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-0.5">
+            {vehicle.powertrain}
+          </span>
+        </div>
+        <p className="mt-3 text-sm leading-relaxed text-zinc-400">{vehicle.rationale}</p>
       </div>
 
-      <p className="mt-4 flex-1 text-sm leading-relaxed text-zinc-400">{vehicle.rationale}</p>
+      <div className="flex shrink-0 flex-col items-stretch gap-2 sm:w-52">
+        <span className="hidden text-right text-sm font-semibold text-emerald-400 sm:block">
+          {vehicle.priceEstimate}
+        </span>
+        <div className="flex flex-wrap items-center gap-2 sm:flex-col sm:items-stretch">
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="rounded-full border border-white/15 px-4 py-2 text-xs font-semibold text-zinc-300 transition-colors hover:border-red-500/40 hover:text-red-400"
+          >
+            Not interested
+          </button>
+          <button
+            type="button"
+            onClick={onToggleFlag}
+            className={`rounded-full border px-4 py-2 text-xs font-semibold transition-colors ${
+              flagged
+                ? "border-emerald-500 bg-emerald-500 text-zinc-950"
+                : "border-white/15 text-zinc-300 hover:border-emerald-500/40 hover:text-emerald-400"
+            }`}
+          >
+            {flagged ? "Flagged for more info" : "Want more info"}
+          </button>
+        </div>
 
-      <div className="mt-6 flex flex-wrap items-center gap-2">
         <button
           type="button"
-          onClick={onDismiss}
-          className="rounded-full border border-white/15 px-4 py-2 text-xs font-semibold text-zinc-300 transition-colors hover:border-red-500/40 hover:text-red-400"
+          onClick={() => setSearchClicked(true)}
+          className="w-full rounded-full bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400"
         >
-          Not interested
+          Start My Search
         </button>
-        <button
-          type="button"
-          onClick={onToggleFlag}
-          className={`rounded-full border px-4 py-2 text-xs font-semibold transition-colors ${
-            flagged
-              ? "border-emerald-500 bg-emerald-500 text-zinc-950"
-              : "border-white/15 text-zinc-300 hover:border-emerald-500/40 hover:text-emerald-400"
-          }`}
-        >
-          {flagged ? "Flagged for more info" : "Want more info"}
-        </button>
+        {searchClicked && (
+          <p className="text-center text-xs text-zinc-500">
+            Placeholder — this will kick off your real search once the intake filter connects.
+          </p>
+        )}
       </div>
-
-      <button
-        type="button"
-        onClick={() => setSearchClicked(true)}
-        className="mt-3 w-full rounded-full bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400"
-      >
-        Start My Search
-      </button>
-      {searchClicked && (
-        <p className="mt-2 text-center text-xs text-zinc-500">
-          Placeholder — this will kick off your real search once the intake filter connects.
-        </p>
-      )}
     </div>
   );
 }
@@ -615,15 +581,10 @@ function ResultsScreen({ answers, onStartOver }: { answers: Answers; onStartOver
             ))}
           </div>
         )}
-        {answers.notes && (
-          <p className="mx-auto mt-4 max-w-xl text-sm text-zinc-500 italic">
-            &ldquo;{answers.notes}&rdquo;
-          </p>
-        )}
       </div>
 
       {visible.length > 0 ? (
-        <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mx-auto mt-12 flex max-w-2xl flex-col gap-4">
           {visible.map((vehicle) => (
             <VehicleCard
               key={vehicle.id}
@@ -716,10 +677,6 @@ export function Matchmaker() {
     setAnswers((prev) => ({ ...prev, priorities: order }));
   }
 
-  function setText(id: keyof Answers, value: string) {
-    setAnswers((prev) => ({ ...prev, [id]: value }));
-  }
-
   function goBack() {
     setStep((s) => Math.max(0, s - 1));
   }
@@ -757,11 +714,9 @@ export function Matchmaker() {
                 value={currentStringValue}
                 rankedValues={answers.priorities}
                 onSelect={(value) => select(currentStep.id, value)}
-                onTextChange={(value) => setText(currentStep.id, value)}
                 onReorderPriorities={reorderPriorities}
                 onBack={goBack}
                 onContinue={goNext}
-                onSkip={goNext}
               />
               <BuildingVisual answers={answers} currentStepId={currentStep.id} />
             </div>

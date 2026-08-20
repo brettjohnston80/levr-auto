@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { CallbackRequestButton } from "@/components/callback-request-button";
 
 export const metadata: Metadata = {
   title: "FAQ — LEVR Auto",
@@ -52,8 +51,7 @@ const FAQS: FaqItem[] = [
   },
   {
     q: "Do I have to talk to anyone on the phone?",
-    a: "Not if you don't want to. The entire process — telling us what you want, reviewing offers, accepting a deal — can be completed online from start to finish. Prefer a human touch? You can opt into a personal agent and request a callback anytime.",
-    extra: <CallbackRequestButton />,
+    a: "Not if you don't want to. The entire process — telling us what you want, reviewing offers, accepting a deal — can be completed online from start to finish.",
   },
   {
     q: "Can I search for more than one car at a time?",
