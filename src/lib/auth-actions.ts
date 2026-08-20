@@ -2,12 +2,6 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import {
-  channelRequiresPhone,
-  type CommunicationChannel,
-  type CommunicationFrequency,
-  type CommunicationPreferences,
-} from "./communication-preferences";
 
 async function attemptLogin(email: string, password: string) {
   const supabase = await createClient();
@@ -15,27 +9,12 @@ async function attemptLogin(email: string, password: string) {
   return { ok: !error, error: error?.message };
 }
 
-async function attemptSignup(
-  email: string,
-  password: string,
-  fullName: string | undefined,
-  redirectPath: string,
-  communicationPreferences?: CommunicationPreferences
-) {
+async function attemptSignup(email: string, password: string, redirectPath: string, phone?: string) {
   const supabase = await createClient();
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
   const metadata: Record<string, string> = {};
-  if (fullName) metadata.full_name = fullName;
-  if (communicationPreferences?.frequency) {
-    metadata.communication_frequency = communicationPreferences.frequency;
-  }
-  if (communicationPreferences?.channel) {
-    metadata.communication_channel = communicationPreferences.channel;
-  }
-  if (communicationPreferences?.phone) {
-    metadata.phone = communicationPreferences.phone;
-  }
+  if (phone) metadata.phone = phone;
 
   const { error } = await supabase.auth.signUp({
     email,
@@ -66,21 +45,13 @@ export async function login(formData: FormData) {
 }
 
 export async function signup(formData: FormData) {
-  const fullName = formData.get("fullName") as string;
-  const frequency = formData.get("communicationFrequency") as CommunicationFrequency;
-  const channel = formData.get("communicationChannel") as CommunicationChannel;
   const phone = (formData.get("phone") as string)?.trim();
-
-  if (channelRequiresPhone(channel) && !phone) {
-    redirect(`/signup?error=${encodeURIComponent("A phone number is required for that update method.")}`);
-  }
 
   const result = await attemptSignup(
     formData.get("email") as string,
     formData.get("password") as string,
-    fullName || undefined,
     "/auth/callback",
-    { frequency, channel, phone: phone || undefined }
+    phone || undefined
   );
 
   if (!result.ok) {
@@ -149,24 +120,12 @@ export async function loginInline(email: string, password: string) {
   return attemptLogin(email, password);
 }
 
-export async function signupInline(
-  email: string,
-  password: string,
-  fullName?: string,
-  communicationChannel?: CommunicationChannel,
-  phone?: string
-) {
-  if (channelRequiresPhone(communicationChannel) && !phone) {
-    return { ok: false, error: "A phone number is required for that update method." };
-  }
-
+export async function signupInline(email: string, password: string, phone?: string) {
   // Sends confirmed users back to the homepage (where the intake flow lives)
   // rather than /account, so the pending-search resume logic can pick up.
-  // Deliberately doesn't pass a frequency — this modal only asks for
-  // channel, keeping it lightweight; frequency defaults to 'real_time' via
-  // the same DB-trigger fallback used for any signup path that omits it.
-  return attemptSignup(email, password, fullName, `/auth/callback?next=${encodeURIComponent("/")}`, {
-    channel: communicationChannel,
-    phone,
-  });
+  // Neither name nor notification preferences are collected here anymore --
+  // both live in account settings now, and default/stay null via the DB
+  // trigger/column defaults the same way any signup path that omits them
+  // always has.
+  return attemptSignup(email, password, `/auth/callback?next=${encodeURIComponent("/")}`, phone);
 }

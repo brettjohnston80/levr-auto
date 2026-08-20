@@ -16,14 +16,15 @@ const MAX_CANDIDATES = 20;
 
 /**
  * Search stage of the bypass lookup flow (Pass 3, CLAUDE.md) — matches
- * against customers.full_name and customers.email, since full_name only
- * lives there and email is the only pre-filterable field available without
- * pulling every auth.users row to filter client-side. Two separate ILIKE
- * queries merged in application code, not a single `.or()` filter string —
- * PostgREST's `.or()` syntax treats commas/periods/parens in the filter
- * string as syntax, so interpolating raw agent-typed text into one would
- * risk a malformed filter (or worse) on input containing those characters.
- * Bound `.ilike()` calls don't have that risk.
+ * against customers.first_name, customers.last_name, and customers.email,
+ * since name only lives there and email is the only other pre-filterable
+ * field available without pulling every auth.users row to filter
+ * client-side. Three separate ILIKE queries merged in application code, not
+ * a single `.or()` filter string — PostgREST's `.or()` syntax treats
+ * commas/periods/parens in the filter string as syntax, so interpolating
+ * raw agent-typed text into one would risk a malformed filter (or worse) on
+ * input containing those characters. Bound `.ilike()` calls don't have that
+ * risk.
  *
  * customers.email is only used here as a fuzzy search seed — never trusted
  * for display or identity once a candidate is found. Each result's email is
@@ -44,18 +45,25 @@ export async function searchCustomers(query: string): Promise<SearchCustomersRes
 
   const admin = createAdminClient();
   const pattern = `%${trimmed}%`;
+  const columns = "id, first_name, last_name, email";
 
-  const [{ data: byName, error: nameError }, { data: byEmail, error: emailError }] = await Promise.all([
-    admin.from("customers").select("id, full_name, email").ilike("full_name", pattern).limit(MAX_CANDIDATES),
-    admin.from("customers").select("id, full_name, email").ilike("email", pattern).limit(MAX_CANDIDATES),
+  const [
+    { data: byFirstName, error: firstNameError },
+    { data: byLastName, error: lastNameError },
+    { data: byEmail, error: emailError },
+  ] = await Promise.all([
+    admin.from("customers").select(columns).ilike("first_name", pattern).limit(MAX_CANDIDATES),
+    admin.from("customers").select(columns).ilike("last_name", pattern).limit(MAX_CANDIDATES),
+    admin.from("customers").select(columns).ilike("email", pattern).limit(MAX_CANDIDATES),
   ]);
 
-  if (nameError || emailError) {
-    return { error: (nameError ?? emailError)?.message ?? "Search failed." };
+  const firstError = firstNameError ?? lastNameError ?? emailError;
+  if (firstError) {
+    return { error: firstError.message ?? "Search failed." };
   }
 
-  const byId = new Map<string, { id: string; full_name: string | null; email: string }>();
-  for (const row of [...(byName ?? []), ...(byEmail ?? [])]) {
+  const byId = new Map<string, { id: string; first_name: string | null; last_name: string | null; email: string }>();
+  for (const row of [...(byFirstName ?? []), ...(byLastName ?? []), ...(byEmail ?? [])]) {
     byId.set(row.id, row);
   }
 
@@ -69,7 +77,7 @@ export async function searchCustomers(query: string): Promise<SearchCustomersRes
       const { data } = await admin.auth.admin.getUserById(c.id);
       return {
         id: c.id,
-        fullName: c.full_name,
+        fullName: [c.first_name, c.last_name].filter(Boolean).join(" ") || null,
         email: data.user?.email ?? c.email,
       };
     })

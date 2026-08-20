@@ -19,6 +19,10 @@ export function addDays(iso: string, days: number): Date {
   return date;
 }
 
+function customerDisplayName(customer: { first_name?: string | null; last_name?: string | null }): string | undefined {
+  return [customer.first_name, customer.last_name].filter(Boolean).join(" ") || undefined;
+}
+
 /**
  * search_deadline_at is nullable -- null means "use the default," not "no
  * deadline." Computed here rather than filtered in the DB query itself:
@@ -88,7 +92,7 @@ export async function sendDay60Reminders(): Promise<Day60ReminderSummary> {
   const customerIds = [...new Set(due.map((s) => s.customer_id))];
   const { data: customers } = await supabase
     .from("customers")
-    .select("id, email, full_name")
+    .select("id, email, first_name, last_name")
     .in("id", customerIds);
   const customerById = new Map((customers ?? []).map((c) => [c.id, c]));
 
@@ -136,7 +140,7 @@ export async function sendDay60Reminders(): Promise<Day60ReminderSummary> {
     try {
       await sendEmail({
         to: customer.email,
-        toName: customer.full_name ?? undefined,
+        toName: customerDisplayName(customer),
         subject,
         html,
       });
@@ -190,7 +194,7 @@ async function attemptAutoRenewCharge(
 ): Promise<boolean> {
   const { data: customer } = await supabase
     .from("customers")
-    .select("email, full_name, stripe_customer_id, stripe_default_payment_method_id")
+    .select("email, first_name, last_name, stripe_customer_id, stripe_default_payment_method_id")
     .eq("id", search.customer_id)
     .maybeSingle();
 
@@ -293,7 +297,7 @@ async function attemptAutoRenewCharge(
     try {
       await sendEmail({
         to: customer.email,
-        toName: customer.full_name ?? undefined,
+        toName: customerDisplayName(customer),
         subject: "Your LEVR Auto search was automatically extended",
         html:
           `<p>Your search was about to pause, so we automatically charged the $100 extension fee to the ` +
@@ -419,7 +423,7 @@ export async function sendResumeReminders(): Promise<ResumeReminderSummary> {
   const customerIds = [...new Set(due.map((s) => s.customer_id))];
   const { data: customers } = await supabase
     .from("customers")
-    .select("id, email, full_name")
+    .select("id, email, first_name, last_name")
     .in("id", customerIds);
   const customerById = new Map((customers ?? []).map((c) => [c.id, c]));
 
@@ -446,7 +450,7 @@ export async function sendResumeReminders(): Promise<ResumeReminderSummary> {
     try {
       await sendEmail({
         to: customer.email,
-        toName: customer.full_name ?? undefined,
+        toName: customerDisplayName(customer),
         subject: "Your paused search will end soon — extend now",
         html:
           `<p>Your LEVR Auto search for a ${search.make} ${search.model} is paused, and the window to resume ` +

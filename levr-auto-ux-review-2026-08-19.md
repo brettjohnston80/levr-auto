@@ -2,17 +2,13 @@
 
 Backlog from a full walkthrough of the live site. Each item is grounded against the actual code where I could check, so this can be handed straight to Claude Code as a starting point next session. Organized by area, not by the order raised.
 
-**Status as of 2026-08-19: 5 of 11 resolved.** #2, #6 (verified, no fix needed), #8, #9, #11 done. #1, #3, #4, #5, #7, #10 still open.
+**Status as of 2026-08-19: 8 of 11 resolved.** #1, #2, #4, #5, #6 (verified, no fix needed), #8, #9, #11 done. #3, #7, #10 still open.
 
 ---
 
 ## Navigation & entry points
 
-**1. No "Log In" link on the main site — only "Get Started."**
-
-Confirmed: the header (`site-header.tsx`) has How It Works / Build Your Search / Matchmaker / FAQ plus a single "Get Started" button. There's no direct login entry point — the only way in is through the intake flow's auth-gate modal, which assumes you're starting a new search. A returning customer with an account has no obvious way to just log in.
-
-→ **Fix:** add a "Log In" link to the header nav (and/or near the Get Started button), pointing at `/login`.
+**1. ~~No "Log In" link on the main site — only "Get Started."~~ DONE (2026-08-19).** Added to the header nav, pointing at /login.
 
 **2. ~~"Build Your Search" and "Get Started" go to the same place — redundant.~~ DONE (2026-08-19).** Removed the redundant "Build Your Search" nav link from `site-header.tsx`.
 
@@ -26,17 +22,9 @@ Confirmed: `intake-filter.tsx`'s Continue button is disabled until a valid make,
 
 ## Signup, notifications & account
 
-**4. Notification preferences are collected during signup, not after — and it's single-select, not multi.**
+**4. ~~Notification preferences are collected during signup, not after — and it's single-select, not multi.~~ DONE (2026-08-19).** Moved entirely to a new account-settings section on /account; channel is now three independent checkboxes (genuinely multi-select), not one-of-three. Signup no longer collects channel or frequency at all.
 
-Confirmed: both `/signup` and the inline auth-gate modal collect `communication_channel` (text / email / agent callback) as part of account creation itself, and it's a single choice, not multiple. There's no account-settings page to move it to yet — that's why it's stuck in the signup form today.
-
-→ **Fix:** two changes — (a) move this off the signup form into an account-settings page (see #5, which doesn't exist yet either), and (b) make channel a multi-select instead of one-of-three. Real design question worth deciding: does frequency (real-time vs. daily digest) apply per-channel, or as one overall setting?
-
-**5. No account settings / notification settings after logging in.**
-
-Confirmed: `/account` today only shows search cards, an FAQ section, and a Log Out button — no profile or notification-preferences editing anywhere. This is the same gap #4 depends on.
-
-→ **Fix:** a real account-settings section on `/account` — update name/phone/notification prefs at minimum.
+**5. ~~No account settings / notification settings after logging in.~~ DONE (2026-08-19).** New AccountSettingsForm section on /account: name (split into required First/Last Name, decided 2026-08-19), phone (unconditionally required, decided 2026-08-19), notification channels, and frequency.
 
 **6. ~~No payment was taken when you signed up.~~ RE-VERIFIED, NOT A BUG (2026-08-19).** Traced to a real fix already made 2026-08-14: `getStatusCopy()` in `account/page.tsx` branches on `paidAt` before falling back to the status table, so an abandoned checkout correctly shows "Checkout wasn't completed — this search hasn't been paid for, so it hasn't started." with no live Finalize link. Re-verified against a real unpaid test row on 2026-08-19 — still correct, no regression. Brett's original experience was very likely this correct message, not a bug.
 
@@ -72,5 +60,4 @@ This is the biggest lift of the Matchmaker items — real UI/state work, not a t
 
 ## Suggested order, once picking up remaining items
 
-- **Small-to-medium builds:** #1 (login link), #4/#5 (account settings + multi-select notifications — these two go together)
 - **Needs a design decision before building:** #3 ("I don't know yet" path), #10 (live split-screen edit), #7 (what "more info" actually shows)

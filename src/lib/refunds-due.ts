@@ -41,7 +41,7 @@ export async function getRefundsDueQueue(): Promise<RefundDueSearch[]> {
   const customerIds = [...new Set(searches.map((s) => s.customer_id))];
   const { data: customers, error: customersError } = await admin
     .from("customers")
-    .select("id, email, full_name")
+    .select("id, email, first_name, last_name")
     .in("id", customerIds);
 
   if (customersError) {
@@ -58,7 +58,7 @@ export async function getRefundsDueQueue(): Promise<RefundDueSearch[]> {
       model: search.model,
       trim: search.trim,
       customerEmail: customer?.email ?? null,
-      customerName: customer?.full_name ?? null,
+      customerName: [customer?.first_name, customer?.last_name].filter(Boolean).join(" ") || null,
       resolvedAt: search.guarantee_resolved_at,
     };
   });

@@ -58,17 +58,15 @@ export async function startServiceAgreementSigning(offerId: string): Promise<Sta
   if (!documentId) {
     const { data: customer } = await supabase
       .from("customers")
-      .select("full_name")
+      .select("first_name, last_name")
       .eq("id", user.id)
       .maybeSingle();
-
-    const [firstName, ...rest] = (customer?.full_name ?? "").split(" ");
 
     try {
       documentId = await createAndSendServiceAgreement({
         email: user.email,
-        firstName: firstName || null,
-        lastName: rest.join(" ") || null,
+        firstName: customer?.first_name ?? null,
+        lastName: customer?.last_name ?? null,
       });
     } catch (error) {
       return {

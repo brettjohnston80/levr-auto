@@ -11,6 +11,7 @@ import { DeliveryPreferenceForm } from "@/components/delivery-preference-form";
 import { ServiceAgreementSigning } from "@/components/service-agreement-signing";
 import { FinalizeEditForm } from "@/components/finalize-edit-form";
 import { AccountFaqSection } from "@/components/account-faq-section";
+import { AccountSettingsForm } from "@/components/account-settings-form";
 import { SwitchChoice } from "@/components/switch-choice";
 import { ExtendSearchButton } from "@/components/extend-search-button";
 import { AutoRenewToggle } from "@/components/auto-renew-toggle";
@@ -194,7 +195,9 @@ export default async function AccountPage() {
 
   const { data: customer } = await supabase
     .from("customers")
-    .select("id, email, full_name")
+    .select(
+      "id, email, first_name, last_name, phone, notify_by_email, notify_by_text, notify_by_agent_callback, communication_frequency"
+    )
     .eq("id", user.id)
     .single();
 
@@ -208,8 +211,22 @@ export default async function AccountPage() {
             ✓
           </span>
           <h1 className="mt-6 text-3xl font-semibold tracking-tight text-white">Your Dashboard</h1>
-          <p className="mt-3 text-zinc-400">{customer?.full_name ?? user.email}</p>
+          <p className="mt-3 text-zinc-400">
+            {[customer?.first_name, customer?.last_name].filter(Boolean).join(" ") || user.email}
+          </p>
         </div>
+
+        <AccountSettingsForm
+          existing={{
+            firstName: customer?.first_name ?? null,
+            lastName: customer?.last_name ?? null,
+            phone: customer?.phone ?? null,
+            notifyByEmail: customer?.notify_by_email ?? true,
+            notifyByText: customer?.notify_by_text ?? false,
+            notifyByAgentCallback: customer?.notify_by_agent_callback ?? false,
+            communicationFrequency: customer?.communication_frequency ?? "real_time",
+          }}
+        />
 
         {searches.length === 0 ? (
           <p className="mt-10 text-center text-zinc-400">
