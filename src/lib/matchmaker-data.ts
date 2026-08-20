@@ -91,12 +91,14 @@ export const LARGE_CAPACITY_VEHICLE_TYPES: VehicleType[] = ["SUV", "Passenger Va
 
 export const POWERTRAINS: Powertrain[] = ["Gas", "Hybrid", "Electric"];
 
-export const PRICE_RANGES = [
-  "Budget-Conscious (Under $30,000)",
-  "Practical ($30,000 – $45,000)",
-  "Well-Equipped ($45,000 – $60,000)",
-  "Premium ($60,000 – $80,000)",
-  "Luxurious (Over $80,000)",
+export type PriceRange = { label: string; min: number; max: number };
+
+export const PRICE_RANGES: PriceRange[] = [
+  { label: "Budget-Conscious (Under $30,000)", min: 0, max: 30000 },
+  { label: "Practical ($30,000 – $45,000)", min: 30000, max: 45000 },
+  { label: "Well-Equipped ($45,000 – $60,000)", min: 45000, max: 60000 },
+  { label: "Premium ($60,000 – $80,000)", min: 60000, max: 80000 },
+  { label: "Luxurious (Over $80,000)", min: 80000, max: Infinity },
 ];
 
 export type Priority = { label: string; clarifier: string };
@@ -113,6 +115,17 @@ export const PRIORITIES: Priority[] = [
   { label: "Resale Value", clarifier: "Holds its value best over time" },
 ];
 
+export type SeatsCategory = "1-2" | "3-5" | "6+";
+
+export type Answers = {
+  vehicleType: VehicleType | "";
+  useCase: string;
+  familySize: string;
+  powertrain: Powertrain | "";
+  priceRange: string;
+  priorities: string[];
+};
+
 export type MockVehicle = {
   id: string;
   make: string;
@@ -120,6 +133,12 @@ export type MockVehicle = {
   bodyType: VehicleType;
   powertrain: Powertrain;
   priceEstimate: string;
+  priceValue: number;
+  seatsCategory: SeatsCategory;
+  // 1-5 score per PRIORITIES label -- how well this vehicle actually
+  // delivers on that priority, used to weight the ranked-priorities
+  // portion of the fit score.
+  priorityScores: Record<string, number>;
   rationale: string;
 };
 
@@ -131,6 +150,19 @@ export const MOCK_RECOMMENDATIONS: MockVehicle[] = [
     bodyType: "SUV",
     powertrain: "Hybrid",
     priceEstimate: "$57,500 est.",
+    priceValue: 57500,
+    seatsCategory: "6+",
+    priorityScores: {
+      Safety: 5,
+      Comfort: 4,
+      "Cargo Space": 4,
+      "Fuel Economy": 3,
+      Reliability: 5,
+      Performance: 3,
+      "Technology & Features": 3,
+      "Price/Value": 2,
+      "Resale Value": 5,
+    },
     rationale: "Handles hardware-store runs and long hauls without breaking a sweat.",
   },
   {
@@ -140,6 +172,19 @@ export const MOCK_RECOMMENDATIONS: MockVehicle[] = [
     bodyType: "Truck",
     powertrain: "Gas",
     priceEstimate: "$42,900 est.",
+    priceValue: 42900,
+    seatsCategory: "3-5",
+    priorityScores: {
+      Safety: 4,
+      Comfort: 3,
+      "Cargo Space": 5,
+      "Fuel Economy": 2,
+      Reliability: 3,
+      Performance: 4,
+      "Technology & Features": 4,
+      "Price/Value": 3,
+      "Resale Value": 4,
+    },
     rationale: "Bed space and towing capacity for real work-site duty.",
   },
   {
@@ -149,6 +194,19 @@ export const MOCK_RECOMMENDATIONS: MockVehicle[] = [
     bodyType: "Sedan",
     powertrain: "Gas",
     priceEstimate: "$23,400 est.",
+    priceValue: 23400,
+    seatsCategory: "3-5",
+    priorityScores: {
+      Safety: 3,
+      Comfort: 3,
+      "Cargo Space": 2,
+      "Fuel Economy": 4,
+      Reliability: 3,
+      Performance: 2,
+      "Technology & Features": 3,
+      "Price/Value": 5,
+      "Resale Value": 2,
+    },
     rationale: "Cheap to own and easy to park for a daily commute.",
   },
   {
@@ -158,6 +216,19 @@ export const MOCK_RECOMMENDATIONS: MockVehicle[] = [
     bodyType: "SUV",
     powertrain: "Hybrid",
     priceEstimate: "$34,800 est.",
+    priceValue: 34800,
+    seatsCategory: "3-5",
+    priorityScores: {
+      Safety: 5,
+      Comfort: 4,
+      "Cargo Space": 4,
+      "Fuel Economy": 5,
+      Reliability: 5,
+      Performance: 3,
+      "Technology & Features": 4,
+      "Price/Value": 4,
+      "Resale Value": 4,
+    },
     rationale: "Balances passenger room with day-to-day fuel savings.",
   },
   {
@@ -167,6 +238,19 @@ export const MOCK_RECOMMENDATIONS: MockVehicle[] = [
     bodyType: "SUV",
     powertrain: "Electric",
     priceEstimate: "$46,900 est.",
+    priceValue: 46900,
+    seatsCategory: "3-5",
+    priorityScores: {
+      Safety: 5,
+      Comfort: 4,
+      "Cargo Space": 4,
+      "Fuel Economy": 5,
+      Reliability: 3,
+      Performance: 5,
+      "Technology & Features": 5,
+      "Price/Value": 3,
+      "Resale Value": 3,
+    },
     rationale: "Quiet commute, quick charging, and zero gas-station stops.",
   },
   {
@@ -176,6 +260,19 @@ export const MOCK_RECOMMENDATIONS: MockVehicle[] = [
     bodyType: "Truck",
     powertrain: "Gas",
     priceEstimate: "$45,200 est.",
+    priceValue: 45200,
+    seatsCategory: "3-5",
+    priorityScores: {
+      Safety: 3,
+      Comfort: 3,
+      "Cargo Space": 5,
+      "Fuel Economy": 2,
+      Reliability: 3,
+      Performance: 4,
+      "Technology & Features": 3,
+      "Price/Value": 3,
+      "Resale Value": 4,
+    },
     rationale: "Full-size capability if you're hauling gear most days.",
   },
   {
@@ -185,6 +282,19 @@ export const MOCK_RECOMMENDATIONS: MockVehicle[] = [
     bodyType: "SUV",
     powertrain: "Gas",
     priceEstimate: "$39,600 est.",
+    priceValue: 39600,
+    seatsCategory: "6+",
+    priorityScores: {
+      Safety: 5,
+      Comfort: 5,
+      "Cargo Space": 4,
+      "Fuel Economy": 2,
+      Reliability: 4,
+      Performance: 3,
+      "Technology & Features": 4,
+      "Price/Value": 4,
+      "Resale Value": 3,
+    },
     rationale: "Three rows of seating for a growing family.",
   },
   {
@@ -194,6 +304,19 @@ export const MOCK_RECOMMENDATIONS: MockVehicle[] = [
     bodyType: "Hatchback",
     powertrain: "Hybrid",
     priceEstimate: "$27,750 est.",
+    priceValue: 27750,
+    seatsCategory: "3-5",
+    priorityScores: {
+      Safety: 4,
+      Comfort: 3,
+      "Cargo Space": 3,
+      "Fuel Economy": 5,
+      Reliability: 5,
+      Performance: 2,
+      "Technology & Features": 3,
+      "Price/Value": 4,
+      "Resale Value": 4,
+    },
     rationale: "Best-in-class miles per gallon for a daily driver.",
   },
   {
@@ -203,6 +326,19 @@ export const MOCK_RECOMMENDATIONS: MockVehicle[] = [
     bodyType: "Sedan",
     powertrain: "Gas",
     priceEstimate: "$24,900 est.",
+    priceValue: 24900,
+    seatsCategory: "3-5",
+    priorityScores: {
+      Safety: 4,
+      Comfort: 3,
+      "Cargo Space": 2,
+      "Fuel Economy": 4,
+      Reliability: 5,
+      Performance: 3,
+      "Technology & Features": 3,
+      "Price/Value": 4,
+      "Resale Value": 4,
+    },
     rationale: "Reliable, efficient, and cheap to maintain over time.",
   },
   {
@@ -212,6 +348,19 @@ export const MOCK_RECOMMENDATIONS: MockVehicle[] = [
     bodyType: "SUV",
     powertrain: "Electric",
     priceEstimate: "$44,500 est.",
+    priceValue: 44500,
+    seatsCategory: "3-5",
+    priorityScores: {
+      Safety: 4,
+      Comfort: 4,
+      "Cargo Space": 3,
+      "Fuel Economy": 5,
+      Reliability: 3,
+      Performance: 4,
+      "Technology & Features": 5,
+      "Price/Value": 3,
+      "Resale Value": 3,
+    },
     rationale: "Roomy EV crossover with fast charging for road trips.",
   },
 ];

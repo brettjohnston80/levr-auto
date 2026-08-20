@@ -2,7 +2,7 @@
 
 Backlog from a full walkthrough of the live site. Each item is grounded against the actual code where I could check, so this can be handed straight to Claude Code as a starting point next session. Organized by area, not by the order raised.
 
-**Status as of 2026-08-19: 8 of 11 resolved.** #1, #2, #4, #5, #6 (verified, no fix needed), #8, #9, #11 done. #3, #7, #10 still open.
+**Status as of 2026-08-19: 10 of 11 resolved.** Only #3 still open (scoped, not yet built).
 
 ---
 
@@ -34,21 +34,13 @@ Confirmed: `intake-filter.tsx`'s Continue button is disabled until a valid make,
 
 Worth knowing up front: **the Matchmaker is explicitly labeled a prototype today** — both screens carry visible "Prototype — mock data" / "Mock results — not live inventory" banners. It runs on a hardcoded list of about 8 sample vehicles, not real MarketCheck inventory, and "Start My Search" only shows a placeholder message ("this will kick off your real search once the intake filter connects") rather than actually starting anything. So a few of these aren't bugs exactly — they're the gap between a working prototype and the real thing.
 
-**7. "I want more info" does nothing.**
-
-Confirmed: that button doesn't open any info — it's actually just the "flag" toggle relabeled ("Want more info" ↔ "Flagged for more info"), which only reorders the card to the top. There's no real detail view behind it yet.
-
-→ **Fix (once this moves past prototype):** decide what "more info" should actually show — full spec sheet, review-video links, a "why this fits you" writeup (the original Matchmaker concept doc calls for this) — and build a real panel or page for it.
+**7. ~~"I want more info" does nothing.~~ DONE (2026-08-19).** New VehicleDetailModal shows per-vehicle "why this fits you" bullets computed from real answer/vehicle-data comparison, honest about no real specs/videos until Matchmaker uses real inventory.
 
 **8. ~~The free-text "anything else we should know?" field should be removed.~~ DONE (2026-08-19).** Step, type, state, and results-screen rendering all removed from `matchmaker.tsx`.
 
 **9. ~~Results should show as a ranked top-to-bottom list, not a grid.~~ DONE (2026-08-19).** Results screen changed from a grid to a vertical top-to-bottom stack; sort order unchanged. `VehicleCard` reworked for a list-row layout.
 
-**10. Need an edit option that keeps your answers and re-sorts, without starting over — ideally live, split-screen.**
-
-Confirmed: today there's only "Start Over," which wipes everything back to the first question. No way to jump back into an already-answered questionnaire and adjust one thing.
-
-This is the biggest lift of the Matchmaker items — real UI/state work, not a tweak: a persistent split view (results on one side, your answers/priorities on the other) where changing an answer re-sorts the list live, without losing your other selections. Worth treating as its own small design pass, since it changes the whole page's structure (right now it's step-by-step in a single column, then a fully separate results screen).
+**10. ~~Need an edit option that keeps your answers and re-sorts, without starting over — ideally live, split-screen.~~ DONE (2026-08-19).** Persistent split-screen: all six answers live-editable in a side panel, results re-sort instantly on any change. Required expanding the scoring logic to actually weight all six fields (previously only vehicleType/powertrain affected sort) and enriching the mock dataset with real numeric price, seating category, and per-vehicle priority scores.
 
 ---
 
@@ -60,4 +52,4 @@ This is the biggest lift of the Matchmaker items — real UI/state work, not a t
 
 ## Suggested order, once picking up remaining items
 
-- **Needs a design decision before building:** #3 ("I don't know yet" path), #10 (live split-screen edit), #7 (what "more info" actually shows)
+- **Needs a design decision before building:** #3 ("I don't know yet" path)

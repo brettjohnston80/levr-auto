@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { GetStartedButton } from "@/components/get-started-button";
+import { VehicleDetailModal } from "@/components/vehicle-detail-modal";
 import {
   FAMILY_SIZES,
   LARGE_CAPACITY_VEHICLE_TYPES,
@@ -11,19 +12,11 @@ import {
   PRIORITIES,
   USE_CASES_BY_VEHICLE_TYPE,
   VEHICLE_TYPES,
+  type Answers,
   type MockVehicle,
   type Powertrain,
   type VehicleType,
 } from "@/lib/matchmaker-data";
-
-type Answers = {
-  vehicleType: VehicleType | "";
-  useCase: string;
-  familySize: string;
-  powertrain: Powertrain | "";
-  priceRange: string;
-  priorities: string[];
-};
 
 const DEFAULT_PRIORITY_ORDER = PRIORITIES.map((p) => p.label);
 
@@ -78,7 +71,7 @@ const STEPS: Step[] = [
     kind: "select",
     title: "What's your target price range?",
     subtitle: "Ballpark is fine — you can fine-tune this later.",
-    options: PRICE_RANGES,
+    options: PRICE_RANGES.map((r) => r.label),
   },
   {
     id: "priorities",
@@ -110,6 +103,48 @@ const PRICE_TIER: Record<string, string> = {
   "Premium ($60,000 – $80,000)": "$$$$",
   "Luxurious (Over $80,000)": "$$$$$",
 };
+
+// Weighs all six answer fields, not just bodyType/powertrain. Weights are
+// tuned so changing any one field visibly moves the list, not for a
+// precisely calibrated formula:
+//   - vehicleType (40) is the heaviest single weight -- the primary filter.
+//   - powertrain (15) and familySize-vs-seatsCategory (15) are direct matches.
+//   - priceRange (15) checks whether priceValue falls inside the selected bracket.
+//   - useCase (5) isn't scored independently -- it's freeform text scoped
+//     per-vehicleType, not a fixed taxonomy, so it just reinforces an
+//     already-matching vehicleType.
+//   - priorities (10) weighs each vehicle's priorityScores by how close to
+//     the top each priority was ranked, normalized against the best
+//     possible score so it nudges the result rather than dominating it.
+function fitScore(vehicle: MockVehicle, answers: Answers): number {
+  let score = 0;
+
+  const typeMatches = answers.vehicleType !== "" && vehicle.bodyType === answers.vehicleType;
+  if (typeMatches) score += 40;
+
+  if (answers.powertrain && vehicle.powertrain === answers.powertrain) score += 15;
+
+  if (answers.familySize && vehicle.seatsCategory === answers.familySize) score += 15;
+
+  const range = PRICE_RANGES.find((r) => r.label === answers.priceRange);
+  if (range && vehicle.priceValue >= range.min && vehicle.priceValue <= range.max) score += 15;
+
+  if (answers.useCase && typeMatches) score += 5;
+
+  const rankWeightTotal = PRIORITIES.length;
+  let priorityRaw = 0;
+  let priorityMax = 0;
+  answers.priorities.forEach((label, index) => {
+    const weight = rankWeightTotal - index;
+    priorityRaw += (vehicle.priorityScores[label] ?? 0) * weight;
+    priorityMax += 5 * weight;
+  });
+  if (priorityMax > 0) {
+    score += (priorityRaw / priorityMax) * 10;
+  }
+
+  return score;
+}
 
 const BODY_PATHS: Record<VehicleType, string> = {
   Sedan: "M10 78 L10 70 Q10 66 14 65 L46 58 L70 34 Q78 26 92 26 L150 26 Q163 26 172 35 L192 58 L226 65 Q230 66 230 70 L230 78 Z",
@@ -190,6 +225,21 @@ function ChevronDownIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
       <path d="M3 5.5L7 9.5L11 5.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function StarIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth="1.3"
+    >
+      <path d="M8 1.5l1.9 4.2 4.6.5-3.4 3.2.9 4.6L8 11.8l-4 2.2.9-4.6-3.4-3.2 4.6-.5L8 1.5z" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -335,6 +385,127 @@ function BuildingVisual({ answers, currentStepId }: { answers: Answers; currentS
   );
 }
 
+// Compact pill-button field for the post-questionnaire answer panel --
+// same active/inactive styling language as QuestionPanel's "select" step,
+// just smaller, so all six answers can sit visibly on screen at once.
+function CompactSelectField({
+  label,
+  options,
+  value,
+  onSelect,
+  emptyMessage,
+}: {
+  label: string;
+  options: string[];
+  value: string;
+  onSelect: (value: string) => void;
+  emptyMessage?: string;
+}) {
+  return (
+    <div className="mt-4 first:mt-0">
+      <h4 className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">{label}</h4>
+      {options.length === 0 ? (
+        <p className="mt-2 text-xs text-zinc-500">{emptyMessage ?? "No options yet."}</p>
+      ) : (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {options.map((option) => {
+            const active = value === option;
+            return (
+              <button
+                key={option}
+                type="button"
+                onClick={() => onSelect(option)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                  active
+                    ? "border-emerald-500 bg-emerald-500 text-zinc-950"
+                    : "border-white/10 bg-white/[0.02] text-zinc-300 hover:border-white/25 hover:bg-white/[0.05]"
+                }`}
+              >
+                {option}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Live-editable panel shown alongside results once the questionnaire is
+// done (item #10) -- reuses PriorityRanker as-is for the drag-to-rank UI
+// rather than rebuilding it, and the same pill styling as QuestionPanel's
+// select steps, just compact enough to show all six answers at once.
+function AnswerPanel({
+  answers,
+  onFieldChange,
+  onReorderPriorities,
+  onStartOver,
+}: {
+  answers: Answers;
+  onFieldChange: (id: keyof Answers, value: string) => void;
+  onReorderPriorities: (order: string[]) => void;
+  onStartOver: () => void;
+}) {
+  const useCaseOptions = answers.vehicleType ? USE_CASES_BY_VEHICLE_TYPE[answers.vehicleType] : [];
+  const allowSixPlus = answers.vehicleType ? LARGE_CAPACITY_VEHICLE_TYPES.includes(answers.vehicleType) : false;
+  const familySizeOptions = FAMILY_SIZES.filter((size) => size !== "6+" || allowSixPlus);
+
+  return (
+    <div className="rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-6 shadow-xl shadow-black/20">
+      <h3 className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">Your answers</h3>
+      <p className="mt-1 text-xs text-zinc-500">Change anything below — the list updates live.</p>
+
+      <CompactSelectField
+        label="Vehicle type"
+        options={VEHICLE_TYPES}
+        value={answers.vehicleType}
+        onSelect={(v) => onFieldChange("vehicleType", v)}
+      />
+      <CompactSelectField
+        label="Main use"
+        options={useCaseOptions}
+        value={answers.useCase}
+        onSelect={(v) => onFieldChange("useCase", v)}
+        emptyMessage="Pick a vehicle type first."
+      />
+      <CompactSelectField
+        label="Riders"
+        options={familySizeOptions}
+        value={answers.familySize}
+        onSelect={(v) => onFieldChange("familySize", v)}
+      />
+      <CompactSelectField
+        label="Powertrain"
+        options={POWERTRAINS}
+        value={answers.powertrain}
+        onSelect={(v) => onFieldChange("powertrain", v)}
+      />
+      <CompactSelectField
+        label="Price range"
+        options={PRICE_RANGES.map((r) => r.label)}
+        value={answers.priceRange}
+        onSelect={(v) => onFieldChange("priceRange", v)}
+      />
+
+      <div className="mt-5">
+        <h4 className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">Priorities</h4>
+        <p className="mt-1 text-xs text-zinc-500">Drag to reorder — most important at the top.</p>
+        <div className="mt-3">
+          <PriorityRanker order={answers.priorities} onChange={onReorderPriorities} />
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={onStartOver}
+        className="mt-6 w-full rounded-full border border-white/20 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-white/10"
+      >
+        Start Over
+      </button>
+    </div>
+  );
+}
+
 function QuestionPanel({
   step,
   stepIndex,
@@ -433,11 +604,13 @@ function VehicleCard({
   flagged,
   onDismiss,
   onToggleFlag,
+  onOpenInfo,
 }: {
   vehicle: MockVehicle;
   flagged: boolean;
   onDismiss: () => void;
   onToggleFlag: () => void;
+  onOpenInfo: () => void;
 }) {
   const [searchClicked, setSearchClicked] = useState(false);
 
@@ -483,14 +656,23 @@ function VehicleCard({
           </button>
           <button
             type="button"
+            onClick={onOpenInfo}
+            className="rounded-full border border-white/15 px-4 py-2 text-xs font-semibold text-zinc-300 transition-colors hover:border-sky-400/40 hover:text-sky-300"
+          >
+            More info
+          </button>
+          <button
+            type="button"
             onClick={onToggleFlag}
-            className={`rounded-full border px-4 py-2 text-xs font-semibold transition-colors ${
+            aria-pressed={flagged}
+            className={`inline-flex items-center justify-center gap-1.5 rounded-full border px-4 py-2 text-xs font-semibold transition-colors ${
               flagged
-                ? "border-emerald-500 bg-emerald-500 text-zinc-950"
-                : "border-white/15 text-zinc-300 hover:border-emerald-500/40 hover:text-emerald-400"
+                ? "border-amber-400 bg-amber-400/10 text-amber-300"
+                : "border-white/15 text-zinc-300 hover:border-amber-400/40 hover:text-amber-300"
             }`}
           >
-            {flagged ? "Flagged for more info" : "Want more info"}
+            <StarIcon filled={flagged} />
+            {flagged ? "Flagged" : "Flag"}
           </button>
         </div>
 
@@ -511,24 +693,28 @@ function VehicleCard({
   );
 }
 
-function ResultsScreen({ answers, onStartOver }: { answers: Answers; onStartOver: () => void }) {
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-  const [flagged, setFlagged] = useState<Set<string>>(new Set());
-
-  const sortedByFit = useMemo(() => {
-    function fitScore(v: MockVehicle) {
-      let score = 0;
-      if (answers.vehicleType && v.bodyType === answers.vehicleType) score += 2;
-      if (answers.powertrain && v.powertrain === answers.powertrain) score += 1;
-      return score;
-    }
-    return [...MOCK_RECOMMENDATIONS].sort((a, b) => fitScore(b) - fitScore(a));
-  }, [answers.vehicleType, answers.powertrain]);
-
-  const visible = sortedByFit
-    .filter((v) => !dismissed.has(v.id))
-    .sort((a, b) => Number(flagged.has(b.id)) - Number(flagged.has(a.id)));
-
+// Persistent results pane (item #10) -- dismissed/flagged state and the
+// live fit-sorted list live in Matchmaker() now, since the AnswerPanel
+// sitting alongside this needs to trigger the same re-sort on every edit.
+// No "Start Over" here anymore -- that moved into AnswerPanel, secondary to
+// editing individual fields directly.
+function ResultsList({
+  answers,
+  visible,
+  flagged,
+  onDismiss,
+  onToggleFlag,
+  onOpenInfo,
+  onRestoreAll,
+}: {
+  answers: Answers;
+  visible: MockVehicle[];
+  flagged: Set<string>;
+  onDismiss: (id: string) => void;
+  onToggleFlag: (id: string) => void;
+  onOpenInfo: (id: string) => void;
+  onRestoreAll: () => void;
+}) {
   const answerChips = [
     answers.vehicleType,
     answers.useCase,
@@ -537,26 +723,9 @@ function ResultsScreen({ answers, onStartOver }: { answers: Answers; onStartOver
     answers.priceRange,
   ].filter(Boolean);
 
-  function dismiss(id: string) {
-    setDismissed((prev) => new Set(prev).add(id));
-  }
-
-  function toggleFlag(id: string) {
-    setFlagged((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  function restoreAll() {
-    setDismissed(new Set());
-  }
-
   return (
     <div>
-      <div className="text-center">
+      <div>
         <span className="inline-flex items-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5 text-xs font-medium tracking-wide text-emerald-400 uppercase">
           Mock results — not live inventory
         </span>
@@ -567,10 +736,11 @@ function ResultsScreen({ answers, onStartOver }: { answers: Answers; onStartOver
           Dismiss what doesn&apos;t fit, flag what does — this narrows the list live.
         </p>
         <p className="mt-1 text-xs text-zinc-500">
-          Sorted by fit to your answers — flagged picks jump to the top.
+          Sorted by fit to your answers — flagged picks jump to the top. Edit any answer alongside
+          the list to re-sort instantly.
         </p>
         {answerChips.length > 0 && (
-          <div className="mt-6 flex flex-wrap justify-center gap-2">
+          <div className="mt-6 flex flex-wrap gap-2">
             {answerChips.map((chip) => (
               <span
                 key={chip}
@@ -584,24 +754,25 @@ function ResultsScreen({ answers, onStartOver }: { answers: Answers; onStartOver
       </div>
 
       {visible.length > 0 ? (
-        <div className="mx-auto mt-12 flex max-w-2xl flex-col gap-4">
+        <div className="mt-8 flex flex-col gap-4">
           {visible.map((vehicle) => (
             <VehicleCard
               key={vehicle.id}
               vehicle={vehicle}
               flagged={flagged.has(vehicle.id)}
-              onDismiss={() => dismiss(vehicle.id)}
-              onToggleFlag={() => toggleFlag(vehicle.id)}
+              onDismiss={() => onDismiss(vehicle.id)}
+              onToggleFlag={() => onToggleFlag(vehicle.id)}
+              onOpenInfo={() => onOpenInfo(vehicle.id)}
             />
           ))}
         </div>
       ) : (
-        <div className="mt-12 rounded-3xl border border-white/10 bg-white/[0.03] p-10 text-center">
+        <div className="mt-8 rounded-3xl border border-white/10 bg-white/[0.03] p-10 text-center">
           <p className="text-lg font-semibold text-white">You dismissed everything.</p>
-          <p className="mt-2 text-sm text-zinc-400">Restore the list, or start the questionnaire over.</p>
+          <p className="mt-2 text-sm text-zinc-400">Restore the list, or adjust your answers alongside it.</p>
           <button
             type="button"
-            onClick={restoreAll}
+            onClick={onRestoreAll}
             className="mt-6 rounded-full border border-white/20 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
           >
             Restore All
@@ -609,7 +780,7 @@ function ResultsScreen({ answers, onStartOver }: { answers: Answers; onStartOver
         </div>
       )}
 
-      <div className="mt-16 rounded-3xl border border-emerald-500/30 bg-emerald-500/10 p-8 text-center sm:p-10">
+      <div className="mt-10 rounded-3xl border border-emerald-500/30 bg-emerald-500/10 p-8 text-center sm:p-10">
         <h3 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
           {flagged.size > 0 ? "Found the one (or a few)?" : "See something you like?"}
         </h3>
@@ -620,16 +791,6 @@ function ResultsScreen({ answers, onStartOver }: { answers: Answers; onStartOver
           Get Started
         </GetStartedButton>
       </div>
-
-      <div className="mt-6 text-center">
-        <button
-          type="button"
-          onClick={onStartOver}
-          className="rounded-full border border-white/20 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
-        >
-          Start Over
-        </button>
-      </div>
     </div>
   );
 }
@@ -638,6 +799,9 @@ export function Matchmaker() {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Answers>(EMPTY_ANSWERS);
   const [done, setDone] = useState(false);
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [flagged, setFlagged] = useState<Set<string>>(new Set());
+  const [infoVehicleId, setInfoVehicleId] = useState<string | null>(null);
 
   const currentStep = STEPS[step];
   const stepForRender = (() => {
@@ -653,6 +817,21 @@ export function Matchmaker() {
   const currentValue = answers[currentStep.id];
   const currentStringValue = typeof currentValue === "string" ? currentValue : "";
 
+  // Same field-update logic whether it's the first-time step-by-step flow
+  // or a live edit from the post-questionnaire AnswerPanel -- changing
+  // vehicleType invalidates useCase/familySize either way, since their
+  // option lists are scoped per vehicleType.
+  function setField(id: keyof Answers, value: string) {
+    setAnswers((prev) => {
+      const next = { ...prev, [id]: value };
+      if (id === "vehicleType" && prev.vehicleType !== value) {
+        next.useCase = "";
+        next.familySize = "";
+      }
+      return next;
+    });
+  }
+
   function goNext() {
     if (step < STEPS.length - 1) {
       setStep((s) => s + 1);
@@ -662,14 +841,7 @@ export function Matchmaker() {
   }
 
   function select(id: keyof Answers, value: string) {
-    setAnswers((prev) => {
-      const next = { ...prev, [id]: value };
-      if (id === "vehicleType" && prev.vehicleType !== value) {
-        next.useCase = "";
-        next.familySize = "";
-      }
-      return next;
-    });
+    setField(id, value);
     goNext();
   }
 
@@ -685,7 +857,33 @@ export function Matchmaker() {
     setAnswers(EMPTY_ANSWERS);
     setStep(0);
     setDone(false);
+    setDismissed(new Set());
+    setFlagged(new Set());
+    setInfoVehicleId(null);
   }
+
+  function dismiss(id: string) {
+    setDismissed((prev) => new Set(prev).add(id));
+  }
+
+  function toggleFlag(id: string) {
+    setFlagged((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  const sortedByFit = useMemo(() => {
+    return [...MOCK_RECOMMENDATIONS].sort((a, b) => fitScore(b, answers) - fitScore(a, answers));
+  }, [answers]);
+
+  const visible = sortedByFit
+    .filter((v) => !dismissed.has(v.id))
+    .sort((a, b) => Number(flagged.has(b.id)) - Number(flagged.has(a.id)));
+
+  const infoVehicle = infoVehicleId ? MOCK_RECOMMENDATIONS.find((v) => v.id === infoVehicleId) ?? null : null;
 
   return (
     <section className="bg-zinc-950 py-20 sm:py-24">
@@ -704,7 +902,25 @@ export function Matchmaker() {
 
         <div className="mt-14">
           {done ? (
-            <ResultsScreen answers={answers} onStartOver={startOver} />
+            <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+              <ResultsList
+                answers={answers}
+                visible={visible}
+                flagged={flagged}
+                onDismiss={dismiss}
+                onToggleFlag={toggleFlag}
+                onOpenInfo={setInfoVehicleId}
+                onRestoreAll={() => setDismissed(new Set())}
+              />
+              <div className="lg:sticky lg:top-24 lg:self-start">
+                <AnswerPanel
+                  answers={answers}
+                  onFieldChange={setField}
+                  onReorderPriorities={reorderPriorities}
+                  onStartOver={startOver}
+                />
+              </div>
+            </div>
           ) : (
             <div className="grid gap-6 md:grid-cols-[1fr_320px]">
               <QuestionPanel
@@ -723,6 +939,8 @@ export function Matchmaker() {
           )}
         </div>
       </div>
+
+      {infoVehicle && <VehicleDetailModal vehicle={infoVehicle} answers={answers} onClose={() => setInfoVehicleId(null)} />}
     </section>
   );
 }
