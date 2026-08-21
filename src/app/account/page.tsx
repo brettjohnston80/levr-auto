@@ -164,10 +164,15 @@ function canSwitch(search: DashboardSearch): boolean {
 // still cancellable). Same allow-list this codebase already prefers over a
 // block-list for defensive reasons (see getOverdueFollowUpQueue's comment)
 // -- fails closed if a new status is ever added without this being revisited.
+// 'purchased' added 2026-08-21 -- a customer whose deal was marked
+// purchased and then fell through needs the same final cancellation flow,
+// not a new one; see cancel_search's matching status-guard extension.
 function canCancel(search: DashboardSearch): boolean {
   return (
     search.paidAt !== null &&
-    ["awaiting_finalization", "pending_refinement", "searching", "paused"].includes(search.searchStatus)
+    ["awaiting_finalization", "pending_refinement", "searching", "paused", "purchased"].includes(
+      search.searchStatus
+    )
   );
 }
 
@@ -359,13 +364,6 @@ function SearchCard({ search }: { search: DashboardSearch }) {
         </div>
       )}
 
-      {canCancel(search) && (
-        <CancellationChoice
-          searchId={search.id}
-          cancellationCallAlreadyRequested={!!search.cancellationCallRequestedAt}
-        />
-      )}
-
       <div className="mt-5">
         <h3 className="text-sm font-semibold text-zinc-300">
           {search.offers.length > 0 ? `Offers (${search.offers.length})` : "No offers yet"}
@@ -462,6 +460,13 @@ function SearchCard({ search }: { search: DashboardSearch }) {
         )}
       </div>
         </>
+      )}
+
+      {canCancel(search) && (
+        <CancellationChoice
+          searchId={search.id}
+          cancellationCallAlreadyRequested={!!search.cancellationCallRequestedAt}
+        />
       )}
     </div>
   );

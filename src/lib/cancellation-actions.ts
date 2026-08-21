@@ -10,7 +10,14 @@ export type CancellationActionResult = { ok: true } | { ok: false; error: string
 // including after an offer's been accepted and deposit/financing/e-sign is
 // already in motion, deliberately no extra gating there. Excludes rows with
 // nothing to actually cancel (unpaid) or that are already terminal/superseded.
-const CANCELLABLE_STATUSES = ["awaiting_finalization", "pending_refinement", "searching", "paused"];
+// 'purchased' added 2026-08-21 -- a customer whose deal was marked purchased
+// and then fell through needs this same flow, not a new one; matches
+// cancel_search's RPC-level guard exactly. This is the actual pre-check
+// gate on the self-service path (canCancel() in account/page.tsx only
+// controls whether the button renders, this is what the server action
+// itself enforces) -- missing this update here would have kept the RPC
+// change unreachable from the real customer flow despite the DB allowing it.
+const CANCELLABLE_STATUSES = ["awaiting_finalization", "pending_refinement", "searching", "paused", "purchased"];
 
 async function getOwnedCancellableSearch(searchId: string) {
   const supabase = await createClient();

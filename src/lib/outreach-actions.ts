@@ -205,20 +205,47 @@ export interface MarkSearchPurchasedResult {
 
 /**
  * Purchased celebratory state (Part 3, plan.md) -- agent-marked only, no
- * Stripe/deposit automation, purely a judgment call during deal-close.
- * Flips search_status to 'purchased', which /account renders as
+ * Stripe automation, purely a judgment call during deal-close. Flips
+ * search_status to 'purchased', which /account renders as
  * PurchasedCelebration instead of the normal offer-tracking UI. Guarded by
  * .eq("search_status", "searching") on the write -- idempotent against a
  * double-click, and refuses to fire on a search that isn't actually active
  * (already cancelled, already purchased, etc.).
+ *
+ * Gated on real deal data (2026-08-21) -- requires deal_progress for this
+ * specific offer to show both availability_reconfirmed_at and
+ * deposit_confirmed_at before allowing the flip. financing_choice is
+ * deliberately not required -- financing can legitimately still be in
+ * progress at deal-close. offerId (not just searchId) is required because
+ * deal_progress keys off qualifying_offer_id, not search_id -- looking this
+ * up by "the accepted offer for this search" instead would be ambiguous if
+ * more than one offer on a search were ever independently accepted; the
+ * caller already has the specific offer in scope (this button renders
+ * inline per-offer), so it's passed through explicitly instead of guessed.
  */
-export async function markSearchPurchased(searchId: string): Promise<MarkSearchPurchasedResult> {
+export async function markSearchPurchased(searchId: string, offerId: string): Promise<MarkSearchPurchasedResult> {
   const agent = await getAuthorizedAgent();
   if (!agent) {
     return { ok: false, error: "Not authorized." };
   }
 
   const admin = createAdminClient();
+
+  const { data: progress, error: progressError } = await admin
+    .from("deal_progress")
+    .select("availability_reconfirmed_at, deposit_confirmed_at")
+    .eq("qualifying_offer_id", offerId)
+    .maybeSingle();
+
+  if (progressError) {
+    return { ok: false, error: `Failed to check deal progress: ${progressError.message}` };
+  }
+  if (!progress?.availability_reconfirmed_at || !progress?.deposit_confirmed_at) {
+    return {
+      ok: false,
+      error: "Both availability reconfirmation and deposit confirmation are required before marking purchased.",
+    };
+  }
 
   const { data: updated, error: updateError } = await admin
     .from("customer_searches")
@@ -233,6 +260,51 @@ export async function markSearchPurchased(searchId: string): Promise<MarkSearchP
   }
   if (!updated) {
     return { ok: false, error: "This search isn't active right now — can't mark it purchased." };
+  }
+
+  const { error: logError } = await admin
+    .from("purchase_status_log")
+    .insert({ search_id: searchId, agent_id: agent.id, action: "marked_purchased", reason: null });
+  if (logError) {
+    console.error("Failed to log purchase status change:", logError);
+  }
+
+  revalidatePath("/internal/outreach");
+  revalidatePath("/account");
+  return { ok: true };
+}
+
+export interface RevertPurchasedSearchResult {
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * Reverses markSearchPurchased -- only legal from 'purchased', flips back
+ * to 'searching', and deliberately leaves deal_progress untouched (if the
+ * same deal comes back together, an already-confirmed deposit/availability
+ * doesn't need re-collecting). reason is required -- this is a real
+ * judgment call worth a note, unlike the confirm-popup-only forward action.
+ */
+export async function revertPurchasedSearch(searchId: string, reason: string): Promise<RevertPurchasedSearchResult> {
+  const agent = await getAuthorizedAgent();
+  if (!agent) {
+    return { ok: false, error: "Not authorized." };
+  }
+
+  if (!reason || reason.trim() === "") {
+    return { ok: false, error: "A reason is required." };
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin.rpc("revert_purchased_search", {
+    p_search_id: searchId,
+    p_agent_id: agent.id,
+    p_reason: reason.trim(),
+  });
+
+  if (error) {
+    return { ok: false, error: error.message };
   }
 
   revalidatePath("/internal/outreach");

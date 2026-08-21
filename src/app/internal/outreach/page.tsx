@@ -22,6 +22,7 @@ import { AgentFinalizeSearchForm } from "@/components/agent-finalize-search-form
 import { AgentBypassLookup } from "@/components/agent-bypass-lookup";
 import { AgentCancellationResolutionForm } from "@/components/agent-cancellation-resolution-form";
 import { AgentCancellationLookup } from "@/components/agent-cancellation-lookup";
+import { AgentRevertPurchasedLookup } from "@/components/agent-revert-purchased-lookup";
 import { AgentUndecidedFinalizeForm } from "@/components/agent-undecided-finalize-form";
 
 export const metadata: Metadata = {
@@ -125,6 +126,17 @@ export default async function OutreachQueuePage() {
           </p>
           <div className="mt-4">
             <AgentCancellationLookup />
+          </div>
+        </div>
+
+        <div className="mt-10">
+          <h2 className="text-lg font-semibold text-white">Revert a purchased search</h2>
+          <p className="mt-1 text-sm text-zinc-400">
+            Puts a search back to searching if a deal marked purchased falls through. Deposit/availability
+            confirmations already on file are kept, not cleared. Logged, reason required.
+          </p>
+          <div className="mt-4">
+            <AgentRevertPurchasedLookup />
           </div>
         </div>
 
@@ -417,7 +429,7 @@ export default async function OutreachQueuePage() {
                                 </div>
 
                                 <div className="mt-2 text-xs text-zinc-400">
-                                  Deal closed? <MarkPurchasedButton searchId={search.id} />
+                                  Deal closed? <MarkPurchasedButton searchId={search.id} offerId={offer.id} />
                                 </div>
                               </div>
                             )}
