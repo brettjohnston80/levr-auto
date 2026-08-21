@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { buildTrimOptions } from "@/lib/finalize-trims";
 import { FinalizeChoice } from "@/components/finalize-choice";
 
@@ -51,7 +52,15 @@ export default async function FinalizePage({
   // the Stripe webhook at payment time (see api/stripe/webhook/route.ts).
   // Empty here just means the sync hasn't landed yet or found nothing --
   // FinalizeSelfService degrades gracefully to a plain text trim field.
-  const { data: listingsForModel } = await supabase
+  //
+  // Admin client required here, not the regular signed-in client above --
+  // listings has RLS enabled with zero policies for any role (service-role
+  // only, by design, per initial_schema.sql), so the RLS-subject client
+  // always returned empty here regardless of real synced data. Matches the
+  // same admin-client pattern already used for every other listings read
+  // in this codebase (outreach-queue.ts's buildTrimOptions call, etc).
+  const admin = createAdminClient();
+  const { data: listingsForModel } = await admin
     .from("listings")
     .select("trim, price_cents")
     .eq("make", search.make)
