@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { GetStartedButton } from "@/components/get-started-button";
+import { MobileNavMenu } from "@/components/mobile-nav-menu";
 import levrLogo from "../../public/levr-auto-logo-white.png";
 
 export function SiteHeader() {
@@ -21,7 +22,8 @@ export function SiteHeader() {
             FAQ
           </Link>
         </nav>
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-4 sm:gap-6">
+          <MobileNavMenu />
           <Link
             href="/login"
             className="hidden text-sm font-medium text-zinc-300 transition-colors hover:text-white sm:block"
