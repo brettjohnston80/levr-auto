@@ -451,7 +451,7 @@ export function IntakeFilter() {
           </p>
         </div>
 
-        <div className="mt-6 flex justify-center">
+        <div id="pricing" className="mt-6 flex justify-center">
           <span className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-1.5 text-sm font-medium text-emerald-400">
             Flat ${FLAT_PRICE} — one vehicle, always
           </span>

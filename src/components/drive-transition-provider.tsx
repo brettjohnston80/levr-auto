@@ -30,6 +30,11 @@ export function DriveTransitionProvider({ children }: { children: React.ReactNod
       }
       if (!el) return;
 
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        target.scrollIntoView({ behavior: "auto", block: "start" });
+        return;
+      }
+
       busyRef.current = true;
       setShowCar(true);
 

@@ -17,6 +17,7 @@ export function AuthGateModal({
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,11 +28,18 @@ export function AuthGateModal({
   function switchMode(next: Mode) {
     setMode(next);
     setError(null);
+    setConfirmPassword("");
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (mode === "signup" && password !== confirmPassword) {
+      setError("Passwords don't match.");
+      return;
+    }
+
     setLoading(true);
 
     if (mode === "login") {
@@ -147,13 +155,32 @@ export function AuthGateModal({
                 <input
                   type="password"
                   required
-                  minLength={6}
+                  minLength={mode === "signup" ? 8 : 6}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete={mode === "login" ? "current-password" : "new-password"}
                   className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900/80 px-4 py-3 text-sm font-medium text-white shadow-inner shadow-black/20 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
                 />
+                {mode === "signup" && (
+                  <span className="mt-2 block text-xs text-zinc-500">At least 8 characters.</span>
+                )}
               </label>
+              {mode === "signup" && (
+                <label className="block">
+                  <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
+                    Confirm password
+                  </span>
+                  <input
+                    type="password"
+                    required
+                    minLength={8}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    autoComplete="new-password"
+                    className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900/80 px-4 py-3 text-sm font-medium text-white shadow-inner shadow-black/20 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
+                  />
+                </label>
+              )}
               {mode === "signup" && (
                 <label className="block">
                   <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">

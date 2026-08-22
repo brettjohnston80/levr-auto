@@ -1,4 +1,5 @@
 import { CtaSection } from "@/components/cta-section";
+import { EmailCapture } from "@/components/email-capture";
 import { Guarantee } from "@/components/guarantee";
 import { Hero } from "@/components/hero";
 import { HowItWorks } from "@/components/how-it-works";
@@ -16,6 +17,7 @@ export default function Home() {
       <Guarantee />
       <WhyLevr />
       <CtaSection />
+      <EmailCapture />
     </>
   );
 }
