@@ -1,3 +1,4 @@
+import { ComparisonTable } from "@/components/comparison-table";
 import { CtaSection } from "@/components/cta-section";
 import { EmailCapture } from "@/components/email-capture";
 import { FounderStory } from "@/components/founder-story";
@@ -17,6 +18,7 @@ export default function Home() {
       <IntakeFilter />
       <Guarantee />
       <WhyLevr />
+      <ComparisonTable />
       <FounderStory />
       <CtaSection />
       <EmailCapture />
