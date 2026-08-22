@@ -1,5 +1,6 @@
 import { CtaSection } from "@/components/cta-section";
 import { EmailCapture } from "@/components/email-capture";
+import { FounderStory } from "@/components/founder-story";
 import { Guarantee } from "@/components/guarantee";
 import { Hero } from "@/components/hero";
 import { HowItWorks } from "@/components/how-it-works";
@@ -16,6 +17,7 @@ export default function Home() {
       <IntakeFilter />
       <Guarantee />
       <WhyLevr />
+      <FounderStory />
       <CtaSection />
       <EmailCapture />
     </>
