@@ -15,10 +15,29 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+const TITLE = "LEVR Auto — Car buying, with the leverage on your side.";
+const DESCRIPTION =
+  "Tell us the exact car you want. We reach out to dealers nationwide and negotiate every offer — so you never have to haggle.";
+
 export const metadata: Metadata = {
-  title: "LEVR Auto — Car buying, with the leverage on your side.",
-  description:
-    "Tell us the exact car you want. We reach out to dealers nationwide and negotiate every offer — so you never have to haggle.",
+  metadataBase: new URL(SITE_URL),
+  title: TITLE,
+  description: DESCRIPTION,
+  openGraph: {
+    title: TITLE,
+    description: DESCRIPTION,
+    url: "/",
+    siteName: "LEVR Auto",
+    type: "website",
+    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: TITLE,
+    description: DESCRIPTION,
+    images: ["/og-image.png"],
+  },
 };
 
 export default function RootLayout({

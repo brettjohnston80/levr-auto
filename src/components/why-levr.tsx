@@ -10,6 +10,7 @@ const REASONS = [
   {
     title: "No dealership pressure.",
     body: "No sales floor, no waiting around, no tactics.",
+    bold: "We never accept compensation from dealers — our only revenue is the flat fee you pay us.",
   },
   {
     title: "You decide.",
@@ -31,6 +32,9 @@ export function WhyLevr() {
               <div>
                 <h3 className="text-lg font-semibold text-white">{reason.title}</h3>
                 <p className="mt-1 text-sm leading-relaxed text-zinc-400">{reason.body}</p>
+                {reason.bold && (
+                  <p className="mt-1 text-sm leading-relaxed font-semibold text-zinc-300">{reason.bold}</p>
+                )}
               </div>
             </div>
           ))}

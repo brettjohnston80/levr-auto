@@ -69,6 +69,10 @@ const FAQS: FaqItem[] = [
     q: "Do dealers know I'm working with LEVR Auto?",
     a: "Yes — we reach out to dealers transparently on your behalf to request their best price on your exact vehicle.",
   },
+  {
+    q: "How do you make money — are you paid by dealers?",
+    a: "No. We never accept compensation from dealers, ever. Our only revenue is the flat $699 fee you pay us — that's what lets us negotiate purely in your interest.",
+  },
 ];
 
 export default function FaqPage() {

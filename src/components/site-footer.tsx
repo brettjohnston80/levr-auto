@@ -10,12 +10,24 @@ export function SiteFooter() {
         <div className="flex flex-col items-center gap-4 text-sm text-zinc-500 sm:flex-row sm:justify-between">
           <Image src={levrLogo} alt="LEVR Auto" className="h-6 w-auto" />
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+            <Link href="/#how-it-works" className="transition-colors hover:text-zinc-300">
+              How It Works
+            </Link>
+            <Link href="/matchmaker" className="transition-colors hover:text-zinc-300">
+              Matchmaker
+            </Link>
+            <Link href="/faq" className="transition-colors hover:text-zinc-300">
+              FAQ
+            </Link>
             <Link href="/terms" className="transition-colors hover:text-zinc-300">
               Terms of Service
             </Link>
             <Link href="/privacy" className="transition-colors hover:text-zinc-300">
               Privacy Policy
             </Link>
+            <a href="mailto:support@levrauto.com" className="transition-colors hover:text-zinc-300">
+              support@levrauto.com
+            </a>
             <span className="text-zinc-600">State availability rolling out — check back soon</span>
           </div>
         </div>
