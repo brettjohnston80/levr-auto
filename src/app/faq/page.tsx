@@ -34,6 +34,10 @@ const FAQS: FaqItem[] = [
     a: "You get your full $699 back, automatically, at the end of your 30-day guarantee window. No need to ask for it.",
   },
   {
+    q: "Why not just use a cheaper subscription tool instead?",
+    a: "Some tools can send messages to dealers for a few dollars a month — but sending a message isn't the same as getting you a result. LEVR Auto is done for you, start to finish: a real negotiation, real offers landing in your account, and a real person you can reach if something needs attention. And unlike a subscription, we put our fee on the line — if we can't bring you at least one real offer below MSRP, you get your $699 back.",
+  },
+  {
     q: "Am I required to buy a car?",
     a: "No. You can review every offer we bring you and decide not to move forward with any of them — the fee still covers the work we did on your behalf.",
   },
