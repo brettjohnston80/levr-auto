@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { GetStartedButton } from "@/components/get-started-button";
 
@@ -11,12 +12,22 @@ const NAV_LINKS = [
   { href: "/login", label: "Log In" },
 ];
 
+function MenuIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-6 w-6">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" />
+    </svg>
+  );
+}
+
 // Below-sm fallback for the nav links/Log In that site-header.tsx hides at
-// the sm breakpoint (site-header.tsx has no other mobile entry point to
-// them). Matches AuthGateModal's existing overlay convention (fixed
-// inset-0 z-[100], bg-black/70 backdrop-blur-sm, bg-zinc-950 panel) rather
-// than introducing a new visual pattern -- styled as a right-side panel
-// instead of centered.
+// the sm breakpoint. Full-screen overlay, portaled to document.body --
+// rendering it as a header descendant caused a real transparency bug on
+// real devices: <header> is sticky + z-50, which establishes a stacking
+// context that traps a position:fixed descendant's paint order instead of
+// letting it truly escape to the document root, compositing oddly against
+// the header's own semi-transparent/blurred background. Portaling out of
+// <header> entirely avoids that class of bug outright.
 export function MobileNavMenu() {
   const [open, setOpen] = useState(false);
 
@@ -37,6 +48,10 @@ export function MobileNavMenu() {
     };
   }, [open]);
 
+  function toggle() {
+    setOpen((v) => !v);
+  }
+
   function close() {
     setOpen(false);
   }
@@ -45,43 +60,36 @@ export function MobileNavMenu() {
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={toggle}
         aria-expanded={open}
-        aria-label="Open menu"
+        aria-label={open ? "Close menu" : "Open menu"}
         className="flex h-9 w-9 items-center justify-center text-zinc-300 transition-colors hover:text-white sm:hidden"
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-6 w-6">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" />
-        </svg>
+        <MenuIcon />
       </button>
 
-      {open && (
-        <div
-          className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm sm:hidden"
-          onClick={close}
-        >
+      {open &&
+        typeof document !== "undefined" &&
+        createPortal(
           <div
             role="dialog"
             aria-modal="true"
             aria-label="Site menu"
-            onClick={(e) => e.stopPropagation()}
-            className="absolute inset-y-0 right-0 flex w-full max-w-xs flex-col border-l border-white/10 bg-zinc-950 px-6 py-6"
+            className="fixed inset-0 z-[100] flex flex-col bg-zinc-950 px-6 py-4 sm:hidden"
           >
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold tracking-wide text-zinc-500 uppercase">Menu</span>
+            <div className="flex items-center justify-end">
               <button
                 type="button"
-                onClick={close}
+                onClick={toggle}
+                aria-expanded={open}
                 aria-label="Close menu"
                 className="flex h-9 w-9 items-center justify-center text-zinc-300 transition-colors hover:text-white"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-6 w-6">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                </svg>
+                <MenuIcon />
               </button>
             </div>
 
-            <nav className="mt-8 flex flex-col gap-6 text-base font-medium text-zinc-300">
+            <nav className="mt-12 flex flex-col gap-8 text-lg font-medium text-zinc-300">
               {NAV_LINKS.map((link) => (
                 <Link key={link.href} href={link.href} onClick={close} className="transition-colors hover:text-white">
                   {link.label}
@@ -89,14 +97,14 @@ export function MobileNavMenu() {
               ))}
             </nav>
 
-            <div className="mt-auto pt-8" onClick={close}>
+            <div className="mt-auto pb-4" onClick={close}>
               <GetStartedButton className="w-full rounded-full bg-emerald-500 px-4 py-2.5 text-center text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400">
                 Get Started
               </GetStartedButton>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </>
   );
 }
