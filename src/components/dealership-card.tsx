@@ -34,6 +34,7 @@ export function DealershipCard({ dealership }: { dealership: ConfirmedDealership
             {dealership.aliases.map((a) => (
               <span key={a.id} className="rounded-full border border-white/10 px-2 py-0.5 text-xs text-zinc-400">
                 {a.dealerName}
+                {a.confirmedVia === "system" && <span className="ml-1 text-emerald-400">· Auto-matched</span>}
               </span>
             ))}
           </div>

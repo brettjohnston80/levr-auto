@@ -64,7 +64,12 @@ export async function mergeAliasIntoDealership(aliasId: string, dealershipId: st
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("dealer_aliases")
-    .update({ dealership_id: dealershipId, confirmed_at: new Date().toISOString(), confirmed_by_agent_id: agent.id })
+    .update({
+      dealership_id: dealershipId,
+      confirmed_at: new Date().toISOString(),
+      confirmed_by_agent_id: agent.id,
+      confirmed_via: "agent",
+    })
     .eq("id", aliasId)
     .is("dealership_id", null)
     .select("id");

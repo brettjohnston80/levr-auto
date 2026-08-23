@@ -77,6 +77,7 @@ export interface DealershipAliasSummary {
   dealerName: string;
   dealerCity: string | null;
   dealerState: string | null;
+  confirmedVia: "agent" | "system";
 }
 
 export interface DealershipSalesperson {
@@ -114,7 +115,7 @@ export async function getConfirmedDealerships(): Promise<ConfirmedDealership[]> 
     admin.from("dealerships").select("id, name, city, state, created_at").order("created_at", { ascending: false }),
     admin
       .from("dealer_aliases")
-      .select("id, dealer_name, dealer_city, dealer_state, dealership_id")
+      .select("id, dealer_name, dealer_city, dealer_state, dealership_id, confirmed_via")
       .not("dealership_id", "is", null),
     admin
       .from("dealership_salespeople")
@@ -142,6 +143,7 @@ export async function getConfirmedDealerships(): Promise<ConfirmedDealership[]> 
       dealerName: a.dealer_name,
       dealerCity: a.dealer_city,
       dealerState: a.dealer_state,
+      confirmedVia: a.confirmed_via === "system" ? "system" : "agent",
     };
     const existing = aliasesByDealership.get(a.dealership_id) ?? [];
     existing.push(summary);

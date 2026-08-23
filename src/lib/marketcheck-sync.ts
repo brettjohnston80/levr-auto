@@ -37,6 +37,8 @@ function toListingRow(listing: MarketCheckListing, fallbackMake: string, fallbac
     dealer_city: listing.dealer?.city ?? null,
     dealer_state: listing.dealer?.state ?? null,
     dealer_zip: listing.dealer?.zip ?? null,
+    dealer_type: listing.dealer?.dealer_type ?? null,
+    mc_dealer_id: listing.mc_dealership?.mc_dealer_id ?? null,
     raw_data: listing,
     synced_at: new Date().toISOString(),
   };

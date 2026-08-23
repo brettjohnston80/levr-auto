@@ -14,6 +14,14 @@ export interface MarketCheckListing {
     city?: string;
     state?: string;
     zip?: string;
+    dealer_type?: string;
+  };
+  // NOT the same as dealer.id (which is actually MarketCheck's
+  // mc_website_id) -- mc_dealership.mc_dealer_id is MarketCheck's real,
+  // stable dealer identifier, confirmed directly against the live API.
+  // See the dealer_mc_ids migration's header comment for the full story.
+  mc_dealership?: {
+    mc_dealer_id?: number;
   };
   build?: {
     year?: number;
@@ -53,6 +61,11 @@ export async function searchActiveListings(params: {
   url.searchParams.set("country", "US");
   url.searchParams.set("rows", String(params.rows ?? 50));
   url.searchParams.set("start", String(params.start ?? 0));
+  // Explicit, not relied on as a default -- same "never trust an
+  // undocumented API default" precedent as car_type=new above. Testing
+  // showed dealer/mc_dealership are present in the response either way in
+  // the current API version, but this future-proofs against that changing.
+  url.searchParams.set("include_dealer_object", "true");
 
   const res = await fetch(url.toString());
   if (!res.ok) {
