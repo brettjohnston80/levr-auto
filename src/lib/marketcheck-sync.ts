@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminClient } from "./supabase/admin";
+import { ensureDealerAliasesForListings } from "./dealer-aliases";
 import { searchActiveListings, type MarketCheckListing } from "./marketcheck";
 
 const PAGE_SIZE = 50;
@@ -81,6 +82,10 @@ export async function syncListingsForMakeModel(
         throw new Error(`Listings upsert failed: ${error.message}`);
       }
       upserted += rows.length;
+
+      // LEVRating Phase A -- keeps dealer_aliases current with every sync,
+      // non-blocking (see dealer-aliases.ts for why).
+      await ensureDealerAliasesForListings(rows);
     }
 
     start += PAGE_SIZE;
