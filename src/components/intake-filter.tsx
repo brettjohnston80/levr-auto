@@ -50,16 +50,37 @@ function clearPendingIntake() {
 }
 
 // "Not sure yet" path (UX review #3) -- zero fields, so there's nothing to
-// stash but the fact that this is the flow to resume once signed in. Unlike
-// PENDING_INTAKE_KEY, this is a plain flag, not a payload with a TTL.
+// stash but the fact that this is the flow to resume once signed in.
+// Originally a plain flag with no expiry -- found to be a real bug
+// (2026-08-23, surfaced incidentally during unrelated LEVRating
+// verification): with no TTL, a customer who clicked "Skip ahead" while
+// signed out, then didn't finish signing in right then, would get silently
+// dropped onto a real Stripe checkout with zero fresh intent the next time
+// they signed in for any reason, however much later. Now carries the same
+// timestamp+TTL treatment as PENDING_INTAKE_KEY.
 const PENDING_UNDECIDED_INTAKE_KEY = "levr_pending_undecided_intake";
+const PENDING_UNDECIDED_INTAKE_TTL_MS = 60 * 60 * 1000; // 1 hour, same as PENDING_INTAKE_KEY
+
+type PendingUndecidedIntake = { savedAt: number };
 
 function stashPendingUndecidedIntake() {
-  window.localStorage.setItem(PENDING_UNDECIDED_INTAKE_KEY, "1");
+  const payload: PendingUndecidedIntake = { savedAt: Date.now() };
+  window.localStorage.setItem(PENDING_UNDECIDED_INTAKE_KEY, JSON.stringify(payload));
 }
 
 function hasPendingUndecidedIntake(): boolean {
-  return window.localStorage.getItem(PENDING_UNDECIDED_INTAKE_KEY) === "1";
+  const raw = window.localStorage.getItem(PENDING_UNDECIDED_INTAKE_KEY);
+  if (!raw) return false;
+  try {
+    const parsed: PendingUndecidedIntake = JSON.parse(raw);
+    if (Date.now() - parsed.savedAt > PENDING_UNDECIDED_INTAKE_TTL_MS) {
+      clearPendingUndecidedIntake();
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function clearPendingUndecidedIntake() {
