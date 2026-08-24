@@ -6,6 +6,7 @@ import {
   requestSwitchCall,
   checkSwitchEligibility,
   executeFreeSwitch,
+  createSwitchFeeCheckoutSession,
 } from "@/lib/switch-self-service-actions";
 
 type Mode = "choice" | "pick" | "free-confirm" | "paid-warning" | "call-requested";
@@ -69,6 +70,19 @@ export function SwitchChoice({
     router.push(`/finalize/${result.newSearchId}`);
   }
 
+  async function handleContinueToPayment() {
+    setBusy(true);
+    setError(null);
+    const result = await createSwitchFeeCheckoutSession(searchId, newMake, newModel);
+    setBusy(false);
+
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    window.location.href = result.url;
+  }
+
   if (mode === "call-requested") {
     return (
       <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6">
@@ -102,15 +116,16 @@ export function SwitchChoice({
         <div className="mt-5 flex gap-2">
           <button
             type="button"
-            disabled
-            title="Coming soon"
-            className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-zinc-950 opacity-50"
+            onClick={handleContinueToPayment}
+            disabled={busy}
+            className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-zinc-950 disabled:opacity-50"
           >
-            Continue to payment
+            {busy ? "Redirecting…" : "Continue to payment"}
           </button>
           <button
             type="button"
             onClick={() => setMode("pick")}
+            disabled={busy}
             className="rounded-lg border border-white/10 px-4 py-2 text-sm text-white"
           >
             Back

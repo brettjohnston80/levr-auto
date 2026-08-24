@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getStripe } from "@/lib/stripe";
+import { EXTENSION_FEE } from "@/lib/vehicle-data";
 
 export type SwitchActionResult = { ok: true } | { ok: false; error: string };
 
@@ -33,7 +35,7 @@ async function getOwnedSwitchableSearch(searchId: string) {
     return { ok: false as const, error: "This search has already been switched." };
   }
 
-  return { ok: true as const, userId: user.id };
+  return { ok: true as const, userId: user.id, userEmail: user.email ?? null };
 }
 
 /**
@@ -149,4 +151,84 @@ export async function executeFreeSwitch(
 
   revalidatePath("/account");
   return { ok: true, newSearchId: newSearch.id };
+}
+
+export type CreateSwitchFeeCheckoutResult = { ok: true; url: string } | { ok: false; error: string };
+
+/**
+ * Starts a Stripe Checkout Session for the $100 paid-switch case (outside
+ * the grace period, or the free switch already used). Mirrors
+ * createCheckoutSession (payment-actions.ts) exactly -- inline price_data,
+ * no stored Stripe Price ID, same success_url/{CHECKOUT_SESSION_ID}
+ * convention. Uses EXTENSION_FEE, not a separate constant -- its own
+ * comment already says "$100 per switch ... and per ~30-day Day-60
+ * extension -- same flat fee for both", and the webhook's switch_fee
+ * branch already falls back to EXTENSION_FEE * 100 for the payment record.
+ *
+ * Re-checks eligibility itself rather than trusting that the client only
+ * reaches this action from the paid-warning screen -- if the customer is
+ * actually still free-eligible (grace window not yet crossed, or a
+ * concurrent tab already burned it), this rejects rather than charging
+ * $100 for something that should be free.
+ *
+ * metadata must exactly match what handleSwitchFeePayment (the Stripe
+ * webhook) reads: type, old_search_id, new_make, new_model. customer_id is
+ * an extra field the webhook itself doesn't read (it gets that from the
+ * RPC's own return value) but /switch/success needs it for its own
+ * ownership check, same pattern as payment-actions.ts's success page.
+ */
+export async function createSwitchFeeCheckoutSession(
+  searchId: string,
+  newMake: string,
+  newModel: string
+): Promise<CreateSwitchFeeCheckoutResult> {
+  const check = await getOwnedSwitchableSearch(searchId);
+  if (!check.ok) return check;
+
+  const trimmedMake = newMake.trim();
+  const trimmedModel = newModel.trim();
+  if (!trimmedMake || !trimmedModel) {
+    return { ok: false, error: "Make and model are required." };
+  }
+
+  const eligibility = await checkSwitchEligibility(searchId);
+  if (!eligibility.ok) return eligibility;
+  if (eligibility.eligible) {
+    return { ok: false, error: "This switch is actually free — go back and confirm the free switch instead." };
+  }
+
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+
+  const session = await getStripe().checkout.sessions.create({
+    mode: "payment",
+    customer_email: check.userEmail ?? undefined,
+    line_items: [
+      {
+        price_data: {
+          currency: "usd",
+          unit_amount: EXTENSION_FEE * 100,
+          product_data: {
+            name: "LEVR Auto — Switch Fee",
+            description: `${trimmedMake} ${trimmedModel}`,
+          },
+        },
+        quantity: 1,
+      },
+    ],
+    metadata: {
+      type: "switch_fee",
+      customer_id: check.userId,
+      old_search_id: searchId,
+      new_make: trimmedMake,
+      new_model: trimmedModel,
+    },
+    success_url: `${siteUrl}/switch/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${siteUrl}/account`,
+  });
+
+  if (!session.url) {
+    return { ok: false, error: "Could not start checkout." };
+  }
+
+  return { ok: true, url: session.url };
 }
