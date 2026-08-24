@@ -18,6 +18,7 @@ import { AutoRenewToggle } from "@/components/auto-renew-toggle";
 import { AutoRenewOffLink } from "@/components/auto-renew-off-link";
 import { CancellationChoice } from "@/components/cancellation-choice";
 import { PurchasedCelebration } from "@/components/purchased-celebration";
+import { PostDealSurveyPrompt } from "@/components/post-deal-survey-prompt";
 import { RESUME_WINDOW_DAYS } from "@/lib/vehicle-data";
 import { effectiveDeadline, REMINDER_WINDOW_DAYS } from "@/lib/day60-extension";
 
@@ -291,7 +292,10 @@ function SearchCard({ search }: { search: DashboardSearch }) {
       )}
 
       {search.searchStatus === "purchased" && search.make && search.model ? (
-        <PurchasedCelebration make={search.make} model={search.model} trim={search.trim} />
+        <>
+          <PurchasedCelebration make={search.make} model={search.model} trim={search.trim} />
+          {search.survey && <PostDealSurveyPrompt survey={search.survey} />}
+        </>
       ) : (
         <>
       <p className="mt-3 text-sm text-zinc-400">{getStatusCopy(search)}</p>

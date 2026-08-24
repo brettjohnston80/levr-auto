@@ -59,6 +59,7 @@ export interface DashboardSearch {
   autoRenewEnabled: boolean;
   cancellationCallRequestedAt: string | null;
   purchasedAt: string | null;
+  survey: { id: string; submittedAt: string | null } | null;
   offers: DashboardOffer[];
 }
 
@@ -101,6 +102,20 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
   }
 
   const searchIds = searches.map((s) => s.id);
+
+  // LEVRating Phase B -- created by the daily post-deal-survey cron, not
+  // here. Existence of the row (not any local date math) is what unlocks
+  // the /account prompt card, same 2-day trigger as the email.
+  const { data: surveys, error: surveysError } = await supabase
+    .from("post_deal_surveys")
+    .select("id, customer_search_id, submitted_at")
+    .in("customer_search_id", searchIds);
+
+  if (surveysError) {
+    throw new Error(`Failed to load post-deal surveys: ${surveysError.message}`);
+  }
+
+  const surveyBySearchId = new Map((surveys ?? []).map((s) => [s.customer_search_id, s]));
 
   const { data: offers, error: offersError } = await supabase
     .from("qualifying_offers")
@@ -268,6 +283,10 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
     autoRenewEnabled: search.auto_renew_enabled,
     cancellationCallRequestedAt: search.cancellation_call_requested_at,
     purchasedAt: search.purchased_at,
+    survey: (() => {
+      const s = surveyBySearchId.get(search.id);
+      return s ? { id: s.id, submittedAt: s.submitted_at } : null;
+    })(),
     offers: offersBySearchId.get(search.id) ?? [],
   }));
 }

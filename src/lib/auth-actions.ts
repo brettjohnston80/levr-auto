@@ -31,17 +31,31 @@ async function attemptSignup(email: string, password: string, redirectPath: stri
 // Form-action versions — used by the standalone /login and /signup pages.
 // Redirect on completion.
 
+// LEVRating Phase B: lets a signed-out survey-link click land on /login and
+// come back to the survey after signing in, without any new auth
+// mechanism -- just a redirect-back on the existing password flow. Must be
+// a same-origin relative path only, or this becomes an open redirect.
+function isSafeRedirectPath(path: string | null | undefined): path is string {
+  if (!path) return false;
+  if (!path.startsWith("/")) return false;
+  if (path.startsWith("//")) return false; // protocol-relative
+  if (path.includes("://")) return false;
+  return true;
+}
+
 export async function login(formData: FormData) {
+  const next = formData.get("next") as string | null;
   const result = await attemptLogin(
     formData.get("email") as string,
     formData.get("password") as string
   );
 
   if (!result.ok) {
-    redirect(`/login?error=${encodeURIComponent(result.error!)}`);
+    const nextParam = isSafeRedirectPath(next) ? `&next=${encodeURIComponent(next)}` : "";
+    redirect(`/login?error=${encodeURIComponent(result.error!)}${nextParam}`);
   }
 
-  redirect("/account");
+  redirect(isSafeRedirectPath(next) ? next : "/account");
 }
 
 export async function signup(formData: FormData) {

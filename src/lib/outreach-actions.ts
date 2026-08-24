@@ -249,7 +249,11 @@ export async function markSearchPurchased(searchId: string, offerId: string): Pr
 
   const { data: updated, error: updateError } = await admin
     .from("customer_searches")
-    .update({ search_status: "purchased", purchased_at: new Date().toISOString() })
+    .update({
+      search_status: "purchased",
+      purchased_at: new Date().toISOString(),
+      purchased_qualifying_offer_id: offerId,
+    })
     .eq("id", searchId)
     .eq("search_status", "searching")
     .select("id")

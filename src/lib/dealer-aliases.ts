@@ -130,3 +130,59 @@ export async function ensureDealerAliasesForListings(rows: DealerIdentity[]): Pr
     console.error("ensureDealerAliasesForListings failed:", error.message);
   }
 }
+
+/**
+ * LEVRating Phase B. Resolves a dealer identity to a dealer_aliases row id,
+ * creating one if it doesn't exist yet -- unlike ensureDealerAliasesForListings
+ * (fire-and-forget, called from the sync path), this is a synchronous
+ * resolve-or-create used by the post-deal survey's dealer resolution, which
+ * needs the actual id back, not just an eventual side effect. Reuses the
+ * exact same insert/auto-link logic (ensureDealerAliasesForListings) rather
+ * than duplicating it, so an off-lot offer's dealer (no listing, so no
+ * dealer_city/dealer_state at all) still goes through the identical
+ * null-safe identity-key matching and mc_dealer_id auto-link path as every
+ * listing-sourced alias.
+ */
+export async function getOrCreateDealerAlias(
+  name: string,
+  city: string | null,
+  state: string | null,
+  mcDealerId: number | null
+): Promise<string> {
+  const admin = createAdminClient();
+
+  const { data: existing, error: selectError } = await admin
+    .from("dealer_aliases")
+    .select("id")
+    .eq("dealer_name", name)
+    .eq("dealer_city_key", city ?? "")
+    .eq("dealer_state_key", state ?? "")
+    .maybeSingle();
+
+  if (selectError) {
+    throw new Error(`getOrCreateDealerAlias select failed: ${selectError.message}`);
+  }
+  if (existing) {
+    return existing.id;
+  }
+
+  await ensureDealerAliasesForListings([
+    { dealer_name: name, dealer_city: city, dealer_state: state, mc_dealer_id: mcDealerId },
+  ]);
+
+  const { data: created, error: recheckError } = await admin
+    .from("dealer_aliases")
+    .select("id")
+    .eq("dealer_name", name)
+    .eq("dealer_city_key", city ?? "")
+    .eq("dealer_state_key", state ?? "")
+    .maybeSingle();
+
+  if (recheckError) {
+    throw new Error(`getOrCreateDealerAlias recheck failed: ${recheckError.message}`);
+  }
+  if (!created) {
+    throw new Error(`getOrCreateDealerAlias: alias not found after insert for "${name}"`);
+  }
+  return created.id;
+}

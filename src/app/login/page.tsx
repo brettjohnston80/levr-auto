@@ -9,9 +9,9 @@ export const metadata: Metadata = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; message?: string }>;
+  searchParams: Promise<{ error?: string; message?: string; next?: string }>;
 }) {
-  const { error, message } = await searchParams;
+  const { error, message, next } = await searchParams;
 
   return (
     <section className="bg-zinc-950 py-24">
@@ -36,6 +36,7 @@ export default async function LoginPage({
         )}
 
         <form action={login} className="mt-8 space-y-4">
+          {next && <input type="hidden" name="next" value={next} />}
           <label className="block">
             <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">Email</span>
             <input
