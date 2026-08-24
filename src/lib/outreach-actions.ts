@@ -6,6 +6,7 @@ import { getAuthorizedAgent } from "./agent-auth";
 import { createAdminClient } from "./supabase/admin";
 import { getDocumentStatus } from "./pandadoc/client";
 import { syncListingsForMakeModel } from "./marketcheck-sync";
+import { logNotificationEvent } from "./notifications";
 
 export interface LogOfferResult {
   ok: boolean;
@@ -110,6 +111,12 @@ export async function logQualifyingOffer(formData: FormData): Promise<LogOfferRe
   if (insertError || !newOffer) {
     return { ok: false, error: `Failed to save offer: ${insertError?.message}` };
   }
+
+  await logNotificationEvent({
+    customerSearchId,
+    eventType: "offer_logged",
+    eventData: { dealerName, offerPriceCents, msrpCents },
+  });
 
   if (addons.length > 0) {
     const { error: addonsError } = await admin.from("offer_addons").insert(
@@ -265,6 +272,13 @@ export async function markSearchPurchased(searchId: string, offerId: string): Pr
   if (!updated) {
     return { ok: false, error: "This search isn't active right now — can't mark it purchased." };
   }
+
+  const { data: offer } = await admin.from("qualifying_offers").select("dealer_name").eq("id", offerId).maybeSingle();
+  await logNotificationEvent({
+    customerSearchId: searchId,
+    eventType: "search_purchased",
+    eventData: { dealerName: offer?.dealer_name ?? "the dealership" },
+  });
 
   const { error: logError } = await admin
     .from("purchase_status_log")
@@ -423,7 +437,7 @@ export async function resolveAddonRemoval(
 async function getAcceptedOfferOrError(admin: ReturnType<typeof createAdminClient>, offerId: string) {
   const { data: offer, error } = await admin
     .from("qualifying_offers")
-    .select("id, status")
+    .select("id, status, customer_search_id, dealer_name")
     .eq("id", offerId)
     .maybeSingle();
 
@@ -433,7 +447,7 @@ async function getAcceptedOfferOrError(admin: ReturnType<typeof createAdminClien
   if (offer.status !== "customer_accepted") {
     return { ok: false as const, error: "This offer hasn't been accepted yet." };
   }
-  return { ok: true as const };
+  return { ok: true as const, customerSearchId: offer.customer_search_id, dealerName: offer.dealer_name };
 }
 
 export interface ConfirmAvailabilityResult {
@@ -468,6 +482,12 @@ export async function confirmAvailability(offerId: string): Promise<ConfirmAvail
   if (error) {
     return { ok: false, error: `Failed to confirm availability: ${error.message}` };
   }
+
+  await logNotificationEvent({
+    customerSearchId: offerCheck.customerSearchId,
+    eventType: "deal_progress_update",
+    eventData: { dealerName: offerCheck.dealerName, milestone: "availability_reconfirmed" },
+  });
 
   revalidatePath("/internal/outreach");
   revalidatePath("/account");
@@ -519,6 +539,12 @@ export async function confirmDepositReceived(
   if (error) {
     return { ok: false, error: `Failed to confirm deposit: ${error.message}` };
   }
+
+  await logNotificationEvent({
+    customerSearchId: offerCheck.customerSearchId,
+    eventType: "deal_progress_update",
+    eventData: { dealerName: offerCheck.dealerName, milestone: "deposit_confirmed" },
+  });
 
   revalidatePath("/internal/outreach");
   revalidatePath("/account");
@@ -704,6 +730,43 @@ export async function finalizeUndecidedSearch(
     await syncListingsForMakeModel(input.make, input.model);
   } catch (syncError) {
     console.error(`finalizeUndecidedSearch: sync failed for ${input.make} ${input.model}:`, syncError);
+  }
+
+  revalidatePath("/internal/outreach");
+  return { ok: true };
+}
+
+export interface ResolveNotificationCallbackResult {
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * Dismisses one notification_events row from the callback queue --
+ * covers both reasons it can appear there (a real callback request or a
+ * flagged undeliverable channel), same shared flag_resolved_at column.
+ * Guarded by .is("flag_resolved_at", null) on the write, same idempotency
+ * idiom as every other resolve-style action here.
+ */
+export async function resolveNotificationCallback(eventId: string): Promise<ResolveNotificationCallbackResult> {
+  const agent = await getAuthorizedAgent();
+  if (!agent) {
+    return { ok: false, error: "Not authorized." };
+  }
+
+  const admin = createAdminClient();
+  const { data: updated, error } = await admin
+    .from("notification_events")
+    .update({ flag_resolved_at: new Date().toISOString() })
+    .eq("id", eventId)
+    .is("flag_resolved_at", null)
+    .select("id");
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+  if (!updated || updated.length === 0) {
+    return { ok: false, error: "Already resolved." };
   }
 
   revalidatePath("/internal/outreach");

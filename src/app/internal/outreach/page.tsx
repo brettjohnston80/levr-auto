@@ -8,7 +8,9 @@ import {
   getPausedSearchesQueue,
   getCancellationCallQueue,
   getVehicleConsultationQueue,
+  getNotificationCallbackQueue,
 } from "@/lib/outreach-queue";
+import { ResolveNotificationCallbackButton } from "@/components/resolve-notification-callback-button";
 import { LogOfferForm } from "@/components/log-offer-form";
 import { MarkSoldButton } from "@/components/mark-sold-button";
 import { MarkPurchasedButton } from "@/components/mark-purchased-button";
@@ -53,6 +55,13 @@ function formatDaysRemaining(daysRemaining: number, pausedAt: string): string {
   return `${daysRemaining}d left to resume (paused ${formatDate(pausedAt)})`;
 }
 
+const NOTIFICATION_EVENT_LABELS: Record<string, string> = {
+  offer_logged: "New offer logged",
+  offer_response_recorded: "Offer response recorded",
+  deal_progress_update: "Deal progress update",
+  search_purchased: "Purchase confirmed",
+};
+
 export default async function OutreachQueuePage() {
   const agent = await requireAgent();
   const [
@@ -63,6 +72,7 @@ export default async function OutreachQueuePage() {
     pausedSearchesQueue,
     cancellationCallQueue,
     vehicleConsultationQueue,
+    notificationCallbackQueue,
   ] = await Promise.all([
     getOutreachQueue(),
     getFinalizationQueue(),
@@ -71,7 +81,11 @@ export default async function OutreachQueuePage() {
     getPausedSearchesQueue(),
     getCancellationCallQueue(),
     getVehicleConsultationQueue(),
+    getNotificationCallbackQueue(),
   ]);
+
+  const callbackRequests = notificationCallbackQueue.filter((e) => e.reason === "callback_requested");
+  const undeliverableFlags = notificationCallbackQueue.filter((e) => e.reason === "no_deliverable_channel");
 
   return (
     <section className="min-h-screen bg-zinc-950 py-16">
@@ -217,6 +231,64 @@ export default async function OutreachQueuePage() {
                     Requested {formatDate(search.cancellationCallRequestedAt)}
                   </p>
                   <AgentCancellationResolutionForm searchId={search.id} customerId={search.customerId} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-10">
+          <h2 className="text-lg font-semibold text-white">
+            Customer callbacks requested ({callbackRequests.length})
+          </h2>
+          <p className="mt-1 text-sm text-zinc-400">
+            This customer has &ldquo;a personal agent calls me&rdquo; enabled for account notifications.
+          </p>
+          {callbackRequests.length === 0 ? (
+            <p className="mt-3 text-sm text-zinc-400">No customer callbacks requested.</p>
+          ) : (
+            <div className="mt-4 space-y-4">
+              {callbackRequests.map((item) => (
+                <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <h3 className="text-base font-semibold text-white">
+                      {NOTIFICATION_EVENT_LABELS[item.eventType] ?? item.eventType}
+                      {item.make && item.model ? ` — ${item.make} ${item.model}` : ""}
+                    </h3>
+                    <span className="text-sm text-zinc-400">{item.customerEmail ?? "unknown customer"}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-zinc-500">{formatDate(item.createdAt)}</p>
+                  <ResolveNotificationCallbackButton eventId={item.id} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-10">
+          <h2 className="text-lg font-semibold text-white">
+            Notification undeliverable ({undeliverableFlags.length})
+          </h2>
+          <p className="mt-1 text-sm text-zinc-400">
+            This customer has only &ldquo;text message&rdquo; enabled for account notifications — there&apos;s no
+            SMS provider yet, so nothing actually reached them. Not a callback request; worth a proactive
+            check-in.
+          </p>
+          {undeliverableFlags.length === 0 ? (
+            <p className="mt-3 text-sm text-zinc-400">No undeliverable notifications.</p>
+          ) : (
+            <div className="mt-4 space-y-4">
+              {undeliverableFlags.map((item) => (
+                <div key={item.id} className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-6">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <h3 className="text-base font-semibold text-white">
+                      {NOTIFICATION_EVENT_LABELS[item.eventType] ?? item.eventType}
+                      {item.make && item.model ? ` — ${item.make} ${item.model}` : ""}
+                    </h3>
+                    <span className="text-sm text-zinc-400">{item.customerEmail ?? "unknown customer"}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-amber-400">{formatDate(item.createdAt)}</p>
+                  <ResolveNotificationCallbackButton eventId={item.id} />
                 </div>
               ))}
             </div>

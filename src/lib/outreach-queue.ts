@@ -639,3 +639,71 @@ export async function getVehicleConsultationQueue(): Promise<VehicleConsultation
     paidAt: search.paid_at as string,
   }));
 }
+
+export interface NotificationCallbackQueueItem {
+  id: string;
+  customerEmail: string | null;
+  make: string | null;
+  model: string | null;
+  eventType: string;
+  reason: "callback_requested" | "no_deliverable_channel";
+  createdAt: string;
+}
+
+/**
+ * Real notification-sending system's agent-facing side. Two distinct
+ * reasons share one queue, kept visually distinct on the page (per Brett):
+ * 'callback_requested' (notify_by_agent_callback was on for this customer
+ * when the event fired) and 'no_deliverable_channel' (notify_by_text was
+ * the customer's only enabled channel -- no SMS provider exists, so
+ * nothing actually reached them). Both resolved the same way
+ * (resolveNotificationCallback, outreach-actions.ts), guarded by the shared
+ * flag_resolved_at column -- see the notification_events migration for why
+ * one column covers both rather than two near-identical ones.
+ *
+ * Fetches the broader still-unresolved set and filters in application
+ * code rather than a .or() PostgREST filter string, same "fetch a small
+ * bounded set, compute in JS" convention used throughout this codebase
+ * (Day-60's date math, inventory-count's Haversine pass, etc.) -- avoids
+ * relying on PostgREST's or-filter string grammar for what's expected to
+ * always be a small set.
+ */
+export async function getNotificationCallbackQueue(): Promise<NotificationCallbackQueueItem[]> {
+  const supabase = createAdminClient();
+
+  const { data: allUnresolved, error } = await supabase
+    .from("notification_events")
+    .select("id, customer_id, customer_search_id, event_type, agent_callback_requested_at, flagged_no_deliverable_channel, created_at")
+    .is("flag_resolved_at", null)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to load notification callback queue: ${error.message}`);
+  }
+
+  const events = (allUnresolved ?? []).filter((e) => e.agent_callback_requested_at || e.flagged_no_deliverable_channel);
+  if (events.length === 0) return [];
+
+  const searchIds = [...new Set(events.map((e) => e.customer_search_id))];
+  const { data: searches } = await supabase.from("customer_searches").select("id, make, model").in("id", searchIds);
+  const searchById = new Map((searches ?? []).map((s) => [s.id, s]));
+
+  const customerIds = [...new Set(events.map((e) => e.customer_id))];
+  const { data: customers } = await supabase.from("customers").select("id, email").in("id", customerIds);
+  const customerEmailById = new Map((customers ?? []).map((c) => [c.id, c.email as string]));
+
+  return events.map((e) => {
+    const search = searchById.get(e.customer_search_id);
+    return {
+      id: e.id,
+      customerEmail: customerEmailById.get(e.customer_id) ?? null,
+      make: search?.make ?? null,
+      model: search?.model ?? null,
+      eventType: e.event_type,
+      reason: (e.agent_callback_requested_at ? "callback_requested" : "no_deliverable_channel") as
+        | "callback_requested"
+        | "no_deliverable_channel",
+      createdAt: e.created_at,
+    };
+  });
+}

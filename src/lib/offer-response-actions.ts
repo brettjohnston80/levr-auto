@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "./supabase/server";
 import { createAdminClient } from "./supabase/admin";
+import { logNotificationEvent } from "./notifications";
 
 export interface RespondToOfferResult {
   ok: boolean;
@@ -37,7 +38,7 @@ export async function respondToOffer(
 
   const { data: offer, error: offerError } = await admin
     .from("qualifying_offers")
-    .select("id, customer_search_id")
+    .select("id, customer_search_id, dealer_name")
     .eq("id", offerId)
     .maybeSingle();
 
@@ -71,6 +72,12 @@ export async function respondToOffer(
   if (!updated) {
     return { ok: false, error: "You've already responded to this offer." };
   }
+
+  await logNotificationEvent({
+    customerSearchId: offer.customer_search_id,
+    eventType: "offer_response_recorded",
+    eventData: { dealerName: offer.dealer_name, response },
+  });
 
   revalidatePath("/account");
   return { ok: true };
