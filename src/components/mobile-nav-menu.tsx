@@ -9,6 +9,7 @@ const NAV_LINKS = [
   { href: "/#how-it-works", label: "How It Works" },
   { href: "/matchmaker", label: "Matchmaker" },
   { href: "/faq", label: "FAQ" },
+  { href: "/articles", label: "Articles" },
   { href: "/login", label: "Log In" },
 ];
 

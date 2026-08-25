@@ -21,6 +21,9 @@ export function SiteHeader() {
           <Link href="/faq" className="transition-colors hover:text-white">
             FAQ
           </Link>
+          <Link href="/articles" className="transition-colors hover:text-white">
+            Articles
+          </Link>
         </nav>
         <div className="flex items-center gap-4 sm:gap-6">
           <MobileNavMenu />
