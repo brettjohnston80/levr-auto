@@ -9,20 +9,26 @@ export interface PublishedArticle {
 }
 
 /**
- * The only real publish gate: status='published' AND published_at <= now(),
- * both checked server-side here -- never trusted from a client query or from
- * status alone, since a row can be status='published' with a published_at
- * still in the future (that's how a scheduled article stays invisible until
- * its exact go-live moment). Same convention as every other RLS-locked
- * table in this app -- reads go through the admin client with an explicit
- * filter, not a client-facing read policy.
+ * The only real publish gate: status IN ('approved', 'published') AND
+ * published_at <= now(), both checked server-side here -- never trusted
+ * from a client query or from status alone, since a row can be live-status
+ * with a published_at still in the future (that's how a scheduled article
+ * stays invisible until its exact go-live moment). Same convention as every
+ * other RLS-locked table in this app -- reads go through the admin client
+ * with an explicit filter, not a client-facing read policy.
+ *
+ * 'approved' is included (not just 'published') per the Phase 2 design:
+ * Approve sets status='approved' and that's as far as the review workflow
+ * takes it -- 'published' is reserved for a later phase (e.g. once social
+ * auto-posting is done), so an approved-and-due article needs to show up
+ * here or it would never go live at all.
  */
 export async function getPublishedArticles(): Promise<PublishedArticle[]> {
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("articles")
     .select("slug, title, content, published_at")
-    .eq("status", "published")
+    .in("status", ["approved", "published"])
     .lte("published_at", new Date().toISOString())
     .order("published_at", { ascending: false });
 
@@ -44,7 +50,7 @@ export async function getPublishedArticleBySlug(slug: string): Promise<Published
     .from("articles")
     .select("slug, title, content, published_at")
     .eq("slug", slug)
-    .eq("status", "published")
+    .in("status", ["approved", "published"])
     .lte("published_at", new Date().toISOString())
     .maybeSingle();
 

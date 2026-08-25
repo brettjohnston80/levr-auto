@@ -11,13 +11,13 @@ import { getPublishedArticleBySlug } from "@/lib/articles";
 // elements (no dangerouslySetInnerHTML anywhere in this app).
 const markdownComponents = {
   h1: (props: ComponentPropsWithoutRef<"h1">) => (
-    <h2 className="mt-10 text-lg font-semibold text-white" {...props} />
+    <h2 className="mt-10 text-xl font-semibold tracking-tight text-white sm:text-2xl" {...props} />
   ),
   h2: (props: ComponentPropsWithoutRef<"h2">) => (
-    <h2 className="mt-10 text-lg font-semibold text-white" {...props} />
+    <h2 className="mt-10 text-xl font-semibold tracking-tight text-white sm:text-2xl" {...props} />
   ),
   h3: (props: ComponentPropsWithoutRef<"h3">) => (
-    <h3 className="mt-8 text-base font-semibold text-white" {...props} />
+    <h3 className="mt-8 text-lg font-semibold text-white" {...props} />
   ),
   p: (props: ComponentPropsWithoutRef<"p">) => (
     <p className="mt-4 text-sm leading-relaxed text-zinc-400 sm:text-base" {...props} />
