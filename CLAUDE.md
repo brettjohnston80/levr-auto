@@ -17,7 +17,9 @@ This file exists so any Claude Code session (yours, your collaborator's, or a fu
 
 ## Start Here (updated 2026-08-24)
 
-LEVR Auto — nationwide car-buying negotiation service, founder Brett Johnston. Full context in this file below, plus LEVR-Auto-Business-Plan-and-Roadmap.md, LEVR-Auto-Core-Processes-v1.md, levr-auto-ux-review-2026-08-19.md, and levr-auto-website-audit-2026-08-21.md in this repo. See "Working Preferences" above for how Brett likes to work.
+LEVR Auto — nationwide car-buying negotiation service, founder Brett Johnston. Full context in this file below, plus LEVR-Auto-Business-Plan-and-Roadmap.md, LEVR-Auto-Core-Processes-v1.md, levr-auto-ux-review-2026-08-19.md, levr-auto-website-audit-2026-08-21.md, and levr-auto-blog-calendar-2026.md in this repo. See "Working Preferences" above for how Brett likes to work.
+
+**Blog — calendar planned, no /blog section built yet.** `levr-auto-blog-calendar-2026.md` (added 2026-08-24) lists one topic per month, Sep 2026 – Aug 2027, topics only — each article is meant to be written a few days before its post date so pricing/rankings/model-year info stays current, not drafted in advance. One article is already written and ready to publish once a `/blog` route exists: "MSRP vs. Invoice Price: What the Numbers Actually Mean" (drafted 2026-08-24, not yet added to the repo). No `/blog` section, route, or CMS exists in the codebase yet — this is planning only.
 
 **Website audit fixes — 17 of 20 done, 3 remain.** A design/competitive research pass plus a source-level audit of this codebase surfaced 20 concrete site issues, ranked and file-pointered in `levr-auto-website-audit-2026-08-21.md` — read that file before picking any of these up. Done: all 3 Critical items, High-priority items 4/5/6/8/9, all 7 Medium items (10–16), and Strategic items 17/18. Remaining: High item 7 (no state-eligibility check at intake despite the "state by state" copy), and Strategic items 19/20. Full ranked list with exact file references is in the audit doc.
 
