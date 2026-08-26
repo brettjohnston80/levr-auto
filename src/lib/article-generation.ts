@@ -4,13 +4,7 @@ import { getAnthropic } from "@/lib/anthropic";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getPublishedArticles } from "@/lib/articles";
 import { scheduledPublishAt, DRAFT_GENERATION_LEAD_DAYS } from "@/lib/article-schedule";
-
-export interface ArticleCaptions {
-  x: string;
-  facebook: string;
-  instagram: string;
-  linkedin: string;
-}
+import { CAPTIONS_TOOL, extractCaptions, type PlatformCaptions } from "@/lib/caption-tool";
 
 export type GenerateArticleDraftResult = { ok: true } | { ok: false; error: string };
 
@@ -110,21 +104,6 @@ const CAPTIONS_SYSTEM_PROMPT =
   "genuinely useful, matching LEVR Auto's plain, direct voice. No hype, no exclamation-point " +
   "stacking. Always respond by calling the generate_social_captions tool.";
 
-const CAPTIONS_TOOL: Anthropic.Tool = {
-  name: "generate_social_captions",
-  description: "Generate one social media caption per platform announcing a new LEVR Auto blog article.",
-  input_schema: {
-    type: "object",
-    properties: {
-      x_caption: { type: "string" },
-      facebook_caption: { type: "string" },
-      instagram_caption: { type: "string" },
-      linkedin_caption: { type: "string" },
-    },
-    required: ["x_caption", "facebook_caption", "instagram_caption", "linkedin_caption"],
-  },
-};
-
 async function generateArticleBody(title: string, topic: string): Promise<string> {
   const styleRefs = (await getPublishedArticles()).slice(0, 3);
 
@@ -171,7 +150,7 @@ async function generateArticleCaptions(
   topic: string,
   content: string,
   articleUrl: string
-): Promise<ArticleCaptions> {
+): Promise<PlatformCaptions> {
   const message = await getAnthropic().messages.create({
     model: "claude-sonnet-5",
     max_tokens: 1024,
@@ -186,21 +165,7 @@ async function generateArticleCaptions(
     ],
   });
 
-  const toolUse = message.content.find(
-    (block): block is Anthropic.ToolUseBlock => block.type === "tool_use" && block.name === "generate_social_captions"
-  );
-
-  if (!toolUse || typeof toolUse.input !== "object" || toolUse.input === null) {
-    throw new Error("Claude didn't return structured captions.");
-  }
-
-  const input = toolUse.input as Record<string, unknown>;
-  return {
-    x: String(input.x_caption ?? "").trim(),
-    facebook: String(input.facebook_caption ?? "").trim(),
-    instagram: String(input.instagram_caption ?? "").trim(),
-    linkedin: String(input.linkedin_caption ?? "").trim(),
-  };
+  return extractCaptions(message);
 }
 
 /**
@@ -227,7 +192,7 @@ export async function generateArticleDraft(articleId: string): Promise<GenerateA
   const articleUrl = `${siteUrl}/articles/${article.slug}`;
 
   let content: string;
-  let captions: ArticleCaptions;
+  let captions: PlatformCaptions;
   try {
     const rawContent = await generateArticleBody(article.title, article.topic);
     content = await cleanArticleBody(rawContent);

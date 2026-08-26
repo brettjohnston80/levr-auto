@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { getAuthorizedAgent } from "@/lib/agent-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -147,6 +148,47 @@ export async function regenerateArticleDraft(articleId: string): Promise<Article
   const result = await generateArticleDraft(articleId);
   if (!result.ok) {
     return result;
+  }
+
+  revalidatePath("/internal/articles");
+  return { ok: true };
+}
+
+/**
+ * Uploads a manually-attached image for an article -- same upload pattern
+ * as submitFinancingChoice/attachSocialPostImage, same social-post-images
+ * bucket (public, no PII either way), namespaced under articles/ so the
+ * two source types never collide in the bucket listing.
+ */
+export async function attachArticleImage(articleId: string, formData: FormData): Promise<ArticleActionResult> {
+  const agent = await getAuthorizedAgent();
+  if (!agent) {
+    return { ok: false, error: "Not authorized." };
+  }
+
+  const file = formData.get("image");
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, error: "Please choose an image." };
+  }
+
+  const admin = createAdminClient();
+  const path = `articles/${articleId}/${randomUUID()}-${file.name}`;
+
+  const { error: uploadError } = await admin.storage
+    .from("social-post-images")
+    .upload(path, file, { contentType: file.type || undefined });
+
+  if (uploadError) {
+    return { ok: false, error: `Failed to upload image: ${uploadError.message}` };
+  }
+
+  const { error: updateError } = await admin
+    .from("articles")
+    .update({ image_storage_path: path, updated_at: new Date().toISOString() })
+    .eq("id", articleId);
+
+  if (updateError) {
+    return { ok: false, error: `Uploaded but failed to save: ${updateError.message}` };
   }
 
   revalidatePath("/internal/articles");

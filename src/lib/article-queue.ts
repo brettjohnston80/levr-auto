@@ -16,6 +16,7 @@ export interface DraftArticle {
   scheduledPublishAt: string;
   reminderLastThresholdDays: number | null;
   reminderLastSentAt: string | null;
+  imageUrl: string | null;
   updatedAt: string;
 }
 
@@ -25,7 +26,7 @@ export async function getDraftArticles(): Promise<DraftArticle[]> {
   const { data, error } = await admin
     .from("articles")
     .select(
-      "id, slug, title, topic, content, caption_x, caption_facebook, caption_instagram, caption_linkedin, scheduled_month, reminder_last_threshold_days, reminder_last_sent_at, updated_at"
+      "id, slug, title, topic, content, caption_x, caption_facebook, caption_instagram, caption_linkedin, scheduled_month, reminder_last_threshold_days, reminder_last_sent_at, image_storage_path, updated_at"
     )
     .eq("status", "draft")
     .order("scheduled_month", { ascending: true });
@@ -46,6 +47,9 @@ export async function getDraftArticles(): Promise<DraftArticle[]> {
     scheduledPublishAt: scheduledPublishAt(row.scheduled_month).toISOString(),
     reminderLastThresholdDays: row.reminder_last_threshold_days,
     reminderLastSentAt: row.reminder_last_sent_at,
+    imageUrl: row.image_storage_path
+      ? admin.storage.from("social-post-images").getPublicUrl(row.image_storage_path).data.publicUrl
+      : null,
     updatedAt: row.updated_at,
   }));
 }

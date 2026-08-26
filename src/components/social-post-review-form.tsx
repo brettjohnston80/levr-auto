@@ -1,49 +1,54 @@
 "use client";
 
 import { useState } from "react";
-import type { DraftArticle } from "@/lib/article-queue";
-import { updateArticleDraft, approveArticle, regenerateArticleDraft, attachArticleImage } from "@/lib/article-actions";
+import type { DraftSocialPost } from "@/lib/social-queue";
+import { updateSocialPostDraft, approveSocialPost, regenerateSocialPost, attachSocialPostImage } from "@/lib/social-actions";
 import { ImageAttachField } from "@/components/image-attach-field";
 
 const TEXTAREA_CLASS = "mt-1 w-full rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white";
 
-function scheduleBadge(scheduledPublishAt: string): { label: string; className: string } {
-  const daysRemaining = Math.ceil((new Date(scheduledPublishAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+const THEME_LABELS: Record<string, string> = {
+  spotlight_monday: "Spotlight Monday",
+  ask_around_tuesday: "Ask-Around Tuesday",
+  customer_testimonial: "Customer Testimonial",
+  throwback_thursday: "Throwback Thursday",
+  deal_of_the_week: "Deal of the Week",
+  news_recap_saturday: "News Recap Saturday",
+  sunday_question: "Sunday Question",
+};
 
-  if (daysRemaining < 0) {
-    return {
-      label: `OVERDUE by ${Math.abs(daysRemaining)} day${Math.abs(daysRemaining) === 1 ? "" : "s"}`,
-      className: "border-red-500/30 bg-red-500/10 text-red-300",
-    };
-  }
-  if (daysRemaining === 0) {
-    return { label: "Scheduled to publish today", className: "border-amber-500/30 bg-amber-500/10 text-amber-300" };
-  }
-  return {
-    label: `Scheduled to publish in ${daysRemaining} day${daysRemaining === 1 ? "" : "s"}`,
-    className: "border-white/10 bg-white/[0.03] text-zinc-400",
-  };
+function formatWeekOf(weekStart: string): string {
+  return new Date(`${weekStart}T00:00:00Z`).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 }
 
-export function ArticleReviewForm({ article }: { article: DraftArticle }) {
-  const [content, setContent] = useState(article.content);
-  const [captionX, setCaptionX] = useState(article.captionX);
-  const [captionFacebook, setCaptionFacebook] = useState(article.captionFacebook);
-  const [captionInstagram, setCaptionInstagram] = useState(article.captionInstagram);
-  const [captionLinkedin, setCaptionLinkedin] = useState(article.captionLinkedin);
+export function SocialPostReviewForm({ post }: { post: DraftSocialPost }) {
+  const [captionX, setCaptionX] = useState(post.captionX);
+  const [captionFacebook, setCaptionFacebook] = useState(post.captionFacebook);
+  const [captionInstagram, setCaptionInstagram] = useState(post.captionInstagram);
+  const [captionLinkedin, setCaptionLinkedin] = useState(post.captionLinkedin ?? "");
 
   const [busy, setBusy] = useState<"save" | "approve" | "regenerate" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [confirmingRegenerate, setConfirmingRegenerate] = useState(false);
 
-  const edits = { content, captionX, captionFacebook, captionInstagram, captionLinkedin };
-  const badge = scheduleBadge(article.scheduledPublishAt);
+  const hasLinkedin = post.applicablePlatforms.includes("linkedin");
+  const edits = {
+    captionX,
+    captionFacebook,
+    captionInstagram,
+    captionLinkedin: hasLinkedin ? captionLinkedin : null,
+  };
 
   async function handleSave() {
     setBusy("save");
     setError(null);
-    const result = await updateArticleDraft(article.id, edits);
+    const result = await updateSocialPostDraft(post.id, edits);
     setBusy(null);
     if (!result.ok) {
       setError(result.error);
@@ -55,49 +60,33 @@ export function ArticleReviewForm({ article }: { article: DraftArticle }) {
   async function handleApprove() {
     setBusy("approve");
     setError(null);
-    const result = await approveArticle(article.id, edits);
+    const result = await approveSocialPost(post.id, edits);
     setBusy(null);
     if (!result.ok) {
       setError(result.error);
     }
-    // On success the article leaves 'draft' and the server-refreshed list
+    // On success the post leaves 'draft' and the server-refreshed list
     // (via revalidatePath) naturally drops it from this page.
   }
 
   async function handleRegenerate() {
     setBusy("regenerate");
     setError(null);
-    const result = await regenerateArticleDraft(article.id);
+    const result = await regenerateSocialPost(post.id);
     setBusy(null);
     setConfirmingRegenerate(false);
     if (!result.ok) {
       setError(result.error);
     }
-    // On success the page re-renders with fresh content via revalidatePath
-    // + this component's key changing (id:updatedAt), which remounts it
-    // with the new draft rather than showing stale local state.
   }
 
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-lg font-semibold text-white">{article.title}</h2>
-          <p className="text-xs text-zinc-500">{article.topic}</p>
+          <h2 className="text-lg font-semibold text-white">{THEME_LABELS[post.theme] ?? post.theme}</h2>
+          <p className="text-xs text-zinc-500">Week of {formatWeekOf(post.weekStart)}</p>
         </div>
-        <span className={`whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium ${badge.className}`}>
-          {badge.label}
-        </span>
-      </div>
-
-      <div className="mt-5">
-        <label className="block text-xs font-medium text-zinc-400">Content (Markdown)</label>
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          rows={20}
-          className={`${TEXTAREA_CLASS} font-mono`}
-        />
       </div>
 
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -123,24 +112,28 @@ export function ArticleReviewForm({ article }: { article: DraftArticle }) {
             className={TEXTAREA_CLASS}
           />
         </div>
-        <div>
-          <label className="block text-xs font-medium text-zinc-400">LinkedIn caption</label>
-          <textarea
-            value={captionLinkedin}
-            onChange={(e) => setCaptionLinkedin(e.target.value)}
-            rows={3}
-            className={TEXTAREA_CLASS}
-          />
-        </div>
+        {hasLinkedin ? (
+          <div>
+            <label className="block text-xs font-medium text-zinc-400">LinkedIn caption</label>
+            <textarea
+              value={captionLinkedin}
+              onChange={(e) => setCaptionLinkedin(e.target.value)}
+              rows={3}
+              className={TEXTAREA_CLASS}
+            />
+          </div>
+        ) : (
+          <div className="flex items-center text-xs text-zinc-600">No LinkedIn slot — this theme falls on a weekend.</div>
+        )}
       </div>
 
       <div className="mt-5">
         <ImageAttachField
-          imageUrl={article.imageUrl}
+          imageUrl={post.imageUrl}
           onUpload={async (file) => {
             const fd = new FormData();
             fd.set("image", file);
-            return attachArticleImage(article.id, fd);
+            return attachSocialPostImage(post.id, fd);
           }}
         />
       </div>
@@ -168,7 +161,7 @@ export function ArticleReviewForm({ article }: { article: DraftArticle }) {
 
         {confirmingRegenerate ? (
           <span className="flex items-center gap-2 text-sm text-amber-300">
-            Discard the current draft and captions and regenerate?
+            Discard the current captions and regenerate?
             <button
               type="button"
               onClick={handleRegenerate}

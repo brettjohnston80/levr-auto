@@ -11,6 +11,7 @@
     { "path": "/api/cron/post-deal-survey", "schedule": "0 12 * * *" },
     { "path": "/api/cron/notification-digest", "schedule": "0 13 * * *" },
     { "path": "/api/cron/generate-article-draft", "schedule": "0 14 * * *" },
-    { "path": "/api/cron/article-reminder", "schedule": "0 15 * * *" }
+    { "path": "/api/cron/article-reminder", "schedule": "0 15 * * *" },
+    { "path": "/api/cron/generate-social-batch", "schedule": "0 22 * * 0" }
   ]
 }
