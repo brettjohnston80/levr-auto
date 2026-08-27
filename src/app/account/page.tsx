@@ -380,13 +380,13 @@ function SearchCard({ search }: { search: DashboardSearch }) {
                   <span className="font-semibold text-white">{offer.dealerName}</span>
                   {offer.isBelowMsrp && (
                     <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-400">
-                      Below MSRP
+                      Below Total Suggested Retail Price
                     </span>
                   )}
                 </div>
                 <p className="mt-2 text-sm text-zinc-400">
-                  Offer: <span className="text-white">{formatCents(offer.offerPriceCents)}</span> — MSRP:{" "}
-                  {formatCents(offer.msrpCents)}
+                  Offer: <span className="text-white">{formatCents(offer.offerPriceCents)}</span> — Total
+                  Suggested Retail Price: {formatCents(offer.msrpCents)}
                 </p>
                 <p className="mt-1 text-xs text-zinc-500">
                   Delivered {formatDate(offer.deliveredAt)} — status: {offer.status.replace(/_/g, " ")}

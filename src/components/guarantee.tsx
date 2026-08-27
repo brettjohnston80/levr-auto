@@ -7,7 +7,7 @@ const TIMELINE = [
   {
     day: "Day 30",
     title: "Offer guaranteed",
-    body: "At least one real offer below MSRP, or your $699 back.",
+    body: "At least one real offer below Total Suggested Retail Price, or your $699 back.",
   },
   {
     day: "Day 60",
@@ -24,8 +24,9 @@ export function Guarantee() {
           We guarantee it. Literally.
         </h2>
         <p className="mt-6 text-lg leading-relaxed text-zinc-900/80">
-          If we can&apos;t bring you at least one real offer below MSRP — the full sticker
-          price, before tax, title, and fees — within 30 days, you get your $699 back. No
+          If we can&apos;t bring you at least one real offer below Total Suggested Retail
+          Price — the full sticker price, including destination, before tax, title, and
+          fees — within 30 days, you get your $699 back. No
           questions asked. And you&apos;re never obligated to buy anything, even if we do find
           you a great deal.
         </p>

@@ -1,20 +1,24 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { GetStartedButton } from "@/components/get-started-button";
 import { VehicleDetailModal } from "@/components/vehicle-detail-modal";
+import { PriceRangeSlider } from "@/components/price-range-slider";
 import {
   FAMILY_SIZES,
   LARGE_CAPACITY_VEHICLE_TYPES,
   MOCK_RECOMMENDATIONS,
   POWERTRAINS,
-  PRICE_RANGES,
+  PRICE_SLIDER_MIN,
+  PRICE_SLIDER_MAX,
   PRIORITIES,
   USE_CASES_BY_VEHICLE_TYPE,
   VEHICLE_TYPES,
+  formatPriceRange,
   type Answers,
   type MockVehicle,
   type Powertrain,
+  type PriceRangeValue,
   type VehicleType,
 } from "@/lib/matchmaker-data";
 
@@ -25,13 +29,13 @@ const EMPTY_ANSWERS: Answers = {
   useCase: "",
   familySize: "",
   powertrain: "",
-  priceRange: "",
+  priceRange: null,
   priorities: DEFAULT_PRIORITY_ORDER,
 };
 
 type Step = {
   id: keyof Answers;
-  kind: "select" | "rank";
+  kind: "select" | "range" | "rank";
   title: string;
   subtitle?: string;
   options?: string[];
@@ -68,10 +72,9 @@ const STEPS: Step[] = [
   },
   {
     id: "priceRange",
-    kind: "select",
+    kind: "range",
     title: "What's your target price range?",
-    subtitle: "Ballpark is fine — you can fine-tune this later.",
-    options: PRICE_RANGES.map((r) => r.label),
+    subtitle: "Drag both ends to set your range — or leave it wide open.",
   },
   {
     id: "priorities",
@@ -95,14 +98,20 @@ const FAMILY_SCALE: Record<string, number> = {
   "6+": 1.2,
 };
 
-const PRICE_TIER: Record<string, string> = {
-  "": "",
-  "Budget-Conscious (Under $30,000)": "$",
-  "Practical ($30,000 – $45,000)": "$$",
-  "Well-Equipped ($45,000 – $60,000)": "$$$",
-  "Premium ($60,000 – $80,000)": "$$$$",
-  "Luxurious (Over $80,000)": "$$$$$",
-};
+// Buckets the range's midpoint against the same dollar breakpoints the old
+// PRICE_RANGES buckets used ($30k/$45k/$60k/$80k) -- reuses those existing,
+// still-meaningful thresholds as pure numbers now that there's no discrete
+// label to key off. Null (step not yet reached) shows nothing, same as the
+// old "" key showing "".
+function priceTierForRange(range: PriceRangeValue | null): string {
+  if (!range) return "";
+  const mid = (Math.min(range.min, PRICE_SLIDER_MAX) + Math.min(range.max, PRICE_SLIDER_MAX)) / 2;
+  if (mid < 30000) return "$";
+  if (mid < 45000) return "$$";
+  if (mid < 60000) return "$$$";
+  if (mid < 80000) return "$$$$";
+  return "$$$$$";
+}
 
 // Weighs all six answer fields, not just bodyType/powertrain. Weights are
 // tuned so changing any one field visibly moves the list, not for a
@@ -126,8 +135,13 @@ function fitScore(vehicle: MockVehicle, answers: Answers): number {
 
   if (answers.familySize && vehicle.seatsCategory === answers.familySize) score += 15;
 
-  const range = PRICE_RANGES.find((r) => r.label === answers.priceRange);
-  if (range && vehicle.priceValue >= range.min && vehicle.priceValue <= range.max) score += 15;
+  if (
+    answers.priceRange &&
+    vehicle.priceValue >= answers.priceRange.min &&
+    vehicle.priceValue <= answers.priceRange.max
+  ) {
+    score += 15;
+  }
 
   if (answers.useCase && typeMatches) score += 5;
 
@@ -330,14 +344,14 @@ function PriorityRanker({ order, onChange }: { order: string[]; onChange: (next:
 function BuildingVisual({ answers, currentStepId }: { answers: Answers; currentStepId: keyof Answers }) {
   const colorClass = POWERTRAIN_COLOR[answers.powertrain];
   const scale = FAMILY_SCALE[answers.familySize] ?? 1;
-  const priceTier = PRICE_TIER[answers.priceRange];
+  const priceTier = priceTierForRange(answers.priceRange);
 
   const allChips: { label: string; value: string; stepId: keyof Answers }[] = [
     { label: "Type", value: answers.vehicleType, stepId: "vehicleType" },
     { label: "Use", value: answers.useCase, stepId: "useCase" },
     { label: "Riders", value: answers.familySize, stepId: "familySize" },
     { label: "Powertrain", value: answers.powertrain, stepId: "powertrain" },
-    { label: "Budget", value: answers.priceRange, stepId: "priceRange" },
+    { label: "Budget", value: answers.priceRange ? formatPriceRange(answers.priceRange) : "", stepId: "priceRange" },
   ];
   const chips = allChips.filter((chip) => chip.value);
 
@@ -438,11 +452,13 @@ function CompactSelectField({
 function AnswerPanel({
   answers,
   onFieldChange,
+  onPriceRangeChange,
   onReorderPriorities,
   onStartOver,
 }: {
   answers: Answers;
   onFieldChange: (id: keyof Answers, value: string) => void;
+  onPriceRangeChange: (range: PriceRangeValue) => void;
   onReorderPriorities: (order: string[]) => void;
   onStartOver: () => void;
 }) {
@@ -480,12 +496,12 @@ function AnswerPanel({
         value={answers.powertrain}
         onSelect={(v) => onFieldChange("powertrain", v)}
       />
-      <CompactSelectField
-        label="Price range"
-        options={PRICE_RANGES.map((r) => r.label)}
-        value={answers.priceRange}
-        onSelect={(v) => onFieldChange("priceRange", v)}
-      />
+      <div className="mt-4">
+        <h4 className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">Price range</h4>
+        <div className="mt-3">
+          <PriceRangeSlider value={answers.priceRange} onChange={onPriceRangeChange} />
+        </div>
+      </div>
 
       <div className="mt-5">
         <h4 className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">Priorities</h4>
@@ -512,7 +528,9 @@ function QuestionPanel({
   totalSteps,
   value,
   rankedValues,
+  priceRangeValue,
   onSelect,
+  onPriceRangeChange,
   onReorderPriorities,
   onBack,
   onContinue,
@@ -522,7 +540,9 @@ function QuestionPanel({
   totalSteps: number;
   value: string;
   rankedValues: string[];
+  priceRangeValue: PriceRangeValue | null;
   onSelect: (value: string) => void;
+  onPriceRangeChange: (range: PriceRangeValue) => void;
   onReorderPriorities: (order: string[]) => void;
   onBack: () => void;
   onContinue: () => void;
@@ -577,6 +597,21 @@ function QuestionPanel({
               </button>
             );
           })}
+        </div>
+      )}
+
+      {step.kind === "range" && (
+        <div className="mt-8">
+          <PriceRangeSlider value={priceRangeValue} onChange={onPriceRangeChange} />
+          <div className="mt-8 flex justify-end">
+            <button
+              type="button"
+              onClick={onContinue}
+              className="rounded-full bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400"
+            >
+              Continue
+            </button>
+          </div>
         </div>
       )}
 
@@ -720,7 +755,7 @@ function ResultsList({
     answers.useCase,
     answers.familySize,
     answers.powertrain,
-    answers.priceRange,
+    answers.priceRange ? formatPriceRange(answers.priceRange) : "",
   ].filter(Boolean);
 
   return (
@@ -832,6 +867,21 @@ export function Matchmaker() {
     });
   }
 
+  function setPriceRange(range: PriceRangeValue) {
+    setAnswers((prev) => ({ ...prev, priceRange: range }));
+  }
+
+  // priceRange stays null (hidden from chips, excluded from scoring) until
+  // the customer actually reaches this step -- the moment they do, default
+  // it to the full open range so QuestionPanel/AnswerPanel never have to
+  // treat null as a real, renderable slider position. Re-running this after
+  // priceRange is no longer null is a safe no-op (the condition just fails).
+  useEffect(() => {
+    if (currentStep.id === "priceRange" && answers.priceRange === null) {
+      setPriceRange({ min: PRICE_SLIDER_MIN, max: PRICE_SLIDER_MAX });
+    }
+  }, [currentStep.id, answers.priceRange]);
+
   function goNext() {
     if (step < STEPS.length - 1) {
       setStep((s) => s + 1);
@@ -916,6 +966,7 @@ export function Matchmaker() {
                 <AnswerPanel
                   answers={answers}
                   onFieldChange={setField}
+                  onPriceRangeChange={setPriceRange}
                   onReorderPriorities={reorderPriorities}
                   onStartOver={startOver}
                 />
@@ -929,7 +980,9 @@ export function Matchmaker() {
                 totalSteps={STEPS.length}
                 value={currentStringValue}
                 rankedValues={answers.priorities}
+                priceRangeValue={answers.priceRange}
                 onSelect={(value) => select(currentStep.id, value)}
+                onPriceRangeChange={setPriceRange}
                 onReorderPriorities={reorderPriorities}
                 onBack={goBack}
                 onContinue={goNext}

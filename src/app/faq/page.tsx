@@ -30,12 +30,16 @@ const FAQS: FaqItem[] = [
     a: "You do. Delivery, tax, title, and any dealer fees are part of the vehicle purchase and are paid directly by you, just like any car purchase. LEVR's only charge is our flat upfront service fee — we don't pay any fees ourselves anywhere in the process, and we don't take a commission or markup on your deal.",
   },
   {
-    q: "What if you can't get me a deal below MSRP?",
+    q: 'What do you mean by "Total Suggested Retail Price"?',
+    a: 'Total Suggested Retail Price is the full manufacturer-suggested price for your exact vehicle — the base price, plus any factory-installed options, plus the manufacturer\'s destination/delivery charge, all added together. This is the same "Total" figure printed on your vehicle\'s official window sticker, sometimes shown as a separate line from the base "Manufacturer\'s Suggested Retail Price." It doesn\'t include sales tax, title and registration fees, dealer documentation fees, or anything a dealer adds on their own. Our guarantee always compares a dealer\'s offer against this full number — so you\'re never left guessing which figure on the sticker actually counts.',
+  },
+  {
+    q: "What if you can't get me a deal below Total Suggested Retail Price?",
     a: "You get your full $699 back, automatically, at the end of your 30-day guarantee window. No need to ask for it.",
   },
   {
     q: "Why not just use a cheaper subscription tool instead?",
-    a: "Some tools can send messages to dealers for a few dollars a month — but sending a message isn't the same as getting you a result. LEVR Auto is done for you, start to finish: a real negotiation, real offers landing in your account, and a real person you can reach if something needs attention. And unlike a subscription, we put our fee on the line — if we can't bring you at least one real offer below MSRP, you get your $699 back.",
+    a: "Some tools can send messages to dealers for a few dollars a month — but sending a message isn't the same as getting you a result. LEVR Auto is done for you, start to finish: a real negotiation, real offers landing in your account, and a real person you can reach if something needs attention. And unlike a subscription, we put our fee on the line — if we can't bring you at least one real offer below Total Suggested Retail Price, you get your $699 back.",
   },
   {
     q: "Am I required to buy a car?",
@@ -43,7 +47,7 @@ const FAQS: FaqItem[] = [
   },
   {
     q: "How long does the process take?",
-    a: "You're guaranteed at least one real offer below MSRP within 30 days. If you need more time to decide, your search stays open at no extra cost through day 60.",
+    a: "You're guaranteed at least one real offer below Total Suggested Retail Price within 30 days. If you need more time to decide, your search stays open at no extra cost through day 60.",
   },
   {
     q: "Will I have to negotiate with a dealer myself?",

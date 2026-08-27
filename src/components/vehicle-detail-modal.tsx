@@ -1,6 +1,6 @@
 "use client";
 
-import { PRICE_RANGES, type Answers, type MockVehicle } from "@/lib/matchmaker-data";
+import type { Answers, MockVehicle } from "@/lib/matchmaker-data";
 
 // Only ever includes a bullet for something that actually matches the
 // vehicle's real data against the user's specific answers -- no filler for
@@ -21,8 +21,11 @@ function buildFitBullets(vehicle: MockVehicle, answers: Answers): string[] {
     bullets.push(`Seating sized right for your group (${answers.familySize} riders).`);
   }
 
-  const range = PRICE_RANGES.find((r) => r.label === answers.priceRange);
-  if (range && vehicle.priceValue >= range.min && vehicle.priceValue <= range.max) {
+  if (
+    answers.priceRange &&
+    vehicle.priceValue >= answers.priceRange.min &&
+    vehicle.priceValue <= answers.priceRange.max
+  ) {
     bullets.push("Falls within your target price range.");
   }
 

@@ -91,15 +91,15 @@ export const LARGE_CAPACITY_VEHICLE_TYPES: VehicleType[] = ["SUV", "Passenger Va
 
 export const POWERTRAINS: Powertrain[] = ["Gas", "Hybrid", "Electric"];
 
-export type PriceRange = { label: string; min: number; max: number };
+// Dual-handle slider bounds -- both ends open. The leftmost handle position
+// means "$20,000 or less" (stored as min: 0), the rightmost means "$100,000
+// or more" (stored as max: Infinity) -- direct generalization of the old
+// PRICE_RANGES' first/last buckets, which used the same 0/Infinity sentinels.
+export const PRICE_SLIDER_MIN = 20000;
+export const PRICE_SLIDER_MAX = 100000;
+export const PRICE_SLIDER_STEP = 1000;
 
-export const PRICE_RANGES: PriceRange[] = [
-  { label: "Budget-Conscious (Under $30,000)", min: 0, max: 30000 },
-  { label: "Practical ($30,000 – $45,000)", min: 30000, max: 45000 },
-  { label: "Well-Equipped ($45,000 – $60,000)", min: 45000, max: 60000 },
-  { label: "Premium ($60,000 – $80,000)", min: 60000, max: 80000 },
-  { label: "Luxurious (Over $80,000)", min: 80000, max: Infinity },
-];
+export type PriceRangeValue = { min: number; max: number };
 
 export type Priority = { label: string; clarifier: string };
 
@@ -122,9 +122,22 @@ export type Answers = {
   useCase: string;
   familySize: string;
   powertrain: Powertrain | "";
-  priceRange: string;
+  // null = step not yet reached/answered, same semantics as the other
+  // fields' "" default -- excluded from scoring and hidden from chips
+  // until the customer actually reaches and confirms this step.
+  priceRange: PriceRangeValue | null;
   priorities: string[];
 };
+
+/** Shared by the slider's own live label, BuildingVisual's chip, and ResultsList's chip. */
+export function formatPriceRange(range: PriceRangeValue): string {
+  const atFloor = range.min <= PRICE_SLIDER_MIN;
+  const atCeiling = range.max >= PRICE_SLIDER_MAX;
+  if (atFloor && atCeiling) return "Any price";
+  if (atFloor) return `$${range.max.toLocaleString()} or less`;
+  if (atCeiling) return `$${range.min.toLocaleString()} or more`;
+  return `$${range.min.toLocaleString()} – $${range.max.toLocaleString()}`;
+}
 
 export type MockVehicle = {
   id: string;

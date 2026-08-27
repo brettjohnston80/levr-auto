@@ -22,7 +22,7 @@ const ROWS = [
   {
     label: "If it doesn't work out",
     usual: "You walk away with nothing to show for your time",
-    levr: "Your money back if we don't find an offer below MSRP",
+    levr: "Your money back if we don't find an offer below Total Suggested Retail Price",
   },
   {
     label: "The pace",
