@@ -319,8 +319,8 @@ Four related ideas Brett raised together: knowing real dealer cost to negotiate 
 |---|---|
 | Domains | ~$31 |
 | Kansas LLC | ~$85 |
-| Anthropic API credits | ~$5 |
-| **Spent so far** | **~$121** |
+| Anthropic API credits | ~$50 |
+| **Spent so far** | **~$166** |
 | Trademark clearance opinion (est.) | $300–500 |
 | State licensing survey (est.) | varies by attorney/scope |
 | MarketCheck API (est.) | TBD from quote |
