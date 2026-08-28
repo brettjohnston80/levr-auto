@@ -380,7 +380,7 @@ function SearchCard({ search }: { search: DashboardSearch }) {
                   <span className="font-semibold text-white">{offer.dealerName}</span>
                   {offer.isBelowMsrp && (
                     <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-400">
-                      Below Total Suggested Retail Price
+                      Below Total SRP
                     </span>
                   )}
                 </div>
