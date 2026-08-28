@@ -21,6 +21,7 @@ import {
   type PriceRangeValue,
   type VehicleType,
 } from "@/lib/matchmaker-data";
+import { GENERATED_RECOMMENDATIONS } from "@/lib/generated-matchmaker-data";
 
 const DEFAULT_PRIORITY_ORDER = PRIORITIES.map((p) => p.label);
 
@@ -925,15 +926,25 @@ export function Matchmaker() {
     });
   }
 
+  // Combines the 10 original hand-curated entries with the researched
+  // dataset (493 real MY2026 trims across Toyota/Honda/Hyundai/Kia/
+  // Chevrolet/Ford/Ram/Tesla). See data/matchmaker-integration-notes-2026-08-28.md
+  // for how priorityScores/rationale were derived and what's still missing
+  // (Ram 2500/3500/ProMaster, Tesla Model 3/S/X/Cybertruck).
+  const ALL_RECOMMENDATIONS = useMemo(
+    () => [...MOCK_RECOMMENDATIONS, ...GENERATED_RECOMMENDATIONS],
+    []
+  );
+
   const sortedByFit = useMemo(() => {
-    return [...MOCK_RECOMMENDATIONS].sort((a, b) => fitScore(b, answers) - fitScore(a, answers));
-  }, [answers]);
+    return [...ALL_RECOMMENDATIONS].sort((a, b) => fitScore(b, answers) - fitScore(a, answers));
+  }, [ALL_RECOMMENDATIONS, answers]);
 
   const visible = sortedByFit
     .filter((v) => !dismissed.has(v.id))
     .sort((a, b) => Number(flagged.has(b.id)) - Number(flagged.has(a.id)));
 
-  const infoVehicle = infoVehicleId ? MOCK_RECOMMENDATIONS.find((v) => v.id === infoVehicleId) ?? null : null;
+  const infoVehicle = infoVehicleId ? ALL_RECOMMENDATIONS.find((v) => v.id === infoVehicleId) ?? null : null;
 
   return (
     <section className="bg-zinc-950 py-20 sm:py-24">
