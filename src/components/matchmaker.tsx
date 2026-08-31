@@ -23,7 +23,14 @@ import {
   type VehicleType,
 } from "@/lib/matchmaker-data";
 import { formatPriceEstimate, buildRationale, type MatchmakerVehicle } from "@/lib/matchmaker-vehicle-display";
-import { getMatchedVehicles, segmentByPowertrain, type MatchedVehicle } from "@/lib/matchmaker-scoring";
+import { getMatchedVehicles, segmentByPowertrain, groupByModel, type MatchedVehicle, type ModelGroup } from "@/lib/matchmaker-scoring";
+import {
+  dimensionIndicator,
+  personalizedDimensionOrder,
+  INDICATOR_CLASSES,
+  INDICATOR_LEVEL_LABEL,
+  DIMENSION_ABBREVIATION,
+} from "@/lib/matchmaker-dimension-indicators";
 
 const EMPTY_ANSWERS: Answers = {
   vehicleType: "",
@@ -593,27 +600,106 @@ function QuestionPanel({
   );
 }
 
-function VehicleCard({
+// Ranking-indicator row (Step E, approved 2026-09-02, Part 3). Compact
+// visual approach chosen specifically because a results list can run into
+// the hundreds of cards (see Step 4's own verification elsewhere in this
+// file) -- a small colored abbreviation badge per dimension, not a
+// sentence, with the full dimension name + numeric score available via a
+// native title tooltip for anyone who wants the detail without opening
+// the modal. Never infer color from the score alone -- gray (no data)
+// always wins regardless of the numeric value, per dimensionIndicator's
+// own contract. INDICATOR_CLASSES/INDICATOR_LEVEL_LABEL/
+// DIMENSION_ABBREVIATION live in matchmaker-dimension-indicators.ts, not
+// here -- shared with the detail modal's full breakdown (Step F) so the
+// two surfaces can't render different colors/labels for the same level.
+//
+// Shared by the card's compact row (sliced to top 5) and the detail
+// modal's full breakdown (Step F) -- both read the same
+// personalizedDimensionOrder, so they can't silently drift on ordering.
+function DimensionIndicatorRow({
   vehicle,
+  priorities,
+  limit,
+}: {
+  vehicle: MatchmakerVehicle;
+  priorities: string[];
+  limit: number;
+}) {
+  const order = personalizedDimensionOrder(vehicle.bodyStyle, priorities).slice(0, limit);
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-1.5">
+      {order.map((label) => {
+        const score = vehicle.scores[label] ?? 0;
+        const hasData = vehicle.hasData[label] ?? false;
+        const level = dimensionIndicator(score, hasData);
+        return (
+          <span
+            key={label}
+            title={`${label}: ${hasData ? `${Math.round(score)}/100 (${INDICATOR_LEVEL_LABEL[level]})` : "No data available"}`}
+            className={`flex h-6 min-w-[1.75rem] items-center justify-center rounded-full px-1.5 text-[10px] font-bold ring-1 ${INDICATOR_CLASSES[level]}`}
+          >
+            {DIMENSION_ABBREVIATION[label] ?? label.slice(0, 2)}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+// One card per MODEL (make + model), not per trim row -- results-card
+// redesign approved 2026-09-02 (see
+// data/matchmaker-duplicate-investigation-and-grouping-plan-2026-09-02.md,
+// Part 2). Price/rationale/badges/action buttons always operate on
+// whichever trim is currently "active" within the card: group.headline
+// (the highest scorer) by default, or whatever the customer picked from
+// the trim selector.
+//
+// Dismiss/flag are PER-TRIM, not group-level (Brett's explicit correction
+// over the plan's original group-level recommendation, 2026-09-02) --
+// keyed by the active trim's own id, the same Set<string> mechanism used
+// before grouping existed. The wrinkle this creates: dismissing the
+// currently-active trim needs the card to fall back to whichever
+// non-dismissed trim now scores highest, not keep showing (or hide
+// behind) a trim that's gone. Handled without any extra effect/reset
+// logic -- see `activeVariant` below -- because dismissed vehicles are
+// filtered OUT of the raw list *before* groupByModel runs (in
+// Matchmaker()), so `group` itself, `group.headline`, and `group.variants`
+// here are already the correct post-dismiss values on every render; a
+// group with zero non-dismissed variants simply never gets built, so a
+// fully-dismissed model's card disappears with no special-casing.
+function ModelGroupCard({
+  group,
+  priorities,
   flagged,
   onDismiss,
   onToggleFlag,
   onOpenInfo,
 }: {
-  vehicle: MatchmakerVehicle;
-  flagged: boolean;
-  onDismiss: () => void;
-  onToggleFlag: () => void;
-  onOpenInfo: () => void;
+  group: ModelGroup;
+  priorities: string[];
+  flagged: Set<string>;
+  onDismiss: (id: string) => void;
+  onToggleFlag: (id: string) => void;
+  onOpenInfo: (id: string) => void;
 }) {
   const [searchClicked, setSearchClicked] = useState(false);
-  const priceEstimate = formatPriceEstimate(vehicle.trueStartingPriceCents);
-  const rationale = buildRationale(vehicle);
+  // Sticky manual trim selection -- null until the customer picks
+  // something from the selector. Recomputed as a plain fallback on every
+  // render rather than tracked via an effect: if the manually-picked id
+  // is no longer present in group.variants (dismissed, most commonly),
+  // this falls straight back to group.headline with no stale reference.
+  const [manualTrimId, setManualTrimId] = useState<string | null>(null);
+  const activeVariant =
+    group.variants.find((v) => v.id === manualTrimId) ?? group.headline;
+
+  const priceEstimate = formatPriceEstimate(activeVariant.trueStartingPriceCents);
+  const rationale = buildRationale(activeVariant);
+  const isFlagged = flagged.has(activeVariant.id);
 
   return (
     <div
       className={`flex flex-col gap-4 rounded-3xl border p-6 shadow-xl shadow-black/20 transition-colors sm:flex-row sm:items-start sm:justify-between ${
-        flagged
+        isFlagged
           ? "border-emerald-500/40 bg-emerald-500/[0.06]"
           : "border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02]"
       }`}
@@ -621,21 +707,52 @@ function VehicleCard({
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-3 sm:block">
           <h3 className="text-lg font-semibold text-white">
-            {vehicle.make} {vehicle.model} {vehicle.trim}
+            {group.make} {group.model}
           </h3>
           <span className="shrink-0 text-sm font-semibold text-emerald-400 sm:hidden">
             {priceEstimate}
           </span>
         </div>
-        <div className="mt-1 flex flex-wrap gap-1.5 text-xs text-zinc-400">
+
+        {/* Trim/drivetrain selector -- only shown when there's more than
+            one variant to choose between (a single-trim group has
+            nothing to toggle). Native <select>, not a pill row: real
+            per-model trim counts range from 2 to 31 (Ram ProMaster) --
+            confirmed against the live dataset -- and a native select
+            scales cleanly across that whole range with no special-casing.
+            Trim + drivetrain always both shown (not conditionally), since
+            38 of 308 real model groups have at least one repeated trim
+            label where drivetrain is the only disambiguator (e.g. Alfa
+            Romeo Giulia Base AWD vs. RWD). */}
+        {group.variants.length > 1 ? (
+          <select
+            value={activeVariant.id}
+            onChange={(e) => setManualTrimId(e.target.value)}
+            className="mt-2 w-full max-w-xs rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:border-white/25 focus:border-emerald-500/50 focus:outline-none"
+          >
+            {group.variants.map((v) => (
+              <option key={v.id} value={v.id} className="bg-zinc-900 text-zinc-100">
+                {v.trim} — {v.drivetrain ?? "—"} — {formatPriceEstimate(v.trueStartingPriceCents)}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <p className="mt-1 text-xs text-zinc-500">
+            {activeVariant.trim}
+            {activeVariant.drivetrain ? ` · ${activeVariant.drivetrain}` : ""}
+          </p>
+        )}
+
+        <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-zinc-400">
           <span className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-0.5">
-            {vehicle.bodyStyle}
+            {activeVariant.bodyStyle}
           </span>
           <span className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-0.5">
-            {vehicle.fuelType ?? "—"}
+            {activeVariant.fuelType ?? "—"}
           </span>
         </div>
         <p className="mt-3 text-sm leading-relaxed text-zinc-400">{rationale}</p>
+        <DimensionIndicatorRow vehicle={activeVariant} priorities={priorities} limit={5} />
       </div>
 
       <div className="flex shrink-0 flex-col items-stretch gap-2 sm:w-52">
@@ -645,30 +762,30 @@ function VehicleCard({
         <div className="flex flex-wrap items-center gap-2 sm:flex-col sm:items-stretch">
           <button
             type="button"
-            onClick={onDismiss}
+            onClick={() => onDismiss(activeVariant.id)}
             className="rounded-full border border-white/15 px-4 py-2 text-xs font-semibold text-zinc-300 transition-colors hover:border-red-500/40 hover:text-red-400"
           >
             Not interested
           </button>
           <button
             type="button"
-            onClick={onOpenInfo}
+            onClick={() => onOpenInfo(activeVariant.id)}
             className="rounded-full border border-white/15 px-4 py-2 text-xs font-semibold text-zinc-300 transition-colors hover:border-sky-400/40 hover:text-sky-300"
           >
             More info
           </button>
           <button
             type="button"
-            onClick={onToggleFlag}
-            aria-pressed={flagged}
+            onClick={() => onToggleFlag(activeVariant.id)}
+            aria-pressed={isFlagged}
             className={`inline-flex items-center justify-center gap-1.5 rounded-full border px-4 py-2 text-xs font-semibold transition-colors ${
-              flagged
+              isFlagged
                 ? "border-amber-400 bg-amber-400/10 text-amber-300"
                 : "border-white/15 text-zinc-300 hover:border-amber-400/40 hover:text-amber-300"
             }`}
           >
-            <StarIcon filled={flagged} />
-            {flagged ? "Flagged" : "Flag"}
+            <StarIcon filled={isFlagged} />
+            {isFlagged ? "Flagged" : "Flag"}
           </button>
         </div>
 
@@ -694,7 +811,7 @@ function VehicleCard({
 // sitting alongside this needs to trigger the same re-sort on every edit.
 // No "Start Over" here anymore -- that moved into AnswerPanel, secondary to
 // editing individual fields directly.
-type AlternativeCard = { powertrain: Powertrain; label: string; vehicle: MatchedVehicle };
+type AlternativeCard = { powertrain: Powertrain; label: string; group: ModelGroup };
 
 function ResultsList({
   answers,
@@ -708,7 +825,7 @@ function ResultsList({
   anyDismissed,
 }: {
   answers: Answers;
-  primary: MatchedVehicle[];
+  primary: ModelGroup[];
   alternatives: AlternativeCard[];
   flagged: Set<string>;
   onDismiss: (id: string) => void;
@@ -765,14 +882,15 @@ function ResultsList({
         <>
           {primary.length > 0 && (
             <div className="mt-8 flex flex-col gap-4">
-              {primary.map((vehicle) => (
-                <VehicleCard
-                  key={vehicle.id}
-                  vehicle={vehicle}
-                  flagged={flagged.has(vehicle.id)}
-                  onDismiss={() => onDismiss(vehicle.id)}
-                  onToggleFlag={() => onToggleFlag(vehicle.id)}
-                  onOpenInfo={() => onOpenInfo(vehicle.id)}
+              {primary.map((group) => (
+                <ModelGroupCard
+                  key={group.key}
+                  group={group}
+                  priorities={answers.priorities}
+                  flagged={flagged}
+                  onDismiss={onDismiss}
+                  onToggleFlag={onToggleFlag}
+                  onOpenInfo={onOpenInfo}
                 />
               ))}
             </div>
@@ -789,12 +907,13 @@ function ResultsList({
                     <p className="mb-2 text-xs font-semibold tracking-wide text-emerald-400 uppercase">
                       {alt.label}
                     </p>
-                    <VehicleCard
-                      vehicle={alt.vehicle}
-                      flagged={flagged.has(alt.vehicle.id)}
-                      onDismiss={() => onDismiss(alt.vehicle.id)}
-                      onToggleFlag={() => onToggleFlag(alt.vehicle.id)}
-                      onOpenInfo={() => onOpenInfo(alt.vehicle.id)}
+                    <ModelGroupCard
+                      group={alt.group}
+                      priorities={answers.priorities}
+                      flagged={flagged}
+                      onDismiss={onDismiss}
+                      onToggleFlag={onToggleFlag}
+                      onOpenInfo={onOpenInfo}
                     />
                   </div>
                 ))}
@@ -968,26 +1087,56 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
     [matched, answers.powertrain],
   );
 
-  function applyDismissAndFlagSort(list: MatchedVehicle[]) {
-    return list
-      .filter((v) => !dismissed.has(v.id))
-      .sort((a, b) => Number(flagged.has(b.id)) - Number(flagged.has(a.id)));
+  // Dismiss is applied BEFORE grouping, not after -- this is what makes
+  // the "dismiss the currently-active trim, card recomputes its headline"
+  // behavior (Brett, 2026-09-02) work with no special-case logic:
+  // groupByModel()'s headline is always "the first (i.e. highest-scoring)
+  // vehicle encountered for a given make+model key" in its sorted input,
+  // so removing dismissed trims from that input before grouping already
+  // produces the correct recomputed headline (and correctly re-sorts the
+  // group's own list position if its headline changed) for free. A model
+  // with every trim dismissed simply has no vehicles left to group, so no
+  // group -- and no card -- is ever built for it; nothing needs to
+  // explicitly hide a fully-dismissed card.
+  //
+  // Flag stays per-trim (same Set<string> as dismiss), but its effect is
+  // group-level sorting: a group bubbles to the top of its section if ANY
+  // of its variants is flagged -- the group-level analogue of today's
+  // per-vehicle flag-to-top behavior, now that the card is the visual
+  // unit. Flag never changes which trim is the group's headline/active
+  // display -- only dismiss does that.
+  function groupHasFlaggedVariant(group: ModelGroup): boolean {
+    return group.variants.some((v) => flagged.has(v.id));
   }
 
-  const visiblePrimary = applyDismissAndFlagSort(segmented.primary);
+  function groupWithDismissAndFlagSort(list: MatchedVehicle[]): ModelGroup[] {
+    const nonDismissed = list.filter((v) => !dismissed.has(v.id));
+    return groupByModel(nonDismissed).sort(
+      (a, b) => Number(groupHasFlaggedVariant(b)) - Number(groupHasFlaggedVariant(a)),
+    );
+  }
 
-  // Each alternative group shows only its single best (post-dismiss/flag)
-  // vehicle as one labeled card, e.g. "Best hybrid option" -- not the full
-  // group, which can run into the hundreds of vehicles (see Step 4's
-  // verification: e.g. 1,059 Gas vehicles in one alternative group).
+  const visiblePrimary = groupWithDismissAndFlagSort(segmented.primary);
+
+  // Each alternative powertrain shows only its single best (post-dismiss/
+  // flag) MODEL GROUP as one labeled card, e.g. "Best hybrid option" --
+  // not the full group, which can run into the hundreds of vehicles (see
+  // Step 4's verification: e.g. 1,059 Gas vehicles in one alternative
+  // group). groupWithDismissAndFlagSort runs independently per powertrain
+  // bucket (not once across all of them) -- approved 2026-09-02, see the
+  // joint plan's point 5: a model spanning multiple powertrains (e.g. a
+  // Tucson sold as Gas/Hybrid/PHEV) can legitimately produce two separate
+  // cards, one per powertrain bucket it has a real entry in, rather than
+  // being collapsed into one card whose toggle would blur this section's
+  // whole purpose.
   const visibleAlternatives = segmented.alternatives
-    .map((group) => {
-      const resolved = applyDismissAndFlagSort(group.vehicles);
+    .map((altGroup) => {
+      const resolved = groupWithDismissAndFlagSort(altGroup.vehicles);
       return resolved.length > 0
-        ? { powertrain: group.powertrain, label: group.label, vehicle: resolved[0] }
+        ? { powertrain: altGroup.powertrain, label: altGroup.label, group: resolved[0] }
         : null;
     })
-    .filter((entry): entry is { powertrain: Powertrain; label: string; vehicle: MatchedVehicle } => entry !== null);
+    .filter((entry): entry is { powertrain: Powertrain; label: string; group: ModelGroup } => entry !== null);
 
   const anyDismissed = dismissed.size > 0;
 

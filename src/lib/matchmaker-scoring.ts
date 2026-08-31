@@ -161,3 +161,67 @@ export function segmentByPowertrain(
 
   return { primary, alternatives };
 }
+
+// --- Model grouping (results-card redesign, planned 2026-09-02) -------
+//
+// Groups already hard-filtered/scored/sorted individual trim rows into one
+// card per (make, model) -- e.g. Audi A5 Premium/Premium Plus/Prestige
+// become one group; Audi S5 (a different model value) stays separate. The
+// card's displayed price/rationale/list-position come from `headline`
+// only; `variants` (headline included) back a within-card trim toggle
+// that never changes the group's position in the results list.
+export type ModelGroup = {
+  // `${make}|${model}` -- stable identity for a group regardless of which
+  // variant is currently toggled active. Grouped on make+model, not model
+  // alone: confirmed against the real 1,601-row dataset that no model
+  // name is currently shared across different makes, but keying on both
+  // is a one-line safety margin against a future data pass introducing a
+  // collision, at zero cost.
+  key: string;
+  make: string;
+  model: string;
+  // Highest-scoring trim in the group -- drives the card's list position.
+  headline: MatchedVehicle;
+  // Every trim in the group, headline included, already in score-
+  // descending order (see below for why no separate sort is needed).
+  variants: MatchedVehicle[];
+};
+
+// Input MUST already be sorted descending by totalScore -- exactly what
+// getMatchedVehicles produces, and what segmentByPowertrain's primary/
+// alternatives arrays preserve (segmentation only buckets, it never
+// re-sorts). This lets a single forward pass double as both "find the
+// headline" (the first vehicle seen for a given key is, by construction,
+// the highest scorer in that group) and "produce correctly-ordered
+// groups" (a Map's iteration order is insertion order, i.e. first-seen
+// order, which is already headline-score-descending since the input was)
+// -- no secondary sort of the group list is needed.
+//
+// Deliberately meant to be called separately on segmented.primary and on
+// each alternatives[i].vehicles, never once on a flat pre-segmentation
+// list. A model spanning multiple powertrains (e.g. a Tucson sold as
+// Gas/Hybrid/PHEV) can legitimately produce a separate group -- and a
+// separate card -- per powertrain bucket it has a real entry in, rather
+// than being collapsed into one card whose toggle would blur the "Other
+// powertrains worth a look" section's whole purpose (approved 2026-09-02,
+// see matchmaker-duplicate-investigation-and-grouping-plan-2026-09-02.md
+// point 5).
+export function groupByModel(matched: MatchedVehicle[]): ModelGroup[] {
+  const groups = new Map<string, ModelGroup>();
+  for (const vehicle of matched) {
+    const key = `${vehicle.make}|${vehicle.model}`;
+    const existing = groups.get(key);
+    if (existing) {
+      existing.variants.push(vehicle);
+    } else {
+      groups.set(key, {
+        key,
+        make: vehicle.make,
+        model: vehicle.model,
+        headline: vehicle,
+        variants: [vehicle],
+      });
+    }
+  }
+  return [...groups.values()];
+}

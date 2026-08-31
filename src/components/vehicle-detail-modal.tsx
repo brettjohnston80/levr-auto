@@ -3,6 +3,12 @@
 import { createPortal } from "react-dom";
 import type { Answers } from "@/lib/matchmaker-data";
 import { buildRationale, formatPriceEstimate, fuelTypeToPowertrain, type MatchmakerVehicle } from "@/lib/matchmaker-vehicle-display";
+import {
+  dimensionIndicator,
+  personalizedDimensionOrder,
+  INDICATOR_CLASSES,
+  INDICATOR_LEVEL_LABEL,
+} from "@/lib/matchmaker-dimension-indicators";
 
 // vehicleType/familySize/priceRange are hard filters now (matchmaker-
 // scoring.ts) -- every vehicle reaching this modal already satisfies them
@@ -124,6 +130,45 @@ export function VehicleDetailModal({
             </ul>
           </div>
         )}
+
+        {/* Full 9-dimension breakdown (Step F, approved 2026-09-02, Part
+            3) -- a new, separate section from "Why this fits you" above,
+            not a replacement for it: the bullets confirm hard-filter
+            matches and narratively call out standout (>=80) scores,
+            this is the complete personalized-order breakdown across every
+            valid dimension for THIS vehicle's own body style. Reads
+            `vehicle` directly (the same prop the rest of this modal
+            already uses) -- when a grouped results card (matchmaker.tsx)
+            opens this modal for whichever trim is currently toggled
+            active, not necessarily the group's headline, this section
+            automatically reflects that specific trim's own scores/
+            hasData with no extra wiring, since it never looks at the
+            group, only at whatever single vehicle it was given. */}
+        <div className="mt-6">
+          <h3 className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
+            How it scores on what matters to you
+          </h3>
+          <ul className="mt-3 space-y-1.5">
+            {personalizedDimensionOrder(vehicle.bodyStyle, answers.priorities).map((label) => {
+              const score = vehicle.scores[label] ?? 0;
+              const hasData = vehicle.hasData[label] ?? false;
+              const level = dimensionIndicator(score, hasData);
+              return (
+                <li key={label} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-zinc-300">{label}</span>
+                  <div className="flex items-center gap-2">
+                    {hasData && <span className="text-xs text-zinc-500">{Math.round(score)}/100</span>}
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${INDICATOR_CLASSES[level]}`}
+                    >
+                      {INDICATOR_LEVEL_LABEL[level]}
+                    </span>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
 
         {/* PROPOSED customer-facing copy, pending explicit sign-off -- the
             old line ("...once Matchmaker connects to real inventory data")

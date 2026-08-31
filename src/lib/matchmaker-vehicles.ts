@@ -1,6 +1,10 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { VehicleType } from "./matchmaker-data";
-import { SCORE_COLUMN_TO_LABEL, type MatchmakerVehicle } from "./matchmaker-vehicle-display";
+import {
+  SCORE_COLUMN_TO_LABEL,
+  HAS_DATA_COLUMN_TO_LABEL,
+  type MatchmakerVehicle,
+} from "./matchmaker-vehicle-display";
 
 export type { MatchmakerVehicle } from "./matchmaker-vehicle-display";
 
@@ -43,12 +47,29 @@ type VehicleRow = {
   // Nullable -- rows from batches imported before migration 20260902120000
   // have no value here (see that migration's comment).
   towing_payload_score: number | null;
+  // Nullable -- rows from batches imported before migration
+  // 20260902130000 (vehicles_has_data_flags) have no value here. Treated
+  // as `false` ("no data known"), not "unknown", in mapRowToVehicle below.
+  safety_has_data: boolean | null;
+  comfort_has_data: boolean | null;
+  cargo_has_data: boolean | null;
+  fuel_economy_has_data: boolean | null;
+  reliability_has_data: boolean | null;
+  performance_has_data: boolean | null;
+  tech_features_has_data: boolean | null;
+  price_value_has_data: boolean | null;
+  resale_value_has_data: boolean | null;
+  towing_payload_has_data: boolean | null;
 };
 
 function mapRowToVehicle(row: VehicleRow): MatchmakerVehicle {
   const scores: Record<string, number> = {};
   for (const [column, label] of Object.entries(SCORE_COLUMN_TO_LABEL)) {
     scores[label] = (row as unknown as Record<string, number>)[column];
+  }
+  const hasData: Record<string, boolean> = {};
+  for (const [column, label] of Object.entries(HAS_DATA_COLUMN_TO_LABEL)) {
+    hasData[label] = (row as unknown as Record<string, boolean | null>)[column] ?? false;
   }
   return {
     id: row.id,
@@ -73,18 +94,22 @@ function mapRowToVehicle(row: VehicleRow): MatchmakerVehicle {
     horsepower: row.horsepower,
     zeroToSixtySec: row.zero_to_60_sec,
     scores,
+    hasData,
   };
 }
 
-// Migration 20260902120000 confirmed applied (2026-09-02) before adding
-// towing_payload_score here.
+// Migration 20260902120000 (towing_payload_score) and 20260902130000
+// (vehicles_has_data_flags) both confirmed applied before adding their
+// respective columns here.
 const SELECT_COLUMNS =
   "id, make, model, trim, model_year, is_performance_trim, body_style, seating_capacity, " +
   "drivetrain, fuel_type, true_starting_price_cents, has_third_row, towing_capacity_lbs, " +
   "payload_capacity_lbs, range_mi, epa_combined_mpg, cargo_volume_seats_up_cuft, horsepower, " +
   "zero_to_60_sec, safety_score, comfort_score, cargo_score, fuel_economy_score, " +
   "reliability_score, performance_score, tech_features_score, price_value_score, " +
-  "resale_value_score, towing_payload_score";
+  "resale_value_score, towing_payload_score, safety_has_data, comfort_has_data, " +
+  "cargo_has_data, fuel_economy_has_data, reliability_has_data, performance_has_data, " +
+  "tech_features_has_data, price_value_has_data, resale_value_has_data, towing_payload_has_data";
 
 const PAGE_SIZE = 1000;
 
@@ -99,10 +124,20 @@ export async function getVehiclesForBatch(batchId: string): Promise<MatchmakerVe
   const rows: VehicleRow[] = [];
   let from = 0;
   while (true) {
+    // .order("id") is required, not cosmetic -- OFFSET/LIMIT-style
+    // pagination (which .range() compiles to) has no guaranteed row order
+    // across separate requests without an explicit sort key, so two
+    // consecutive .range() calls could in principle return an overlapping
+    // or gapped set of rows. Investigated 2026-09-02 as a leading
+    // suspect for a reported duplicate-card sighting -- didn't reproduce
+    // in that pass, but the missing order-by was still a real latent bug
+    // independent of that investigation's outcome. Any indexed column
+    // works as the sort key; `id` is arbitrary but stable.
     const { data, error } = await admin
       .from("vehicles")
       .select(SELECT_COLUMNS)
       .eq("dataset_batch_id", batchId)
+      .order("id")
       .range(from, from + PAGE_SIZE - 1);
     if (error) throw new Error(`getVehiclesForBatch: ${error.message}`);
     if (!data || data.length === 0) break;

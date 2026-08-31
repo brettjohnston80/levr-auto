@@ -142,6 +142,31 @@ TOWING_PAYLOAD_BODY_STYLES_AS_PRIORITY = ['Truck', 'SUV', 'Cargo Van']
 # neutral 50 sub-score rather than an undefined relative rank.
 FUEL_ECONOMY_SINGLETON_FALLBACK = 50
 
+# CONFIRMED 2026-09-02: alongside each of the 9 scores, the pipeline now also
+# outputs a companion "<Dimension> Has Data" boolean. This exists because a
+# score of exactly 50 is ambiguous — it means EITHER "no underlying data at
+# all" (the universal floor) OR "real data, but genuinely tied for worst in
+# the class" (a legitimate score, not a gap). The UI needs to tell these
+# apart (e.g. a neutral "no data" indicator vs. a real "red" rating), and
+# that determination has to check the actual raw spec column(s), not the
+# score — so it lives here, once, rather than being re-derived (and risking
+# drift) in application code. Mapping of which raw column(s) determine
+# "has data" per dimension:
+#   Safety                    -> nhtsa_overall_stars
+#   Comfort                   -> any of front/rear legroom/headroom (+ third
+#                                 row for SUV/Minivan) populated
+#   Cargo                     -> bed_length_ft (Truck) or cargo_volume_seats_up_cuft (everyone else)
+#   Fuel Economy               -> epa_combined_mpg OR range_mi populated
+#   Reliability                -> reliability_rating
+#   Technology & Features      -> tech_score
+#   Price Value                 -> true_starting_price
+#   Resale Value                 -> resale_depreciation_pct
+#   Performance                  -> zero_to_60_sec (the trim flag alone doesn't
+#                                 count — this matches the 2026-08-30 fix
+#                                 where a missing 0-60 floors the score
+#                                 regardless of the trim flag)
+#   Towing & Payload              -> towing_capacity_lbs OR payload_capacity_lbs populated
+
 # The universal floor: any dimension with fully missing raw data scores
 # exactly 50 (not blank) — missing data is never rewarded, never penalized
 # below the floor. Confirmed 2026-08-30, applies to all 9 dimensions.
@@ -388,6 +413,40 @@ def score_towing_payload(cls):
     return floor_rescale(raw_avg)
 
 
+def compute_has_data_flags(cls, body_style):
+    """Companion boolean per dimension: was there real underlying data for
+    this vehicle, independent of what the final score came out to. A score
+    of exactly 50 can mean either 'no data' (this returns False) or 'real
+    data, genuinely worst in class' (this returns True) — the UI needs to
+    tell these apart, so it's computed here from the same raw columns the
+    scores themselves are built from, rather than re-derived downstream."""
+    flags = pd.DataFrame(index=cls.index)
+
+    flags['Safety Has Data'] = cls['nhtsa_overall_stars'].notna()
+
+    comfort_cols = ['front_legroom_in', 'rear_legroom_in', 'front_headroom_in', 'rear_headroom_in']
+    if body_style in THIRD_ROW_COMFORT_BODY_STYLES:
+        comfort_cols += ['third_row_legroom_in', 'third_row_headroom_in']
+    flags['Comfort Has Data'] = cls[comfort_cols].notna().any(axis=1)
+
+    if body_style in CARGO_BED_LENGTH_BODY_STYLES:
+        flags['Cargo Has Data'] = cls['bed_length_ft'].notna()
+    else:
+        flags['Cargo Has Data'] = cls['cargo_volume_seats_up_cuft'].notna()
+
+    flags['Fuel Economy Has Data'] = cls['epa_combined_mpg'].notna() | cls['range_mi'].notna()
+    flags['Reliability Has Data'] = cls['reliability_rating'].notna()
+    flags['Technology & Features Has Data'] = cls['tech_score'].notna()
+    flags['Price Value Has Data'] = cls['true_starting_price'].notna()
+    flags['Resale Value Has Data'] = cls['resale_depreciation_pct'].notna()
+    # matches the 2026-08-30 fix: a missing 0-60 floors Performance regardless
+    # of the trim flag, so "has data" for Performance means "has a real 0-60".
+    flags['Performance Has Data'] = cls['zero_to_60_sec'].notna()
+    flags['Towing & Payload Has Data'] = cls['towing_capacity_lbs'].notna() | cls['payload_capacity_lbs'].notna()
+
+    return flags
+
+
 def score_all_dimensions(df):
     scored_frames = []
     for body_style, cls in df.groupby('body_style'):
@@ -402,6 +461,10 @@ def score_all_dimensions(df):
         cls['Resale Value Score'] = score_resale_value(cls)
         cls['Performance Score'] = score_performance(cls, body_style)
         cls['Towing & Payload Score'] = score_towing_payload(cls)
+
+        has_data = compute_has_data_flags(cls, body_style)
+        for col in has_data.columns:
+            cls[col] = has_data[col]
         scored_frames.append(cls)
     return pd.concat(scored_frames).sort_index()
 

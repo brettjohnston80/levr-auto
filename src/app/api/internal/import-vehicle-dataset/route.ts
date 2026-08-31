@@ -24,8 +24,18 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 const DEFAULT_FILENAME = "matchmaker-vehicle-dataset-2026-v19-scored.csv";
 
+// Accepts both boolean-string conventions the pipeline actually produces:
+// "yes"/"no" for source-researched flags (is_performance_trim,
+// has_third_row -- sourced as literal strings, never touched by pandas'
+// bool dtype) and "true"/"false" for pipeline-computed flags (the *_has_data
+// columns, added 2026-09-02 -- these come from pandas .notna() boolean
+// Series, which pandas serializes to CSV as "True"/"False", not "yes"/"no").
+// Confirmed directly against a real pipeline run before writing this --
+// the original "yes"-only check would have silently parsed every
+// *_has_data value to false.
 function toBool(v: string): boolean {
-  return v.trim().toLowerCase() === "yes";
+  const normalized = v.trim().toLowerCase();
+  return normalized === "yes" || normalized === "true";
 }
 
 function toNullableText(v: string | undefined): string | null {
@@ -113,6 +123,23 @@ function transformRow(row: CsvRow) {
     // Added 2026-09-02, requires migration 20260902120000 to be applied
     // first (see that migration and matchmaker-vehicles.ts's own note).
     towing_payload_score: toNum(row["Towing & Payload Score"]),
+    // Added 2026-09-02, requires migration 20260902130000
+    // (vehicles_has_data_flags) to be applied first. Companion booleans to
+    // the 9 (+Towing & Payload) score columns above -- see that
+    // migration's comments for what "true"/"false" means per dimension.
+    // toBool() handles the "True"/"False" string convention these come in
+    // as (pandas boolean serialization), distinct from the "yes"/"no"
+    // convention used by the source-researched flags above.
+    safety_has_data: toBool(row["Safety Has Data"]),
+    comfort_has_data: toBool(row["Comfort Has Data"]),
+    cargo_has_data: toBool(row["Cargo Has Data"]),
+    fuel_economy_has_data: toBool(row["Fuel Economy Has Data"]),
+    reliability_has_data: toBool(row["Reliability Has Data"]),
+    tech_features_has_data: toBool(row["Technology & Features Has Data"]),
+    price_value_has_data: toBool(row["Price Value Has Data"]),
+    resale_value_has_data: toBool(row["Resale Value Has Data"]),
+    performance_has_data: toBool(row["Performance Has Data"]),
+    towing_payload_has_data: toBool(row["Towing & Payload Has Data"]),
   };
 }
 

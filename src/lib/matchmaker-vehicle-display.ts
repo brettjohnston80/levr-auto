@@ -45,6 +45,18 @@ export type MatchmakerVehicle = {
   // index straight off a customer's priority-order array with no
   // separate label<->key mapping.
   scores: Record<string, number>;
+  // Added 2026-09-02 (ranking-indicator data layer, see
+  // vehicles_has_data_flags migration). Same label-keyed shape as
+  // `scores` -- whether each dimension's score reflects real underlying
+  // data (true) or the pipeline's missing-data floor (false). A score of
+  // exactly 50 is ambiguous on its own (floor vs. genuinely worst-in-
+  // class with real data); this is what resolves it. Never derive a
+  // dimension's "has data" state from its score value alone -- always
+  // read this map instead. Defaults to false for any batch imported
+  // before this migration existed (nullable DB columns, see
+  // matchmaker-vehicles.ts's row mapping) -- not "unknown", just "no
+  // data", the same safe default a genuinely missing spec would get.
+  hasData: Record<string, boolean>;
 };
 
 // vehicles columns -> the ALL_PRIORITIES label each one corresponds to.
@@ -65,6 +77,23 @@ export const SCORE_COLUMN_TO_LABEL: Record<string, string> = {
   // for this dimension via its existing `?? 0` guard, same graceful
   // handling as any other unset score.
   towing_payload_score: "Towing & Payload",
+};
+
+// vehicles *_has_data columns -> the same ALL_PRIORITIES label each
+// corresponding *_score column maps to, above -- one label-keyed map per
+// vehicle (see MatchmakerVehicle.hasData) built the same way `scores` is.
+// Added 2026-09-02 alongside the vehicles_has_data_flags migration.
+export const HAS_DATA_COLUMN_TO_LABEL: Record<string, string> = {
+  safety_has_data: "Safety",
+  comfort_has_data: "Comfort",
+  cargo_has_data: "Cargo Space",
+  fuel_economy_has_data: "Fuel Economy",
+  reliability_has_data: "Reliability",
+  performance_has_data: "Performance",
+  tech_features_has_data: "Technology & Features",
+  price_value_has_data: "Price/Value",
+  resale_value_has_data: "Resale Value",
+  towing_payload_has_data: "Towing & Payload",
 };
 
 // Folds the dataset's 6 raw sourced fuel types down to the app's 4-button
