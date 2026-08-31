@@ -197,6 +197,21 @@ create index vehicles_batch_body_style_idx on public.vehicles (dataset_batch_id,
 -- site is never mid-transition between two batches. Row-locks the target
 -- first, same guard shape as confirm_dealer_alias_as_new/
 -- switch_customer_search elsewhere in this codebase.
+--
+-- *** THIS ALONE DOES NOT UPDATE THE LIVE SITE. *** /matchmaker
+-- (src/app/matchmaker/page.tsx) is a fully static route -- confirmed
+-- 2026-09-02 by reading next.config.ts (no custom cache/ISR config), the
+-- route itself (no `export const revalidate`, no `export const dynamic`,
+-- unlike every other real-data page in this codebase, e.g.
+-- src/app/account/page.tsx), and the admin Supabase client (no fetch
+-- cache overrides). With none of those present, Next.js renders this
+-- route exactly once, at build time, and never revalidates it
+-- automatically -- there is no ISR timer here. getLiveVehicles() only
+-- ever runs again on the NEXT `next build` (i.e. the next Vercel
+-- deploy). So: call this function, THEN trigger a deploy (push to
+-- origin/main) -- in that order, every time. Calling this function
+-- after a deploy has zero effect on the live site until another deploy
+-- happens. Deliberately accepted as-is, not forced dynamic (2026-09-02).
 create function public.promote_vehicle_dataset_batch(p_batch_id uuid)
 returns public.vehicle_dataset_batches
 language plpgsql

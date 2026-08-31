@@ -13,6 +13,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // corrupt whatever's currently live. Promotion (making a batch the one the
 // live site reads) is a separate, explicit step -- see
 // promote_vehicle_dataset_batch.
+//
+// *** Passing promote: true here (or calling promote_vehicle_dataset_batch
+// directly) does NOT update the live site by itself. *** /matchmaker is a
+// fully static route with no revalidate/ISR config -- see the long
+// comment on promote_vehicle_dataset_batch in
+// supabase/migrations/20260830120000_vehicles_dataset.sql for why. A
+// promotion only takes effect on the NEXT deploy. Promote, then deploy --
+// in that order, every time.
 
 const DEFAULT_FILENAME = "matchmaker-vehicle-dataset-2026-v18-scored.csv";
 
