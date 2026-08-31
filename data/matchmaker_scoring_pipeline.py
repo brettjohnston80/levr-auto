@@ -102,8 +102,26 @@ SAFETY_SCALE_MIN, SAFETY_SCALE_MAX = 1, 5
 # the trim flag — a known performance trim with no speed data must not
 # outrank a verified-fast car on the flag alone. This was a deliberate fix;
 # do not revert to "use trim flag alone when 0-60 missing."
+# Applies to ALL body styles uniformly — towing/payload capability lives in
+# its own dedicated Towing & Payload dimension instead (see below), not
+# blended into Performance. (Earlier same-day iteration briefly blended
+# towing/payload into Performance for Truck/SUV/Cargo Van; superseded by
+# this dedicated-dimension approach once the priority-ranking implications
+# were worked through — don't resurrect the blended version.)
 PERFORMANCE_TRIM_WEIGHT = 0.5
 PERFORMANCE_ZERO_TO_60_WEIGHT = 0.5
+
+# CONFIRMED 2026-08-31: Towing & Payload is a new 9th dimension, computed for
+# EVERY vehicle (equal-weight 50/50 average of towing_capacity_lbs and
+# payload_capacity_lbs, using whichever is available), but only surfaced as
+# a rankable priority option in the UI for Truck, SUV, and Cargo Van — where
+# it REPLACES Resale Value as that body style's 9th option. Resale Value is
+# still computed for every vehicle (including Truck/SUV/Cargo Van) so the
+# column stays populated and consistent, it's just not offered as a ranking
+# choice for those 3 body styles at the UI layer. This is a UI-layer
+# decision, not a data-layer one — both dimensions exist for every vehicle
+# in this dataset; which 9 are offered as rankable is a frontend concern.
+TOWING_PAYLOAD_BODY_STYLES_AS_PRIORITY = ['Truck', 'SUV', 'Cargo Van']
 
 # Fuel Economy: MPG and range are each normalized WITHIN the vehicle's own
 # fuel_type group (exact match: Gas/EV/Hybrid/PHEV/Hydrogen), not the whole
@@ -151,12 +169,22 @@ def clean_reliability_rating(df):
 def validate_numeric_columns(df):
     """Flag (don't auto-fix) any other numeric column with embedded text —
     e.g. the 2026 case where a single cell held '40.2 f / 36.7 r' instead of
-    separate front/rear values. These need manual review, not a guessed split."""
+    separate front/rear values. These need manual review, not a guessed split.
+
+    IMPORTANT: explicitly excludes actual null/NaN values via .notna() before
+    the string check, rather than relying on astype(str) + na=False to handle
+    them correctly — that combination is pandas-version-dependent (some
+    versions/dtypes stringify NaN as the literal text "nan", which contains
+    letters and would otherwise false-positive as "corruption" on every
+    missing value in the dataset). Bug found 2026-09-02 via a real run that
+    produced 12,633 false positives, all of them the string "nan" — fixed
+    here rather than left as a version-dependent landmine."""
     issues = []
     for col in NUMERIC_COLUMNS:
         if col not in df.columns:
             continue
-        weird = df[df[col].astype(str).str.contains('[a-zA-Z]', na=False, regex=True)]
+        not_null = df[col].notna()
+        weird = df[not_null & df[col].astype(str).str.contains('[a-zA-Z]', na=False, regex=True)]
         if len(weird):
             for _, row in weird.iterrows():
                 issues.append((col, row.get('make'), row.get('model'), row.get('trim'), row[col]))
@@ -319,7 +347,7 @@ def score_resale_value(cls):
     return floor_rescale(cls['resale_depreciation_pct'], higher_is_better=False)
 
 
-def score_performance(cls):
+def score_performance(cls, body_style):
     trim_norm = cls['is_performance_trim'].astype(str).str.lower().map({'yes': 100, 'no': 0})
     zero60_norm = normalize_0_100(cls['zero_to_60_sec'], higher_is_better=False)
     raw_avg = pd.Series(np.nan, index=cls.index)
@@ -329,6 +357,20 @@ def score_performance(cls):
     # missing 0-60 -> raw_avg stays NaN -> floor_rescale gives 50, regardless
     # of trim flag. This is the deliberate 2026-08-30 fix — do not "helpfully"
     # fall back to trim_norm alone here.
+    return floor_rescale(raw_avg)
+
+
+def score_towing_payload(cls):
+    """New 9th dimension (2026-08-31), computed for every vehicle regardless
+    of body style — equal-weight average of towing and payload capacity,
+    using whichever is available. Only surfaced as a rankable UI priority
+    for Truck/SUV/Cargo Van (see TOWING_PAYLOAD_BODY_STYLES_AS_PRIORITY),
+    but computed universally so the column is always populated."""
+    tow_norm = normalize_0_100(cls['towing_capacity_lbs'])
+    payload_norm = normalize_0_100(cls['payload_capacity_lbs'])
+    comps = pd.DataFrame({'tow': tow_norm, 'payload': payload_norm})
+    raw_avg = comps.mean(axis=1, skipna=True)
+    raw_avg[comps.count(axis=1) == 0] = np.nan
     return floor_rescale(raw_avg)
 
 
@@ -344,7 +386,8 @@ def score_all_dimensions(df):
         cls['Technology & Features Score'] = score_tech(cls)
         cls['Price Value Score'] = score_price_value(cls)
         cls['Resale Value Score'] = score_resale_value(cls)
-        cls['Performance Score'] = score_performance(cls)
+        cls['Performance Score'] = score_performance(cls, body_style)
+        cls['Towing & Payload Score'] = score_towing_payload(cls)
         scored_frames.append(cls)
     return pd.concat(scored_frames).sort_index()
 
@@ -374,7 +417,7 @@ def main(input_path, output_path):
     print("\n=== Score coverage (should be 100% everywhere — floor covers missing data) ===")
     for col in ['Safety Score', 'Comfort Score', 'Cargo Score', 'Fuel Economy Score',
                 'Reliability Score', 'Technology & Features Score', 'Price Value Score',
-                'Resale Value Score', 'Performance Score']:
+                'Resale Value Score', 'Performance Score', 'Towing & Payload Score']:
         print(f"  {col}: {df[col].notna().sum()}/{len(df)}")
 
     df.to_csv(output_path, index=False)

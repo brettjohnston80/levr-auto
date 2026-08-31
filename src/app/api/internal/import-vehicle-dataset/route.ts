@@ -22,7 +22,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // promotion only takes effect on the NEXT deploy. Promote, then deploy --
 // in that order, every time.
 
-const DEFAULT_FILENAME = "matchmaker-vehicle-dataset-2026-v18-scored.csv";
+const DEFAULT_FILENAME = "matchmaker-vehicle-dataset-2026-v19-scored.csv";
 
 function toBool(v: string): boolean {
   return v.trim().toLowerCase() === "yes";
@@ -110,6 +110,9 @@ function transformRow(row: CsvRow) {
     price_value_score: toNum(row["Price Value Score"]),
     resale_value_score: toNum(row["Resale Value Score"]),
     performance_score: toNum(row["Performance Score"]),
+    // Added 2026-09-02, requires migration 20260902120000 to be applied
+    // first (see that migration and matchmaker-vehicles.ts's own note).
+    towing_payload_score: toNum(row["Towing & Payload Score"]),
   };
 }
 

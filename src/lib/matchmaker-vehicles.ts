@@ -40,9 +40,9 @@ type VehicleRow = {
   tech_features_score: number;
   price_value_score: number;
   resale_value_score: number;
-  // towing_payload_score deliberately NOT selected yet -- see the note on
-  // SELECT_COLUMNS below. Added together with Part 2's import-route work
-  // once migration 20260902120000 is confirmed run, not before.
+  // Nullable -- rows from batches imported before migration 20260902120000
+  // have no value here (see that migration's comment).
+  towing_payload_score: number | null;
 };
 
 function mapRowToVehicle(row: VehicleRow): MatchmakerVehicle {
@@ -76,18 +76,15 @@ function mapRowToVehicle(row: VehicleRow): MatchmakerVehicle {
   };
 }
 
-// towing_payload_score is deliberately NOT in this select list yet.
-// Confirmed directly (2026-09-02) that requesting it now errors against
-// the live DB (Postgres 42703, "column does not exist") -- migration
-// 20260902120000 hasn't been run. This gets added together with Part 2's
-// import-route work once that migration is confirmed applied, so this
-// file, the DB, and whatever's deployed always agree with each other.
+// Migration 20260902120000 confirmed applied (2026-09-02) before adding
+// towing_payload_score here.
 const SELECT_COLUMNS =
   "id, make, model, trim, model_year, is_performance_trim, body_style, seating_capacity, " +
   "drivetrain, fuel_type, true_starting_price_cents, has_third_row, towing_capacity_lbs, " +
   "payload_capacity_lbs, range_mi, epa_combined_mpg, cargo_volume_seats_up_cuft, horsepower, " +
   "zero_to_60_sec, safety_score, comfort_score, cargo_score, fuel_economy_score, " +
-  "reliability_score, performance_score, tech_features_score, price_value_score, resale_value_score";
+  "reliability_score, performance_score, tech_features_score, price_value_score, " +
+  "resale_value_score, towing_payload_score";
 
 const PAGE_SIZE = 1000;
 
