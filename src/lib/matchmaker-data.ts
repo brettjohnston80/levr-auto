@@ -112,7 +112,12 @@ export type PriceRangeValue = { min: number; max: number };
 
 export type Priority = { label: string; clarifier: string };
 
-export const PRIORITIES: Priority[] = [
+// All 10 possible rankable dimensions across every vehicle type combined
+// (8 shared + Resale Value + Towing & Payload) -- used for clarifier
+// lookups (PriorityRanker) regardless of which 9 are actually valid for
+// the current vehicle type. See TOWING_PAYLOAD_VEHICLE_TYPES/
+// defaultPriorityOrder for which 9 are actually offered.
+export const ALL_PRIORITIES: Priority[] = [
   { label: "Safety", clarifier: "Best crash test results" },
   { label: "Comfort", clarifier: "Spacious, smooth ride" },
   { label: "Cargo Space", clarifier: "Best-in-class trunk/storage room" },
@@ -122,7 +127,129 @@ export const PRIORITIES: Priority[] = [
   { label: "Technology & Features", clarifier: "Most advanced tech and driver-assist features" },
   { label: "Price/Value", clarifier: "Most car for the money" },
   { label: "Resale Value", clarifier: "Holds its value best over time" },
+  { label: "Towing & Payload", clarifier: "Best towing capacity and payload" },
 ];
+
+// Decided 2026-09-02: Truck/SUV/Cargo Van get "Towing & Payload" as their
+// 9th rankable priority instead of "Resale Value". Resale Value is still
+// computed for every vehicle regardless of body style (a data-layer
+// fact, see towing_payload_score's migration comment) -- this is purely
+// which 9 dimensions get OFFERED in the UI.
+export const TOWING_PAYLOAD_VEHICLE_TYPES: VehicleType[] = ["Truck", "SUV", "Cargo Van"];
+
+const SHARED_PRIORITY_LABELS = [
+  "Safety",
+  "Comfort",
+  "Cargo Space",
+  "Fuel Economy",
+  "Reliability",
+  "Performance",
+  "Technology & Features",
+  "Price/Value",
+];
+
+// The 9 rankable dimension labels valid for a given vehicle type, in
+// neutral default order -- i.e. before any Main Use pre-fill hint is
+// applied. "" (no vehicle type chosen yet) falls back to the Resale
+// Value variant, same as the pre-2026-09-02 fixed default.
+export function defaultPriorityOrder(vehicleType: VehicleType | ""): string[] {
+  const ninth =
+    vehicleType !== "" && TOWING_PAYLOAD_VEHICLE_TYPES.includes(vehicleType)
+      ? "Towing & Payload"
+      : "Resale Value";
+  return [...SHARED_PRIORITY_LABELS, ninth];
+}
+
+// Swaps whichever of the two type-dependent labels (Resale Value /
+// Towing & Payload) is present in an existing, possibly customer-
+// reordered priority list for the correct one given a new vehicle type --
+// preserving position and every other manual edit, rather than resetting
+// the whole list. Used when the customer changes vehicle type after
+// having already manually dragged priorities around.
+export function retargetPriorityOrderForVehicleType(
+  order: string[],
+  vehicleType: VehicleType | "",
+): string[] {
+  const wantsTowing = vehicleType !== "" && TOWING_PAYLOAD_VEHICLE_TYPES.includes(vehicleType);
+  const target = wantsTowing ? "Towing & Payload" : "Resale Value";
+  const other = wantsTowing ? "Resale Value" : "Towing & Payload";
+  return order.map((label) => (label === other ? target : label));
+}
+
+// Main Use -> the 1-2 dimensions that should be pre-ranked toward the top
+// of the drag-to-rank "what matters most" step, per the approved design
+// (§3d): this only sets the STARTING order -- the customer's own final
+// ranking (even if left untouched) is what actually drives the score, no
+// separate additive nudge. Keyed by the exact use-case strings in
+// USE_CASES_BY_VEHICLE_TYPE above (a few entries here correct small
+// wording drift from the original planning doc against the real live
+// strings -- Sedan's "Business-professional use" is hyphenated in the
+// real data though not in the original ask, and the Cargo Van / Minivan
+// entries below use the real full parenthetical text, not the shortened
+// versions from planning).
+export const PRIORITY_HINTS_BY_USE_CASE: Record<string, string[]> = {
+  // Sedan
+  "Daily commuting": ["Reliability", "Fuel Economy"],
+  "Small family transportation": ["Comfort", "Cargo Space"],
+  "Fuel-efficient errands & city driving": ["Cargo Space", "Fuel Economy"],
+  "Business-professional use": ["Comfort", "Technology & Features"],
+  "Long-distance highway trips": ["Fuel Economy"],
+  // Truck
+  "Full-time construction/trade work": ["Cargo Space", "Towing & Payload"],
+  "Towing (boat, trailer, equipment)": ["Towing & Payload", "Fuel Economy"],
+  "Hauling materials & cargo bed use": ["Cargo Space", "Towing & Payload"],
+  "Off-road/outdoor recreation": ["Performance", "Reliability"],
+  "Daily commuting with occasional utility needs": ["Reliability", "Fuel Economy"],
+  // SUV
+  "Family road trips": ["Comfort", "Cargo Space"],
+  "Daily commuting with extra cargo/passenger space": ["Cargo Space", "Comfort"],
+  "Off-road/adventure use": ["Performance", "Reliability"],
+  "Towing (camper, boat, small trailer)": ["Towing & Payload", "Reliability"],
+  "All-weather daily driver": ["Safety", "Reliability"],
+  // Hatchback
+  "City commuting & easy parking": ["Reliability", "Fuel Economy"],
+  "Fuel-efficient daily driving": ["Fuel Economy", "Price/Value"],
+  "First car / budget-friendly": ["Price/Value", "Safety"],
+  "Weekend errands with flexible cargo space": ["Cargo Space", "Fuel Economy"],
+  "Light gear hauling (bikes, camping basics)": ["Cargo Space", "Reliability"],
+  // Wagon
+  "Daily commuting with extra cargo space": ["Cargo Space", "Reliability"],
+  "All-weather / all-season daily driver": ["Safety", "Reliability"],
+  "Road trips with gear (skis, bikes, luggage)": ["Cargo Space", "Fuel Economy"],
+  "Performance-focused ownership": ["Performance", "Technology & Features"],
+  // Convertible
+  "Weekend/recreational driving": ["Performance", "Comfort"],
+  "Scenic road trips": ["Comfort", "Reliability"],
+  "Style/personal statement": ["Technology & Features", "Resale Value"],
+  "Warm-climate daily driver": ["Reliability", "Fuel Economy"],
+  // Cargo Van
+  "Full-time trade/contractor work": ["Reliability", "Towing & Payload"],
+  "Delivery or courier business": ["Reliability", "Fuel Economy"],
+  "Mobile business use (mobile mechanic, catering, etc.)": ["Reliability", "Cargo Space"],
+  "Moving/hauling large items": ["Cargo Space", "Towing & Payload"],
+  "Camper conversion / DIY build": ["Cargo Space", "Price/Value"],
+  // Coupe
+  "Sporty daily commuting": ["Performance", "Fuel Economy"],
+  "Style/performance-focused ownership": ["Performance", "Technology & Features"],
+  "Low-passenger-need daily use": ["Reliability", "Fuel Economy"],
+  // Minivan
+  "Family with young kids": ["Safety", "Comfort"],
+  "Carpooling & kid activity shuttling": ["Comfort", "Reliability"],
+  "Road trips with lots of gear": ["Cargo Space", "Fuel Economy"],
+  "Small business use (mobile services, light cargo + passengers)": ["Reliability", "Cargo Space"],
+};
+
+// Moves a use case's hinted dimensions to the front of a priority order,
+// keeping every other dimension in its existing relative order after --
+// a pre-fill of the STARTING position, not a full re-sort. A no-op if the
+// use case has no hint (shouldn't happen for a real selection, but this
+// stays a safe fallback rather than throwing).
+export function applyUseCaseHint(order: string[], useCase: string): string[] {
+  const hints = PRIORITY_HINTS_BY_USE_CASE[useCase];
+  if (!hints || hints.length === 0) return order;
+  const rest = order.filter((label) => !hints.includes(label));
+  return [...hints, ...rest];
+}
 
 export type Answers = {
   vehicleType: VehicleType | "";

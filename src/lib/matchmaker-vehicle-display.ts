@@ -40,15 +40,16 @@ export type MatchmakerVehicle = {
   cargoVolumeSeatsUpCuft: number | null;
   horsepower: number | null;
   zeroToSixtySec: number | null;
-  // Keyed by the exact same labels PRIORITIES uses in matchmaker-data.ts,
-  // so weightedTotal() in matchmaker-scoring.ts can index straight off a
-  // customer's priority-order array with no separate label<->key mapping.
+  // Keyed by the exact same labels ALL_PRIORITIES uses in
+  // matchmaker-data.ts, so weightedTotal() in matchmaker-scoring.ts can
+  // index straight off a customer's priority-order array with no
+  // separate label<->key mapping.
   scores: Record<string, number>;
 };
 
-// vehicles columns -> the PRIORITIES label each one corresponds to. Used
-// by matchmaker-vehicles.ts's row mapping -- kept here since it's a pure
-// lookup table, not a Supabase concern.
+// vehicles columns -> the ALL_PRIORITIES label each one corresponds to.
+// Used by matchmaker-vehicles.ts's row mapping -- kept here since it's a
+// pure lookup table, not a Supabase concern.
 export const SCORE_COLUMN_TO_LABEL: Record<string, string> = {
   safety_score: "Safety",
   comfort_score: "Comfort",
@@ -59,6 +60,11 @@ export const SCORE_COLUMN_TO_LABEL: Record<string, string> = {
   tech_features_score: "Technology & Features",
   price_value_score: "Price/Value",
   resale_value_score: "Resale Value",
+  // Added 2026-09-02. Nullable at the DB level (see the migration's
+  // comment) -- a null here just means weightedTotal() falls back to 0
+  // for this dimension via its existing `?? 0` guard, same graceful
+  // handling as any other unset score.
+  towing_payload_score: "Towing & Payload",
 };
 
 // Folds the dataset's 6 raw sourced fuel types down to the app's 4-button

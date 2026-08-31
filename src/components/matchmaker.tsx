@@ -5,15 +5,18 @@ import { GetStartedButton } from "@/components/get-started-button";
 import { VehicleDetailModal } from "@/components/vehicle-detail-modal";
 import { PriceRangeSlider } from "@/components/price-range-slider";
 import {
+  ALL_PRIORITIES,
   FAMILY_SIZES,
   LARGE_CAPACITY_VEHICLE_TYPES,
   POWERTRAINS,
   PRICE_SLIDER_MIN,
   PRICE_SLIDER_MAX,
-  PRIORITIES,
   USE_CASES_BY_VEHICLE_TYPE,
   VEHICLE_TYPES,
+  applyUseCaseHint,
+  defaultPriorityOrder,
   formatPriceRange,
+  retargetPriorityOrderForVehicleType,
   type Answers,
   type Powertrain,
   type PriceRangeValue,
@@ -22,15 +25,13 @@ import {
 import { formatPriceEstimate, buildRationale, type MatchmakerVehicle } from "@/lib/matchmaker-vehicle-display";
 import { getMatchedVehicles, segmentByPowertrain, type MatchedVehicle } from "@/lib/matchmaker-scoring";
 
-const DEFAULT_PRIORITY_ORDER = PRIORITIES.map((p) => p.label);
-
 const EMPTY_ANSWERS: Answers = {
   vehicleType: "",
   useCase: "",
   familySize: "",
   powertrain: "",
   priceRange: null,
-  priorities: DEFAULT_PRIORITY_ORDER,
+  priorities: defaultPriorityOrder(""),
 };
 
 type Step = {
@@ -246,7 +247,7 @@ function PriorityRanker({ order, onChange }: { order: string[]; onChange: (next:
   return (
     <ol className="space-y-2">
       {order.map((label, index) => {
-        const priority = PRIORITIES.find((p) => p.label === label);
+        const priority = ALL_PRIORITIES.find((p) => p.label === label);
         if (!priority) return null;
         return (
           <li
@@ -844,6 +845,11 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [flagged, setFlagged] = useState<Set<string>>(new Set());
   const [infoVehicleId, setInfoVehicleId] = useState<string | null>(null);
+  // Tracks whether the customer has ever manually dragged/reordered
+  // priorities. Main Use only pre-fills the STARTING order (§3d) -- once
+  // touched, neither a later vehicleType nor useCase change auto-reshuffles
+  // it again, so it never silently clobbers manual work.
+  const [prioritiesTouched, setPrioritiesTouched] = useState(false);
 
   const currentStep = STEPS[step];
   const stepForRender = (() => {
@@ -863,12 +869,30 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
   // or a live edit from the post-questionnaire AnswerPanel -- changing
   // vehicleType invalidates useCase/familySize either way, since their
   // option lists are scoped per vehicleType.
+  //
+  // Priority pre-fill (§3d): vehicleType always re-targets which of
+  // Resale Value / Towing & Payload is valid -- the two are mutually
+  // exclusive per type, so a stale label can never be left in the list,
+  // touched or not. If untouched, that's a full fresh reset to the new
+  // type's neutral order (useCase is also being cleared, so there's no
+  // hint left to reapply); if already touched, it's a surgical in-place
+  // swap that preserves the customer's own manual arrangement. useCase
+  // only applies its hint while untouched -- once the customer has
+  // dragged anything, later useCase changes (only reachable via the
+  // live-edit AnswerPanel, or by going Back after touching priorities)
+  // no longer reshuffle it.
   function setField(id: keyof Answers, value: string) {
     setAnswers((prev) => {
       const next = { ...prev, [id]: value };
       if (id === "vehicleType" && prev.vehicleType !== value) {
         next.useCase = "";
         next.familySize = "";
+        next.priorities = prioritiesTouched
+          ? retargetPriorityOrderForVehicleType(prev.priorities, value as VehicleType | "")
+          : defaultPriorityOrder(value as VehicleType | "");
+      }
+      if (id === "useCase" && !prioritiesTouched) {
+        next.priorities = applyUseCaseHint(defaultPriorityOrder(next.vehicleType), value);
       }
       return next;
     });
@@ -904,6 +928,7 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
 
   function reorderPriorities(order: string[]) {
     setAnswers((prev) => ({ ...prev, priorities: order }));
+    setPrioritiesTouched(true);
   }
 
   function goBack() {
@@ -917,6 +942,7 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
     setDismissed(new Set());
     setFlagged(new Set());
     setInfoVehicleId(null);
+    setPrioritiesTouched(false);
   }
 
   function dismiss(id: string) {
