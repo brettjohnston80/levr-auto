@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { VehicleType } from "./matchmaker-data";
+import type { Powertrain, VehicleType } from "./matchmaker-data";
 
 // The real, scored dataset backing the Matchmaker replacement (see
 // matchmaker-data-spec.md, data/matchmaker_scoring_pipeline.py). Entirely
@@ -117,6 +117,31 @@ export async function getVehiclesForBatch(batchId: string): Promise<MatchmakerVe
     from += PAGE_SIZE;
   }
   return rows.map(mapRowToVehicle);
+}
+
+// Folds the dataset's 6 raw sourced fuel types down to the app's 4-button
+// powertrain preference (Gas/Diesel/Hybrid/Electric), per the approved
+// plan's discrepancy-C decision: PHEV -> Hybrid, Hydrogen -> Electric
+// (fuel-cell is an electric drivetrain -- the same fold the old
+// 735-vehicle dataset already used). Returns null for anything
+// unrecognized rather than guessing -- a defensive fallback, not a live
+// gap: every one of the 1,601 real v18 rows has one of the 6 known
+// values, confirmed directly against the CSV before this was written.
+export function fuelTypeToPowertrain(fuelType: string | null): Powertrain | null {
+  switch (fuelType) {
+    case "Gas":
+      return "Gas";
+    case "Diesel":
+      return "Diesel";
+    case "Hybrid":
+    case "PHEV":
+      return "Hybrid";
+    case "EV":
+    case "Hydrogen":
+      return "Electric";
+    default:
+      return null;
+  }
 }
 
 // The real entry point the live site will use once wired in (Step 5) --

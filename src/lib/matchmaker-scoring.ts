@@ -1,5 +1,5 @@
-import type { Answers } from "./matchmaker-data";
-import type { MatchmakerVehicle } from "./matchmaker-vehicles";
+import type { Answers, Powertrain } from "./matchmaker-data";
+import { fuelTypeToPowertrain, type MatchmakerVehicle } from "./matchmaker-vehicles";
 
 // Rank position (1st, 2nd, ...) -> weight, per the approved scoring spec
 // (matchmaker-scoring-spec-2026-08-29.md, Section 6). Index 0 = 1st place.
@@ -66,4 +66,94 @@ export function getMatchedVehicles(vehicles: MatchmakerVehicle[], answers: Answe
     .filter((vehicle) => passesHardFilters(vehicle, answers))
     .map((vehicle) => ({ ...vehicle, totalScore: weightedTotal(vehicle, answers.priorities) }))
     .sort((a, b) => b.totalScore - a.totalScore);
+}
+
+// --- Powertrain segmentation (Step 4) ---------------------------------
+//
+// Segmented display only, per the approved plan and the scoring spec's
+// own resolution (Section 4) -- powertrain preference never touches
+// totalScore or re-sorts within a group. This operates strictly after
+// getMatchedVehicles: hard-filtering and scoring are already done: this
+// just groups and orders the already-sorted result for display.
+//
+// Only the single "closest alternative" is actually resolved in the spec
+// (Electric/Gas -> Hybrid, Diesel -> Gas, Hybrid -> Gas & Electric tied).
+// Where that leaves two or more remaining powertrains unranked against
+// each other -- e.g. Diesel's own position when Electric is preferred,
+// or Diesel's position at all when Gas is preferred -- the spec simply
+// doesn't say. FALLBACK_ORDER fills that gap with a stable, deterministic
+// order so the UI never has an undefined case, but it is NOT itself part
+// of the approved spec -- flagged here rather than presented as
+// authoritative, since revisiting it later shouldn't come as a surprise.
+const CLOSEST_ALTERNATIVES: Record<Powertrain, Powertrain[]> = {
+  Electric: ["Hybrid"],
+  Gas: ["Hybrid"],
+  Diesel: ["Gas"],
+  Hybrid: ["Gas", "Electric"],
+};
+
+const FALLBACK_ORDER: Powertrain[] = ["Gas", "Diesel", "Hybrid", "Electric"];
+
+export const POWERTRAIN_ALTERNATIVE_LABEL: Record<Powertrain, string> = {
+  Gas: "Best gas option",
+  Diesel: "Best diesel option",
+  Hybrid: "Best hybrid option",
+  Electric: "Best electric option",
+};
+
+export type PowertrainAlternativeGroup = {
+  powertrain: Powertrain;
+  label: string;
+  vehicles: MatchedVehicle[];
+};
+
+export type SegmentedResults = {
+  primary: MatchedVehicle[];
+  alternatives: PowertrainAlternativeGroup[];
+};
+
+// Groups already hard-filtered/scored/sorted vehicles by powertrain
+// preference. If no preference is set, this is a genuine no-op -- the
+// full sorted list stays in `primary`, `alternatives` is empty, matching
+// today's flat rendering with no preference picked. A vehicle whose raw
+// fuel_type doesn't fold to any known Powertrain (never happens against
+// the real v18 data, see fuelTypeToPowertrain) is excluded rather than
+// guessed into a group.
+export function segmentByPowertrain(
+  matched: MatchedVehicle[],
+  preferred: Powertrain | "",
+): SegmentedResults {
+  if (preferred === "") {
+    return { primary: matched, alternatives: [] };
+  }
+
+  const primary: MatchedVehicle[] = [];
+  const rest = new Map<Powertrain, MatchedVehicle[]>();
+
+  for (const vehicle of matched) {
+    const powertrain = fuelTypeToPowertrain(vehicle.fuelType);
+    if (powertrain === null) continue;
+    if (powertrain === preferred) {
+      primary.push(vehicle);
+    } else {
+      if (!rest.has(powertrain)) rest.set(powertrain, []);
+      rest.get(powertrain)!.push(vehicle);
+    }
+  }
+
+  const closest = CLOSEST_ALTERNATIVES[preferred];
+  const orderedAlternativePowertrains = [
+    ...closest,
+    ...FALLBACK_ORDER.filter((p) => p !== preferred && !closest.includes(p)),
+  ];
+
+  const alternatives: PowertrainAlternativeGroup[] = orderedAlternativePowertrains
+    .filter((p) => rest.has(p))
+    .map((p) => ({
+      powertrain: p,
+      label: POWERTRAIN_ALTERNATIVE_LABEL[p],
+      vehicles: rest.get(p)!,
+    }));
+
+  return { primary, alternatives };
 }
