@@ -11284,7 +11284,12 @@ export const GENERATED_RECOMMENDATIONS: GeneratedVehicle[] = [
     make: "Ford",
     model: "Transit Passenger Wagon",
     trim: "XL",
-    bodyType: "Passenger Van",
+    // Reclassified from "Passenger Van" (2026-08-31) -- that VehicleType
+    // was dropped, it has zero rows in the real scored dataset. This
+    // whole file is deleted in Step 5 of the Matchmaker replacement;
+    // "Cargo Van" is just the closest still-valid body shape to keep this
+    // doomed file compiling until then, not a real reclassification.
+    bodyType: "Cargo Van",
     powertrain: "Gas",
     priceEstimate: "$59,180 est.",
     priceValue: 59180,
@@ -11307,7 +11312,8 @@ export const GENERATED_RECOMMENDATIONS: GeneratedVehicle[] = [
     make: "Ford",
     model: "Transit Passenger Wagon",
     trim: "XLT",
-    bodyType: "Passenger Van",
+    // Reclassified from "Passenger Van" -- see the XL trim above for why.
+    bodyType: "Cargo Van",
     powertrain: "Gas",
     priceEstimate: "$62,165 est.",
     priceValue: 62165,

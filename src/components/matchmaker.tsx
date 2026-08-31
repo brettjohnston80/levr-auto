@@ -88,6 +88,7 @@ const STEPS: Step[] = [
 const POWERTRAIN_COLOR: Record<Powertrain | "", string> = {
   "": "text-zinc-600",
   Gas: "text-zinc-400",
+  Diesel: "text-orange-400",
   Hybrid: "text-sky-400",
   Electric: "text-emerald-400",
 };
@@ -169,8 +170,12 @@ const BODY_PATHS: Record<VehicleType, string> = {
   Coupe: "M10 78 L10 72 Q10 69 13 68 L60 62 L92 32 Q100 25 112 25 L150 25 Q160 25 166 33 L184 58 L226 66 Q230 67 230 72 L230 78 Z",
   Convertible: "M10 78 L10 72 Q10 69 13 68 L50 64 L70 50 Q76 45 84 45 L160 45 Q168 45 174 50 L196 64 L226 68 Q230 69 230 72 L230 78 Z",
   Minivan: "M10 78 L10 58 Q10 46 22 42 L38 30 Q48 24 62 24 L184 24 Q196 24 204 32 L220 46 Q230 50 230 62 L230 78 Z",
-  "Passenger Van": "M14 78 L14 30 Q14 24 20 24 L222 24 Q228 24 228 30 L228 78 Z",
   "Cargo Van": "M14 78 L14 30 Q14 24 20 24 L222 24 Q228 24 228 30 L228 78 Z",
+  // Same front-end language as Sedan/Hatchback (hood + rising windshield),
+  // but the roofline stays flat much further back before a short, steep
+  // liftgate drop at the rear -- the defining silhouette difference for a
+  // wagon vs. a sedan (short trunk) or hatchback (shorter flat roof).
+  Wagon: "M10 78 L10 70 Q10 66 14 65 L46 58 L70 34 Q78 26 92 26 L196 26 Q210 26 216 38 L224 58 L228 62 Q230 64 230 70 L230 78 Z",
 };
 
 function VehicleBody({ d, className, cargoSeam }: { d: string; className?: string; cargoSeam?: boolean }) {
