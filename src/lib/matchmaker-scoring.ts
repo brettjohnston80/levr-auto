@@ -76,23 +76,25 @@ export function getMatchedVehicles(vehicles: MatchmakerVehicle[], answers: Answe
 // getMatchedVehicles: hard-filtering and scoring are already done: this
 // just groups and orders the already-sorted result for display.
 //
-// Only the single "closest alternative" is actually resolved in the spec
-// (Electric/Gas -> Hybrid, Diesel -> Gas, Hybrid -> Gas & Electric tied).
-// Where that leaves two or more remaining powertrains unranked against
-// each other -- e.g. Diesel's own position when Electric is preferred,
-// or Diesel's position at all when Gas is preferred -- the spec simply
-// doesn't say. FALLBACK_ORDER fills that gap with a stable, deterministic
-// order so the UI never has an undefined case, but it is NOT itself part
-// of the approved spec -- flagged here rather than presented as
+// Alternative powertrains, grouped into ordered TIERS -- entries within a
+// tier are equally preferred, with no order implied between them; tiers
+// are themselves ordered, tier 1 being the most-preferred alternative(s).
+//
+// Only a few of these are things a human actually specified: Electric/Gas
+// -> Hybrid as tier 1, Diesel -> Gas as tier 1, Hybrid -> {Gas, Electric}
+// tied as tier 1 (all from the scoring spec's own Section 4 resolution),
+// and Gas -> {Diesel, Electric} tied as tier 2, after Hybrid (Brett's
+// correction, 2026-09-02, replacing this project's own earlier guess that
+// had them sequentially ordered). Every other tier not covered by one of
+// those is this project's own filled-in gap, not something the spec or
+// Brett has actually resolved -- flagged here rather than presented as
 // authoritative, since revisiting it later shouldn't come as a surprise.
-const CLOSEST_ALTERNATIVES: Record<Powertrain, Powertrain[]> = {
-  Electric: ["Hybrid"],
-  Gas: ["Hybrid"],
-  Diesel: ["Gas"],
-  Hybrid: ["Gas", "Electric"],
+const ALTERNATIVE_TIERS: Record<Powertrain, Powertrain[][]> = {
+  Electric: [["Hybrid"], ["Gas"], ["Diesel"]],
+  Gas: [["Hybrid"], ["Diesel", "Electric"]],
+  Diesel: [["Gas"], ["Hybrid"], ["Electric"]],
+  Hybrid: [["Gas", "Electric"], ["Diesel"]],
 };
-
-const FALLBACK_ORDER: Powertrain[] = ["Gas", "Diesel", "Hybrid", "Electric"];
 
 export const POWERTRAIN_ALTERNATIVE_LABEL: Record<Powertrain, string> = {
   Gas: "Best gas option",
@@ -104,6 +106,9 @@ export const POWERTRAIN_ALTERNATIVE_LABEL: Record<Powertrain, string> = {
 export type PowertrainAlternativeGroup = {
   powertrain: Powertrain;
   label: string;
+  // 1-based. Groups sharing a tier are equally preferred -- don't read
+  // their relative position in the `alternatives` array as a ranking.
+  tier: number;
   vehicles: MatchedVehicle[];
 };
 
@@ -141,19 +146,18 @@ export function segmentByPowertrain(
     }
   }
 
-  const closest = CLOSEST_ALTERNATIVES[preferred];
-  const orderedAlternativePowertrains = [
-    ...closest,
-    ...FALLBACK_ORDER.filter((p) => p !== preferred && !closest.includes(p)),
-  ];
-
-  const alternatives: PowertrainAlternativeGroup[] = orderedAlternativePowertrains
-    .filter((p) => rest.has(p))
-    .map((p) => ({
-      powertrain: p,
-      label: POWERTRAIN_ALTERNATIVE_LABEL[p],
-      vehicles: rest.get(p)!,
-    }));
+  const alternatives: PowertrainAlternativeGroup[] = [];
+  ALTERNATIVE_TIERS[preferred].forEach((tierPowertrains, tierIndex) => {
+    for (const p of tierPowertrains) {
+      if (!rest.has(p)) continue;
+      alternatives.push({
+        powertrain: p,
+        label: POWERTRAIN_ALTERNATIVE_LABEL[p],
+        tier: tierIndex + 1,
+        vehicles: rest.get(p)!,
+      });
+    }
+  });
 
   return { primary, alternatives };
 }
