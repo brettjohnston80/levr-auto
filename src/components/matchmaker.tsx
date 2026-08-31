@@ -719,28 +719,42 @@ function ModelGroupCard({
           </span>
         </div>
 
-        {/* Trim/drivetrain selector -- only shown when there's more than
-            one variant to choose between (a single-trim group has
-            nothing to toggle). Native <select>, not a pill row: real
-            per-model trim counts range from 2 to 31 (Ram ProMaster) --
-            confirmed against the live dataset -- and a native select
-            scales cleanly across that whole range with no special-casing.
-            Trim + drivetrain always both shown (not conditionally), since
-            38 of 308 real model groups have at least one repeated trim
-            label where drivetrain is the only disambiguator (e.g. Alfa
-            Romeo Giulia Base AWD vs. RWD). */}
+        {/* Trim/drivetrain list -- only shown when there's more than one
+            variant to choose between (a single-trim group has nothing to
+            toggle). Replaced the native <select> with clickable list
+            items (2026-09-02, Brett's request) -- same underlying
+            mechanic (one active trim at a time, driving price/rationale/
+            indicator display and which vehicle "More info" opens), same
+            per-item info (trim -- drivetrain -- price) as the dropdown
+            options it replaces, just a different control. No
+            special-casing by trim count -- real per-model trim counts
+            range from 2 to 31 (Ram ProMaster), and that card is expected
+            to render tall as a result, per instruction. Trim + drivetrain
+            always both shown (not conditionally), since 38 of 308 real
+            model groups have at least one repeated trim label where
+            drivetrain is the only disambiguator (e.g. Alfa Romeo Giulia
+            Base AWD vs. RWD). */}
         {group.variants.length > 1 ? (
-          <select
-            value={activeVariant.id}
-            onChange={(e) => setManualTrimId(e.target.value)}
-            className="mt-2 w-full max-w-xs rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:border-white/25 focus:border-emerald-500/50 focus:outline-none"
-          >
-            {group.variants.map((v) => (
-              <option key={v.id} value={v.id} className="bg-zinc-900 text-zinc-100">
-                {v.trim} — {v.drivetrain ?? "—"} — {formatPriceEstimate(v.trueStartingPriceCents)}
-              </option>
-            ))}
-          </select>
+          <div className="mt-2 flex flex-col gap-1.5">
+            {group.variants.map((v) => {
+              const active = v.id === activeVariant.id;
+              return (
+                <button
+                  key={v.id}
+                  type="button"
+                  onClick={() => setManualTrimId(v.id)}
+                  aria-pressed={active}
+                  className={`rounded-lg border px-2.5 py-1.5 text-left text-xs font-medium transition-colors ${
+                    active
+                      ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-300"
+                      : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/25 hover:bg-white/[0.05] hover:text-zinc-200"
+                  }`}
+                >
+                  {v.trim} — {v.drivetrain ?? "—"} — {formatPriceEstimate(v.trueStartingPriceCents)}
+                </button>
+              );
+            })}
+          </div>
         ) : (
           <p className="mt-1 text-xs text-zinc-500">
             {activeVariant.trim}
@@ -748,14 +762,15 @@ function ModelGroupCard({
           </p>
         )}
 
-        <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-zinc-400">
-          <span className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-0.5">
-            {activeVariant.bodyStyle}
-          </span>
-          <span className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-0.5">
-            {activeVariant.fuelType ?? "—"}
-          </span>
-        </div>
+        {/* Body-style/fuel-type badges removed (2026-09-02, Brett's
+            request) -- body style is always redundant (a hard filter,
+            every result matches it). Fuel type is normally redundant
+            here too, but is NOT redundant on "Other powertrains worth a
+            look" cards specifically, since those intentionally show a
+            different powertrain than what was searched for -- flagged
+            explicitly, proceeding with full removal per instruction. If
+            that turns out to lose a signal worth having back, it's only
+            needed on the alternatives section, not here. */}
         <p className="mt-3 text-sm leading-relaxed text-zinc-400">{rationale}</p>
         <DimensionDetailList vehicle={activeVariant} priorities={priorities} limit={5} />
       </div>
