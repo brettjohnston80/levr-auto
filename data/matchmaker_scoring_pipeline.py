@@ -66,7 +66,7 @@ NUMERIC_COLUMNS = [
     'rear_headroom_in', 'third_row_headroom_in', 'cargo_volume_seats_up_cuft',
     'max_cargo_volume_cuft', 'towing_capacity_lbs', 'payload_capacity_lbs',
     'reliability_rating', 'horsepower', 'torque_lbft', 'zero_to_60_sec', 'top_speed_mph',
-    'tech_score', 'resale_depreciation_pct', 'fuel_tank_capacity_gal',
+    'tech_score', 'resale_depreciation_pct', 'fuel_tank_capacity_gal', 'bed_length_ft',
 ]
 
 # Dimensions using the universal formula: final = 50 + (x - min)/(max - min) * 50
@@ -82,6 +82,18 @@ NUMERIC_COLUMNS = [
 CARGO_DUAL_VALUE_BODY_STYLES = ['SUV', 'Hatchback', 'Wagon', 'Minivan', 'Cargo Van']
 CARGO_SEATS_UP_WEIGHT = 0.75
 CARGO_MAX_WEIGHT = 0.25
+
+# CONFIRMED 2026-09-02: Truck is a special case, using bed_length_ft alone
+# (not cargo_volume_seats_up_cuft/max_cargo_volume_cuft at all). The cuft
+# metrics measure interior cab storage, not the truck bed — verified on
+# real data that the populated values (33-53 cuft) are far too small to be
+# bed volume, and only 22% of trucks have it populated in the first place.
+# bed_length_ft is a real, well-sourced (93.7%), genuinely differentiating
+# spec (4.3-8.2 ft range) that measures the thing that actually matters for
+# a truck's cargo capacity. The 12 Ram Chassis Cab rows with no bed_length_ft
+# (they ship without a factory bed at all) correctly floor at 50 like any
+# other missing-data case — no special handling needed.
+CARGO_BED_LENGTH_BODY_STYLES = ['Truck']
 
 # Comfort: CONFIRMED 2026-08-31. third_row_legroom_in / third_row_headroom_in
 # are included for SUVs (and Minivans) where has_third_row == 'yes', combined
@@ -295,7 +307,9 @@ def score_comfort(cls, body_style):
 
 
 def score_cargo(cls, body_style):
-    if body_style in CARGO_DUAL_VALUE_BODY_STYLES and 'max_cargo_volume_cuft' in cls.columns:
+    if body_style in CARGO_BED_LENGTH_BODY_STYLES:
+        return floor_rescale(cls['bed_length_ft'])
+    elif body_style in CARGO_DUAL_VALUE_BODY_STYLES and 'max_cargo_volume_cuft' in cls.columns:
         seats_up_norm = normalize_0_100(cls['cargo_volume_seats_up_cuft'])
         max_norm = normalize_0_100(cls['max_cargo_volume_cuft'])
 
