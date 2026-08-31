@@ -1,44 +1,15 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { Powertrain, VehicleType } from "./matchmaker-data";
+import type { VehicleType } from "./matchmaker-data";
+import { SCORE_COLUMN_TO_LABEL, type MatchmakerVehicle } from "./matchmaker-vehicle-display";
 
-// The real, scored dataset backing the Matchmaker replacement (see
-// matchmaker-data-spec.md, data/matchmaker_scoring_pipeline.py). Entirely
-// separate from MockVehicle/GeneratedVehicle in matchmaker-data.ts /
-// generated-matchmaker-data.ts, which stay present-but-unused until the
-// Step 5 cutover deletes them.
-export type MatchmakerVehicle = {
-  id: string;
-  make: string;
-  model: string;
-  trim: string;
-  modelYear: number;
-  isPerformanceTrim: boolean;
-  bodyStyle: VehicleType;
-  seatingCapacity: number | null;
-  drivetrain: string | null;
-  // Raw sourced value (Gas/EV/Hybrid/PHEV/Diesel/Hydrogen) -- folding this
-  // into the app's 4-button powertrain preference (PHEV->Hybrid,
-  // Hydrogen->Electric) is a Step 4 display-layer concern, not done here.
-  fuelType: string | null;
-  trueStartingPriceCents: number | null;
-  // Keyed by the exact same labels PRIORITIES uses in matchmaker-data.ts,
-  // so weightedTotal() in matchmaker-scoring.ts can index straight off a
-  // customer's priority-order array with no separate label<->key mapping.
-  scores: Record<string, number>;
-};
+export type { MatchmakerVehicle } from "./matchmaker-vehicle-display";
 
-// vehicles columns -> the PRIORITIES label each one corresponds to.
-const SCORE_COLUMN_TO_LABEL: Record<string, string> = {
-  safety_score: "Safety",
-  comfort_score: "Comfort",
-  cargo_score: "Cargo Space",
-  fuel_economy_score: "Fuel Economy",
-  reliability_score: "Reliability",
-  performance_score: "Performance",
-  tech_features_score: "Technology & Features",
-  price_value_score: "Price/Value",
-  resale_value_score: "Resale Value",
-};
+// Server-only data fetching for the real, scored dataset backing the
+// Matchmaker replacement (see matchmaker-data-spec.md,
+// data/matchmaker_scoring_pipeline.py). Pure type/display helpers live in
+// matchmaker-vehicle-display.ts, which has no Supabase import and is safe
+// to use from the client "use client" component too -- see that file's
+// header comment for why the split exists.
 
 type VehicleRow = {
   id: string;
@@ -52,6 +23,14 @@ type VehicleRow = {
   drivetrain: string | null;
   fuel_type: string | null;
   true_starting_price_cents: number | null;
+  has_third_row: boolean;
+  towing_capacity_lbs: number | null;
+  payload_capacity_lbs: number | null;
+  range_mi: number | null;
+  epa_combined_mpg: number | null;
+  cargo_volume_seats_up_cuft: number | null;
+  horsepower: number | null;
+  zero_to_60_sec: number | null;
   safety_score: number;
   comfort_score: number;
   cargo_score: number;
@@ -82,15 +61,24 @@ function mapRowToVehicle(row: VehicleRow): MatchmakerVehicle {
     drivetrain: row.drivetrain,
     fuelType: row.fuel_type,
     trueStartingPriceCents: row.true_starting_price_cents,
+    hasThirdRow: row.has_third_row,
+    towingCapacityLbs: row.towing_capacity_lbs,
+    payloadCapacityLbs: row.payload_capacity_lbs,
+    rangeMi: row.range_mi,
+    epaCombinedMpg: row.epa_combined_mpg,
+    cargoVolumeSeatsUpCuft: row.cargo_volume_seats_up_cuft,
+    horsepower: row.horsepower,
+    zeroToSixtySec: row.zero_to_60_sec,
     scores,
   };
 }
 
 const SELECT_COLUMNS =
   "id, make, model, trim, model_year, is_performance_trim, body_style, seating_capacity, " +
-  "drivetrain, fuel_type, true_starting_price_cents, safety_score, comfort_score, cargo_score, " +
-  "fuel_economy_score, reliability_score, performance_score, tech_features_score, " +
-  "price_value_score, resale_value_score";
+  "drivetrain, fuel_type, true_starting_price_cents, has_third_row, towing_capacity_lbs, " +
+  "payload_capacity_lbs, range_mi, epa_combined_mpg, cargo_volume_seats_up_cuft, horsepower, " +
+  "zero_to_60_sec, safety_score, comfort_score, cargo_score, fuel_economy_score, " +
+  "reliability_score, performance_score, tech_features_score, price_value_score, resale_value_score";
 
 const PAGE_SIZE = 1000;
 
@@ -119,35 +107,10 @@ export async function getVehiclesForBatch(batchId: string): Promise<MatchmakerVe
   return rows.map(mapRowToVehicle);
 }
 
-// Folds the dataset's 6 raw sourced fuel types down to the app's 4-button
-// powertrain preference (Gas/Diesel/Hybrid/Electric), per the approved
-// plan's discrepancy-C decision: PHEV -> Hybrid, Hydrogen -> Electric
-// (fuel-cell is an electric drivetrain -- the same fold the old
-// 735-vehicle dataset already used). Returns null for anything
-// unrecognized rather than guessing -- a defensive fallback, not a live
-// gap: every one of the 1,601 real v18 rows has one of the 6 known
-// values, confirmed directly against the CSV before this was written.
-export function fuelTypeToPowertrain(fuelType: string | null): Powertrain | null {
-  switch (fuelType) {
-    case "Gas":
-      return "Gas";
-    case "Diesel":
-      return "Diesel";
-    case "Hybrid":
-    case "PHEV":
-      return "Hybrid";
-    case "EV":
-    case "Hydrogen":
-      return "Electric";
-    default:
-      return null;
-  }
-}
-
-// The real entry point the live site will use once wired in (Step 5) --
-// reads whichever batch vehicle_dataset_batches.is_live currently points
-// at. Returns [] (not an error) if no batch has been promoted yet, which
-// is the real, honest current state -- see promote_vehicle_dataset_batch.
+// The real entry point the live site uses (wired in Step 5) -- reads
+// whichever batch vehicle_dataset_batches.is_live currently points at.
+// Returns [] (not an error) if no batch has been promoted yet, which is
+// the real, honest current state -- see promote_vehicle_dataset_batch.
 export async function getLiveVehicles(): Promise<MatchmakerVehicle[]> {
   const admin = createAdminClient();
   const { data: liveBatch, error } = await admin

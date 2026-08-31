@@ -1,5 +1,5 @@
 import type { Answers, Powertrain } from "./matchmaker-data";
-import { fuelTypeToPowertrain, type MatchmakerVehicle } from "./matchmaker-vehicles";
+import { fuelTypeToPowertrain, type MatchmakerVehicle } from "./matchmaker-vehicle-display";
 
 // Rank position (1st, 2nd, ...) -> weight, per the approved scoring spec
 // (matchmaker-scoring-spec-2026-08-29.md, Section 6). Index 0 = 1st place.

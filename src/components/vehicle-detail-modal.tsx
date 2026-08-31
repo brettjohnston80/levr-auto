@@ -1,30 +1,42 @@
 "use client";
 
-import type { Answers, MockVehicle } from "@/lib/matchmaker-data";
+import { createPortal } from "react-dom";
+import type { Answers } from "@/lib/matchmaker-data";
+import { buildRationale, formatPriceEstimate, fuelTypeToPowertrain, type MatchmakerVehicle } from "@/lib/matchmaker-vehicle-display";
 
-// Only ever includes a bullet for something that actually matches the
-// vehicle's real data against the user's specific answers -- no filler for
-// answers that don't line up, per the UX review ask (#7).
-function buildFitBullets(vehicle: MockVehicle, answers: Answers): string[] {
+// vehicleType/familySize/priceRange are hard filters now (matchmaker-
+// scoring.ts) -- every vehicle reaching this modal already satisfies them
+// exactly, so these bullets are confirmations, not soft matches. Powertrain
+// is NOT a hard filter (segmented display only), so its bullet only shows
+// when the vehicle's folded powertrain genuinely matches the preference --
+// a vehicle can legitimately reach this modal from an "alternatives" group
+// with a different one. Priority-score bullets use the new 0-100 scale
+// (80+ is a reasonable "excellent for its class" bar, the natural
+// translation of the old system's "4 of 5" threshold onto the new scale).
+function buildFitBullets(vehicle: MatchmakerVehicle, answers: Answers): string[] {
   const bullets: string[] = [];
 
-  const typeMatches = answers.vehicleType !== "" && vehicle.bodyType === answers.vehicleType;
+  const typeMatches = answers.vehicleType !== "" && vehicle.bodyStyle === answers.vehicleType;
   if (typeMatches) {
     bullets.push(`Matches your ${answers.vehicleType} preference.`);
   }
 
-  if (answers.powertrain && vehicle.powertrain === answers.powertrain) {
+  if (answers.powertrain && fuelTypeToPowertrain(vehicle.fuelType) === answers.powertrain) {
     bullets.push(`${answers.powertrain} powertrain, as you wanted.`);
   }
 
-  if (answers.familySize && vehicle.seatsCategory === answers.familySize) {
-    bullets.push(`Seating sized right for your group (${answers.familySize} riders).`);
+  if (answers.familySize) {
+    const minSeats = answers.familySize === "6+" ? 6 : answers.familySize === "3-5" ? 3 : 0;
+    if (minSeats === 0 || (vehicle.seatingCapacity !== null && vehicle.seatingCapacity >= minSeats)) {
+      bullets.push(`Seating sized right for your group (${answers.familySize} riders).`);
+    }
   }
 
   if (
     answers.priceRange &&
-    vehicle.priceValue >= answers.priceRange.min &&
-    vehicle.priceValue <= answers.priceRange.max
+    vehicle.trueStartingPriceCents !== null &&
+    vehicle.trueStartingPriceCents >= Math.round(answers.priceRange.min * 100) &&
+    vehicle.trueStartingPriceCents <= Math.round(answers.priceRange.max * 100)
   ) {
     bullets.push("Falls within your target price range.");
   }
@@ -34,8 +46,8 @@ function buildFitBullets(vehicle: MockVehicle, answers: Answers): string[] {
   }
 
   answers.priorities.slice(0, 3).forEach((label, index) => {
-    const score = vehicle.priorityScores[label] ?? 0;
-    if (score >= 4) {
+    const score = vehicle.scores[label] ?? 0;
+    if (score >= 80) {
       bullets.push(`Scores well on ${label}, your #${index + 1} priority.`);
     }
   });
@@ -48,13 +60,23 @@ export function VehicleDetailModal({
   answers,
   onClose,
 }: {
-  vehicle: MockVehicle;
+  vehicle: MatchmakerVehicle;
   answers: Answers;
   onClose: () => void;
 }) {
   const bullets = buildFitBullets(vehicle, answers);
+  const priceEstimate = formatPriceEstimate(vehicle.trueStartingPriceCents);
 
-  return (
+  // Portaled to document.body (2026-09-02, real bug found during Step 5
+  // verification, not new to this rewrite -- this modal's fixed/inset-0
+  // CSS was already unchanged from before). The page-transition wrapper
+  // around <main> (drive-transition-provider.tsx) applies
+  // will-change-transform, which creates a new containing block for any
+  // `position: fixed` descendant -- so without the portal, this modal
+  // renders positioned relative to that wrapper instead of the viewport,
+  // landing far off-screen on any page that's been scrolled. Same root
+  // cause and same fix already applied to mobile-nav-menu.tsx.
+  return createPortal(
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/70 px-6 py-12 backdrop-blur-sm"
       onClick={onClose}
@@ -80,14 +102,14 @@ export function VehicleDetailModal({
         </button>
 
         <p className="pr-8 text-xs font-semibold tracking-wide text-emerald-400 uppercase">
-          {vehicle.bodyType} · {vehicle.powertrain}
+          {vehicle.bodyStyle} · {vehicle.fuelType ?? "—"}
         </p>
         <h2 className="mt-1 text-2xl font-semibold text-white">
-          {vehicle.make} {vehicle.model}
+          {vehicle.make} {vehicle.model} {vehicle.trim}
         </h2>
-        <p className="mt-1 text-sm font-semibold text-emerald-400">{vehicle.priceEstimate}</p>
+        <p className="mt-1 text-sm font-semibold text-emerald-400">{priceEstimate}</p>
 
-        <p className="mt-4 text-sm leading-relaxed text-zinc-300">{vehicle.rationale}</p>
+        <p className="mt-4 text-sm leading-relaxed text-zinc-300">{buildRationale(vehicle)}</p>
 
         {bullets.length > 0 && (
           <div className="mt-6">
@@ -103,11 +125,16 @@ export function VehicleDetailModal({
           </div>
         )}
 
+        {/* PROPOSED customer-facing copy, pending explicit sign-off -- the
+            old line ("...once Matchmaker connects to real inventory data")
+            is now stale: this IS real researched vehicle data, just not
+            live dealer inventory (VIN-level pricing/availability). */}
         <p className="mt-6 border-t border-white/10 pt-4 text-xs text-zinc-500">
           Full spec sheets and trusted review videos will show up here once Matchmaker connects to
-          real inventory data.
+          live dealer inventory.
         </p>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

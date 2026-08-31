@@ -7,7 +7,6 @@ import { PriceRangeSlider } from "@/components/price-range-slider";
 import {
   FAMILY_SIZES,
   LARGE_CAPACITY_VEHICLE_TYPES,
-  MOCK_RECOMMENDATIONS,
   POWERTRAINS,
   PRICE_SLIDER_MIN,
   PRICE_SLIDER_MAX,
@@ -16,12 +15,12 @@ import {
   VEHICLE_TYPES,
   formatPriceRange,
   type Answers,
-  type MockVehicle,
   type Powertrain,
   type PriceRangeValue,
   type VehicleType,
 } from "@/lib/matchmaker-data";
-import { GENERATED_RECOMMENDATIONS } from "@/lib/generated-matchmaker-data";
+import { formatPriceEstimate, buildRationale, type MatchmakerVehicle } from "@/lib/matchmaker-vehicle-display";
+import { getMatchedVehicles, segmentByPowertrain, type MatchedVehicle } from "@/lib/matchmaker-scoring";
 
 const DEFAULT_PRIORITY_ORDER = PRIORITIES.map((p) => p.label);
 
@@ -68,7 +67,7 @@ const STEPS: Step[] = [
     id: "powertrain",
     kind: "select",
     title: "Any preference on powertrain?",
-    subtitle: "Gas, hybrid, or fully electric.",
+    subtitle: "Gas, diesel, hybrid, or fully electric.",
     options: POWERTRAINS,
   },
   {
@@ -113,53 +112,6 @@ function priceTierForRange(range: PriceRangeValue | null): string {
   if (mid < 60000) return "$$$";
   if (mid < 80000) return "$$$$";
   return "$$$$$";
-}
-
-// Weighs all six answer fields, not just bodyType/powertrain. Weights are
-// tuned so changing any one field visibly moves the list, not for a
-// precisely calibrated formula:
-//   - vehicleType (40) is the heaviest single weight -- the primary filter.
-//   - powertrain (15) and familySize-vs-seatsCategory (15) are direct matches.
-//   - priceRange (15) checks whether priceValue falls inside the selected bracket.
-//   - useCase (5) isn't scored independently -- it's freeform text scoped
-//     per-vehicleType, not a fixed taxonomy, so it just reinforces an
-//     already-matching vehicleType.
-//   - priorities (10) weighs each vehicle's priorityScores by how close to
-//     the top each priority was ranked, normalized against the best
-//     possible score so it nudges the result rather than dominating it.
-function fitScore(vehicle: MockVehicle, answers: Answers): number {
-  let score = 0;
-
-  const typeMatches = answers.vehicleType !== "" && vehicle.bodyType === answers.vehicleType;
-  if (typeMatches) score += 40;
-
-  if (answers.powertrain && vehicle.powertrain === answers.powertrain) score += 15;
-
-  if (answers.familySize && vehicle.seatsCategory === answers.familySize) score += 15;
-
-  if (
-    answers.priceRange &&
-    vehicle.priceValue >= answers.priceRange.min &&
-    vehicle.priceValue <= answers.priceRange.max
-  ) {
-    score += 15;
-  }
-
-  if (answers.useCase && typeMatches) score += 5;
-
-  const rankWeightTotal = PRIORITIES.length;
-  let priorityRaw = 0;
-  let priorityMax = 0;
-  answers.priorities.forEach((label, index) => {
-    const weight = rankWeightTotal - index;
-    priorityRaw += (vehicle.priorityScores[label] ?? 0) * weight;
-    priorityMax += 5 * weight;
-  });
-  if (priorityMax > 0) {
-    score += (priorityRaw / priorityMax) * 10;
-  }
-
-  return score;
 }
 
 const BODY_PATHS: Record<VehicleType, string> = {
@@ -647,13 +599,15 @@ function VehicleCard({
   onToggleFlag,
   onOpenInfo,
 }: {
-  vehicle: MockVehicle;
+  vehicle: MatchmakerVehicle;
   flagged: boolean;
   onDismiss: () => void;
   onToggleFlag: () => void;
   onOpenInfo: () => void;
 }) {
   const [searchClicked, setSearchClicked] = useState(false);
+  const priceEstimate = formatPriceEstimate(vehicle.trueStartingPriceCents);
+  const rationale = buildRationale(vehicle);
 
   return (
     <div
@@ -666,26 +620,26 @@ function VehicleCard({
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-3 sm:block">
           <h3 className="text-lg font-semibold text-white">
-            {vehicle.make} {vehicle.model}
+            {vehicle.make} {vehicle.model} {vehicle.trim}
           </h3>
           <span className="shrink-0 text-sm font-semibold text-emerald-400 sm:hidden">
-            {vehicle.priceEstimate}
+            {priceEstimate}
           </span>
         </div>
         <div className="mt-1 flex flex-wrap gap-1.5 text-xs text-zinc-400">
           <span className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-0.5">
-            {vehicle.bodyType}
+            {vehicle.bodyStyle}
           </span>
           <span className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-0.5">
-            {vehicle.powertrain}
+            {vehicle.fuelType ?? "—"}
           </span>
         </div>
-        <p className="mt-3 text-sm leading-relaxed text-zinc-400">{vehicle.rationale}</p>
+        <p className="mt-3 text-sm leading-relaxed text-zinc-400">{rationale}</p>
       </div>
 
       <div className="flex shrink-0 flex-col items-stretch gap-2 sm:w-52">
         <span className="hidden text-right text-sm font-semibold text-emerald-400 sm:block">
-          {vehicle.priceEstimate}
+          {priceEstimate}
         </span>
         <div className="flex flex-wrap items-center gap-2 sm:flex-col sm:items-stretch">
           <button
@@ -739,22 +693,28 @@ function VehicleCard({
 // sitting alongside this needs to trigger the same re-sort on every edit.
 // No "Start Over" here anymore -- that moved into AnswerPanel, secondary to
 // editing individual fields directly.
+type AlternativeCard = { powertrain: Powertrain; label: string; vehicle: MatchedVehicle };
+
 function ResultsList({
   answers,
-  visible,
+  primary,
+  alternatives,
   flagged,
   onDismiss,
   onToggleFlag,
   onOpenInfo,
   onRestoreAll,
+  anyDismissed,
 }: {
   answers: Answers;
-  visible: MockVehicle[];
+  primary: MatchedVehicle[];
+  alternatives: AlternativeCard[];
   flagged: Set<string>;
   onDismiss: (id: string) => void;
   onToggleFlag: (id: string) => void;
   onOpenInfo: (id: string) => void;
   onRestoreAll: () => void;
+  anyDismissed: boolean;
 }) {
   const answerChips = [
     answers.vehicleType,
@@ -764,11 +724,17 @@ function ResultsList({
     answers.priceRange ? formatPriceRange(answers.priceRange) : "",
   ].filter(Boolean);
 
+  const hasAnyResults = primary.length > 0 || alternatives.length > 0;
+
   return (
     <div>
       <div>
+        {/* PROPOSED customer-facing copy, pending explicit sign-off -- see
+            build notes. "Mock" was accurate for the old hand-curated/
+            derived-heuristic dataset; this is real researched vehicle
+            data now, just not live dealer inventory yet. */}
         <span className="inline-flex items-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5 text-xs font-medium tracking-wide text-emerald-400 uppercase">
-          Mock results — not live inventory
+          Real vehicle data — not live inventory
         </span>
         <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Here&apos;s what we&apos;d search for
@@ -777,8 +743,8 @@ function ResultsList({
           Dismiss what doesn&apos;t fit, flag what does — this narrows the list live.
         </p>
         <p className="mt-1 text-xs text-zinc-500">
-          Sorted by fit to your answers — flagged picks jump to the top. Edit any answer alongside
-          the list to re-sort instantly.
+          Sorted by how well each vehicle matches what matters most to you. Edit any answer
+          alongside the list to re-sort instantly.
         </p>
         {answerChips.length > 0 && (
           <div className="mt-6 flex flex-wrap gap-2">
@@ -794,20 +760,48 @@ function ResultsList({
         )}
       </div>
 
-      {visible.length > 0 ? (
-        <div className="mt-8 flex flex-col gap-4">
-          {visible.map((vehicle) => (
-            <VehicleCard
-              key={vehicle.id}
-              vehicle={vehicle}
-              flagged={flagged.has(vehicle.id)}
-              onDismiss={() => onDismiss(vehicle.id)}
-              onToggleFlag={() => onToggleFlag(vehicle.id)}
-              onOpenInfo={() => onOpenInfo(vehicle.id)}
-            />
-          ))}
-        </div>
-      ) : (
+      {hasAnyResults ? (
+        <>
+          {primary.length > 0 && (
+            <div className="mt-8 flex flex-col gap-4">
+              {primary.map((vehicle) => (
+                <VehicleCard
+                  key={vehicle.id}
+                  vehicle={vehicle}
+                  flagged={flagged.has(vehicle.id)}
+                  onDismiss={() => onDismiss(vehicle.id)}
+                  onToggleFlag={() => onToggleFlag(vehicle.id)}
+                  onOpenInfo={() => onOpenInfo(vehicle.id)}
+                />
+              ))}
+            </div>
+          )}
+
+          {alternatives.length > 0 && (
+            <div className="mt-10">
+              <h3 className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
+                Other powertrains worth a look
+              </h3>
+              <div className="mt-4 flex flex-col gap-6">
+                {alternatives.map((alt) => (
+                  <div key={alt.powertrain}>
+                    <p className="mb-2 text-xs font-semibold tracking-wide text-emerald-400 uppercase">
+                      {alt.label}
+                    </p>
+                    <VehicleCard
+                      vehicle={alt.vehicle}
+                      flagged={flagged.has(alt.vehicle.id)}
+                      onDismiss={() => onDismiss(alt.vehicle.id)}
+                      onToggleFlag={() => onToggleFlag(alt.vehicle.id)}
+                      onOpenInfo={() => onOpenInfo(alt.vehicle.id)}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      ) : anyDismissed ? (
         <div className="mt-8 rounded-3xl border border-white/10 bg-white/[0.03] p-10 text-center">
           <p className="text-lg font-semibold text-white">You dismissed everything.</p>
           <p className="mt-2 text-sm text-zinc-400">Restore the list, or adjust your answers alongside it.</p>
@@ -818,6 +812,13 @@ function ResultsList({
           >
             Restore All
           </button>
+        </div>
+      ) : (
+        <div className="mt-8 rounded-3xl border border-white/10 bg-white/[0.03] p-10 text-center">
+          <p className="text-lg font-semibold text-white">No matches for these answers yet.</p>
+          <p className="mt-2 text-sm text-zinc-400">
+            Try widening your price range or riders — adjust any answer alongside the list.
+          </p>
         </div>
       )}
 
@@ -836,7 +837,7 @@ function ResultsList({
   );
 }
 
-export function Matchmaker() {
+export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Answers>(EMPTY_ANSWERS);
   const [done, setDone] = useState(false);
@@ -931,32 +932,51 @@ export function Matchmaker() {
     });
   }
 
-  // Combines the 10 original hand-curated entries with the researched
-  // dataset (493 real MY2026 trims across Toyota/Honda/Hyundai/Kia/
-  // Chevrolet/Ford/Ram/Tesla). See data/matchmaker-integration-notes-2026-08-28.md
-  // for how priorityScores/rationale were derived and what's still missing
-  // (Ram 2500/3500/ProMaster, Tesla Model 3/S/X/Cybertruck).
-  const ALL_RECOMMENDATIONS = useMemo(
-    () => [...MOCK_RECOMMENDATIONS, ...GENERATED_RECOMMENDATIONS],
-    []
+  // Real data now (matchmaker-vehicles.ts / matchmaker-scoring.ts) --
+  // hard-filters, scores, and segments by powertrain preference. Dismiss/
+  // flag apply within each segment independently, so dismissing a vehicle
+  // in "Best hybrid option" doesn't touch the primary list, and vice versa.
+  const matched = useMemo(() => getMatchedVehicles(vehicles, answers), [vehicles, answers]);
+  const segmented = useMemo(
+    () => segmentByPowertrain(matched, answers.powertrain),
+    [matched, answers.powertrain],
   );
 
-  const sortedByFit = useMemo(() => {
-    return [...ALL_RECOMMENDATIONS].sort((a, b) => fitScore(b, answers) - fitScore(a, answers));
-  }, [ALL_RECOMMENDATIONS, answers]);
+  function applyDismissAndFlagSort(list: MatchedVehicle[]) {
+    return list
+      .filter((v) => !dismissed.has(v.id))
+      .sort((a, b) => Number(flagged.has(b.id)) - Number(flagged.has(a.id)));
+  }
 
-  const visible = sortedByFit
-    .filter((v) => !dismissed.has(v.id))
-    .sort((a, b) => Number(flagged.has(b.id)) - Number(flagged.has(a.id)));
+  const visiblePrimary = applyDismissAndFlagSort(segmented.primary);
 
-  const infoVehicle = infoVehicleId ? ALL_RECOMMENDATIONS.find((v) => v.id === infoVehicleId) ?? null : null;
+  // Each alternative group shows only its single best (post-dismiss/flag)
+  // vehicle as one labeled card, e.g. "Best hybrid option" -- not the full
+  // group, which can run into the hundreds of vehicles (see Step 4's
+  // verification: e.g. 1,059 Gas vehicles in one alternative group).
+  const visibleAlternatives = segmented.alternatives
+    .map((group) => {
+      const resolved = applyDismissAndFlagSort(group.vehicles);
+      return resolved.length > 0
+        ? { powertrain: group.powertrain, label: group.label, vehicle: resolved[0] }
+        : null;
+    })
+    .filter((entry): entry is { powertrain: Powertrain; label: string; vehicle: MatchedVehicle } => entry !== null);
+
+  const anyDismissed = dismissed.size > 0;
+
+  const infoVehicle = infoVehicleId ? matched.find((v) => v.id === infoVehicleId) ?? null : null;
 
   return (
     <section className="bg-zinc-950 py-20 sm:py-24">
       <div className="mx-auto max-w-6xl px-6">
         <div className="text-center">
+          {/* PROPOSED customer-facing copy, pending explicit sign-off --
+              "mock data" was accurate for the old hand-curated/derived-
+              heuristic dataset; this is real researched vehicle data now
+              (matchmaker-data-spec.md), just not live dealer inventory. */}
           <span className="inline-flex items-center rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-1.5 text-xs font-medium tracking-wide text-amber-400 uppercase">
-            Prototype — mock data, no live inventory yet
+            Real vehicle data — not yet connected to live dealer inventory
           </span>
           <h1 className="mt-6 text-4xl font-semibold tracking-tight text-white sm:text-5xl">
             Find your match
@@ -971,12 +991,14 @@ export function Matchmaker() {
             <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
               <ResultsList
                 answers={answers}
-                visible={visible}
+                primary={visiblePrimary}
+                alternatives={visibleAlternatives}
                 flagged={flagged}
                 onDismiss={dismiss}
                 onToggleFlag={toggleFlag}
                 onOpenInfo={setInfoVehicleId}
                 onRestoreAll={() => setDismissed(new Set())}
+                anyDismissed={anyDismissed}
               />
               <div className="lg:sticky lg:top-24 lg:self-start">
                 <AnswerPanel
