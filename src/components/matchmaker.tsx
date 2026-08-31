@@ -26,10 +26,10 @@ import { formatPriceEstimate, buildRationale, type MatchmakerVehicle } from "@/l
 import { getMatchedVehicles, segmentByPowertrain, groupByModel, type MatchedVehicle, type ModelGroup } from "@/lib/matchmaker-scoring";
 import {
   dimensionIndicator,
+  dimensionDataPoint,
   personalizedDimensionOrder,
   INDICATOR_CLASSES,
   INDICATOR_LEVEL_LABEL,
-  DIMENSION_ABBREVIATION,
 } from "@/lib/matchmaker-dimension-indicators";
 
 const EMPTY_ANSWERS: Answers = {
@@ -600,23 +600,23 @@ function QuestionPanel({
   );
 }
 
-// Ranking-indicator row (Step E, approved 2026-09-02, Part 3). Compact
-// visual approach chosen specifically because a results list can run into
-// the hundreds of cards (see Step 4's own verification elsewhere in this
-// file) -- a small colored abbreviation badge per dimension, not a
-// sentence, with the full dimension name + numeric score available via a
-// native title tooltip for anyone who wants the detail without opening
-// the modal. Never infer color from the score alone -- gray (no data)
-// always wins regardless of the numeric value, per dimensionIndicator's
-// own contract. INDICATOR_CLASSES/INDICATOR_LEVEL_LABEL/
-// DIMENSION_ABBREVIATION live in matchmaker-dimension-indicators.ts, not
-// here -- shared with the detail modal's full breakdown (Step F) so the
-// two surfaces can't render different colors/labels for the same level.
+// Full always-visible ranking-indicator list (Step H3, replacing the
+// Step E compact dot/abbreviation row entirely -- approved 2026-09-02,
+// see data/matchmaker-full-indicator-list-plan-2026-09-02.md). No more
+// compact/expandable toggle: every card shows all `limit` top-ranked
+// priorities as their own row, each with a real per-dimension data point
+// (dimensionDataPoint()) alongside the same colored Excellent/Good/Below
+// average/No data pill the detail modal already uses (INDICATOR_CLASSES/
+// INDICATOR_LEVEL_LABEL) -- reused verbatim rather than inventing a
+// second visual language for the same 4 levels. Never infer color from
+// the score alone -- gray (no data) always wins regardless of the
+// numeric value, per dimensionIndicator's own contract.
 //
-// Shared by the card's compact row (sliced to top 5) and the detail
-// modal's full breakdown (Step F) -- both read the same
-// personalizedDimensionOrder, so they can't silently drift on ordering.
-function DimensionIndicatorRow({
+// Shared by the card's list (sliced to top 5) and the detail modal's
+// full breakdown (Step F) -- both read the same personalizedDimensionOrder
+// and dimensionDataPoint, so they can't silently drift on ordering or
+// wording.
+function DimensionDetailList({
   vehicle,
   priorities,
   limit,
@@ -627,22 +627,27 @@ function DimensionIndicatorRow({
 }) {
   const order = personalizedDimensionOrder(vehicle.bodyStyle, priorities).slice(0, limit);
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-1.5">
+    <ul className="mt-3 space-y-1.5">
       {order.map((label) => {
         const score = vehicle.scores[label] ?? 0;
         const hasData = vehicle.hasData[label] ?? false;
         const level = dimensionIndicator(score, hasData);
+        const dataPoint = dimensionDataPoint(vehicle, label, level);
         return (
-          <span
-            key={label}
-            title={`${label}: ${hasData ? `${Math.round(score)}/100 (${INDICATOR_LEVEL_LABEL[level]})` : "No data available"}`}
-            className={`flex h-6 min-w-[1.75rem] items-center justify-center rounded-full px-1.5 text-[10px] font-bold ring-1 ${INDICATOR_CLASSES[level]}`}
-          >
-            {DIMENSION_ABBREVIATION[label] ?? label.slice(0, 2)}
-          </span>
+          <li key={label} className="flex items-center justify-between gap-3 text-sm">
+            <span className="text-zinc-300">{label}</span>
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="text-xs text-zinc-500">{dataPoint}</span>
+              <span
+                className={`rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${INDICATOR_CLASSES[level]}`}
+              >
+                {INDICATOR_LEVEL_LABEL[level]}
+              </span>
+            </div>
+          </li>
         );
       })}
-    </div>
+    </ul>
   );
 }
 
@@ -752,7 +757,7 @@ function ModelGroupCard({
           </span>
         </div>
         <p className="mt-3 text-sm leading-relaxed text-zinc-400">{rationale}</p>
-        <DimensionIndicatorRow vehicle={activeVariant} priorities={priorities} limit={5} />
+        <DimensionDetailList vehicle={activeVariant} priorities={priorities} limit={5} />
       </div>
 
       <div className="flex shrink-0 flex-col items-stretch gap-2 sm:w-52">

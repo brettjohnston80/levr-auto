@@ -1,4 +1,5 @@
 import { retargetPriorityOrderForVehicleType, type VehicleType } from "./matchmaker-data";
+import { formatPriceEstimate, type MatchmakerVehicle } from "./matchmaker-vehicle-display";
 
 // Ranking-indicator (Green/Yellow/Red/Gray) logic, part of the
 // results-card redesign approved 2026-09-02 (see
@@ -84,3 +85,108 @@ export const DIMENSION_ABBREVIATION: Record<string, string> = {
   "Resale Value": "RV",
   "Towing & Payload": "T&P",
 };
+
+// Comfort's phrase-per-level lookup -- locked wording (approved
+// 2026-09-02, see matchmaker-full-indicator-list-plan-2026-09-02.md),
+// not auto-derived from the level like every other dimension's data
+// point below. No raw field involved at all -- Comfort's data point is
+// purely a function of which bucket the score landed in.
+const COMFORT_PHRASE_BY_LEVEL: Record<IndicatorLevel, string> = {
+  green: "Spacious interior",
+  yellow: "Average interior space",
+  red: "Below average interior space",
+  gray: "No interior data",
+};
+
+// "No [topic] data" per dimension when gray (approved 2026-09-02) --
+// not one generic "No data" string repeated across every dimension.
+// Comfort is excluded here since COMFORT_PHRASE_BY_LEVEL already covers
+// its own gray case with matching wording.
+const NO_DATA_PHRASE: Record<string, string> = {
+  Safety: "No safety data",
+  "Cargo Space": "No cargo data",
+  "Fuel Economy": "No fuel economy data",
+  Reliability: "No reliability data",
+  "Technology & Features": "No tech data",
+  "Price/Value": "No price data",
+  "Resale Value": "No resale data",
+  Performance: "No performance data",
+  "Towing & Payload": "No towing data",
+};
+
+// The per-dimension data point shown alongside each row's colored
+// indicator -- e.g. "4-star rating", "26 mpg combined", "0-60 in 5.3
+// sec". Takes `level` (not hasData separately) because the caller
+// already has to compute it for the colored indicator anyway, and
+// level === "gray" is exactly equivalent to !hasData (both come from the
+// same dimensionIndicator() call) -- reusing it keeps one single "is
+// this gray" check instead of two that could disagree. Used by both the
+// always-visible card row list and the modal's full breakdown (both
+// approved 2026-09-02) -- one shared function, same reasoning as
+// dimensionIndicator/personalizedDimensionOrder above.
+export function dimensionDataPoint(
+  vehicle: MatchmakerVehicle,
+  label: string,
+  level: IndicatorLevel,
+): string {
+  if (label === "Comfort") {
+    return COMFORT_PHRASE_BY_LEVEL[level];
+  }
+  if (level === "gray") {
+    return NO_DATA_PHRASE[label] ?? "No data";
+  }
+
+  switch (label) {
+    case "Safety":
+      return `${vehicle.nhtsaOverallStars}-star rating`;
+    case "Cargo Space":
+      // Truck's Cargo Space is scored off bed_length_ft, not
+      // cargo_volume_seats_up_cuft (see matchmaker_scoring_pipeline.py's
+      // CARGO_BED_LENGTH_BODY_STYLES) -- the data point mirrors that
+      // same body-style branch, not a coincidence.
+      return vehicle.bodyStyle === "Truck"
+        ? `${vehicle.bedLengthFt} ft bed`
+        : `${vehicle.cargoVolumeSeatsUpCuft} cu ft`;
+    case "Fuel Economy": {
+      // Real data confirmed (2026-09-02): Gas vehicles have both mpg and
+      // range populated together 81% of the time, but Hybrid (50%), PHEV
+      // (25%), and Diesel (4%) frequently have only one -- never assume
+      // both are present.
+      const parts: string[] = [];
+      if (vehicle.epaCombinedMpg !== null) parts.push(`${Math.round(vehicle.epaCombinedMpg)} mpg combined`);
+      if (vehicle.rangeMi !== null) parts.push(`${Math.round(vehicle.rangeMi)} mi range`);
+      return parts.length > 0 ? parts.join(", ") : NO_DATA_PHRASE["Fuel Economy"];
+    }
+    case "Reliability":
+      return `${(vehicle.reliabilityRating ?? 0).toFixed(1)}/5.0 rating`;
+    case "Technology & Features":
+      // tech_score is already a 0-6 count of standard features, not a
+      // 0-100 score -- distinct from technology_&_features_score, which
+      // is the separately-computed 50-100 dimension score.
+      return `${vehicle.techScore} of 6 standard features`;
+    case "Price/Value":
+      // Deliberately reuses the exact same formatter the card's own
+      // headline price already calls, rather than a second formatter
+      // that happens to agree today and could quietly drift later.
+      return formatPriceEstimate(vehicle.trueStartingPriceCents);
+    case "Resale Value":
+      return `${Math.round(vehicle.resaleDepreciationPct ?? 0)}% depreciation over 5 years`;
+    case "Performance":
+      return `0-60 in ${vehicle.zeroToSixtySec} sec`;
+    case "Towing & Payload": {
+      // Real data confirmed (2026-09-02): "towing only, no payload" is
+      // the dominant real case (549 of ~785 vehicles with any data at
+      // all) -- never assume both are present.
+      const parts: string[] = [];
+      if (vehicle.towingCapacityLbs !== null) {
+        parts.push(`Tows up to ${vehicle.towingCapacityLbs.toLocaleString()} lbs`);
+      }
+      if (vehicle.payloadCapacityLbs !== null) {
+        parts.push(`${vehicle.payloadCapacityLbs.toLocaleString()} lbs payload`);
+      }
+      return parts.length > 0 ? parts.join(", ") : NO_DATA_PHRASE["Towing & Payload"];
+    }
+    default:
+      return "";
+  }
+}

@@ -40,6 +40,21 @@ export type MatchmakerVehicle = {
   cargoVolumeSeatsUpCuft: number | null;
   horsepower: number | null;
   zeroToSixtySec: number | null;
+  // Added 2026-09-02 for the full always-visible indicator list (see
+  // matchmaker-full-indicator-list-plan-2026-09-02.md) -- each backs one
+  // dimension's data-point text in dimensionDataPoint(). All four were
+  // already real columns on `vehicles` (confirmed by reading the
+  // migration directly), just never threaded through to this client type
+  // before now -- distinct from bedLengthFt below, which needed an
+  // actual new column (20260902140000_vehicles_bed_length_ft.sql).
+  nhtsaOverallStars: number | null;
+  reliabilityRating: number | null;
+  techScore: number | null;
+  resaleDepreciationPct: number | null;
+  // Truck-only in practice (null for every other body style, and for the
+  // 12 real Ram Chassis Cab rows with no factory bed) -- see the
+  // migration's own comment for why this didn't exist before now.
+  bedLengthFt: number | null;
   // Keyed by the exact same labels ALL_PRIORITIES uses in
   // matchmaker-data.ts, so weightedTotal() in matchmaker-scoring.ts can
   // index straight off a customer's priority-order array with no

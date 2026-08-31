@@ -60,6 +60,15 @@ type VehicleRow = {
   price_value_has_data: boolean | null;
   resale_value_has_data: boolean | null;
   towing_payload_has_data: boolean | null;
+  // Added 2026-09-02 for the full always-visible indicator list. First
+  // four were already real columns, just newly selected here; bed_length_ft
+  // needed migration 20260902140000 to exist at all -- see that
+  // migration's comment and matchmaker-vehicle-display.ts's type comment.
+  nhtsa_overall_stars: number | null;
+  reliability_rating: number | null;
+  tech_score: number | null;
+  resale_depreciation_pct: number | null;
+  bed_length_ft: number | null;
 };
 
 function mapRowToVehicle(row: VehicleRow): MatchmakerVehicle {
@@ -95,12 +104,17 @@ function mapRowToVehicle(row: VehicleRow): MatchmakerVehicle {
     zeroToSixtySec: row.zero_to_60_sec,
     scores,
     hasData,
+    nhtsaOverallStars: row.nhtsa_overall_stars,
+    reliabilityRating: row.reliability_rating,
+    techScore: row.tech_score,
+    resaleDepreciationPct: row.resale_depreciation_pct,
+    bedLengthFt: row.bed_length_ft,
   };
 }
 
-// Migration 20260902120000 (towing_payload_score) and 20260902130000
-// (vehicles_has_data_flags) both confirmed applied before adding their
-// respective columns here.
+// Migration 20260902120000 (towing_payload_score), 20260902130000
+// (vehicles_has_data_flags), and 20260902140000 (vehicles_bed_length_ft)
+// all confirmed applied before adding their respective columns here.
 const SELECT_COLUMNS =
   "id, make, model, trim, model_year, is_performance_trim, body_style, seating_capacity, " +
   "drivetrain, fuel_type, true_starting_price_cents, has_third_row, towing_capacity_lbs, " +
@@ -109,7 +123,8 @@ const SELECT_COLUMNS =
   "reliability_score, performance_score, tech_features_score, price_value_score, " +
   "resale_value_score, towing_payload_score, safety_has_data, comfort_has_data, " +
   "cargo_has_data, fuel_economy_has_data, reliability_has_data, performance_has_data, " +
-  "tech_features_has_data, price_value_has_data, resale_value_has_data, towing_payload_has_data";
+  "tech_features_has_data, price_value_has_data, resale_value_has_data, towing_payload_has_data, " +
+  "nhtsa_overall_stars, reliability_rating, tech_score, resale_depreciation_pct, bed_length_ft";
 
 const PAGE_SIZE = 1000;
 

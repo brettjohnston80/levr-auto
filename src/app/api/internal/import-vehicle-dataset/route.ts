@@ -93,6 +93,12 @@ function transformRow(row: CsvRow) {
     has_third_row: toBool(row.has_third_row),
     cargo_volume_seats_up_cuft: toNum(row.cargo_volume_seats_up_cuft),
     max_cargo_volume_cuft: toNum(row.max_cargo_volume_cuft),
+    // Added 2026-09-02, requires migration 20260902140000
+    // (vehicles_bed_length_ft) to be applied first. Was always present in
+    // the raw/scored CSV (used internally by the pipeline to compute
+    // cargo_score/cargo_has_data for Trucks) but never persisted until
+    // now -- see that migration's comment.
+    bed_length_ft: toNum(row.bed_length_ft),
     towing_capacity_lbs: toInt(row.towing_capacity_lbs),
     payload_capacity_lbs: toInt(row.payload_capacity_lbs),
     reliability_rating: toNum(row.reliability_rating),
