@@ -1,0 +1,388 @@
+"""
+LEVR Auto Matchmaker — Data Cleaning + Scoring Pipeline
+=========================================================
+Single source of truth for turning a raw Cowork-researched vehicle CSV into
+a cleaned, fully-scored dataset across all 9 Matchmaker dimensions.
+
+USAGE:
+    python matchmaker_scoring_pipeline.py <input_csv> <output_csv>
+
+WHAT THIS DOES:
+    1. CLEAN   — normalizes body_style, extracts embedded citations out of
+                 reliability_rating, validates every numeric column for
+                 embedded-text corruption (flags rather than silently breaks).
+    2. SCORE   — computes all 9 dimension scores (Safety, Comfort, Cargo,
+                 Fuel Economy, Reliability, Technology & Features, Price
+                 Value, Resale Value, Performance) per body-style class,
+                 using the rules established for the 2026 dataset.
+    3. OUTPUT  — writes a single CSV with every raw + score column, plus a
+                 validation report printed to stdout.
+
+Built 2026-08-31, both open weighting decisions confirmed same day (Comfort
+75/25 front-rear/third-row, Cargo 75/25 seats-up/max). Update the
+ASSUMPTIONS block below as decisions change — that's the first thing to
+check before assuming a rule is still current.
+"""
+
+import sys
+import re
+import pandas as pd
+import numpy as np
+
+# =========================================================================
+# ASSUMPTIONS — review this block first when carrying forward to 2027 data.
+# Anything marked "NOT YET CONFIRMED" is a placeholder, not a decision.
+# =========================================================================
+
+# Body style normalization: raw value -> canonical category.
+# NEW 2027 MODELS MAY INTRODUCE VALUES NOT IN THIS MAP — the script will
+# print any unmapped values it finds rather than silently drop/misclassify
+# them. Add new mappings here as they appear.
+BODY_STYLE_MAP = {
+    'SUV': 'SUV', '3-row SUV': 'SUV', 'mid-size SUV': 'SUV', 'full-size SUV': 'SUV',
+    'subcompact SUV': 'SUV', 'compact electric SUV': 'SUV', 'compact SUV': 'SUV',
+    'mid-size electric SUV': 'SUV', 'full-size electric SUV': 'SUV',
+    'mid-size SUV (3-row, extended length)': 'SUV',
+    'Sedan': 'Sedan', 'sedan': 'Sedan', 'mid-size sedan': 'Sedan',
+    'heavy-duty truck': 'Truck', 'full-size truck': 'Truck', 'pickup truck': 'Truck',
+    'mid-size truck': 'Truck', 'full-size electric truck': 'Truck', 'cab-chassis': 'Truck',
+    'Pickup': 'Truck', 'Pickup Truck': 'Truck', 'Truck': 'Truck', 'compact truck': 'Truck',
+    'Minivan': 'Minivan', 'minivan': 'Minivan',
+    'cargo van': 'Cargo Van', 'passenger van': 'Cargo Van',
+    'Hatchback': 'Hatchback', 'hatchback': 'Hatchback',
+    'Coupe': 'Coupe', 'coupe': 'Coupe', 'Coupe (Retractable Hardtop)': 'Coupe', 'sports car': 'Coupe',
+    'Convertible': 'Convertible', 'convertible': 'Convertible', 'Targa': 'Convertible',
+    'Wagon': 'Wagon', 'Cross Turismo': 'Wagon', 'Sport Turismo': 'Wagon',
+}
+
+# Every column that should be pure numeric — the script scans these for
+# embedded text (e.g. "40.2 f / 36.7 r", "4.0/5.0 (RepairPal...)") and
+# either extracts what it can (reliability_rating) or flags it for manual
+# review (everything else — don't guess at a split like the headroom case).
+NUMERIC_COLUMNS = [
+    'msrp', 'destination_fee', 'true_starting_price', 'epa_city_mpg', 'epa_hwy_mpg',
+    'epa_combined_mpg', 'range_mi', 'nhtsa_overall_stars', 'passenger_volume_cuft',
+    'front_legroom_in', 'rear_legroom_in', 'third_row_legroom_in', 'front_headroom_in',
+    'rear_headroom_in', 'third_row_headroom_in', 'cargo_volume_seats_up_cuft',
+    'max_cargo_volume_cuft', 'towing_capacity_lbs', 'payload_capacity_lbs',
+    'reliability_rating', 'horsepower', 'torque_lbft', 'zero_to_60_sec', 'top_speed_mph',
+    'tech_score', 'resale_depreciation_pct', 'fuel_tank_capacity_gal',
+]
+
+# Dimensions using the universal formula: final = 50 + (x - min)/(max - min) * 50
+# "higher_is_better": True means the raw column scores higher = better (Safety,
+# Comfort, Cargo, Reliability, Tech, Fuel Economy). False means inverted
+# (Price Value, Resale Value, and the zero-to-60 component of Performance).
+
+# Cargo: CONFIRMED 2026-08-31. Sedan uses cargo_volume_seats_up_cuft alone.
+# For body styles where max_cargo_volume_cuft (seats folded) is also
+# commonly reported, combine as 75% seats-up (the everyday experience) +
+# 25% max (seats folded) — each independently normalized before weighting,
+# consistent with the Comfort weighting below.
+CARGO_DUAL_VALUE_BODY_STYLES = ['SUV', 'Hatchback', 'Wagon', 'Minivan', 'Cargo Van']
+CARGO_SEATS_UP_WEIGHT = 0.75
+CARGO_MAX_WEIGHT = 0.25
+
+# Comfort: CONFIRMED 2026-08-31. third_row_legroom_in / third_row_headroom_in
+# are included for SUVs (and Minivans) where has_third_row == 'yes', combined
+# as 75% front/rear (4 measurements, averaged) + 25% third row (2
+# measurements, averaged) — third row matters, but less than front/rear.
+THIRD_ROW_COMFORT_BODY_STYLES = ['SUV', 'Minivan']
+COMFORT_FRONT_REAR_WEIGHT = 0.75
+COMFORT_THIRD_ROW_WEIGHT = 0.25
+
+# Safety: fixed absolute scale, not class-relative (every rated Sedan tied
+# at 5 stars in the 2026 dataset — a class-relative min/max would divide by
+# zero, and NHTSA/IIHS stars are a government/industry scale, not a relative one).
+SAFETY_SCALE_MIN, SAFETY_SCALE_MAX = 1, 5
+
+# Performance: trim flag (50%) + zero-to-60 (50%, inverted). Top speed is
+# EXCLUDED entirely (sourcing proved too inconsistent — see 2026-08-30 notes).
+# When zero-to-60 is missing, Performance Score floors at 50 regardless of
+# the trim flag — a known performance trim with no speed data must not
+# outrank a verified-fast car on the flag alone. This was a deliberate fix;
+# do not revert to "use trim flag alone when 0-60 missing."
+PERFORMANCE_TRIM_WEIGHT = 0.5
+PERFORMANCE_ZERO_TO_60_WEIGHT = 0.5
+
+# Fuel Economy: MPG and range are each normalized WITHIN the vehicle's own
+# fuel_type group (exact match: Gas/EV/Hybrid/PHEV/Hydrogen), not the whole
+# body-style class — otherwise EVs' higher MPGe dominates by default.
+# Single-member fuel-type groups (e.g. one lone Hydrogen sedan) get a flat
+# neutral 50 sub-score rather than an undefined relative rank.
+FUEL_ECONOMY_SINGLETON_FALLBACK = 50
+
+# The universal floor: any dimension with fully missing raw data scores
+# exactly 50 (not blank) — missing data is never rewarded, never penalized
+# below the floor. Confirmed 2026-08-30, applies to all 9 dimensions.
+UNIVERSAL_FLOOR = 50
+# Defensive fallback for genuine zero-variance-with-real-data edge cases
+# (distinct from the missing-data floor above).
+ZERO_VARIANCE_FALLBACK = 75
+
+
+# =========================================================================
+# STEP 1: CLEANING
+# =========================================================================
+
+def clean_body_style(df):
+    unmapped = set(df['body_style'].dropna().unique()) - set(BODY_STYLE_MAP.keys())
+    if unmapped:
+        print(f"⚠ UNMAPPED body_style values found — add these to BODY_STYLE_MAP "
+              f"before proceeding, they will be left blank otherwise: {unmapped}")
+    df['body_style'] = df['body_style'].map(BODY_STYLE_MAP)
+    return df
+
+
+def clean_reliability_rating(df):
+    """Extract embedded citation text (e.g. RepairPal source notes) out of
+    reliability_rating into a separate note column, leaving a clean numeric
+    value behind. This pattern has recurred across multiple research passes
+    — don't assume a future pass will deliver it pre-cleaned."""
+    is_messy = df['reliability_rating'].astype(str).str.contains('[a-zA-Z]', na=False, regex=True)
+    if 'reliability_source_note' not in df.columns:
+        df['reliability_source_note'] = None
+    df.loc[is_messy, 'reliability_source_note'] = df.loc[is_messy, 'reliability_rating']
+    df['reliability_rating'] = df['reliability_rating'].astype(str).str.extract(r'^(\d+\.?\d*)')[0]
+    df['reliability_rating'] = pd.to_numeric(df['reliability_rating'], errors='coerce')
+    return df
+
+
+def validate_numeric_columns(df):
+    """Flag (don't auto-fix) any other numeric column with embedded text —
+    e.g. the 2026 case where a single cell held '40.2 f / 36.7 r' instead of
+    separate front/rear values. These need manual review, not a guessed split."""
+    issues = []
+    for col in NUMERIC_COLUMNS:
+        if col not in df.columns:
+            continue
+        weird = df[df[col].astype(str).str.contains('[a-zA-Z]', na=False, regex=True)]
+        if len(weird):
+            for _, row in weird.iterrows():
+                issues.append((col, row.get('make'), row.get('model'), row.get('trim'), row[col]))
+    if issues:
+        print(f"⚠ {len(issues)} embedded-text values found in columns that should be pure numeric "
+              f"(excluding reliability_rating, already handled above). Needs manual review:")
+        for i in issues:
+            print("   ", i)
+    else:
+        print("✓ No embedded-text corruption found in any numeric column.")
+    return issues
+
+
+def coerce_numeric_columns(df):
+    """After validation has flagged any embedded-text corruption for manual
+    review, safely coerce every numeric column to actual numeric dtype —
+    any unparseable value becomes NaN (caught by the universal floor) rather
+    than crashing the scoring step. The flagged report above is what tells
+    you a value was dropped this way; this step doesn't hide that."""
+    for col in NUMERIC_COLUMNS:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+    return df
+
+
+def clean(df):
+    df = clean_body_style(df)
+    df = clean_reliability_rating(df)
+    validate_numeric_columns(df)
+    df = coerce_numeric_columns(df)
+    return df
+
+
+# =========================================================================
+# STEP 2: SCORING HELPERS
+# =========================================================================
+
+def normalize_0_100(series, higher_is_better=True):
+    """Plain 0-100 relative normalization within whatever slice is passed in.
+    Used for SUB-components before they're combined (e.g. Comfort's 4-6
+    measurements) — NOT for final dimension scores, which use floor_rescale."""
+    lo, hi = series.min(), series.max()
+    if pd.isna(lo) or pd.isna(hi) or hi == lo:
+        return pd.Series(np.nan, index=series.index)
+    if higher_is_better:
+        return (series - lo) / (hi - lo) * 100
+    else:
+        return (hi - series) / (hi - lo) * 100
+
+
+def floor_rescale(series, higher_is_better=True):
+    """The universal final-score formula: 50 + (x-min)/(max-min)*50, so the
+    class-best vehicle scores 100 and class-worst scores 50. Missing input
+    floors at 50 directly (not blank). Zero-variance real data falls back to
+    75 (distinct from the missing-data floor)."""
+    lo, hi = series.min(), series.max()
+    result = pd.Series(UNIVERSAL_FLOOR, index=series.index, dtype=float)
+    if pd.isna(lo) or pd.isna(hi):
+        return result  # nothing in the class has this data at all
+    if hi == lo:
+        result[series.notna()] = ZERO_VARIANCE_FALLBACK
+        return result
+    if higher_is_better:
+        scored = UNIVERSAL_FLOOR + (series - lo) / (hi - lo) * 50
+    else:
+        scored = UNIVERSAL_FLOOR + (hi - series) / (hi - lo) * 50
+    result[series.notna()] = scored[series.notna()]
+    return result
+
+
+# =========================================================================
+# STEP 3: PER-DIMENSION SCORING (applied per body-style class)
+# =========================================================================
+
+def score_safety(cls):
+    """Fixed 1-5 absolute scale — NOT class-relative. safety_source column
+    (NHTSA/IIHS) is informational only, doesn't affect the formula."""
+    stars = cls['nhtsa_overall_stars']
+    scored = pd.Series(UNIVERSAL_FLOOR, index=cls.index, dtype=float)
+    has_data = stars.notna()
+    scored[has_data] = UNIVERSAL_FLOOR + (stars[has_data] - SAFETY_SCALE_MIN) / \
+        (SAFETY_SCALE_MAX - SAFETY_SCALE_MIN) * 50
+    return scored
+
+
+def score_comfort(cls, body_style):
+    front_rear = ['front_legroom_in', 'rear_legroom_in', 'front_headroom_in', 'rear_headroom_in']
+    front_rear_norms = pd.DataFrame({m: normalize_0_100(cls[m]) for m in front_rear if m in cls.columns})
+    front_rear_avg = front_rear_norms.mean(axis=1, skipna=True)
+    front_rear_avg[front_rear_norms.count(axis=1) == 0] = np.nan
+
+    if body_style in THIRD_ROW_COMFORT_BODY_STYLES and 'third_row_legroom_in' in cls.columns:
+        third_row = ['third_row_legroom_in', 'third_row_headroom_in']
+        third_row_norms = pd.DataFrame({m: normalize_0_100(cls[m]) for m in third_row})
+        third_row_avg = third_row_norms.mean(axis=1, skipna=True)
+        third_row_avg[third_row_norms.count(axis=1) == 0] = np.nan
+
+        raw_avg = pd.Series(np.nan, index=cls.index)
+        both = front_rear_avg.notna() & third_row_avg.notna()
+        raw_avg[both] = (front_rear_avg[both] * COMFORT_FRONT_REAR_WEIGHT +
+                          third_row_avg[both] * COMFORT_THIRD_ROW_WEIGHT)
+        # vehicle has no third row (or no third-row data) -> use front/rear alone
+        fr_only = front_rear_avg.notna() & ~both
+        raw_avg[fr_only] = front_rear_avg[fr_only]
+        return floor_rescale(raw_avg)
+    else:
+        return floor_rescale(front_rear_avg)
+
+
+def score_cargo(cls, body_style):
+    if body_style in CARGO_DUAL_VALUE_BODY_STYLES and 'max_cargo_volume_cuft' in cls.columns:
+        seats_up_norm = normalize_0_100(cls['cargo_volume_seats_up_cuft'])
+        max_norm = normalize_0_100(cls['max_cargo_volume_cuft'])
+
+        raw_avg = pd.Series(np.nan, index=cls.index)
+        both = seats_up_norm.notna() & max_norm.notna()
+        raw_avg[both] = (seats_up_norm[both] * CARGO_SEATS_UP_WEIGHT +
+                          max_norm[both] * CARGO_MAX_WEIGHT)
+        # only one of the two is known -> use whichever is available alone
+        su_only = seats_up_norm.notna() & ~both
+        raw_avg[su_only] = seats_up_norm[su_only]
+        max_only = max_norm.notna() & ~both
+        raw_avg[max_only] = max_norm[max_only]
+        return floor_rescale(raw_avg)
+    else:
+        return floor_rescale(cls['cargo_volume_seats_up_cuft'])
+
+
+def score_fuel_economy(cls):
+    def within_fuel_type(col):
+        result = pd.Series(np.nan, index=cls.index)
+        for ft, grp in cls.groupby('fuel_type'):
+            vals = grp[col]
+            if vals.notna().sum() <= 1:
+                result.loc[vals.index[vals.notna()]] = FUEL_ECONOMY_SINGLETON_FALLBACK
+            else:
+                result.loc[vals.index] = normalize_0_100(vals)
+        return result
+    mpg_norm = within_fuel_type('epa_combined_mpg')
+    range_norm = within_fuel_type('range_mi')
+    both = pd.DataFrame({'mpg': mpg_norm, 'range': range_norm})
+    raw_avg = both.mean(axis=1, skipna=True)
+    raw_avg[both.count(axis=1) == 0] = np.nan
+    return floor_rescale(raw_avg)
+
+
+def score_reliability(cls):
+    return floor_rescale(cls['reliability_rating'])
+
+
+def score_tech(cls):
+    return floor_rescale(cls['tech_score'])
+
+
+def score_price_value(cls):
+    return floor_rescale(cls['true_starting_price'], higher_is_better=False)
+
+
+def score_resale_value(cls):
+    return floor_rescale(cls['resale_depreciation_pct'], higher_is_better=False)
+
+
+def score_performance(cls):
+    trim_norm = cls['is_performance_trim'].astype(str).str.lower().map({'yes': 100, 'no': 0})
+    zero60_norm = normalize_0_100(cls['zero_to_60_sec'], higher_is_better=False)
+    raw_avg = pd.Series(np.nan, index=cls.index)
+    has_060 = zero60_norm.notna()
+    raw_avg[has_060] = (trim_norm[has_060] * PERFORMANCE_TRIM_WEIGHT +
+                         zero60_norm[has_060] * PERFORMANCE_ZERO_TO_60_WEIGHT)
+    # missing 0-60 -> raw_avg stays NaN -> floor_rescale gives 50, regardless
+    # of trim flag. This is the deliberate 2026-08-30 fix — do not "helpfully"
+    # fall back to trim_norm alone here.
+    return floor_rescale(raw_avg)
+
+
+def score_all_dimensions(df):
+    scored_frames = []
+    for body_style, cls in df.groupby('body_style'):
+        cls = cls.copy()
+        cls['Safety Score'] = score_safety(cls)
+        cls['Comfort Score'] = score_comfort(cls, body_style)
+        cls['Cargo Score'] = score_cargo(cls, body_style)
+        cls['Fuel Economy Score'] = score_fuel_economy(cls)
+        cls['Reliability Score'] = score_reliability(cls)
+        cls['Technology & Features Score'] = score_tech(cls)
+        cls['Price Value Score'] = score_price_value(cls)
+        cls['Resale Value Score'] = score_resale_value(cls)
+        cls['Performance Score'] = score_performance(cls)
+        scored_frames.append(cls)
+    return pd.concat(scored_frames).sort_index()
+
+
+# =========================================================================
+# MAIN
+# =========================================================================
+
+def main(input_path, output_path):
+    df = pd.read_csv(input_path)
+    print(f"Loaded {len(df)} rows from {input_path}\n")
+
+    df = clean(df)
+    print()
+
+    n_before = len(df)
+    df = df[df['body_style'].notna()]
+    if len(df) < n_before:
+        print(f"⚠ Dropped {n_before - len(df)} rows with unmapped/missing body_style — "
+              f"fix BODY_STYLE_MAP and rerun rather than silently losing these.\n")
+
+    df = score_all_dimensions(df)
+
+    print("\n=== Body style breakdown ===")
+    print(df['body_style'].value_counts())
+
+    print("\n=== Score coverage (should be 100% everywhere — floor covers missing data) ===")
+    for col in ['Safety Score', 'Comfort Score', 'Cargo Score', 'Fuel Economy Score',
+                'Reliability Score', 'Technology & Features Score', 'Price Value Score',
+                'Resale Value Score', 'Performance Score']:
+        print(f"  {col}: {df[col].notna().sum()}/{len(df)}")
+
+    df.to_csv(output_path, index=False)
+    print(f"\nSaved to {output_path}")
+
+
+if __name__ == '__main__':
+    if len(sys.argv) != 3:
+        print("Usage: python matchmaker_scoring_pipeline.py <input_csv> <output_csv>")
+        sys.exit(1)
+    main(sys.argv[1], sys.argv[2])
