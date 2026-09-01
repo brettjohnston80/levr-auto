@@ -171,15 +171,20 @@ export function segmentByPowertrain(
 // only; `variants` (headline included) back a within-card trim toggle
 // that never changes the group's position in the results list.
 export type ModelGroup = {
-  // `${make}|${model}` -- stable identity for a group regardless of which
-  // variant is currently toggled active. Grouped on make+model, not model
-  // alone: confirmed against the real 1,601-row dataset that no model
-  // name is currently shared across different makes, but keying on both
-  // is a one-line safety margin against a future data pass introducing a
-  // collision, at zero cost.
+  // `${make}|${model}|${modelYear}` -- stable identity for a group
+  // regardless of which variant is currently toggled active. Grouped on
+  // make+model+modelYear (MY2027 support, 2026-09-01) -- previously
+  // make+model only, which would have silently collapsed a 2026 and 2027
+  // version of the same model into one card/switcher the moment both
+  // existed, since the pipeline is deliberately blind to whether two
+  // "variants" of a group actually belong to the same year. Confirmed
+  // against the real 1,601-row (2026-only) dataset that no model name is
+  // currently shared across different makes, same reasoning that already
+  // justified keying on both make and model.
   key: string;
   make: string;
   model: string;
+  modelYear: number;
   // Highest-scoring trim in the group -- drives the card's list position.
   headline: MatchedVehicle;
   // Every trim in the group, headline included, already in score-
@@ -209,7 +214,7 @@ export type ModelGroup = {
 export function groupByModel(matched: MatchedVehicle[]): ModelGroup[] {
   const groups = new Map<string, ModelGroup>();
   for (const vehicle of matched) {
-    const key = `${vehicle.make}|${vehicle.model}`;
+    const key = `${vehicle.make}|${vehicle.model}|${vehicle.modelYear}`;
     const existing = groups.get(key);
     if (existing) {
       existing.variants.push(vehicle);
@@ -218,6 +223,7 @@ export function groupByModel(matched: MatchedVehicle[]): ModelGroup[] {
         key,
         make: vehicle.make,
         model: vehicle.model,
+        modelYear: vehicle.modelYear,
         headline: vehicle,
         variants: [vehicle],
       });
@@ -279,11 +285,29 @@ export function getModelsForMakeAndBodyStyle(
   return [...models].sort((a, b) => a.localeCompare(b));
 }
 
+// MY2027 support (2026-09-01) -- distinct model years a given make+model
+// spans, ascending. Not scoped to bodyStyle, same reasoning as
+// getAllVariantsForModel below. Used by VehiclePickerFlow right after a
+// Model pick to decide whether to show the new model-year step at all: a
+// model with only one year skips it entirely (unchanged single-year
+// behavior), a model with more than one shows a "which year" choice.
+export function getModelYearsForMakeAndModel(
+  vehicles: MatchmakerVehicle[],
+  make: string,
+  model: string,
+): number[] {
+  const years = new Set<number>();
+  for (const v of vehicles) {
+    if (v.make === make && v.model === model) years.add(v.modelYear);
+  }
+  return [...years].sort((a, b) => a - b);
+}
+
 // Deliberately NOT powertrain-scoped -- the standalone tool's confirmed
 // design has no Powertrain selection step (Body Style -> Make -> Model
-// only), so this returns every trim across every powertrain a Make+Model
-// spans, letting the caller show one flat trim list regardless of how many
-// powertrain buckets the model has (see
+// only), so this returns every trim across every powertrain a Make+Model+
+// modelYear spans, letting the caller show one flat trim list regardless of
+// how many powertrain buckets the model has (see
 // matchmaker-standalone-comparison-tool-plan-2026-09-01.md, finding 2).
 // Not scoped to `bodyStyle` either -- make+model together already
 // uniquely identify the real vehicles for this purpose (confirmed no
@@ -291,7 +315,16 @@ export function getModelsForMakeAndBodyStyle(
 // assumption groupByModel's own key already relies on), and the caller
 // always already knows the body style from its own picker state.
 //
-// Also now used by ComparisonModal's own per-column trim switcher
+// `modelYear` is a REQUIRED 4th argument (MY2027 support, 2026-09-01) --
+// previously make+model only, which meant a caller could accidentally
+// mix trims across model years the instant a second year for the same
+// model existed. Making it required, not optional, means there's no code
+// path left that can forget to scope it -- every current caller already
+// has a specific vehicle/year in hand at the point it calls this (see each
+// call site below), so this was never actually a hardship to thread
+// through.
+//
+// Also used by ComparisonModal's own per-column trim switcher
 // (matchmaker.tsx, 2026-09-01) -- originally that switcher was powertrain-
 // scoped via a separate getModelVariants() function, which made it
 // inconsistent with the "+ Add vehicle" picker one column over (a PHEV
@@ -299,15 +332,17 @@ export function getModelsForMakeAndBodyStyle(
 // getModelVariants() was deleted once ComparisonModal switched to this
 // function instead -- confirmed via grep to have had zero remaining
 // callers. ModelGroupCard's own trim switcher on the main results list is
-// deliberately NOT part of this change -- it stays powertrain-scoped via
-// the separate groupByModel()/segmentByPowertrain() pipeline, since that's
-// what makes "Other powertrains worth a look" meaningful.
+// deliberately NOT part of this change -- it stays powertrain-AND-year-
+// scoped via the separate groupByModel()/segmentByPowertrain() pipeline,
+// since that's what makes "Other powertrains worth a look" meaningful and
+// what keeps a multi-year model's cards from intermixing years.
 export function getAllVariantsForModel(
   vehicles: MatchmakerVehicle[],
   make: string,
   model: string,
+  modelYear: number,
 ): MatchmakerVehicle[] {
-  return vehicles.filter((v) => v.make === make && v.model === model);
+  return vehicles.filter((v) => v.make === make && v.model === model && v.modelYear === modelYear);
 }
 
 // Highest-scoring trim among a model's variants, by the same weightedTotal
