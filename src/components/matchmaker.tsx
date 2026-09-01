@@ -415,6 +415,15 @@ function CompactSelectField({
 // done (item #10) -- reuses PriorityRanker as-is for the drag-to-rank UI
 // rather than rebuilding it, and the same pill styling as QuestionPanel's
 // select steps, just compact enough to show all six answers at once.
+//
+// Main Use is deliberately NOT editable here (2026-09-02, Brett's request)
+// -- it's a one-time answer from the initial 6-question quiz; the only way
+// to change it is Start Over (a fresh search), not a live edit alongside
+// results. Every other field (Vehicle Type, Riders, Powertrain, Price
+// Range, Priorities) stays live-editable as before. answers.useCase itself
+// is untouched by this -- still read by scoring/hard-filters and still
+// shown as a read-only chip in ResultsList's answer-summary row, just no
+// longer has an edit control here.
 function AnswerPanel({
   answers,
   onFieldChange,
@@ -428,7 +437,6 @@ function AnswerPanel({
   onReorderPriorities: (order: string[]) => void;
   onStartOver: () => void;
 }) {
-  const useCaseOptions = answers.vehicleType ? USE_CASES_BY_VEHICLE_TYPE[answers.vehicleType] : [];
   const allowSixPlus = answers.vehicleType ? LARGE_CAPACITY_VEHICLE_TYPES.includes(answers.vehicleType) : false;
   const familySizeOptions = FAMILY_SIZES.filter((size) => size !== "6+" || allowSixPlus);
 
@@ -442,13 +450,6 @@ function AnswerPanel({
         options={VEHICLE_TYPES}
         value={answers.vehicleType}
         onSelect={(v) => onFieldChange("vehicleType", v)}
-      />
-      <CompactSelectField
-        label="Main use"
-        options={useCaseOptions}
-        value={answers.useCase}
-        onSelect={(v) => onFieldChange("useCase", v)}
-        emptyMessage="Pick a vehicle type first."
       />
       <CompactSelectField
         label="Riders"
@@ -674,6 +675,7 @@ function DimensionDetailList({
 // fully-dismissed model's card disappears with no special-casing.
 function ModelGroupCard({
   group,
+  position,
   priorities,
   flagged,
   onDismiss,
@@ -681,6 +683,14 @@ function ModelGroupCard({
   onOpenInfo,
 }: {
   group: ModelGroup;
+  // 1-based rank within the primary results list (2026-09-02, Brett's
+  // request) -- undefined for "Other powertrains worth a look" cards,
+  // which stay unnumbered per instruction. Reflects the group's CURRENT
+  // position in the already-dismiss-filtered, already-sorted list passed
+  // down from ResultsList, so it recomputes for free on every dismiss --
+  // no separate "was this slot backfilled" tracking needed, same principle
+  // as the per-trim headline recompute above.
+  position?: number;
   priorities: string[];
   flagged: Set<string>;
   onDismiss: (id: string) => void;
@@ -710,9 +720,16 @@ function ModelGroupCard({
     >
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-3 sm:block">
-          <h3 className="text-lg font-semibold text-white">
-            {group.make} {group.model}
-          </h3>
+          <div className="flex items-center gap-2.5">
+            {position !== undefined && (
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-xs font-bold text-emerald-400 ring-1 ring-emerald-500/30">
+                {position}
+              </span>
+            )}
+            <h3 className="text-lg font-semibold text-white">
+              {group.make} {group.model}
+            </h3>
+          </div>
           <span className="shrink-0 text-sm font-semibold text-emerald-400 sm:hidden">
             {priceEstimate}
           </span>
@@ -838,6 +855,20 @@ function ModelGroupCard({
 // editing individual fields directly.
 type AlternativeCard = { powertrain: Powertrain; label: string; group: ModelGroup };
 
+// Primary list is capped at the top 5 by default, with a "Show more" button
+// revealing up to 10 total -- a hard cap, not an infinitely-repeating load
+// more (2026-09-02, Brett's request). `primary` arrives here already
+// dismiss-filtered and flag/score-sorted (Matchmaker()'s
+// groupWithDismissAndFlagSort), so slicing to the top N is always "the N
+// current best available options" -- when a numbered card is dismissed,
+// Matchmaker() recomputes `primary` without it, this component re-renders
+// with the new array, and the slice naturally includes whatever was
+// previously position 6 (or beyond) with zero extra bookkeeping -- the same
+// "recompute from the filtered source on every render" principle as the
+// per-trim headline recompute and the model-group backfill above it.
+const PRIMARY_INITIAL_COUNT = 5;
+const PRIMARY_MAX_COUNT = 10;
+
 function ResultsList({
   answers,
   primary,
@@ -859,6 +890,18 @@ function ResultsList({
   onRestoreAll: () => void;
   anyDismissed: boolean;
 }) {
+  // Local, not lifted to Matchmaker() -- ResultsList only unmounts (and
+  // this resets) on Start Over (the `done` ternary in Matchmaker()), which
+  // is the right moment for a fresh 5/10 view; editing an answer alongside
+  // the list re-renders this same component instance, so an already-
+  // expanded view intentionally stays expanded rather than jarringly
+  // re-collapsing.
+  const [showMore, setShowMore] = useState(false);
+  const visibleCount = showMore ? PRIMARY_MAX_COUNT : PRIMARY_INITIAL_COUNT;
+  const displayedPrimary = primary.slice(0, visibleCount);
+  const remainingToReveal = Math.min(primary.length, PRIMARY_MAX_COUNT) - PRIMARY_INITIAL_COUNT;
+  const canShowMore = !showMore && remainingToReveal > 0;
+
   const answerChips = [
     answers.vehicleType,
     answers.useCase,
@@ -907,10 +950,11 @@ function ResultsList({
         <>
           {primary.length > 0 && (
             <div className="mt-8 flex flex-col gap-4">
-              {primary.map((group) => (
+              {displayedPrimary.map((group, index) => (
                 <ModelGroupCard
                   key={group.key}
                   group={group}
+                  position={index + 1}
                   priorities={answers.priorities}
                   flagged={flagged}
                   onDismiss={onDismiss}
@@ -918,6 +962,15 @@ function ResultsList({
                   onOpenInfo={onOpenInfo}
                 />
               ))}
+              {canShowMore && (
+                <button
+                  type="button"
+                  onClick={() => setShowMore(true)}
+                  className="self-center rounded-full border border-white/20 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+                >
+                  Show {remainingToReveal} more
+                </button>
+              )}
             </div>
           )}
 
@@ -1200,15 +1253,22 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
                 onRestoreAll={() => setDismissed(new Set())}
                 anyDismissed={anyDismissed}
               />
-              <div className="lg:sticky lg:top-24 lg:self-start">
-                <AnswerPanel
-                  answers={answers}
-                  onFieldChange={setField}
-                  onPriceRangeChange={setPriceRange}
-                  onReorderPriorities={reorderPriorities}
-                  onStartOver={startOver}
-                />
-              </div>
+              {/* Normal document-flow positioning (2026-09-02, Brett's
+                  request) -- previously lg:sticky lg:top-24 lg:self-start,
+                  which only brought this panel fully into view once
+                  scrolled most of the way down the (much longer, pre-cap)
+                  primary results list. With the primary list now capped at
+                  10 cards (see ResultsList's showMore/visibleCount logic),
+                  the page is considerably shorter, making sticky
+                  positioning unnecessary in practice as well as removed
+                  here. */}
+              <AnswerPanel
+                answers={answers}
+                onFieldChange={setField}
+                onPriceRangeChange={setPriceRange}
+                onReorderPriorities={reorderPriorities}
+                onStartOver={startOver}
+              />
             </div>
           ) : (
             <div className="grid gap-6 md:grid-cols-[1fr_320px]">
