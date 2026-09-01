@@ -1,4 +1,4 @@
-import { retargetPriorityOrderForVehicleType, type VehicleType } from "./matchmaker-data";
+import { retargetPriorityOrderForVehicleType, TOWING_PAYLOAD_VEHICLE_TYPES, type VehicleType } from "./matchmaker-data";
 import { formatPriceEstimate, type MatchmakerVehicle } from "./matchmaker-vehicle-display";
 
 // Ranking-indicator (Green/Yellow/Red/Gray) logic, part of the
@@ -8,21 +8,30 @@ import { formatPriceEstimate, type MatchmakerVehicle } from "./matchmaker-vehicl
 // compact card indicator row (top 5) and the detail modal's full
 // breakdown (all 9), so ordering logic lives in exactly one place.
 
-export type IndicatorLevel = "green" | "yellow" | "red" | "gray";
+export type IndicatorLevel = "gold" | "green" | "yellow" | "red" | "gray";
 
-// Thresholds per the approved design: Green >=80, Yellow 65-79, Red 50-64
-// (real data, genuinely weak/worst-in-class -- the pipeline's scores never
-// go below 50, see floor_rescale in matchmaker_scoring_pipeline.py), Gray
-// = no underlying data for this dimension. Gray is checked first and
-// short-circuits the numeric thresholds entirely -- a score is never used
-// to infer "has data" on its own, since a bare 50 is genuinely ambiguous
-// between "missing data" and "real data, tied for worst in class" (see
-// the vehicles_has_data_flags migration's comment). Always pass hasData
-// from MatchmakerVehicle.hasData, never derive it from the score value.
+// Thresholds (updated 2026-09-02): Gold ==100 (genuine best-in-class on
+// this dimension -- real ties are expected and correctly ALL read as gold,
+// since this is a pure per-vehicle-per-dimension check with no "pick a
+// winner" step anywhere; confirmed against the real Mercedes-Benz S-Class
+// S 500/S 580/S 580e three-way Comfort tie), Green 80-99, Yellow 60-79
+// (widened from 65-79), Red 50-59 (narrowed from 50-64 -- real data,
+// genuinely weak/worst-in-class -- the pipeline's scores never go below 50,
+// see floor_rescale in matchmaker_scoring_pipeline.py), Gray = no
+// underlying data for this dimension. `score >= 100` rather than `=== 100`
+// -- behaviorally identical today since scores are capped at 100, but
+// safer against any theoretical float rounding at the boundary. Gray is
+// checked first and short-circuits every numeric threshold entirely -- a
+// score is never used to infer "has data" on its own, since a bare 50 is
+// genuinely ambiguous between "missing data" and "real data, tied for
+// worst in class" (see the vehicles_has_data_flags migration's comment).
+// Always pass hasData from MatchmakerVehicle.hasData, never derive it
+// from the score value.
 export function dimensionIndicator(score: number, hasData: boolean): IndicatorLevel {
   if (!hasData) return "gray";
+  if (score >= 100) return "gold";
   if (score >= 80) return "green";
-  if (score >= 65) return "yellow";
+  if (score >= 60) return "yellow";
   return "red";
 }
 
@@ -48,19 +57,70 @@ export function personalizedDimensionOrder(bodyStyle: VehicleType, priorities: s
   return retargetPriorityOrderForVehicleType(priorities, bodyStyle);
 }
 
+// Comparison view (approved plan, 2026-09-02) -- the shared row order for
+// the up-to-5-column comparison table. Deliberately NOT
+// personalizedDimensionOrder() above, which retargets a full 9-item list
+// PER VEHICLE (swapping in whichever of Resale Value/Towing & Payload that
+// ONE vehicle's own body style wants) -- a comparison table needs ONE
+// shared row order across every column, not a different one per vehicle.
+//
+// Returns the customer's most recent 8 shared-dimension order (whichever
+// of Resale Value/Towing & Payload was present in `priorities` gets
+// stripped out), followed by one fixed extra row per DISTINCT 9th-
+// dimension type actually present among the flagged vehicles -- 1 row if
+// every flagged vehicle shares a type (e.g. all Sedans), up to 2 if mixed
+// body styles are flagged together (Sedan + Truck). Never one row per
+// vehicle -- a shared table row that only applies to one column doesn't
+// make sense, and cross-body-style comparison is an explicit requirement
+// (approved plan, confirmed-design item 7).
+//
+// Extra-row order is fixed (Resale Value before Towing & Payload, matching
+// ALL_PRIORITIES' own declared order in matchmaker-data.ts) rather than
+// derived from flag order or vehicle order, so the table's row layout
+// never reshuffles as vehicles are added to or removed from the
+// comparison.
+export function comparisonRowOrder(priorities: string[], flaggedVehicles: MatchmakerVehicle[]): string[] {
+  const shared = priorities.filter((label) => label !== "Resale Value" && label !== "Towing & Payload");
+
+  const ninthLabelFor = (vehicle: MatchmakerVehicle): string =>
+    TOWING_PAYLOAD_VEHICLE_TYPES.includes(vehicle.bodyStyle) ? "Towing & Payload" : "Resale Value";
+  const presentNinths = new Set(flaggedVehicles.map(ninthLabelFor));
+
+  const extraRows = ["Resale Value", "Towing & Payload"].filter((label) => presentNinths.has(label));
+
+  return [...shared, ...extraRows];
+}
+
 // Shared display constants -- moved here (2026-09-02, Step F) from being
 // matchmaker.tsx-local so the compact card row and the detail modal's
 // full breakdown render the exact same colors/labels/abbreviations for
 // the exact same indicator level, rather than two components each
 // maintaining their own copy that could quietly drift apart.
+// Ring width now lives HERE per-level, not in the shared className
+// template at the two render call sites (matchmaker.tsx's
+// DimensionDetailList, vehicle-detail-modal.tsx's breakdown section) --
+// both previously hardcoded a shared "ring-1" ahead of this map's value.
+// Gold needs a visibly thicker ring-2 as one of three independent
+// differentiators from Yellow (brightness + ring weight + the "star"
+// glyph in its label, deliberately not relying on hue/saturation alone,
+// which amber-400 vs. yellow-300 turned out to be too close together to
+// trust at a glance -- see the reviewed color comparison). A single
+// element can't cleanly carry two different Tailwind ring-width utilities
+// at once, so every level's own full ring class (width + color) is now
+// self-contained here.
 export const INDICATOR_CLASSES: Record<IndicatorLevel, string> = {
-  green: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/30",
-  yellow: "bg-amber-500/15 text-amber-400 ring-amber-500/30",
-  red: "bg-red-500/15 text-red-400 ring-red-500/30",
-  gray: "bg-zinc-600/15 text-zinc-500 ring-zinc-600/30",
+  gold: "bg-yellow-500/15 text-yellow-200 ring-2 ring-yellow-400",
+  green: "bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30",
+  yellow: "bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/30",
+  red: "bg-red-500/15 text-red-400 ring-1 ring-red-500/30",
+  gray: "bg-zinc-600/15 text-zinc-500 ring-1 ring-zinc-600/30",
 };
 
+// "★ " prefixed directly onto the label string -- both render call sites
+// already just interpolate this string as plain text, so the icon comes
+// along for free with zero JSX changes needed at either surface.
 export const INDICATOR_LEVEL_LABEL: Record<IndicatorLevel, string> = {
+  gold: "★ Best in Class",
   green: "Excellent",
   yellow: "Good",
   red: "Below average",
@@ -92,6 +152,7 @@ export const DIMENSION_ABBREVIATION: Record<string, string> = {
 // point below. No raw field involved at all -- Comfort's data point is
 // purely a function of which bucket the score landed in.
 const COMFORT_PHRASE_BY_LEVEL: Record<IndicatorLevel, string> = {
+  gold: "Best-in-class interior",
   green: "Spacious interior",
   yellow: "Average interior space",
   red: "Below average interior space",

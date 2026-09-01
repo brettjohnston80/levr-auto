@@ -176,7 +176,7 @@ export function VehicleDetailModal({
                   <div className="flex shrink-0 items-center gap-2">
                     <span className="text-xs text-zinc-500">{dataPoint}</span>
                     <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${INDICATOR_CLASSES[level]}`}
+                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${INDICATOR_CLASSES[level]}`}
                     >
                       {INDICATOR_LEVEL_LABEL[level]}
                     </span>

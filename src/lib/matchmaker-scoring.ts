@@ -225,3 +225,31 @@ export function groupByModel(matched: MatchedVehicle[]): ModelGroup[] {
   }
   return [...groups.values()];
 }
+
+// --- Comparison view (approved plan, 2026-09-02) -----------------------
+//
+// Derives a flagged model's full trim list directly from the raw,
+// unfiltered `vehicles` array, never from `matched`. `matched` is
+// answers-dependent and can lose a flagged vehicle entirely the moment an
+// unrelated answer changes (e.g. switching Vehicle Type away from Sedan
+// drops every Sedan from `matched`, including one the customer already
+// flagged) -- this is the exact investigation finding the approved plan
+// was built around, and cross-body-style comparison (a flagged Sedan next
+// to a flagged Truck) is only possible if this reads from the filter-
+// independent source.
+//
+// Scoped to the SAME folded powertrain bucket the flagged card came from,
+// not every powertrain variant of the model -- matches groupByModel's own
+// per-powertrain-bucket grouping (a Tucson flagged from its Gas card
+// should only offer other Gas trims here, not the separate Hybrid/PHEV
+// bucket that renders as its own card elsewhere on the page).
+export function getModelVariants(
+  vehicles: MatchmakerVehicle[],
+  make: string,
+  model: string,
+  powertrain: Powertrain,
+): MatchmakerVehicle[] {
+  return vehicles.filter(
+    (v) => v.make === make && v.model === model && fuelTypeToPowertrain(v.fuelType) === powertrain,
+  );
+}
