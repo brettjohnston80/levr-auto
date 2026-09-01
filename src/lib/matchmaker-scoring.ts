@@ -1,4 +1,4 @@
-import type { Answers, Powertrain } from "./matchmaker-data";
+import type { Answers, Powertrain, VehicleType } from "./matchmaker-data";
 import { fuelTypeToPowertrain, type MatchmakerVehicle } from "./matchmaker-vehicle-display";
 
 // Rank position (1st, 2nd, ...) -> weight, per the approved scoring spec
@@ -236,20 +236,76 @@ export function groupByModel(matched: MatchedVehicle[]): ModelGroup[] {
 // flagged) -- this is the exact investigation finding the approved plan
 // was built around, and cross-body-style comparison (a flagged Sedan next
 // to a flagged Truck) is only possible if this reads from the filter-
-// independent source.
+// independent source. `ModelGroupCard`'s own trim switcher on the main
+// results list stays powertrain-scoped via `groupByModel`/
+// `segmentByPowertrain` instead (a Tucson flagged from its Gas card should
+// only offer other Gas trims there, not the separate Hybrid/PHEV bucket
+// that renders as its own "Other powertrains worth a look" card) -- this
+// file used to also export a powertrain-scoped `getModelVariants` for
+// `ComparisonModal`'s own trim switcher, but that was changed to the
+// cross-powertrain `getAllVariantsForModel` below (2026-09-01) to match
+// the "+ Add vehicle" picker's own flat trim list, and the powertrain-
+// scoped version was deleted as fully unused once that switch landed.
 //
-// Scoped to the SAME folded powertrain bucket the flagged card came from,
-// not every powertrain variant of the model -- matches groupByModel's own
-// per-powertrain-bucket grouping (a Tucson flagged from its Gas card
-// should only offer other Gas trims here, not the separate Hybrid/PHEV
-// bucket that renders as its own card elsewhere on the page).
-export function getModelVariants(
+// --- Standalone Comparison Tool (approved plan, 2026-09-01) ------------
+//
+// Body Style -> Make -> Model -> trim/drivetrain selection, entirely
+// independent of the quiz's answers-filtered `matched`/hard-filter
+// pipeline -- reads the raw `vehicles` array directly, same resolution
+// source as the comparison view above and for the identical reason (a
+// filter-independent source is what lets a customer build a comparison
+// with zero quiz answers at all).
+//
+// Sorted alphabetically -- both are plain option lists for a picker step,
+// not scored/ranked results, so alphabetical is the correct, boring
+// default rather than importing any scoring concept here.
+export function getMakesForBodyStyle(vehicles: MatchmakerVehicle[], bodyStyle: VehicleType): string[] {
+  const makes = new Set<string>();
+  for (const v of vehicles) {
+    if (v.bodyStyle === bodyStyle) makes.add(v.make);
+  }
+  return [...makes].sort((a, b) => a.localeCompare(b));
+}
+
+export function getModelsForMakeAndBodyStyle(
+  vehicles: MatchmakerVehicle[],
+  bodyStyle: VehicleType,
+  make: string,
+): string[] {
+  const models = new Set<string>();
+  for (const v of vehicles) {
+    if (v.bodyStyle === bodyStyle && v.make === make) models.add(v.model);
+  }
+  return [...models].sort((a, b) => a.localeCompare(b));
+}
+
+// Deliberately NOT powertrain-scoped -- the standalone tool's confirmed
+// design has no Powertrain selection step (Body Style -> Make -> Model
+// only), so this returns every trim across every powertrain a Make+Model
+// spans, letting the caller show one flat trim list regardless of how many
+// powertrain buckets the model has (see
+// matchmaker-standalone-comparison-tool-plan-2026-09-01.md, finding 2).
+// Not scoped to `bodyStyle` either -- make+model together already
+// uniquely identify the real vehicles for this purpose (confirmed no
+// model name is shared across different makes in the real dataset, same
+// assumption groupByModel's own key already relies on), and the caller
+// always already knows the body style from its own picker state.
+//
+// Also now used by ComparisonModal's own per-column trim switcher
+// (matchmaker.tsx, 2026-09-01) -- originally that switcher was powertrain-
+// scoped via a separate getModelVariants() function, which made it
+// inconsistent with the "+ Add vehicle" picker one column over (a PHEV
+// trim visible while adding would vanish from the switcher once added).
+// getModelVariants() was deleted once ComparisonModal switched to this
+// function instead -- confirmed via grep to have had zero remaining
+// callers. ModelGroupCard's own trim switcher on the main results list is
+// deliberately NOT part of this change -- it stays powertrain-scoped via
+// the separate groupByModel()/segmentByPowertrain() pipeline, since that's
+// what makes "Other powertrains worth a look" meaningful.
+export function getAllVariantsForModel(
   vehicles: MatchmakerVehicle[],
   make: string,
   model: string,
-  powertrain: Powertrain,
 ): MatchmakerVehicle[] {
-  return vehicles.filter(
-    (v) => v.make === make && v.model === model && fuelTypeToPowertrain(v.fuelType) === powertrain,
-  );
+  return vehicles.filter((v) => v.make === make && v.model === model);
 }

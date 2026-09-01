@@ -12,6 +12,7 @@ import {
   POWERTRAINS,
   PRICE_SLIDER_MIN,
   PRICE_SLIDER_MAX,
+  PRIORITY_HINTS_BY_USE_CASE,
   TOWING_PAYLOAD_VEHICLE_TYPES,
   USE_CASES_BY_VEHICLE_TYPE,
   VEHICLE_TYPES,
@@ -26,8 +27,10 @@ import {
 } from "@/lib/matchmaker-data";
 import { formatPriceEstimate, fuelTypeToPowertrain, type MatchmakerVehicle } from "@/lib/matchmaker-vehicle-display";
 import {
+  getAllVariantsForModel,
+  getMakesForBodyStyle,
   getMatchedVehicles,
-  getModelVariants,
+  getModelsForMakeAndBodyStyle,
   segmentByPowertrain,
   groupByModel,
   type MatchedVehicle,
@@ -1198,18 +1201,35 @@ function isDimensionApplicable(vehicle: MatchmakerVehicle, label: string): boole
 // the raw `vehicles` prop (never `matched`), matching Part 2's resolution-
 // source decision: a flagged vehicle must stay comparable even after an
 // unrelated answer change would otherwise drop it from the answers-
-// filtered list. `variants` is the flagged segment's own trim/drivetrain
-// set (getModelVariants, scoped to the SAME folded powertrain the vehicle
-// was flagged under -- derived from the origin trim's own fuelType, which
-// is stable regardless of which trim is later toggled active within the
-// modal, since every variant in that set shares the same folded
-// powertrain by construction).
+// filtered list. `variants` is the model's FULL trim list across every
+// powertrain (getAllVariantsForModel -- same cross-powertrain function
+// VehiclePickerFlow uses for "+ Add vehicle"), not scoped to the segment
+// the vehicle was originally flagged/added under.
+//
+// Deliberately changed from a powertrain-scoped derivation (2026-09-01) --
+// that made the in-modal trim switcher inconsistent with the "+ Add
+// vehicle" picker one column over: picking a PHEV trim during add showed
+// every powertrain, but switching trims on an already-added column only
+// ever showed that one powertrain again. The old powertrain-scoped
+// derivation (matchmaker-scoring.ts's since-deleted getModelVariants) had
+// exactly one caller -- this exact spot -- so switching it out was a
+// fully isolated change: ModelGroupCard's own trim switcher on the main
+// results list never called it, and stays deliberately untouched here.
+// It only ever receives `group.variants`, built by groupByModel()/
+// segmentByPowertrain() from the answers-driven segmented pipeline --
+// powertrain-scoped grouping there is what makes "Other powertrains worth
+// a look" meaningful (a Gas Tucson and a Hybrid Tucson are intentionally
+// two separate cards), so it stays exactly as it was.
 type ComparisonColumn = {
   flagKey: string;
   make: string;
   model: string;
   activeVehicle: MatchmakerVehicle;
   variants: MatchmakerVehicle[];
+  // Only show powertrain in each trim row's label when this column's
+  // variant set actually spans more than one -- same convention
+  // VehiclePickerFlow already uses for the identical reason.
+  showPowertrainInLabel: boolean;
 };
 
 // ComparisonModal (Step D, approved plan) -- full-screen overlay (same
@@ -1231,6 +1251,7 @@ function ComparisonModal({
   selectedTrimIds,
   onSelectTrim,
   onRemove,
+  onAddVehicle,
   onClose,
 }: {
   flaggedGroups: FlaggedGroup[];
@@ -1239,19 +1260,36 @@ function ComparisonModal({
   selectedTrimIds: Record<string, string>;
   onSelectTrim: (flagKey: string, trimId: string) => void;
   onRemove: (flagKey: string) => void;
+  // Step D, approved plan -- available regardless of entry path, since
+  // nothing about "+ Add vehicle" is standalone-specific once a
+  // comparison already exists.
+  onAddVehicle: (vehicle: MatchmakerVehicle) => void;
   onClose: () => void;
 }) {
+  // Whether the inline VehiclePickerFlow is currently showing in place of
+  // the table -- local to the modal, not lifted to Matchmaker(), since
+  // nothing outside this modal ever needs to know "is the add-picker
+  // open." Reset is implicit: closing/reopening the modal (a full
+  // ComparisonModal unmount/remount, since it's only ever rendered while
+  // `comparisonOpen` is true) naturally starts this fresh at false.
+  const [addingVehicle, setAddingVehicle] = useState(false);
+
   const columns: ComparisonColumn[] = flaggedGroups
     .map((candidate) => {
       const originVehicle = vehicles.find((v) => v.id === candidate.trimId);
       if (!originVehicle) return null;
-      const powertrain = fuelTypeToPowertrain(originVehicle.fuelType);
-      const variants = powertrain
-        ? getModelVariants(vehicles, candidate.make, candidate.model, powertrain)
-        : [originVehicle];
+      const variants = getAllVariantsForModel(vehicles, candidate.make, candidate.model);
       const selectedId = selectedTrimIds[candidate.flagKey] ?? candidate.trimId;
       const activeVehicle = variants.find((v) => v.id === selectedId) ?? originVehicle;
-      return { flagKey: candidate.flagKey, make: candidate.make, model: candidate.model, activeVehicle, variants };
+      const showPowertrainInLabel = new Set(variants.map((v) => v.fuelType)).size > 1;
+      return {
+        flagKey: candidate.flagKey,
+        make: candidate.make,
+        model: candidate.model,
+        activeVehicle,
+        variants,
+        showPowertrainInLabel,
+      };
     })
     .filter((column): column is ComparisonColumn => column !== null);
 
@@ -1278,6 +1316,18 @@ function ComparisonModal({
       </div>
 
       <div className="flex-1 overflow-auto px-6 py-6" onClick={(e) => e.stopPropagation()}>
+        {addingVehicle ? (
+          <div className="mx-auto max-w-2xl">
+            <VehiclePickerFlow
+              vehicles={vehicles}
+              onSelect={(vehicle) => {
+                onAddVehicle(vehicle);
+                setAddingVehicle(false);
+              }}
+              onCancel={() => setAddingVehicle(false)}
+            />
+          </div>
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full border-separate border-spacing-0">
             <thead>
@@ -1321,6 +1371,7 @@ function ComparisonModal({
                               }`}
                             >
                               {variant.trim} — {variant.drivetrain ?? "—"}
+                              {column.showPowertrainInLabel ? ` — ${variant.fuelType ?? "—"}` : ""}
                             </button>
                           );
                         })}
@@ -1328,6 +1379,17 @@ function ComparisonModal({
                     )}
                   </th>
                 ))}
+                {columns.length < FLAG_CAP && (
+                  <th className="min-w-[220px] px-4 pb-4 align-top">
+                    <button
+                      type="button"
+                      onClick={() => setAddingVehicle(true)}
+                      className="flex h-[72px] w-full items-center justify-center rounded-2xl border border-dashed border-white/15 text-sm font-semibold text-zinc-400 transition-colors hover:border-emerald-400/40 hover:bg-emerald-500/[0.04] hover:text-emerald-300"
+                    >
+                      + Add vehicle
+                    </button>
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -1369,9 +1431,224 @@ function ComparisonModal({
             </tbody>
           </table>
         </div>
+        )}
       </div>
     </div>,
     document.body,
+  );
+}
+
+// --- Standalone Comparison Tool: shared picker flow (Step B, approved
+// plan 2026-09-01) -------------------------------------------------------
+//
+// Body Style -> Make -> Model -> Trim, reading directly from the raw
+// `vehicles` prop via the Step A derivations -- never `matched`/`answers`,
+// same resolution-source principle as the rest of the comparison feature.
+// Shared by both the standalone entry point's 2-vehicle bootstrap and
+// ComparisonModal's "+ Add vehicle" action (Steps C/D): built once here as
+// a self-contained, portal-agnostic content block that only renders its
+// own step content, never a modal/portal itself -- each caller decides how
+// to contain it (a full page section for the standalone entry, layered
+// inside the already-portaled ComparisonModal for "+ Add vehicle").
+//
+// No Powertrain step (approved plan, investigation finding 2) --
+// getAllVariantsForModel returns every trim across every powertrain a
+// Make+Model spans in one flat list; each row's label includes powertrain
+// only when the model genuinely spans more than one (confirmed against
+// real data during Step A: Hyundai Tucson spans Gas/Hybrid/PHEV, 15 real
+// variants), matching the existing trim+drivetrain row convention
+// (ModelGroupCard/ComparisonModal) rather than inventing a new pattern.
+//
+// Make/Model both use the clickable-list style, not a pill grid --
+// confirmed against real data during Step A that several body styles' make
+// counts (SUV 33, Sedan 19, Truck/Coupe 11-12) run well past pill-grid
+// comfort, and one consistent style across all 9 body styles beats
+// switching visual languages depending on which was picked. Body Style
+// itself stays a pill grid (9 options, identical to the quiz's own Q1).
+type PickerStep = "bodyStyle" | "make" | "model" | "trim";
+
+export function VehiclePickerFlow({
+  vehicles,
+  onSelect,
+  onCancel,
+}: {
+  vehicles: MatchmakerVehicle[];
+  onSelect: (vehicle: MatchmakerVehicle) => void;
+  onCancel: () => void;
+}) {
+  const [step, setStep] = useState<PickerStep>("bodyStyle");
+  const [bodyStyle, setBodyStyle] = useState<VehicleType | "">("");
+  const [make, setMake] = useState("");
+  const [model, setModel] = useState("");
+
+  const makes = useMemo(
+    () => (bodyStyle ? getMakesForBodyStyle(vehicles, bodyStyle) : []),
+    [vehicles, bodyStyle],
+  );
+  const models = useMemo(
+    () => (bodyStyle && make ? getModelsForMakeAndBodyStyle(vehicles, bodyStyle, make) : []),
+    [vehicles, bodyStyle, make],
+  );
+  const trims = useMemo(
+    () => (make && model ? getAllVariantsForModel(vehicles, make, model) : []),
+    [vehicles, make, model],
+  );
+  // Only clutter the trim row with a powertrain field when the model
+  // actually spans more than one -- the common case (a single-powertrain
+  // model) stays exactly as terse as the existing trim/drivetrain rows.
+  const showPowertrainInLabel = useMemo(() => new Set(trims.map((v) => v.fuelType)).size > 1, [trims]);
+
+  function pickBodyStyle(value: VehicleType) {
+    setBodyStyle(value);
+    setMake("");
+    setModel("");
+    setStep("make");
+  }
+  function pickMake(value: string) {
+    setMake(value);
+    setModel("");
+    setStep("model");
+  }
+  function pickModel(value: string) {
+    setModel(value);
+    setStep("trim");
+  }
+  function back() {
+    if (step === "make") setStep("bodyStyle");
+    else if (step === "model") setStep("make");
+    else if (step === "trim") setStep("model");
+  }
+
+  const stepTitle: Record<PickerStep, string> = {
+    bodyStyle: "What type of vehicle?",
+    make: "Which make?",
+    model: "Which model?",
+    trim: "Which trim?",
+  };
+
+  return (
+    <div className="rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-6 shadow-xl shadow-black/20 sm:p-8">
+      <div className="flex items-center justify-between text-xs font-semibold tracking-wide text-zinc-500 uppercase">
+        {step !== "bodyStyle" ? (
+          <button
+            type="button"
+            onClick={back}
+            className="inline-flex items-center gap-1 text-zinc-400 normal-case transition-colors hover:text-white"
+          >
+            <BackArrow /> Back
+          </button>
+        ) : (
+          <span />
+        )}
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-zinc-400 normal-case transition-colors hover:text-white"
+        >
+          Cancel
+        </button>
+      </div>
+
+      <h2 className="mt-6 text-2xl font-semibold tracking-tight text-white sm:text-3xl">{stepTitle[step]}</h2>
+
+      {step === "bodyStyle" && (
+        <div className="mt-8 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+          {VEHICLE_TYPES.map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => pickBodyStyle(option)}
+              className="rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-4 text-left text-sm font-semibold text-zinc-200 transition-all hover:border-white/25 hover:bg-white/[0.05]"
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {step === "make" && (
+        <div className="mt-8 flex flex-col gap-1.5">
+          {makes.map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => pickMake(option)}
+              className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-left text-sm font-medium text-zinc-300 transition-colors hover:border-white/25 hover:bg-white/[0.05] hover:text-white"
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {step === "model" && (
+        <div className="mt-8 flex flex-col gap-1.5">
+          {models.map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => pickModel(option)}
+              className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-left text-sm font-medium text-zinc-300 transition-colors hover:border-white/25 hover:bg-white/[0.05] hover:text-white"
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {step === "trim" && (
+        <div className="mt-8 flex flex-col gap-1.5">
+          {trims.map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              onClick={() => onSelect(v)}
+              className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-left text-sm font-medium text-zinc-300 transition-colors hover:border-white/25 hover:bg-white/[0.05] hover:text-white"
+            >
+              {v.trim} — {v.drivetrain ?? "—"}
+              {showPowertrainInLabel ? ` — ${v.fuelType ?? "—"}` : ""} — {formatPriceEstimate(v.trueStartingPriceCents)}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Standalone-tool segment tag (Step C, approved plan) -- disjoint from the
+// quiz path's "primary"/"alt:${powertrain}" tags, since neither concept
+// (preferred vs. alternate powertrain) applies to a vehicle picked
+// directly via VehiclePickerFlow. Falls back to "unknown" only for the
+// defensive null case fuelTypeToPowertrain documents (never hit against
+// real data, since every real row has a known fuel type).
+function directSegmentTag(powertrain: Powertrain | null): string {
+  return `direct:${powertrain ?? "unknown"}`;
+}
+
+// "Standalone home" screen (Step C, approved plan) -- what renders behind
+// a closed comparison when reached via the standalone tool, since there's
+// no ResultsList to fall back to the way the quiz path has one. Reopening
+// is handled by the existing, unmodified CompareBar floating pill (kept
+// mounted whenever flaggedGroups.length >= 2, regardless of mode -- see
+// Matchmaker()) rather than a second, redundant reopen button here.
+function StandaloneHome({ flaggedCount, onReset }: { flaggedCount: number; onReset: () => void }) {
+  return (
+    <div className="rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-10 text-center shadow-xl shadow-black/20">
+      <h2 className="text-2xl font-semibold tracking-tight text-white">
+        Comparing {flaggedCount} vehicle{flaggedCount === 1 ? "" : "s"}
+      </h2>
+      <p className="mt-2 text-sm text-zinc-400">
+        Use the Compare button in the corner to reopen your comparison, or add up to {FLAG_CAP} total from inside
+        it.
+      </p>
+      <button
+        type="button"
+        onClick={onReset}
+        className="mt-6 rounded-full border border-white/20 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+      >
+        Reset comparison
+      </button>
+    </div>
   );
 }
 
@@ -1395,6 +1672,17 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
   // resume on a stale selection from a previous comparison session.
   const [comparisonOpen, setComparisonOpen] = useState(false);
   const [comparisonTrimSelections, setComparisonTrimSelections] = useState<Record<string, string>>({});
+  // Standalone Comparison Tool (Step C, approved plan) -- a third top-level
+  // mode alongside the quiz's "answering" and "results" states, reusing
+  // the SAME flaggedGroups/comparisonOpen/comparisonTrimSelections state
+  // as the quiz-flagged path rather than a parallel set (this is the
+  // approved plan's convergence point: one underlying comparison surface,
+  // two ways to populate it). standalonePriorities holds the fixed
+  // default row order (computed once, off the first picked vehicle's body
+  // style) since there's no quiz `answers.priorities` in this mode -- see
+  // comparisonPriorities below.
+  const [standaloneMode, setStandaloneMode] = useState(false);
+  const [standalonePriorities, setStandalonePriorities] = useState<string[] | null>(null);
   const [infoVehicleId, setInfoVehicleId] = useState<string | null>(null);
   // Tracks whether the customer has ever manually dragged/reordered
   // priorities. Main Use only pre-fills the STARTING order (§3d) -- once
@@ -1494,6 +1782,8 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
     setFlaggedGroups([]);
     setComparisonOpen(false);
     setComparisonTrimSelections({});
+    setStandaloneMode(false);
+    setStandalonePriorities(null);
     setInfoVehicleId(null);
     setPrioritiesTouched(false);
   }
@@ -1523,6 +1813,95 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
   }
   const flaggedKeys = useMemo(() => new Set(flaggedGroups.map((g) => g.flagKey)), [flaggedGroups]);
   const compareLimitReached = flaggedGroups.length >= FLAG_CAP;
+
+  // Standalone Comparison Tool entry (Step C) -- enter/exit are distinct
+  // from resetStandaloneComparison below: entering/exiting is "use a
+  // different entry path entirely" (exiting drops back to the normal quiz
+  // landing), while reset is "start this same tool over" (stays in
+  // standalone mode). Exiting clears every piece of state a standalone
+  // session could have built up, matching startOver()'s own thoroughness.
+  function enterStandaloneMode() {
+    setStandaloneMode(true);
+  }
+  function exitStandaloneMode() {
+    setStandaloneMode(false);
+    setFlaggedGroups([]);
+    setStandalonePriorities(null);
+    setComparisonOpen(false);
+    setComparisonTrimSelections({});
+  }
+  function resetStandaloneComparison() {
+    setFlaggedGroups([]);
+    setStandalonePriorities(null);
+    setComparisonOpen(false);
+    setComparisonTrimSelections({});
+  }
+
+  // The 2-vehicle bootstrap (confirmed design item 2/4) -- reuses
+  // toggleFlag() as-is for the actual add (same cap enforcement, same
+  // de-dupe-by-flagKey), so the FLAG_CAP invariant everywhere else in this
+  // feature needs zero changes. The first pick also computes the fixed
+  // default row order (confirmed design item 3) off ITS body style only --
+  // never recomputed for a later, possibly different-body-style pick,
+  // same "one shared row order for the whole table" principle
+  // comparisonRowOrder already uses for the quiz path's own cross-body-
+  // style case. The second pick auto-opens the comparison immediately,
+  // which is the entire point of the standalone tool's bootstrap.
+  function handleStandalonePick(vehicle: MatchmakerVehicle) {
+    // Guards against re-picking the exact same trim already in this
+    // comparison (real bug found during Step D verification, fixed here
+    // too for consistency -- see addVehicleToComparison's own comment for
+    // why this has to check the underlying trimId, not flagKey/flaggedKeys).
+    // Without this, re-picking an identical vehicle for "Vehicle 2 of 2"
+    // would toggleFlag() the first pick OFF (same flagKey => "remove"),
+    // silently losing it rather than harmlessly no-op'ing.
+    if (flaggedGroups.some((g) => g.trimId === vehicle.id)) return;
+    if (flaggedGroups.length === 0) {
+      const hintUseCase = USE_CASES_BY_VEHICLE_TYPE[vehicle.bodyStyle][0];
+      setStandalonePriorities(PRIORITY_HINTS_BY_USE_CASE[hintUseCase]);
+    }
+    const flagKey = modelGroupFlagKey(
+      `${vehicle.make}|${vehicle.model}`,
+      directSegmentTag(fuelTypeToPowertrain(vehicle.fuelType)),
+    );
+    toggleFlag({ flagKey, make: vehicle.make, model: vehicle.model, trimId: vehicle.id });
+    if (flaggedGroups.length === 1) {
+      setComparisonOpen(true);
+    }
+  }
+
+  // "+ Add vehicle" inside ComparisonModal (Step D, approved plan) --
+  // available from BOTH entry paths, since nothing about it is standalone-
+  // specific once a comparison already exists (2+ already flagged, modal
+  // already open, row order already fixed) -- deliberately does NOT touch
+  // standalonePriorities or comparisonOpen the way handleStandalonePick
+  // does, since neither is relevant here. Reuses the same
+  // direct:${powertrain} tag as the standalone bootstrap: a vehicle added
+  // here was also picked directly via VehiclePickerFlow, the identical "no
+  // preferred/alternate powertrain" situation.
+  //
+  // Real bug found during Step D verification, fixed here: the guard
+  // originally checked flaggedKeys.has(flagKey), which never catches the
+  // case that actually happens in practice -- re-adding the exact same
+  // trim that's already flagged from the QUIZ path, whose flagKey uses the
+  // "primary"/"alt:" segment tag, not "direct:". Two different flagKeys
+  // for the identical underlying vehicle meant the guard never fired,
+  // producing a real, literal duplicate column (confirmed live: two
+  // identical "Honda Accord LX" columns side by side). Fixed by checking
+  // flaggedGroups for a matching trimId instead -- the actual question is
+  // "is this exact trim already in the comparison," which is independent
+  // of which flagKey/segment it's currently registered under. This still
+  // correctly allows the intentional case from decision 1 (a different
+  // trim/powertrain of the same model, e.g. Camry Hybrid + Camry Gas),
+  // since those have different vehicle ids.
+  function addVehicleToComparison(vehicle: MatchmakerVehicle) {
+    if (flaggedGroups.some((g) => g.trimId === vehicle.id)) return;
+    const flagKey = modelGroupFlagKey(
+      `${vehicle.make}|${vehicle.model}`,
+      directSegmentTag(fuelTypeToPowertrain(vehicle.fuelType)),
+    );
+    toggleFlag({ flagKey, make: vehicle.make, model: vehicle.model, trimId: vehicle.id });
+  }
 
   // Dedicated unflag path for ComparisonModal's per-column remove action --
   // unlike toggleFlag, there's no cap check to make (removing never needs
@@ -1628,6 +2007,15 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
 
   const infoVehicle = infoVehicleId ? matched.find((v) => v.id === infoVehicleId) ?? null : null;
 
+  // Which priorities drive comparisonRowOrder() -- the quiz's own live
+  // answers.priorities when reached that way, or the fixed default
+  // computed once at the standalone tool's first pick (see
+  // handleStandalonePick). The `?? []` fallback is defensive only: it
+  // can't actually be hit in standalone mode by the time a comparison
+  // exists, since flaggedGroups.length >= 2 implies handleStandalonePick
+  // already ran at least twice, and its first call always sets this.
+  const comparisonPriorities = standaloneMode ? (standalonePriorities ?? []) : answers.priorities;
+
   return (
     <section className="bg-zinc-950 py-20 sm:py-24">
       <div className="mx-auto max-w-6xl px-6">
@@ -1645,10 +2033,43 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
           <p className="mt-4 text-lg text-zinc-400">
             Answer a few quick questions and we&apos;ll suggest vehicles worth searching for.
           </p>
+          {/* Standalone Comparison Tool entry point (Step C, approved plan)
+              -- only on the initial landing view (confirmed design item 1),
+              not mid-quiz or mid-results. */}
+          {!done && !standaloneMode && step === 0 && (
+            <p className="mt-4 text-sm text-zinc-500">
+              Already know what you&apos;re cross-shopping?{" "}
+              <button
+                type="button"
+                onClick={enterStandaloneMode}
+                className="font-semibold text-emerald-400 underline decoration-emerald-400/40 underline-offset-4 transition-colors hover:text-emerald-300"
+              >
+                Skip the quiz — compare specific vehicles
+              </button>
+            </p>
+          )}
         </div>
 
         <div className="mt-14">
-          {done ? (
+          {standaloneMode ? (
+            <div className="mx-auto max-w-2xl">
+              {flaggedGroups.length < 2 ? (
+                <>
+                  <p className="mb-4 text-center text-xs font-semibold tracking-wide text-zinc-500 uppercase">
+                    Vehicle {flaggedGroups.length + 1} of 2
+                  </p>
+                  <VehiclePickerFlow
+                    key={flaggedGroups.length}
+                    vehicles={vehicles}
+                    onSelect={handleStandalonePick}
+                    onCancel={exitStandaloneMode}
+                  />
+                </>
+              ) : (
+                <StandaloneHome flaggedCount={flaggedGroups.length} onReset={resetStandaloneComparison} />
+              )}
+            </div>
+          ) : done ? (
             <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
               <ResultsList
                 answers={answers}
@@ -1701,17 +2122,23 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
       </div>
 
       {infoVehicle && <VehicleDetailModal vehicle={infoVehicle} answers={answers} onClose={() => setInfoVehicleId(null)} />}
-      {done && flaggedGroups.length >= 2 && (
+      {/* Mounted whenever a comparison exists, regardless of entry path
+          (Step C) -- previously gated on `done` alone, which only ever
+          covered the quiz path. The standalone tool has no `done` state of
+          its own (it never runs the quiz), so its own 2+-flagged condition
+          has to be OR'd in here rather than folded into `done`. */}
+      {(done || standaloneMode) && flaggedGroups.length >= 2 && (
         <CompareBar count={flaggedGroups.length} onClick={() => setComparisonOpen(true)} />
       )}
       {comparisonOpen && flaggedGroups.length >= 2 && (
         <ComparisonModal
           flaggedGroups={flaggedGroups}
           vehicles={vehicles}
-          priorities={answers.priorities}
+          priorities={comparisonPriorities}
           selectedTrimIds={comparisonTrimSelections}
           onSelectTrim={selectComparisonTrim}
           onRemove={removeFlag}
+          onAddVehicle={addVehicleToComparison}
           onClose={() => setComparisonOpen(false)}
         />
       )}
