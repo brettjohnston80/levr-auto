@@ -1324,6 +1324,35 @@ function ComparisonModal({
     showAddTile ? ` - ${ADD_TILE_COLUMN_WIDTH_PX}px` : ""
   }) / ${columns.length})`;
 
+  // Quick-duplicate shortcuts (MY2027 plan Part 3, this task) -- one per
+  // current column, rendered below the "+ Add vehicle" tile, sharing its
+  // showAddTile cap gate (once at FLAG_CAP, neither renders -- no separate
+  // cap logic needed, addFlaggedGroup's own cap check is still the real
+  // source of truth regardless). Bypasses the Body Style -> Make -> Model
+  // flow entirely: reuses the exact same auto-select-highest-scoring-trim
+  // mechanism VehiclePickerFlow uses for any other add ("Auto-select
+  // applies the same as any other add," per the approved plan) and the
+  // exact same onAddVehicle path "+ Add vehicle" already uses -- no new
+  // state-management function needed, since addFlaggedGroup/
+  // addVehicleToComparison already handle a genuine duplicate make/model/
+  // year with a guaranteed-unique flagKey.
+  //
+  // Matches the ORIGINAL column's model year exactly
+  // (column.activeVehicle.modelYear), not whichever year the customer
+  // might pick from scratch -- safe and unambiguous once Part 1 landed,
+  // since every variant in a column's own switcher already shares one
+  // year by construction. Priority order for the auto-select is the
+  // duplicated vehicle's own body style's neutral default
+  // (defaultPriorityOrder), same as every other auto-select in this
+  // feature -- ComparisonModal has no "picker body style" state of its
+  // own to read, and reusing the active vehicle's real body style is the
+  // same source VehiclePickerFlow effectively uses too.
+  function duplicateColumn(column: ComparisonColumn) {
+    const variants = getAllVariantsForModel(vehicles, column.make, column.model, column.activeVehicle.modelYear);
+    const headline = pickHighestScoringVariant(variants, defaultPriorityOrder(column.activeVehicle.bodyStyle));
+    onAddVehicle(headline);
+  }
+
   return createPortal(
     <div className="fixed inset-0 z-[100] flex flex-col bg-zinc-950" onClick={onClose}>
       <div
@@ -1411,13 +1440,26 @@ function ComparisonModal({
                 ))}
                 {showAddTile && (
                   <th className="w-[140px] px-2 pb-4 align-top">
-                    <button
-                      type="button"
-                      onClick={() => setAddingVehicle(true)}
-                      className="flex h-[72px] w-full items-center justify-center rounded-2xl border border-dashed border-white/15 text-xs font-semibold text-zinc-400 transition-colors hover:border-emerald-400/40 hover:bg-emerald-500/[0.04] hover:text-emerald-300"
-                    >
-                      + Add vehicle
-                    </button>
+                    <div className="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAddingVehicle(true)}
+                        className="flex h-[72px] w-full items-center justify-center rounded-2xl border border-dashed border-white/15 text-xs font-semibold text-zinc-400 transition-colors hover:border-emerald-400/40 hover:bg-emerald-500/[0.04] hover:text-emerald-300"
+                      >
+                        + Add vehicle
+                      </button>
+                      {columns.map((column) => (
+                        <button
+                          key={`duplicate-${column.flagKey}`}
+                          type="button"
+                          onClick={() => duplicateColumn(column)}
+                          title={`Duplicate ${column.make} ${column.model} (${column.activeVehicle.modelYear})`}
+                          className="truncate rounded-lg border border-white/10 bg-white/[0.02] px-2 py-1.5 text-left text-[11px] font-medium text-zinc-400 transition-colors hover:border-white/25 hover:bg-white/[0.05] hover:text-zinc-200"
+                        >
+                          Duplicate {column.make} {column.model} ({column.activeVehicle.modelYear})
+                        </button>
+                      ))}
+                    </div>
                   </th>
                 )}
               </tr>
