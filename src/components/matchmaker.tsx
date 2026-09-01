@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { GetStartedButton } from "@/components/get-started-button";
 import { VehicleDetailModal } from "@/components/vehicle-detail-modal";
@@ -31,6 +31,7 @@ import {
   getMakesForBodyStyle,
   getMatchedVehicles,
   getModelsForMakeAndBodyStyle,
+  pickHighestScoringVariant,
   segmentByPowertrain,
   groupByModel,
   type MatchedVehicle,
@@ -1298,6 +1299,26 @@ function ComparisonModal({
     columns.map((column) => column.activeVehicle),
   );
 
+  // Column-width scheme (this task) -- previously every <th>, including
+  // the "+ Add vehicle" tile, shared the same min-w-[220px], so the tile
+  // claimed an equal share of the table's width alongside real vehicle
+  // columns, wasting space especially at 2-3 vehicles. Now the sticky
+  // label column and the Add tile both get a small FIXED width, and real
+  // vehicle columns split whatever's left evenly -- narrower as more are
+  // added, wider with fewer, while the Add tile stays a constant size
+  // throughout. This needs `table-layout: fixed` (Tailwind `table-fixed`)
+  // plus an explicit `width` on each cell of the table's first row (the
+  // <thead> row) -- under fixed layout, only the FIRST row's widths are
+  // read; every other row's cells automatically inherit the same column
+  // widths with no styling of their own needed, so the <tbody> cells below
+  // are untouched.
+  const LABEL_COLUMN_WIDTH_PX = 160; // keep in sync with the sticky th's `w-40` below
+  const ADD_TILE_COLUMN_WIDTH_PX = 140;
+  const showAddTile = columns.length < FLAG_CAP;
+  const realColumnWidth = `calc((100% - ${LABEL_COLUMN_WIDTH_PX}px${
+    showAddTile ? ` - ${ADD_TILE_COLUMN_WIDTH_PX}px` : ""
+  }) / ${columns.length})`;
+
   return createPortal(
     <div className="fixed inset-0 z-[100] flex flex-col bg-zinc-950" onClick={onClose}>
       <div
@@ -1329,12 +1350,16 @@ function ComparisonModal({
           </div>
         ) : (
         <div className="overflow-x-auto">
-          <table className="w-full border-separate border-spacing-0">
+          <table className="w-full table-fixed border-separate border-spacing-0">
             <thead>
               <tr>
                 <th className="sticky left-0 z-10 w-40 min-w-40 bg-zinc-950" />
                 {columns.map((column) => (
-                  <th key={column.flagKey} className="min-w-[220px] px-4 pb-4 text-left align-top">
+                  <th
+                    key={column.flagKey}
+                    style={{ width: realColumnWidth }}
+                    className="min-w-[160px] px-4 pb-4 text-left align-top"
+                  >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-white">
@@ -1379,12 +1404,12 @@ function ComparisonModal({
                     )}
                   </th>
                 ))}
-                {columns.length < FLAG_CAP && (
-                  <th className="min-w-[220px] px-4 pb-4 align-top">
+                {showAddTile && (
+                  <th className="w-[140px] px-2 pb-4 align-top">
                     <button
                       type="button"
                       onClick={() => setAddingVehicle(true)}
-                      className="flex h-[72px] w-full items-center justify-center rounded-2xl border border-dashed border-white/15 text-sm font-semibold text-zinc-400 transition-colors hover:border-emerald-400/40 hover:bg-emerald-500/[0.04] hover:text-emerald-300"
+                      className="flex h-[72px] w-full items-center justify-center rounded-2xl border border-dashed border-white/15 text-xs font-semibold text-zinc-400 transition-colors hover:border-emerald-400/40 hover:bg-emerald-500/[0.04] hover:text-emerald-300"
                     >
                       + Add vehicle
                     </button>
@@ -1439,11 +1464,11 @@ function ComparisonModal({
 }
 
 // --- Standalone Comparison Tool: shared picker flow (Step B, approved
-// plan 2026-09-01) -------------------------------------------------------
+// plan 2026-09-01; Trim step removed as a follow-up, 2026-09-01) --------
 //
-// Body Style -> Make -> Model -> Trim, reading directly from the raw
-// `vehicles` prop via the Step A derivations -- never `matched`/`answers`,
-// same resolution-source principle as the rest of the comparison feature.
+// Body Style -> Make -> Model, reading directly from the raw `vehicles`
+// prop via the Step A derivations -- never `matched`/`answers`, same
+// resolution-source principle as the rest of the comparison feature.
 // Shared by both the standalone entry point's 2-vehicle bootstrap and
 // ComparisonModal's "+ Add vehicle" action (Steps C/D): built once here as
 // a self-contained, portal-agnostic content block that only renders its
@@ -1451,13 +1476,21 @@ function ComparisonModal({
 // to contain it (a full page section for the standalone entry, layered
 // inside the already-portaled ComparisonModal for "+ Add vehicle").
 //
-// No Powertrain step (approved plan, investigation finding 2) --
-// getAllVariantsForModel returns every trim across every powertrain a
-// Make+Model spans in one flat list; each row's label includes powertrain
-// only when the model genuinely spans more than one (confirmed against
-// real data during Step A: Hyundai Tucson spans Gas/Hybrid/PHEV, 15 real
-// variants), matching the existing trim+drivetrain row convention
-// (ModelGroupCard/ComparisonModal) rather than inventing a new pattern.
+// No separate Trim step (removed as a follow-up, 2026-09-01) -- picking a
+// Model now auto-selects that model's highest-scoring trim
+// (pickHighestScoringVariant, matchmaker-scoring.ts) and calls onSelect
+// immediately, the same "headline trim" concept ModelGroupCard already
+// uses elsewhere. The customer adjusts which specific trim is actually
+// shown afterward via the comparison column's own trim switcher
+// (getAllVariantsForModel), not during picking -- one fewer click for the
+// common case, and it's what makes it possible to pick the same model
+// twice (see addFlaggedGroup/directSegmentTag below) and then diverge each
+// resulting column to a different trim.
+//
+// No Powertrain step either (original approved plan, investigation
+// finding 2) -- getAllVariantsForModel (used both for auto-picking here
+// and for each comparison column's own trim switcher) spans every
+// powertrain a Make+Model has, so there's nothing to pre-select.
 //
 // Make/Model both use the clickable-list style, not a pill grid --
 // confirmed against real data during Step A that several body styles' make
@@ -1465,7 +1498,7 @@ function ComparisonModal({
 // comfort, and one consistent style across all 9 body styles beats
 // switching visual languages depending on which was picked. Body Style
 // itself stays a pill grid (9 options, identical to the quiz's own Q1).
-type PickerStep = "bodyStyle" | "make" | "model" | "trim";
+type PickerStep = "bodyStyle" | "make" | "model";
 
 export function VehiclePickerFlow({
   vehicles,
@@ -1479,7 +1512,6 @@ export function VehiclePickerFlow({
   const [step, setStep] = useState<PickerStep>("bodyStyle");
   const [bodyStyle, setBodyStyle] = useState<VehicleType | "">("");
   const [make, setMake] = useState("");
-  const [model, setModel] = useState("");
 
   const makes = useMemo(
     () => (bodyStyle ? getMakesForBodyStyle(vehicles, bodyStyle) : []),
@@ -1489,41 +1521,38 @@ export function VehiclePickerFlow({
     () => (bodyStyle && make ? getModelsForMakeAndBodyStyle(vehicles, bodyStyle, make) : []),
     [vehicles, bodyStyle, make],
   );
-  const trims = useMemo(
-    () => (make && model ? getAllVariantsForModel(vehicles, make, model) : []),
-    [vehicles, make, model],
-  );
-  // Only clutter the trim row with a powertrain field when the model
-  // actually spans more than one -- the common case (a single-powertrain
-  // model) stays exactly as terse as the existing trim/drivetrain rows.
-  const showPowertrainInLabel = useMemo(() => new Set(trims.map((v) => v.fuelType)).size > 1, [trims]);
 
   function pickBodyStyle(value: VehicleType) {
     setBodyStyle(value);
     setMake("");
-    setModel("");
     setStep("make");
   }
   function pickMake(value: string) {
     setMake(value);
-    setModel("");
     setStep("model");
   }
+  // Auto-selects a trim rather than showing a separate step (removed
+  // 2026-09-01, see the file comment above) -- the highest-scoring variant
+  // among the model's own trims, scored against the body style's neutral
+  // default priority order since there's no quiz/standalone priorities
+  // necessarily available yet at pick time (see pickHighestScoringVariant's
+  // own comment in matchmaker-scoring.ts for why). Fires onSelect
+  // immediately; the caller (bootstrap or "+ Add vehicle") decides what
+  // happens next.
   function pickModel(value: string) {
-    setModel(value);
-    setStep("trim");
+    const variants = getAllVariantsForModel(vehicles, make, value);
+    const headline = pickHighestScoringVariant(variants, defaultPriorityOrder(bodyStyle));
+    onSelect(headline);
   }
   function back() {
     if (step === "make") setStep("bodyStyle");
     else if (step === "model") setStep("make");
-    else if (step === "trim") setStep("model");
   }
 
   const stepTitle: Record<PickerStep, string> = {
     bodyStyle: "What type of vehicle?",
     make: "Which make?",
     model: "Which model?",
-    trim: "Which trim?",
   };
 
   return (
@@ -1595,22 +1624,6 @@ export function VehiclePickerFlow({
           ))}
         </div>
       )}
-
-      {step === "trim" && (
-        <div className="mt-8 flex flex-col gap-1.5">
-          {trims.map((v) => (
-            <button
-              key={v.id}
-              type="button"
-              onClick={() => onSelect(v)}
-              className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-left text-sm font-medium text-zinc-300 transition-colors hover:border-white/25 hover:bg-white/[0.05] hover:text-white"
-            >
-              {v.trim} — {v.drivetrain ?? "—"}
-              {showPowertrainInLabel ? ` — ${v.fuelType ?? "—"}` : ""} — {formatPriceEstimate(v.trueStartingPriceCents)}
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -1621,8 +1634,21 @@ export function VehiclePickerFlow({
 // directly via VehiclePickerFlow. Falls back to "unknown" only for the
 // defensive null case fuelTypeToPowertrain documents (never hit against
 // real data, since every real row has a known fuel type).
-function directSegmentTag(powertrain: Powertrain | null): string {
-  return `direct:${powertrain ?? "unknown"}`;
+//
+// Instance-suffixed (fix, 2026-09-01) -- previously just
+// `direct:${powertrain}`, which meant picking the same make/model +
+// powertrain combination twice via the standalone picker produced an
+// IDENTICAL flagKey both times. toggleFlag() (the quiz Flag button's own
+// function) treats "already flagged" as "unflag," so a second identical
+// pick was silently read as removing the first entry instead of adding a
+// second column. Every standalone add now gets its own monotonically-
+// increasing instance id (nextStandaloneAddId() below), making flagKey
+// collisions structurally impossible no matter how many times the same
+// make/model/powertrain is picked -- this is what makes "pick the same
+// model twice, get two independent columns, switch each to a different
+// trim" possible.
+function directSegmentTag(powertrain: Powertrain | null, instanceId: number): string {
+  return `direct:${powertrain ?? "unknown"}:${instanceId}`;
 }
 
 // "Standalone home" screen (Step C, approved plan) -- what renders behind
@@ -1814,6 +1840,34 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
   const flaggedKeys = useMemo(() => new Set(flaggedGroups.map((g) => g.flagKey)), [flaggedGroups]);
   const compareLimitReached = flaggedGroups.length >= FLAG_CAP;
 
+  // Monotonic counter backing directSegmentTag's uniqueness suffix (fix,
+  // 2026-09-01) -- a plain ref, not state, since its value only needs to be
+  // correct at the moment a new flagKey string is built (synchronously,
+  // inside an event handler) and never needs to trigger a re-render on its
+  // own. Deliberately never reset (Start Over, Reset comparison, exiting
+  // standalone mode) -- the simplest way to guarantee it can never repeat a
+  // value and collide with a still-live flagKey, at zero real cost.
+  const standaloneAddIdRef = useRef(0);
+  function nextStandaloneAddId(): number {
+    standaloneAddIdRef.current += 1;
+    return standaloneAddIdRef.current;
+  }
+
+  // Standalone-picker add path (fix, 2026-09-01) -- ALWAYS appends
+  // (respecting FLAG_CAP), never toggles off, unlike toggleFlag() above
+  // (the quiz Flag button's own function, left completely unchanged --
+  // it must keep working as a literal flag/unflag toggle). Needed because
+  // the standalone picker can now legitimately add the same underlying
+  // vehicle -- or the same auto-picked headline trim for the same model --
+  // more than once (see directSegmentTag above); toggleFlag's "flagKey
+  // already present -> treat as unflag" branch would otherwise silently
+  // remove the first entry instead. Since every standalone-add flagKey is
+  // now structurally unique (the instance counter), there's no "already
+  // present" case to check here at all.
+  function addFlaggedGroup(candidate: FlaggedGroup) {
+    setFlaggedGroups((prev) => (prev.length >= FLAG_CAP ? prev : [...prev, candidate]));
+  }
+
   // Standalone Comparison Tool entry (Step C) -- enter/exit are distinct
   // from resetStandaloneComparison below: entering/exiting is "use a
   // different entry path entirely" (exiting drops back to the normal quiz
@@ -1847,24 +1901,29 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
   // comparisonRowOrder already uses for the quiz path's own cross-body-
   // style case. The second pick auto-opens the comparison immediately,
   // which is the entire point of the standalone tool's bootstrap.
+  // Reversed 2026-09-01 (fix, see directSegmentTag/addFlaggedGroup above):
+  // this used to guard against re-picking a vehicle already in the
+  // comparison (checking the underlying trimId, since re-picking the exact
+  // same trim would previously toggleFlag() the first pick OFF -- same
+  // flagKey => "remove"). That guard is now deliberately REMOVED -- the
+  // whole point of the picker no longer having a separate Trim step is
+  // that picking the same model twice (e.g. "Hyundai Tucson" for both
+  // Vehicle 1 and Vehicle 2) is a legitimate, intended action: both picks
+  // auto-select the same headline trim initially, producing two
+  // independent columns the customer then diverges via each column's own
+  // trim switcher. Now that every standalone add gets a structurally
+  // unique flagKey, there's no collision left for a trimId guard to
+  // protect against.
   function handleStandalonePick(vehicle: MatchmakerVehicle) {
-    // Guards against re-picking the exact same trim already in this
-    // comparison (real bug found during Step D verification, fixed here
-    // too for consistency -- see addVehicleToComparison's own comment for
-    // why this has to check the underlying trimId, not flagKey/flaggedKeys).
-    // Without this, re-picking an identical vehicle for "Vehicle 2 of 2"
-    // would toggleFlag() the first pick OFF (same flagKey => "remove"),
-    // silently losing it rather than harmlessly no-op'ing.
-    if (flaggedGroups.some((g) => g.trimId === vehicle.id)) return;
     if (flaggedGroups.length === 0) {
       const hintUseCase = USE_CASES_BY_VEHICLE_TYPE[vehicle.bodyStyle][0];
       setStandalonePriorities(PRIORITY_HINTS_BY_USE_CASE[hintUseCase]);
     }
     const flagKey = modelGroupFlagKey(
       `${vehicle.make}|${vehicle.model}`,
-      directSegmentTag(fuelTypeToPowertrain(vehicle.fuelType)),
+      directSegmentTag(fuelTypeToPowertrain(vehicle.fuelType), nextStandaloneAddId()),
     );
-    toggleFlag({ flagKey, make: vehicle.make, model: vehicle.model, trimId: vehicle.id });
+    addFlaggedGroup({ flagKey, make: vehicle.make, model: vehicle.model, trimId: vehicle.id });
     if (flaggedGroups.length === 1) {
       setComparisonOpen(true);
     }
@@ -1876,31 +1935,34 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
   // already open, row order already fixed) -- deliberately does NOT touch
   // standalonePriorities or comparisonOpen the way handleStandalonePick
   // does, since neither is relevant here. Reuses the same
-  // direct:${powertrain} tag as the standalone bootstrap: a vehicle added
-  // here was also picked directly via VehiclePickerFlow, the identical "no
-  // preferred/alternate powertrain" situation.
+  // direct:${powertrain}:${instanceId} tag as the standalone bootstrap: a
+  // vehicle added here was also picked directly via VehiclePickerFlow, the
+  // identical "no preferred/alternate powertrain" situation.
   //
-  // Real bug found during Step D verification, fixed here: the guard
-  // originally checked flaggedKeys.has(flagKey), which never catches the
-  // case that actually happens in practice -- re-adding the exact same
-  // trim that's already flagged from the QUIZ path, whose flagKey uses the
-  // "primary"/"alt:" segment tag, not "direct:". Two different flagKeys
-  // for the identical underlying vehicle meant the guard never fired,
-  // producing a real, literal duplicate column (confirmed live: two
-  // identical "Honda Accord LX" columns side by side). Fixed by checking
-  // flaggedGroups for a matching trimId instead -- the actual question is
-  // "is this exact trim already in the comparison," which is independent
-  // of which flagKey/segment it's currently registered under. This still
-  // correctly allows the intentional case from decision 1 (a different
-  // trim/powertrain of the same model, e.g. Camry Hybrid + Camry Gas),
-  // since those have different vehicle ids.
+  // Reversed 2026-09-01 (fix): previously guarded against re-adding a
+  // trimId already present in flaggedGroups (a duplicate-add bug fix from
+  // the original build -- re-adding a vehicle already flagged from the
+  // QUIZ path used to produce a literal duplicate column, since the quiz
+  // path's flagKey uses a "primary"/"alt:" segment tag, not "direct:", so
+  // the two never collided on flagKey the way toggleFlag's own check
+  // expects). That guard is now deliberately REMOVED -- the whole point of
+  // this task is to let the customer add the same model (and its
+  // auto-picked headline trim, now that there's no separate Trim step) a
+  // second time, producing a second independent column they then diverge
+  // via each column's own trim switcher. flagKey collisions are what
+  // actually made the old guard necessary; now that every standalone add
+  // gets a structurally unique flagKey (directSegmentTag's instance
+  // counter), a literal duplicate column can never happen, so there's
+  // nothing left for a trimId guard to protect against. This still
+  // correctly allows the pre-existing intentional case (a different
+  // trim/powertrain of the same model, e.g. Camry Hybrid + Camry Gas, or
+  // now also the exact same trim twice) -- both just add a new column.
   function addVehicleToComparison(vehicle: MatchmakerVehicle) {
-    if (flaggedGroups.some((g) => g.trimId === vehicle.id)) return;
     const flagKey = modelGroupFlagKey(
       `${vehicle.make}|${vehicle.model}`,
-      directSegmentTag(fuelTypeToPowertrain(vehicle.fuelType)),
+      directSegmentTag(fuelTypeToPowertrain(vehicle.fuelType), nextStandaloneAddId()),
     );
-    toggleFlag({ flagKey, make: vehicle.make, model: vehicle.model, trimId: vehicle.id });
+    addFlaggedGroup({ flagKey, make: vehicle.make, model: vehicle.model, trimId: vehicle.id });
   }
 
   // Dedicated unflag path for ComparisonModal's per-column remove action --

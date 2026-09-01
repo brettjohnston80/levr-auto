@@ -309,3 +309,33 @@ export function getAllVariantsForModel(
 ): MatchmakerVehicle[] {
   return vehicles.filter((v) => v.make === make && v.model === model);
 }
+
+// Highest-scoring trim among a model's variants, by the same weightedTotal
+// arithmetic used everywhere else a "headline" trim is chosen (groupByModel
+// picks the highest scorer as a ModelGroup's headline; getMatchedVehicles
+// sorts by the identical total). Used by VehiclePickerFlow (matchmaker.tsx,
+// Standalone Comparison Tool follow-up, 2026-09-01) to auto-select a trim
+// the instant a model is picked, rather than showing a separate Trim step
+// -- the customer adjusts which trim is actually shown afterward via the
+// comparison column's own trim switcher (getAllVariantsForModel above), not
+// during picking.
+//
+// `priorityOrder` is always the vehicle's own body style's NEUTRAL default
+// order (matchmaker-data.ts's defaultPriorityOrder), never live quiz/
+// standalone priorities -- a deliberate choice, not an oversight:
+// VehiclePickerFlow is used before any priorities necessarily exist yet
+// (the very first pick of a standalone bootstrap, before standalonePriorities
+// is computed), and using a fixed, always-available default keeps its
+// behavior identical across every call site rather than subtly differing
+// depending on what happened to already be in state. `variants` must be
+// non-empty -- only ever called with getAllVariantsForModel's own output
+// for a model that was just offered as a real option in the picker, so it
+// always has at least one trim.
+export function pickHighestScoringVariant(
+  variants: MatchmakerVehicle[],
+  priorityOrder: string[],
+): MatchmakerVehicle {
+  return variants.reduce((best, v) =>
+    weightedTotal(v, priorityOrder) > weightedTotal(best, priorityOrder) ? v : best,
+  );
+}
