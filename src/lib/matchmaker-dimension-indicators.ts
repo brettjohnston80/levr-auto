@@ -100,16 +100,22 @@ export function comparisonRowOrder(priorities: string[], flaggedVehicles: Matchm
 // template at the two render call sites (matchmaker.tsx's
 // DimensionDetailList, vehicle-detail-modal.tsx's breakdown section) --
 // both previously hardcoded a shared "ring-1" ahead of this map's value.
-// Gold needs a visibly thicker ring-2 as one of three independent
-// differentiators from Yellow (brightness + ring weight + the "star"
-// glyph in its label, deliberately not relying on hue/saturation alone,
-// which amber-400 vs. yellow-300 turned out to be too close together to
-// trust at a glance -- see the reviewed color comparison). A single
-// element can't cleanly carry two different Tailwind ring-width utilities
-// at once, so every level's own full ring class (width + color) is now
-// self-contained here.
+// A single element can't cleanly carry two different Tailwind ring-width
+// utilities at once, so every level's own full ring class (width + color)
+// is self-contained here.
+//
+// Gold's bg/text are now deliberately identical to Green's (2026-09-02,
+// simplified from an earlier distinct-yellow-hue approach reviewed and
+// approved via a real side-by-side screenshot) -- Best in Class already
+// IS "excellent," just verified as the single best score in its class, so
+// sharing Green's exact shade reads as a variant of Excellent rather than
+// a fourth unrelated color the customer has to separately learn. The only
+// two remaining differentiators from Green are the ring (doubled to
+// ring-2 and taken to full opacity, vs. Green's ring-1 at /30) and the
+// "★ " glyph in INDICATOR_LEVEL_LABEL below -- a deliberate
+// simplification, not an oversight.
 export const INDICATOR_CLASSES: Record<IndicatorLevel, string> = {
-  gold: "bg-yellow-500/15 text-yellow-200 ring-2 ring-yellow-400",
+  gold: "bg-emerald-500/15 text-emerald-400 ring-2 ring-emerald-500",
   green: "bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30",
   yellow: "bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/30",
   red: "bg-red-500/15 text-red-400 ring-1 ring-red-500/30",
