@@ -176,67 +176,195 @@ export function retargetPriorityOrderForVehicleType(
   return order.map((label) => (label === other ? target : label));
 }
 
-// Main Use -> the 1-2 dimensions that should be pre-ranked toward the top
-// of the drag-to-rank "what matters most" step, per the approved design
-// (§3d): this only sets the STARTING order -- the customer's own final
-// ranking (even if left untouched) is what actually drives the score, no
-// separate additive nudge. Keyed by the exact use-case strings in
-// USE_CASES_BY_VEHICLE_TYPE above (a few entries here correct small
-// wording drift from the original planning doc against the real live
-// strings -- Sedan's "Business-professional use" is hyphenated in the
-// real data though not in the original ask, and the Cargo Van / Minivan
-// entries below use the real full parenthetical text, not the shortened
-// versions from planning).
+// Main Use -> a full, explicit 9-dimension starting order for the
+// drag-to-rank "what matters most" step -- finalized, fully-reviewed
+// content (supersedes the earlier partial top-1/2-only hints). This only
+// sets the STARTING order -- the customer's own final ranking (even if
+// left untouched) is what actually drives the score, no separate
+// additive nudge. Keyed by the exact use-case strings in
+// USE_CASES_BY_VEHICLE_TYPE above. Each list is the full valid 9 (8
+// shared dimensions + whichever of Resale Value / Towing & Payload the
+// owning vehicle type offers, per TOWING_PAYLOAD_VEHICLE_TYPES) in the
+// exact specified order -- applyUseCaseHint() below already generalizes
+// correctly to a full-length hint (its `rest` ends up empty, so the
+// result is exactly this array), so no logic change was needed there,
+// only this data. Two entries were verified against the real
+// USE_CASES_BY_VEHICLE_TYPE strings and corrected from shorter working
+// versions during review: Cargo Van's "Mobile business use (mobile
+// mechanic, catering, etc.)" and Minivan's "Small business use (mobile
+// services, light cargo + passengers)" -- both include parenthetical
+// text the real strings carry that a shortened reference version had
+// dropped.
 export const PRIORITY_HINTS_BY_USE_CASE: Record<string, string[]> = {
   // Sedan
-  "Daily commuting": ["Reliability", "Fuel Economy"],
-  "Small family transportation": ["Comfort", "Cargo Space"],
-  "Fuel-efficient errands & city driving": ["Cargo Space", "Fuel Economy"],
-  "Business-professional use": ["Comfort", "Technology & Features"],
-  "Long-distance highway trips": ["Fuel Economy"],
+  "Daily commuting": [
+    "Reliability", "Fuel Economy", "Comfort", "Price/Value", "Safety",
+    "Technology & Features", "Cargo Space", "Performance", "Resale Value",
+  ],
+  "Small family transportation": [
+    "Comfort", "Cargo Space", "Safety", "Reliability", "Fuel Economy",
+    "Price/Value", "Technology & Features", "Resale Value", "Performance",
+  ],
+  "Fuel-efficient errands & city driving": [
+    "Cargo Space", "Fuel Economy", "Price/Value", "Reliability", "Safety",
+    "Comfort", "Technology & Features", "Performance", "Resale Value",
+  ],
+  "Business-professional use": [
+    "Comfort", "Technology & Features", "Safety", "Reliability", "Performance",
+    "Fuel Economy", "Price/Value", "Cargo Space", "Resale Value",
+  ],
+  "Long-distance highway trips": [
+    "Fuel Economy", "Comfort", "Safety", "Reliability", "Cargo Space",
+    "Technology & Features", "Performance", "Price/Value", "Resale Value",
+  ],
   // Truck
-  "Full-time construction/trade work": ["Cargo Space", "Towing & Payload"],
-  "Towing (boat, trailer, equipment)": ["Towing & Payload", "Fuel Economy"],
-  "Hauling materials & cargo bed use": ["Cargo Space", "Towing & Payload"],
-  "Off-road/outdoor recreation": ["Performance", "Reliability"],
-  "Daily commuting with occasional utility needs": ["Reliability", "Fuel Economy"],
+  "Full-time construction/trade work": [
+    "Cargo Space", "Towing & Payload", "Reliability", "Performance", "Safety",
+    "Price/Value", "Fuel Economy", "Technology & Features", "Comfort",
+  ],
+  "Towing (boat, trailer, equipment)": [
+    "Towing & Payload", "Performance", "Cargo Space", "Reliability", "Fuel Economy",
+    "Price/Value", "Technology & Features", "Comfort", "Safety",
+  ],
+  "Hauling materials & cargo bed use": [
+    "Cargo Space", "Towing & Payload", "Reliability", "Price/Value", "Performance",
+    "Fuel Economy", "Technology & Features", "Comfort", "Safety",
+  ],
+  "Off-road/outdoor recreation": [
+    "Performance", "Reliability", "Towing & Payload", "Cargo Space", "Comfort",
+    "Fuel Economy", "Technology & Features", "Price/Value", "Safety",
+  ],
+  "Daily commuting with occasional utility needs": [
+    "Reliability", "Fuel Economy", "Safety", "Price/Value", "Comfort",
+    "Technology & Features", "Performance", "Cargo Space", "Towing & Payload",
+  ],
   // SUV
-  "Family road trips": ["Comfort", "Cargo Space"],
-  "Daily commuting with extra cargo/passenger space": ["Cargo Space", "Comfort"],
-  "Off-road/adventure use": ["Performance", "Reliability"],
-  "Towing (camper, boat, small trailer)": ["Towing & Payload", "Reliability"],
-  "All-weather daily driver": ["Safety", "Reliability"],
+  "Family road trips": [
+    "Comfort", "Cargo Space", "Safety", "Reliability", "Technology & Features",
+    "Fuel Economy", "Price/Value", "Towing & Payload", "Performance",
+  ],
+  "Daily commuting with extra cargo/passenger space": [
+    "Cargo Space", "Comfort", "Fuel Economy", "Reliability", "Safety",
+    "Price/Value", "Technology & Features", "Towing & Payload", "Performance",
+  ],
+  "Off-road/adventure use": [
+    "Performance", "Reliability", "Cargo Space", "Towing & Payload", "Comfort",
+    "Fuel Economy", "Technology & Features", "Price/Value", "Safety",
+  ],
+  "Towing (camper, boat, small trailer)": [
+    "Towing & Payload", "Performance", "Cargo Space", "Reliability", "Fuel Economy",
+    "Technology & Features", "Comfort", "Price/Value", "Safety",
+  ],
+  "All-weather daily driver": [
+    "Comfort", "Fuel Economy", "Safety", "Reliability", "Cargo Space",
+    "Price/Value", "Technology & Features", "Performance", "Towing & Payload",
+  ],
   // Hatchback
-  "City commuting & easy parking": ["Reliability", "Fuel Economy"],
-  "Fuel-efficient daily driving": ["Fuel Economy", "Price/Value"],
-  "First car / budget-friendly": ["Price/Value", "Safety"],
-  "Weekend errands with flexible cargo space": ["Cargo Space", "Fuel Economy"],
-  "Light gear hauling (bikes, camping basics)": ["Cargo Space", "Reliability"],
+  "City commuting & easy parking": [
+    "Reliability", "Fuel Economy", "Price/Value", "Safety", "Comfort",
+    "Cargo Space", "Technology & Features", "Performance", "Resale Value",
+  ],
+  "Fuel-efficient daily driving": [
+    "Fuel Economy", "Price/Value", "Reliability", "Safety", "Comfort",
+    "Cargo Space", "Technology & Features", "Performance", "Resale Value",
+  ],
+  "First car / budget-friendly": [
+    "Price/Value", "Safety", "Reliability", "Fuel Economy", "Comfort",
+    "Cargo Space", "Technology & Features", "Performance", "Resale Value",
+  ],
+  "Weekend errands with flexible cargo space": [
+    "Cargo Space", "Fuel Economy", "Reliability", "Price/Value", "Safety",
+    "Comfort", "Technology & Features", "Performance", "Resale Value",
+  ],
+  "Light gear hauling (bikes, camping basics)": [
+    "Cargo Space", "Reliability", "Fuel Economy", "Price/Value", "Safety",
+    "Comfort", "Technology & Features", "Performance", "Resale Value",
+  ],
   // Wagon
-  "Daily commuting with extra cargo space": ["Cargo Space", "Reliability"],
-  "All-weather / all-season daily driver": ["Safety", "Reliability"],
-  "Road trips with gear (skis, bikes, luggage)": ["Cargo Space", "Fuel Economy"],
-  "Performance-focused ownership": ["Performance", "Technology & Features"],
+  "Daily commuting with extra cargo space": [
+    "Cargo Space", "Fuel Economy", "Reliability", "Safety", "Comfort",
+    "Price/Value", "Technology & Features", "Performance", "Resale Value",
+  ],
+  "All-weather / all-season daily driver": [
+    "Safety", "Reliability", "Comfort", "Fuel Economy", "Cargo Space",
+    "Price/Value", "Technology & Features", "Performance", "Resale Value",
+  ],
+  "Road trips with gear (skis, bikes, luggage)": [
+    "Cargo Space", "Fuel Economy", "Comfort", "Safety", "Reliability",
+    "Technology & Features", "Price/Value", "Performance", "Resale Value",
+  ],
+  "Performance-focused ownership": [
+    "Performance", "Technology & Features", "Comfort", "Reliability", "Safety",
+    "Resale Value", "Fuel Economy", "Cargo Space", "Price/Value",
+  ],
   // Convertible
-  "Weekend/recreational driving": ["Performance", "Comfort"],
-  "Scenic road trips": ["Comfort", "Reliability"],
-  "Style/personal statement": ["Technology & Features", "Resale Value"],
-  "Warm-climate daily driver": ["Reliability", "Fuel Economy"],
+  "Weekend/recreational driving": [
+    "Performance", "Comfort", "Technology & Features", "Reliability", "Safety",
+    "Resale Value", "Fuel Economy", "Price/Value", "Cargo Space",
+  ],
+  "Scenic road trips": [
+    "Comfort", "Reliability", "Performance", "Safety", "Fuel Economy",
+    "Technology & Features", "Resale Value", "Price/Value", "Cargo Space",
+  ],
+  "Style/personal statement": [
+    "Technology & Features", "Resale Value", "Performance", "Comfort", "Reliability",
+    "Safety", "Fuel Economy", "Price/Value", "Cargo Space",
+  ],
+  "Warm-climate daily driver": [
+    "Reliability", "Fuel Economy", "Comfort", "Safety", "Price/Value",
+    "Technology & Features", "Performance", "Resale Value", "Cargo Space",
+  ],
   // Cargo Van
-  "Full-time trade/contractor work": ["Reliability", "Towing & Payload"],
-  "Delivery or courier business": ["Reliability", "Fuel Economy"],
-  "Mobile business use (mobile mechanic, catering, etc.)": ["Reliability", "Cargo Space"],
-  "Moving/hauling large items": ["Cargo Space", "Towing & Payload"],
-  "Camper conversion / DIY build": ["Cargo Space", "Price/Value"],
-  // Coupe
-  "Sporty daily commuting": ["Performance", "Fuel Economy"],
-  "Style/performance-focused ownership": ["Performance", "Technology & Features"],
-  "Low-passenger-need daily use": ["Reliability", "Fuel Economy"],
+  "Full-time trade/contractor work": [
+    "Reliability", "Towing & Payload", "Cargo Space", "Price/Value", "Safety",
+    "Performance", "Fuel Economy", "Technology & Features", "Comfort",
+  ],
+  "Delivery or courier business": [
+    "Reliability", "Fuel Economy", "Cargo Space", "Price/Value", "Safety",
+    "Towing & Payload", "Performance", "Technology & Features", "Comfort",
+  ],
+  "Mobile business use (mobile mechanic, catering, etc.)": [
+    "Reliability", "Cargo Space", "Towing & Payload", "Price/Value", "Safety",
+    "Fuel Economy", "Technology & Features", "Performance", "Comfort",
+  ],
+  "Moving/hauling large items": [
+    "Cargo Space", "Towing & Payload", "Reliability", "Price/Value", "Safety",
+    "Fuel Economy", "Performance", "Technology & Features", "Comfort",
+  ],
+  "Camper conversion / DIY build": [
+    "Cargo Space", "Price/Value", "Reliability", "Safety", "Towing & Payload",
+    "Fuel Economy", "Technology & Features", "Performance", "Comfort",
+  ],
+  // Coupe (Weekend/recreational driving shares Convertible's key/value above)
+  "Sporty daily commuting": [
+    "Performance", "Fuel Economy", "Reliability", "Safety", "Comfort",
+    "Technology & Features", "Price/Value", "Resale Value", "Cargo Space",
+  ],
+  "Style/performance-focused ownership": [
+    "Performance", "Technology & Features", "Resale Value", "Comfort", "Reliability",
+    "Safety", "Fuel Economy", "Price/Value", "Cargo Space",
+  ],
+  "Low-passenger-need daily use": [
+    "Reliability", "Fuel Economy", "Safety", "Price/Value", "Comfort",
+    "Technology & Features", "Performance", "Resale Value", "Cargo Space",
+  ],
   // Minivan
-  "Family with young kids": ["Safety", "Comfort"],
-  "Carpooling & kid activity shuttling": ["Comfort", "Reliability"],
-  "Road trips with lots of gear": ["Cargo Space", "Fuel Economy"],
-  "Small business use (mobile services, light cargo + passengers)": ["Reliability", "Cargo Space"],
+  "Family with young kids": [
+    "Safety", "Comfort", "Reliability", "Cargo Space", "Fuel Economy",
+    "Technology & Features", "Price/Value", "Resale Value", "Performance",
+  ],
+  "Carpooling & kid activity shuttling": [
+    "Comfort", "Reliability", "Safety", "Cargo Space", "Fuel Economy",
+    "Technology & Features", "Price/Value", "Resale Value", "Performance",
+  ],
+  "Road trips with lots of gear": [
+    "Cargo Space", "Fuel Economy", "Comfort", "Safety", "Reliability",
+    "Technology & Features", "Price/Value", "Resale Value", "Performance",
+  ],
+  "Small business use (mobile services, light cargo + passengers)": [
+    "Reliability", "Cargo Space", "Price/Value", "Safety", "Fuel Economy",
+    "Technology & Features", "Comfort", "Resale Value", "Performance",
+  ],
 };
 
 // Moves a use case's hinted dimensions to the front of a priority order,
