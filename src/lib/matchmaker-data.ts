@@ -401,3 +401,13 @@ export function formatPriceRange(range: PriceRangeValue): string {
   return `$${range.min.toLocaleString()} – $${range.max.toLocaleString()}`;
 }
 
+// Ratings-source disclaimer (approved 2026-09-01) -- shared verbatim by
+// ResultsList (matchmaker.tsx, anchored near its own emerald "Real vehicle
+// data -- not live inventory" badge, not the separate top-of-page amber
+// badge) and ComparisonModal (below the comparison table, table-view only)
+// so the two surfaces can never drift on wording. Data-source honesty (the
+// two existing badges) and this liability disclosure are deliberately
+// separate pieces of copy, not merged into one blob.
+export const RATINGS_DISCLAIMER =
+  "Vehicle ratings and scores are compiled from third-party sources (including NHTSA, IIHS, RepairPal, and CarEdge) believed to be reliable, but not independently verified by LEVR Auto. Ratings reflect general trends across similar vehicles and do not guarantee the condition, performance, or ownership experience of any individual vehicle.";
+

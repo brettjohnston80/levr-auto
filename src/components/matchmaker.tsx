@@ -13,6 +13,7 @@ import {
   PRICE_SLIDER_MIN,
   PRICE_SLIDER_MAX,
   PRIORITY_HINTS_BY_USE_CASE,
+  RATINGS_DISCLAIMER,
   TOWING_PAYLOAD_VEHICLE_TYPES,
   USE_CASES_BY_VEHICLE_TYPE,
   VEHICLE_TYPES,
@@ -1037,6 +1038,7 @@ function ResultsList({
           Sorted by how well each vehicle matches what matters most to you. Edit any answer
           alongside the list to re-sort instantly.
         </p>
+        <p className="mt-1 text-xs text-zinc-500">{RATINGS_DISCLAIMER}</p>
         {answerChips.length > 0 && (
           <div className="mt-6 flex flex-wrap gap-2">
             {answerChips.map((chip) => (
@@ -1383,6 +1385,7 @@ function ComparisonModal({
             />
           </div>
         ) : (
+        <>
         <div className="overflow-x-auto">
           <table className="w-full table-fixed border-separate border-spacing-0">
             <thead>
@@ -1503,6 +1506,8 @@ function ComparisonModal({
             </tbody>
           </table>
         </div>
+        <p className="mt-6 text-xs text-zinc-500">{RATINGS_DISCLAIMER}</p>
+        </>
         )}
       </div>
     </div>,
