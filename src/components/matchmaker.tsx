@@ -22,7 +22,7 @@ import {
   type PriceRangeValue,
   type VehicleType,
 } from "@/lib/matchmaker-data";
-import { formatPriceEstimate, buildRationale, type MatchmakerVehicle } from "@/lib/matchmaker-vehicle-display";
+import { formatPriceEstimate, type MatchmakerVehicle } from "@/lib/matchmaker-vehicle-display";
 import { getMatchedVehicles, segmentByPowertrain, groupByModel, type MatchedVehicle, type ModelGroup } from "@/lib/matchmaker-scoring";
 import {
   dimensionIndicator,
@@ -698,7 +698,6 @@ function ModelGroupCard({
     group.variants.find((v) => v.id === manualTrimId) ?? group.headline;
 
   const priceEstimate = formatPriceEstimate(activeVariant.trueStartingPriceCents);
-  const rationale = buildRationale(activeVariant);
   const isFlagged = flagged.has(activeVariant.id);
 
   return (
@@ -771,7 +770,13 @@ function ModelGroupCard({
             explicitly, proceeding with full removal per instruction. If
             that turns out to lose a signal worth having back, it's only
             needed on the alternatives section, not here. */}
-        <p className="mt-3 text-sm leading-relaxed text-zinc-400">{rationale}</p>
+        {/* The old single-line auto-generated rationale sentence (e.g.
+            "Tows up to 8,400 lbs.") was removed here (2026-09-02) --
+            redundant with the always-visible indicator list below, which
+            already surfaces the same kind of data point per dimension
+            with added color context. buildRationale() itself was deleted
+            from matchmaker-vehicle-display.ts, confirmed via grep to have
+            no other callers. */}
         <DimensionDetailList vehicle={activeVariant} priorities={priorities} limit={5} />
       </div>
 

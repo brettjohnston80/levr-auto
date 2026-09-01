@@ -28,10 +28,13 @@ export type MatchmakerVehicle = {
   fuelType: string | null;
   trueStartingPriceCents: number | null;
   // The rest are display-only fields, not used by hard filters or
-  // scoring -- added in Step 5 to build a real per-vehicle rationale line
-  // (see buildRationale below) and detail-modal content, replacing the
-  // old system's single hand-written `rationale` string, which has no
-  // equivalent in the real dataset.
+  // scoring -- added in Step 5 to back the card/detail-modal content,
+  // replacing the old system's single hand-written `rationale` string,
+  // which has no equivalent in the real dataset. Originally also fed a
+  // one-sentence auto-generated rationale line (buildRationale()), removed
+  // 2026-09-02 as redundant with the always-visible indicator list, which
+  // surfaces the same kind of data point per dimension with added color
+  // context.
   hasThirdRow: boolean;
   towingCapacityLbs: number | null;
   payloadCapacityLbs: number | null;
@@ -145,37 +148,12 @@ export function formatPriceEstimate(trueStartingPriceCents: number | null): stri
   return `$${Math.round(trueStartingPriceCents / 100).toLocaleString()} est.`;
 }
 
-// One-sentence rationale per vehicle, built from whichever real spec is
-// most likely to matter for that vehicle -- direct continuation of the
-// old system's "no marketing language invented, every rationale only
-// states a number that's actually in the data" rule (see
-// data/matchmaker-integration-notes-2026-08-28.md), just against the
-// real v18 columns instead of the old hand-curated set. Checked in a
-// fixed priority order so a truck's towing capacity wins over a generic
-// mpg line, etc.
-export function buildRationale(vehicle: MatchmakerVehicle): string {
-  if (vehicle.isPerformanceTrim && vehicle.zeroToSixtySec !== null) {
-    return `0-60 mph in ${vehicle.zeroToSixtySec} seconds.`;
-  }
-  if (vehicle.towingCapacityLbs !== null && vehicle.towingCapacityLbs > 0) {
-    return `Tows up to ${vehicle.towingCapacityLbs.toLocaleString()} lbs.`;
-  }
-  if (vehicle.fuelType === "EV" || vehicle.fuelType === "Hydrogen") {
-    if (vehicle.rangeMi !== null) {
-      return `${Math.round(vehicle.rangeMi)} miles of real-world range.`;
-    }
-  }
-  if (vehicle.hasThirdRow) {
-    return `Seats up to ${vehicle.seatingCapacity ?? "several"} with a third row.`;
-  }
-  if (vehicle.epaCombinedMpg !== null) {
-    return `${Math.round(vehicle.epaCombinedMpg)} mpg combined.`;
-  }
-  if (vehicle.cargoVolumeSeatsUpCuft !== null) {
-    return `${vehicle.cargoVolumeSeatsUpCuft} cu ft of cargo space behind the front seats.`;
-  }
-  if (vehicle.horsepower !== null) {
-    return `${vehicle.horsepower} horsepower.`;
-  }
-  return formatPriceEstimate(vehicle.trueStartingPriceCents);
-}
+// buildRationale() -- the old one-sentence auto-generated rationale line
+// ("Tows up to 8,400 lbs.", "32 mpg combined.") -- was removed 2026-09-02.
+// Redundant with the always-visible 5-row indicator list (card) and the
+// full 9-dimension breakdown (modal), both of which already surface the
+// same kind of data point per dimension with added color context (see
+// dimensionDataPoint() in matchmaker-dimension-indicators.ts). Confirmed
+// via grep before removal that its only two callers were both pure
+// display (matchmaker.tsx, vehicle-detail-modal.tsx), so the function
+// itself was deleted, not just its display.

@@ -2,7 +2,7 @@
 
 import { createPortal } from "react-dom";
 import type { Answers } from "@/lib/matchmaker-data";
-import { buildRationale, formatPriceEstimate, fuelTypeToPowertrain, type MatchmakerVehicle } from "@/lib/matchmaker-vehicle-display";
+import { formatPriceEstimate, fuelTypeToPowertrain, type MatchmakerVehicle } from "@/lib/matchmaker-vehicle-display";
 import {
   dimensionIndicator,
   dimensionDataPoint,
@@ -116,7 +116,13 @@ export function VehicleDetailModal({
         </h2>
         <p className="mt-1 text-sm font-semibold text-emerald-400">{priceEstimate}</p>
 
-        <p className="mt-4 text-sm leading-relaxed text-zinc-300">{buildRationale(vehicle)}</p>
+        {/* The old single-line auto-generated rationale sentence was
+            removed here (2026-09-02) -- redundant with the "How it scores
+            on what matters to you" breakdown below, which already surfaces
+            the same kind of data point per dimension with added color
+            context. buildRationale() itself was deleted from
+            matchmaker-vehicle-display.ts, confirmed via grep to have no
+            other callers. */}
 
         {bullets.length > 0 && (
           <div className="mt-6">
