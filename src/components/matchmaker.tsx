@@ -223,8 +223,10 @@ function BackArrow() {
 }
 
 function DragHandleIcon() {
+  // 16x22 (up from 14x20, 2026-09-02) -- the handle's tap target grew to
+  // 44x44 for mobile, and the original glyph read as lost inside it.
   return (
-    <svg width="14" height="20" viewBox="0 0 14 20" fill="currentColor">
+    <svg width="16" height="22" viewBox="0 0 14 20" fill="currentColor">
       <circle cx="4" cy="4" r="1.6" />
       <circle cx="10" cy="4" r="1.6" />
       <circle cx="4" cy="10" r="1.6" />
@@ -237,7 +239,7 @@ function DragHandleIcon() {
 
 function ChevronUpIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+    <svg width="18" height="18" viewBox="0 0 14 14" fill="none">
       <path d="M3 8.5L7 4.5L11 8.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
@@ -245,7 +247,7 @@ function ChevronUpIcon() {
 
 function ChevronDownIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+    <svg width="18" height="18" viewBox="0 0 14 14" fill="none">
       <path d="M3 5.5L7 9.5L11 5.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
@@ -306,11 +308,61 @@ function StarIcon({ filled }: { filled: boolean }) {
 // capture intact mid-drag. `touch-action: none` (Tailwind's `touch-none`)
 // on the handle stops the browser's native touch-scroll from fighting the
 // drag gesture, which is the actual point of this fix.
+//
+// Reworked 2026-09-02 after external testers reported mobile drag feeling
+// clunky. Four changes, all in this component (see each block below):
+// single-step neighbour swapping with a dead zone (replacing the old
+// "nearest slot by midpoint" scan, which could oscillate), a 44x44 handle
+// tap target, edge autoscroll driven by requestAnimationFrame, and a real
+// visual lift on the row being carried.
+
+// How far the pointer must travel after a swap before another one is
+// allowed. Roughly a sixth of a row's height -- enough to absorb finger
+// tremor and the sub-pixel geometry shift a re-render introduces, small
+// enough that a deliberate drag never feels sticky.
+const SWAP_DEAD_ZONE_PX = 10;
+// Distance from the viewport's top/bottom edge at which dragging starts
+// scrolling the page, and the per-frame scroll speed range. Speed ramps
+// linearly with depth into the zone: a fixed speed either crawls at the
+// boundary or overshoots at the very edge.
+const AUTOSCROLL_ZONE_PX = 80;
+const AUTOSCROLL_MIN_SPEED_PX = 2;
+const AUTOSCROLL_MAX_SPEED_PX = 14;
+
 function PriorityRanker({ order, onChange }: { order: string[]; onChange: (next: string[]) => void }) {
+  // One state, not the two this used to carry -- `dragIndex` and
+  // `dragOverIndex` were always assigned identical values on every write,
+  // and `dragIndex` was never actually read in render (the row className
+  // only ever tested `dragOverIndex`), so it was write-only dead state.
+  // Consolidated so the two can't drift apart later.
   const [dragIndex, setDragIndex] = useState<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const dragIndexRef = useRef<number | null>(null);
   const itemRefs = useRef<Map<string, HTMLLIElement>>(new Map());
+  // DOCUMENT-space Y of the last committed swap (clientY + scrollY), not
+  // viewport-space -- anchors the dead zone above. Document space is
+  // essential, not incidental: during autoscroll the finger is typically
+  // held perfectly still, so its clientY never changes, and a
+  // viewport-space dead zone would block every swap after the first for
+  // the rest of the gesture (caught in testing -- a row dragged into the
+  // bottom edge zone scrolled the page 300px but refused to move past one
+  // position). What the dead zone actually cares about is relative travel
+  // between pointer and content, which is document-space displacement.
+  const lastSwapDocYRef = useRef<number | null>(null);
+  // Most recent pointer Y, in viewport coordinates. The rAF loop reads
+  // this rather than waiting for a pointermove: while the finger is held
+  // still inside an autoscroll zone, no pointer events fire at all, but
+  // the content is moving underneath it, so rows still need re-evaluating
+  // every frame or the drag silently does nothing while the page flies by.
+  const lastClientYRef = useRef<number | null>(null);
+  const rafRef = useRef<number | null>(null);
+  // The rAF loop and the swap logic must never read `order`/`onChange`
+  // from the render closure they were created in -- onChange lifts state
+  // to Matchmaker, so a running loop's captured props go stale the instant
+  // the first swap commits. These refs are re-synced on every render.
+  const orderRef = useRef(order);
+  orderRef.current = order;
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
   function setItemRef(label: string) {
     return (el: HTMLLIElement | null) => {
@@ -319,18 +371,112 @@ function PriorityRanker({ order, onChange }: { order: string[]; onChange: (next:
     };
   }
 
-  // Same drop-zone geometry native dragenter effectively gave us for free:
-  // the target slot is whichever row's vertical midpoint the pointer is
-  // still above; past every midpoint, the target is the last row.
-  function indexForClientY(clientY: number): number {
-    for (let i = 0; i < order.length; i++) {
-      const el = itemRefs.current.get(order[i]);
-      if (!el) continue;
-      const rect = el.getBoundingClientRect();
-      if (clientY < rect.top + rect.height / 2) return i;
+  // Single-step neighbour test, replacing the old nearest-slot scan. The
+  // old version asked "which row's midpoint is the pointer past," which
+  // could resolve differently on consecutive events once the dragged row
+  // had moved into its new slot -- so a finger parked near a boundary
+  // could swap back and forth indefinitely. This instead asks only whether
+  // the pointer has crossed the midpoint of the row immediately above or
+  // below, and moves at most one position, which leaves a natural gap
+  // after each swap. Live rects (not a pointerdown snapshot) because row
+  // heights genuinely differ once clarifier text wraps at phone widths.
+  function neighbourSwapDirection(clientY: number): -1 | 0 | 1 {
+    const current = dragIndexRef.current;
+    if (current === null) return 0;
+    const list = orderRef.current;
+
+    if (current > 0) {
+      const above = itemRefs.current.get(list[current - 1]);
+      if (above) {
+        const rect = above.getBoundingClientRect();
+        if (clientY < rect.top + rect.height / 2) return -1;
+      }
     }
-    return order.length - 1;
+    if (current < list.length - 1) {
+      const below = itemRefs.current.get(list[current + 1]);
+      if (below) {
+        const rect = below.getBoundingClientRect();
+        if (clientY > rect.top + rect.height / 2) return 1;
+      }
+    }
+    return 0;
   }
+
+  function maybeSwap(clientY: number) {
+    const current = dragIndexRef.current;
+    if (current === null) return;
+    const docY = clientY + window.scrollY;
+    if (lastSwapDocYRef.current !== null && Math.abs(docY - lastSwapDocYRef.current) < SWAP_DEAD_ZONE_PX) {
+      return;
+    }
+    const direction = neighbourSwapDirection(clientY);
+    if (direction === 0) return;
+
+    const list = orderRef.current;
+    const target = current + direction;
+    if (target < 0 || target >= list.length) return;
+
+    const next = [...list];
+    [next[current], next[target]] = [next[target], next[current]];
+    dragIndexRef.current = target;
+    // Updated synchronously, not left to the next render's re-sync -- a
+    // later frame in this same tick would otherwise still see the old
+    // order and compute the swap all over again.
+    orderRef.current = next;
+    lastSwapDocYRef.current = docY;
+    setDragIndex(target);
+    onChangeRef.current(next);
+  }
+
+  function autoScrollDelta(clientY: number): number {
+    const viewportHeight = window.innerHeight;
+    const speedAt = (depth: number) =>
+      AUTOSCROLL_MIN_SPEED_PX + Math.min(Math.max(depth, 0), 1) * (AUTOSCROLL_MAX_SPEED_PX - AUTOSCROLL_MIN_SPEED_PX);
+
+    if (clientY < AUTOSCROLL_ZONE_PX) {
+      return -speedAt((AUTOSCROLL_ZONE_PX - clientY) / AUTOSCROLL_ZONE_PX);
+    }
+    if (clientY > viewportHeight - AUTOSCROLL_ZONE_PX) {
+      return speedAt((clientY - (viewportHeight - AUTOSCROLL_ZONE_PX)) / AUTOSCROLL_ZONE_PX);
+    }
+    return 0;
+  }
+
+  function stopLoop() {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+  }
+
+  function tick() {
+    const clientY = lastClientYRef.current;
+    if (dragIndexRef.current === null || clientY === null) {
+      rafRef.current = null;
+      return;
+    }
+    const delta = autoScrollDelta(clientY);
+    // Instant, not smooth -- confirmed nothing in this codebase sets
+    // scroll-behavior: smooth, which would otherwise animate against the
+    // loop and make each frame fight the last.
+    if (delta !== 0) window.scrollBy(0, delta);
+    // Runs every frame, including when delta is 0. maybeSwap is itself
+    // guarded by the dead zone, so a stationary finger produces no swaps
+    // -- this costs one geometry read per frame and is what makes the
+    // held-still-in-the-edge-zone case work at all.
+    maybeSwap(clientY);
+    rafRef.current = requestAnimationFrame(tick);
+  }
+
+  function startLoop() {
+    if (rafRef.current === null) rafRef.current = requestAnimationFrame(tick);
+  }
+
+  // Belt-and-braces against a leaked loop: pointerup/pointercancel already
+  // stop it, but this component unmounts on Start Over and on leaving the
+  // priorities step, either of which can happen mid-drag (a pointercancel
+  // is not guaranteed to arrive first).
+  useEffect(() => stopLoop, []);
 
   function handlePointerDown(e: React.PointerEvent<HTMLSpanElement>, index: number) {
     if (e.pointerType === "mouse" && e.button !== 0) return;
@@ -347,22 +493,21 @@ function PriorityRanker({ order, onChange }: { order: string[]; onChange: (next:
       // no-op -- see comment above
     }
     dragIndexRef.current = index;
+    lastClientYRef.current = e.clientY;
+    // Seeded at the grab point so the first swap needs a real 10px of
+    // travel -- otherwise a stationary tap on the handle could commit a
+    // swap the moment a neighbour's midpoint happened to be under it.
+    lastSwapDocYRef.current = e.clientY + window.scrollY;
     setDragIndex(index);
-    setDragOverIndex(index);
+    startLoop();
   }
 
   function handlePointerMove(e: React.PointerEvent<HTMLSpanElement>) {
     if (dragIndexRef.current === null) return;
-    const targetIndex = indexForClientY(e.clientY);
-    if (targetIndex !== dragIndexRef.current) {
-      const next = [...order];
-      const [moved] = next.splice(dragIndexRef.current, 1);
-      next.splice(targetIndex, 0, moved);
-      dragIndexRef.current = targetIndex;
-      setDragIndex(targetIndex);
-      setDragOverIndex(targetIndex);
-      onChange(next);
-    }
+    // Only records position. The rAF loop owns all swapping, so there is
+    // exactly one code path deciding reorders regardless of whether the
+    // pointer is moving, stationary, or in an autoscroll zone.
+    lastClientYRef.current = e.clientY;
   }
 
   function handlePointerEnd(e: React.PointerEvent<HTMLSpanElement>) {
@@ -373,9 +518,11 @@ function PriorityRanker({ order, onChange }: { order: string[]; onChange: (next:
     } catch {
       // no-op -- same defensive guard as handlePointerDown above
     }
+    stopLoop();
     dragIndexRef.current = null;
+    lastClientYRef.current = null;
+    lastSwapDocYRef.current = null;
     setDragIndex(null);
-    setDragOverIndex(null);
   }
 
   function move(index: number, delta: number) {
@@ -395,14 +542,43 @@ function PriorityRanker({ order, onChange }: { order: string[]; onChange: (next:
           <li
             key={label}
             ref={setItemRef(label)}
+            // Only `transition-colors`, never `transition-all` -- the lift
+            // below applies a transform, and transitioning that would make
+            // the carried row visibly lag the finger on pickup.
             className={`flex items-center gap-3 rounded-2xl border px-4 py-3 transition-colors ${
-              dragOverIndex === index
-                ? "border-emerald-500/60 bg-emerald-500/[0.06]"
+              dragIndex === index
+                ? "relative z-10 scale-[1.03] border-emerald-500 bg-emerald-500/10 shadow-lg shadow-black/50"
                 : "border-white/10 bg-white/[0.02]"
             }`}
           >
+            {/* Full-height grab strip, 44px wide (2026-09-02, second pass
+                after real-device feedback). The first attempt made this a
+                44x44 box, which measured correctly and hit-tested cleanly
+                but still felt unusable on a real phone -- because a 44px
+                island centred in a 78px row leaves a 16px dead band above
+                AND below it, so only 56% of the row's height was
+                grabbable, with a vertical aim tolerance of just +/-22px
+                from the glyph's centre. The miss penalty is what made it
+                read as broken rather than fiddly: everything outside the
+                island is the <li>, whose touch-action is `auto`, so a near
+                miss doesn't no-op -- the browser instantly claims the
+                gesture as a page scroll and there's no recovery within
+                that gesture.
+                `self-stretch` + `-my-3` (cancelling the row's py-3) makes
+                this span the row's full interior height instead, taking
+                grabbable area from 56% to ~100% of row height. Width and
+                horizontal position are deliberately unchanged.
+                The tint exists because the glyph is only 16x22 -- people
+                aim at what they can see, so without it the visible
+                affordance was far smaller than the real target. Kept at
+                white/[0.04] so it reads as a textured strip rather than a
+                second button competing with the row's content.
+                Still the ONLY touch-action:none surface on the row: the
+                whole row is not draggable, because that would disable
+                native page scrolling over a 9-row list taller than the
+                viewport -- trading a drag bug for a worse scroll bug. */}
             <span
-              className="touch-none shrink-0 cursor-grab text-zinc-600 active:cursor-grabbing"
+              className="-my-3 -ml-2 flex w-11 shrink-0 cursor-grab touch-none items-center justify-center self-stretch rounded-xl bg-white/[0.04] text-zinc-400 transition-colors active:cursor-grabbing active:bg-white/[0.08]"
               onPointerDown={(e) => handlePointerDown(e, index)}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerEnd}
@@ -417,13 +593,21 @@ function PriorityRanker({ order, onChange }: { order: string[]; onChange: (next:
               <div className="text-sm font-semibold text-white">{priority.label}</div>
               <div className="text-xs text-zinc-500">{priority.clarifier}</div>
             </div>
-            <div className="flex shrink-0 flex-col">
+            {/* Horizontal on mobile, stacked from sm: up (approved option
+                A). Both buttons are full 44x44 targets; stacking two of
+                those vertically would push every row past 88px tall and
+                add ~230px to a 9-row list on exactly the screens this
+                whole pass is meant to help. Side by side, the row height
+                stays driven by the 44px handle instead. Desktop keeps the
+                familiar vertical arrangement, where pointer accuracy makes
+                the smaller footprint a non-issue. */}
+            <div className="flex shrink-0 flex-row sm:flex-col">
               <button
                 type="button"
                 aria-label={`Move ${priority.label} up`}
                 disabled={index === 0}
                 onClick={() => move(index, -1)}
-                className="rounded p-1 text-zinc-500 transition-colors hover:text-white disabled:opacity-30 disabled:hover:text-zinc-500"
+                className="flex h-11 w-11 items-center justify-center rounded text-zinc-400 transition-colors hover:text-white disabled:opacity-30 disabled:hover:text-zinc-400"
               >
                 <ChevronUpIcon />
               </button>
@@ -432,7 +616,7 @@ function PriorityRanker({ order, onChange }: { order: string[]; onChange: (next:
                 aria-label={`Move ${priority.label} down`}
                 disabled={index === order.length - 1}
                 onClick={() => move(index, 1)}
-                className="rounded p-1 text-zinc-500 transition-colors hover:text-white disabled:opacity-30 disabled:hover:text-zinc-500"
+                className="flex h-11 w-11 items-center justify-center rounded text-zinc-400 transition-colors hover:text-white disabled:opacity-30 disabled:hover:text-zinc-400"
               >
                 <ChevronDownIcon />
               </button>
