@@ -284,21 +284,96 @@ function StarIcon({ filled }: { filled: boolean }) {
   );
 }
 
+// Rewritten from native HTML5 drag-and-drop to the Pointer Events API
+// (2026-09-02, real mobile bug found via real device testing) -- native
+// `draggable`/`onDragStart`/`onDragEnter`/etc. has no touch support on
+// mobile browsers at all, so touch-and-drag silently did nothing on phones
+// (the up/down buttons were the only working mobile path). Pointer Events
+// unify mouse/touch/pen under one event model with no new dependency.
+//
+// Drag is scoped to the handle icon only, not the whole row (a deliberate
+// choice, not a limitation carried over from the old design -- the old
+// native-DnD version made the entire <li> draggable, but a dedicated
+// handle is the more standard, safer pattern here and cleanly avoids any
+// interaction with the up/down buttons or text selection).
+//
+// Mechanism: onPointerDown on the handle calls setPointerCapture, which
+// keeps routing pointermove/pointerup to that same handle element for the
+// rest of the gesture regardless of where the pointer physically moves --
+// no document-level listeners needed. Each <li> is keyed by its priority
+// label (stable across reorders), so React's keyed reconciliation moves
+// the same underlying DOM node as the list reorders, keeping the pointer
+// capture intact mid-drag. `touch-action: none` (Tailwind's `touch-none`)
+// on the handle stops the browser's native touch-scroll from fighting the
+// drag gesture, which is the actual point of this fix.
 function PriorityRanker({ order, onChange }: { order: string[]; onChange: (next: string[]) => void }) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const dragIndexRef = useRef<number | null>(null);
+  const itemRefs = useRef<Map<string, HTMLLIElement>>(new Map());
 
-  function handleDragEnter(index: number) {
-    setDragOverIndex(index);
-    if (dragIndex === null || dragIndex === index) return;
-    const next = [...order];
-    const [moved] = next.splice(dragIndex, 1);
-    next.splice(index, 0, moved);
-    setDragIndex(index);
-    onChange(next);
+  function setItemRef(label: string) {
+    return (el: HTMLLIElement | null) => {
+      if (el) itemRefs.current.set(label, el);
+      else itemRefs.current.delete(label);
+    };
   }
 
-  function handleDragEnd() {
+  // Same drop-zone geometry native dragenter effectively gave us for free:
+  // the target slot is whichever row's vertical midpoint the pointer is
+  // still above; past every midpoint, the target is the last row.
+  function indexForClientY(clientY: number): number {
+    for (let i = 0; i < order.length; i++) {
+      const el = itemRefs.current.get(order[i]);
+      if (!el) continue;
+      const rect = el.getBoundingClientRect();
+      if (clientY < rect.top + rect.height / 2) return i;
+    }
+    return order.length - 1;
+  }
+
+  function handlePointerDown(e: React.PointerEvent<HTMLSpanElement>, index: number) {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    // setPointerCapture throws NotFoundError if the browser doesn't (yet,
+    // or no longer) consider this pointerId active -- a real, if rare,
+    // race in some browser/OS input pipelines (e.g. an extremely fast
+    // tap-release). Capture is what lets pointermove keep routing to this
+    // handle if it fails; still track the drag by index/state either way
+    // rather than letting a swallowed browser-level race abort the whole
+    // gesture.
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // no-op -- see comment above
+    }
+    dragIndexRef.current = index;
+    setDragIndex(index);
+    setDragOverIndex(index);
+  }
+
+  function handlePointerMove(e: React.PointerEvent<HTMLSpanElement>) {
+    if (dragIndexRef.current === null) return;
+    const targetIndex = indexForClientY(e.clientY);
+    if (targetIndex !== dragIndexRef.current) {
+      const next = [...order];
+      const [moved] = next.splice(dragIndexRef.current, 1);
+      next.splice(targetIndex, 0, moved);
+      dragIndexRef.current = targetIndex;
+      setDragIndex(targetIndex);
+      setDragOverIndex(targetIndex);
+      onChange(next);
+    }
+  }
+
+  function handlePointerEnd(e: React.PointerEvent<HTMLSpanElement>) {
+    try {
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      // no-op -- same defensive guard as handlePointerDown above
+    }
+    dragIndexRef.current = null;
     setDragIndex(null);
     setDragOverIndex(null);
   }
@@ -319,18 +394,20 @@ function PriorityRanker({ order, onChange }: { order: string[]; onChange: (next:
         return (
           <li
             key={label}
-            draggable
-            onDragStart={() => setDragIndex(index)}
-            onDragEnter={() => handleDragEnter(index)}
-            onDragOver={(e) => e.preventDefault()}
-            onDragEnd={handleDragEnd}
-            className={`flex cursor-grab items-center gap-3 rounded-2xl border px-4 py-3 transition-colors active:cursor-grabbing ${
+            ref={setItemRef(label)}
+            className={`flex items-center gap-3 rounded-2xl border px-4 py-3 transition-colors ${
               dragOverIndex === index
                 ? "border-emerald-500/60 bg-emerald-500/[0.06]"
                 : "border-white/10 bg-white/[0.02]"
             }`}
           >
-            <span className="shrink-0 text-zinc-600">
+            <span
+              className="touch-none shrink-0 cursor-grab text-zinc-600 active:cursor-grabbing"
+              onPointerDown={(e) => handlePointerDown(e, index)}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerEnd}
+              onPointerCancel={handlePointerEnd}
+            >
               <DragHandleIcon />
             </span>
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-xs font-bold text-emerald-400 ring-1 ring-emerald-500/30">
@@ -1459,10 +1536,46 @@ function ComparisonModal({
   // are untouched.
   const LABEL_COLUMN_WIDTH_PX = 160; // keep in sync with the sticky th's `w-40` below
   const ADD_TILE_COLUMN_WIDTH_PX = 140;
+  // Floor per vehicle column, below which we'd rather scroll than squish
+  // (real narrow-viewport bug found and fixed 2026-09-02 -- see
+  // `tableMinWidthPx` below for why this has to live on the <table>
+  // itself, not as a min-width on each <th>).
+  const VEHICLE_COLUMN_MIN_WIDTH_PX = 160;
   const showAddTile = columns.length < FLAG_CAP;
   const realColumnWidth = `calc((100% - ${LABEL_COLUMN_WIDTH_PX}px${
     showAddTile ? ` - ${ADD_TILE_COLUMN_WIDTH_PX}px` : ""
   }) / ${columns.length})`;
+  // Real narrow-viewport bug, found and fixed 2026-09-02: at enough
+  // columns + a narrow enough screen (confirmed live at a real 375px-wide
+  // simulated viewport, 4 columns), `realColumnWidth`'s calc() resolves to
+  // a few px per column -- and a `min-width` on the individual <th>
+  // elements does NOT act as a floor under `table-layout: fixed`. Chrome
+  // (confirmed directly, not assumed) just squishes each column down to
+  // whatever the calc() says, ignoring min-width entirely, collapsing
+  // every column's content into an unreadable overlapping mess -- while
+  // the wrapping `overflow-x-auto` div correctly has nothing to scroll,
+  // since the table itself never actually exceeds its 100%-of-container
+  // width. There was nothing to overflow; the columns were just squished
+  // flat instead.
+  //
+  // The fix has to be a `min-width` on the TABLE element itself, not on
+  // its cells -- confirmed live that this (and only this) makes
+  // table-layout: fixed genuinely widen the table past its container,
+  // which is what makes the existing overflow-x-auto wrapper actually
+  // have something to scroll. Once the table is wider than its container,
+  // table-layout: fixed distributes that real, larger width across
+  // columns per their own relative `width` values (the realColumnWidth
+  // calc() above), so columns end up at a comfortable, readable size
+  // instead of being forced to fit inside too little space.
+  //
+  // VEHICLE_COLUMN_MIN_WIDTH_PX (160px) is the same floor the old,
+  // non-functional per-<th> `min-w-[160px]` class was already trying (and
+  // failing) to enforce -- reusing that already-designed-but-unenforced
+  // value here, not introducing a new one.
+  const tableMinWidthPx =
+    LABEL_COLUMN_WIDTH_PX +
+    (showAddTile ? ADD_TILE_COLUMN_WIDTH_PX : 0) +
+    columns.length * VEHICLE_COLUMN_MIN_WIDTH_PX;
 
   // Quick-duplicate shortcuts (MY2027 plan Part 3, this task) -- one per
   // current column, rendered below the "+ Add vehicle" tile, sharing its
@@ -1525,7 +1638,10 @@ function ComparisonModal({
         ) : (
         <>
         <div className="overflow-x-auto">
-          <table className="w-full table-fixed border-separate border-spacing-0">
+          <table
+            className="w-full table-fixed border-separate border-spacing-0"
+            style={{ minWidth: `${tableMinWidthPx}px` }}
+          >
             <thead>
               <tr>
                 <th className="sticky left-0 z-10 w-40 min-w-40 bg-zinc-950" />
@@ -1533,7 +1649,7 @@ function ComparisonModal({
                   <th
                     key={column.flagKey}
                     style={{ width: realColumnWidth }}
-                    className="min-w-[160px] px-4 pb-4 text-left align-top"
+                    className="px-4 pb-4 text-left align-top"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
