@@ -233,6 +233,16 @@ function CloseIcon({ size = 16 }: { size?: number }) {
   );
 }
 
+function InfoIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
+      <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M8 7.25V11.25" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <circle cx="8" cy="5" r="0.9" fill="currentColor" />
+    </svg>
+  );
+}
+
 function StarIcon({ filled }: { filled: boolean }) {
   return (
     <svg
@@ -746,7 +756,13 @@ function ModelGroupCard({
   priorities: string[];
   onDismiss: (id: string) => void;
   onToggleFlag: (candidate: FlaggedGroup) => void;
-  onOpenInfo: (id: string) => void;
+  // Takes the whole vehicle, not just an id (changed for the Comparison
+  // Tool's own "More info" button, this task) -- ComparisonModal only ever
+  // has the vehicle OBJECT in hand (column.activeVehicle), never a
+  // matched-list id to look up, so this callback shape is what lets both
+  // callers share the same detail-modal state in Matchmaker() with no
+  // lookup logic on either side.
+  onOpenInfo: (vehicle: MatchmakerVehicle) => void;
 }) {
   const [searchClicked, setSearchClicked] = useState(false);
   // Sticky manual trim selection -- null until the customer picks
@@ -861,7 +877,7 @@ function ModelGroupCard({
           </button>
           <button
             type="button"
-            onClick={() => onOpenInfo(activeVariant.id)}
+            onClick={() => onOpenInfo(activeVariant)}
             className="rounded-full border border-white/15 px-4 py-2 text-xs font-semibold text-zinc-300 transition-colors hover:border-sky-400/40 hover:text-sky-300"
           >
             More info
@@ -992,7 +1008,7 @@ function ResultsList({
   compareLimitReached: boolean;
   onDismiss: (id: string) => void;
   onToggleFlag: (candidate: FlaggedGroup) => void;
-  onOpenInfo: (id: string) => void;
+  onOpenInfo: (vehicle: MatchmakerVehicle) => void;
   onRestoreAll: () => void;
   anyDismissed: boolean;
 }) {
@@ -1256,6 +1272,7 @@ function ComparisonModal({
   onSelectTrim,
   onRemove,
   onAddVehicle,
+  onOpenInfo,
   onClose,
 }: {
   flaggedGroups: FlaggedGroup[];
@@ -1268,6 +1285,11 @@ function ComparisonModal({
   // nothing about "+ Add vehicle" is standalone-specific once a
   // comparison already exists.
   onAddVehicle: (vehicle: MatchmakerVehicle) => void;
+  // "More info" button (this task) -- shares the exact same detail-modal
+  // state Matchmaker() already uses for the main results list
+  // (infoVehicle/setInfoVehicle), just fed column.activeVehicle directly
+  // instead of a matched-list lookup. No new modal, no new state shape.
+  onOpenInfo: (vehicle: MatchmakerVehicle) => void;
   onClose: () => void;
 }) {
   // Whether the inline VehiclePickerFlow is currently showing in place of
@@ -1406,6 +1428,20 @@ function ComparisonModal({
                           {formatPriceEstimate(column.activeVehicle.trueStartingPriceCents)}
                         </p>
                       </div>
+                      {/* "More info" (this task) -- opens VehicleDetailModal
+                          for whichever trim is CURRENTLY active in this
+                          column (column.activeVehicle already reflects the
+                          column's own trim switcher state, not the original
+                          flagged/added vehicle), via the same shared
+                          infoVehicle state the main results list uses. */}
+                      <button
+                        type="button"
+                        onClick={() => onOpenInfo(column.activeVehicle)}
+                        aria-label={`More info on ${column.make} ${column.model}`}
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-zinc-500 transition-colors hover:bg-white/10 hover:text-white"
+                      >
+                        <InfoIcon />
+                      </button>
                       <button
                         type="button"
                         onClick={() => onRemove(column.flagKey)}
@@ -1824,7 +1860,16 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
   // comparisonPriorities below.
   const [standaloneMode, setStandaloneMode] = useState(false);
   const [standalonePriorities, setStandalonePriorities] = useState<string[] | null>(null);
-  const [infoVehicleId, setInfoVehicleId] = useState<string | null>(null);
+  // Holds the vehicle OBJECT directly, not just an id looked up in
+  // `matched` (changed for the Comparison Tool's own "More info" button,
+  // this task) -- `matched` is answers-filtered, and a comparison column's
+  // active vehicle isn't guaranteed to be in it (a flagged vehicle can
+  // outlive an answer change that would exclude it, and standalone mode
+  // has no `matched` filtering at all). Every caller (ModelGroupCard,
+  // ComparisonModal) already has the real vehicle object in hand, so
+  // storing it directly removes the lookup entirely rather than working
+  // around its gaps.
+  const [infoVehicle, setInfoVehicle] = useState<MatchmakerVehicle | null>(null);
   // Tracks whether the customer has ever manually dragged/reordered
   // priorities. Main Use only pre-fills the STARTING order (§3d) -- once
   // touched, neither a later vehicleType nor useCase change auto-reshuffles
@@ -1925,7 +1970,7 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
     setComparisonTrimSelections({});
     setStandaloneMode(false);
     setStandalonePriorities(null);
-    setInfoVehicleId(null);
+    setInfoVehicle(null);
     setPrioritiesTouched(false);
   }
 
@@ -2182,8 +2227,6 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
 
   const anyDismissed = dismissed.size > 0;
 
-  const infoVehicle = infoVehicleId ? matched.find((v) => v.id === infoVehicleId) ?? null : null;
-
   // Which priorities drive comparisonRowOrder() -- the quiz's own live
   // answers.priorities when reached that way, or the fixed default
   // computed once at the standalone tool's first pick (see
@@ -2256,7 +2299,7 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
                 compareLimitReached={compareLimitReached}
                 onDismiss={dismiss}
                 onToggleFlag={toggleFlag}
-                onOpenInfo={setInfoVehicleId}
+                onOpenInfo={setInfoVehicle}
                 onRestoreAll={() => setDismissed(new Set())}
                 anyDismissed={anyDismissed}
               />
@@ -2298,7 +2341,7 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
         </div>
       </div>
 
-      {infoVehicle && <VehicleDetailModal vehicle={infoVehicle} answers={answers} onClose={() => setInfoVehicleId(null)} />}
+      {infoVehicle && <VehicleDetailModal vehicle={infoVehicle} answers={answers} onClose={() => setInfoVehicle(null)} />}
       {/* Mounted whenever a comparison exists, regardless of entry path
           (Step C) -- previously gated on `done` alone, which only ever
           covered the quiz path. The standalone tool has no `done` state of
@@ -2316,6 +2359,7 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
           onSelectTrim={selectComparisonTrim}
           onRemove={removeFlag}
           onAddVehicle={addVehicleToComparison}
+          onOpenInfo={setInfoVehicle}
           onClose={() => setComparisonOpen(false)}
         />
       )}

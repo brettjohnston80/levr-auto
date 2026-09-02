@@ -11,6 +11,17 @@ import {
   INDICATOR_LEVEL_LABEL,
 } from "@/lib/matchmaker-dimension-indicators";
 
+// Real, working sample video (this task, 2026-09-01) -- shown identically
+// for every vehicle until real per-vehicle video sourcing exists. Genuine
+// review content, not a placeholder/joke: Kelley Blue Book's own verified
+// YouTube channel (youtube.com/@kbb), "2017 Honda Civic - Review and Road
+// Test," confirmed via direct browser check before use -- real channel,
+// real upload, real view count. Embeds via YouTube's standard
+// youtube.com/embed/<id> format (an <iframe>, genuine in-page playback,
+// no redirect/new-tab navigation) with no autoplay param, so it never
+// plays until the customer clicks it.
+const SAMPLE_REVIEW_VIDEO_ID = "K6kyAeAozBs";
+
 // vehicleType/familySize/priceRange are hard filters now (matchmaker-
 // scoring.ts) -- every vehicle reaching this modal already satisfies them
 // exactly, so these bullets are confirmations, not soft matches. Powertrain
@@ -83,13 +94,23 @@ export function VehicleDetailModal({
   // renders positioned relative to that wrapper instead of the viewport,
   // landing far off-screen on any page that's been scrolled. Same root
   // cause and same fix already applied to mobile-nav-menu.tsx.
+  //
+  // z-[110], not z-[100] (bumped for the Comparison Tool's "More info"
+  // button, this task) -- this modal can now open WHILE ComparisonModal
+  // (also z-[100], also a document.body portal) is still open behind it.
+  // Two equal z-index portals would fall back to DOM/mount order to
+  // decide which paints on top, which isn't reliably guaranteed across
+  // React's portal-commit timing -- a strictly higher z-index makes the
+  // stacking deterministic instead, same z-[110]-over-z-[100] convention
+  // mobile-nav-menu.tsx already uses for the identical "render above an
+  // already-portaled z-[100] overlay" situation.
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/70 px-6 py-12 backdrop-blur-sm"
+      className="fixed inset-0 z-[110] flex items-center justify-center overflow-y-auto bg-black/70 px-6 py-12 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-lg rounded-3xl border border-white/10 bg-zinc-950 p-6 shadow-2xl shadow-black/60 sm:p-8"
+        className="relative w-full max-w-4xl rounded-3xl border border-white/10 bg-zinc-950 p-6 shadow-2xl shadow-black/60 sm:p-8"
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -160,40 +181,72 @@ export function VehicleDetailModal({
             trim's own scores/hasData/data point with no extra wiring,
             since it never looks at the group, only at whatever single
             vehicle it was given. */}
-        <div className="mt-6">
-          <h3 className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
-            How it scores on what matters to you
-          </h3>
-          <ul className="mt-3 space-y-1.5">
-            {personalizedDimensionOrder(vehicle.bodyStyle, answers.priorities).map((label) => {
-              const score = vehicle.scores[label] ?? 0;
-              const hasData = vehicle.hasData[label] ?? false;
-              const level = dimensionIndicator(score, hasData);
-              const dataPoint = dimensionDataPoint(vehicle, label, level);
-              return (
-                <li key={label} className="flex items-center justify-between gap-3 text-sm">
-                  <span className="text-zinc-300">{label}</span>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <span className="text-xs text-zinc-500">{dataPoint}</span>
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${INDICATOR_CLASSES[level]}`}
-                    >
-                      {INDICATOR_LEVEL_LABEL[level]}
-                    </span>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+        {/* Wider two-column layout (this task, 2026-09-01) -- scores on
+            the left, sample video on the right, on screens wide enough
+            for it (lg+). Below that (including phones), this collapses
+            back to the original single-column stack -- explicitly
+            requested, since a side-by-side split only makes sense once
+            there's enough width for both halves to stay readable. */}
+        <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-2">
+          <div>
+            <h3 className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
+              How it scores on what matters to you
+            </h3>
+            <ul className="mt-3 space-y-1.5">
+              {personalizedDimensionOrder(vehicle.bodyStyle, answers.priorities).map((label) => {
+                const score = vehicle.scores[label] ?? 0;
+                const hasData = vehicle.hasData[label] ?? false;
+                const level = dimensionIndicator(score, hasData);
+                const dataPoint = dimensionDataPoint(vehicle, label, level);
+                return (
+                  <li key={label} className="flex items-center justify-between gap-3 text-sm">
+                    <span className="text-zinc-300">{label}</span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="text-xs text-zinc-500">{dataPoint}</span>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${INDICATOR_CLASSES[level]}`}
+                      >
+                        {INDICATOR_LEVEL_LABEL[level]}
+                      </span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          {/* Real embedded sample video (this task) -- same video for every
+              vehicle, per-vehicle sourcing doesn't exist yet (see
+              SAMPLE_REVIEW_VIDEO_ID above). aspect-video keeps the iframe a
+              correct 16:9 regardless of column/viewport width; no autoplay
+              param anywhere in the src, so it only plays on an explicit
+              click. */}
+          <div>
+            <h3 className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">Sample review video</h3>
+            <div className="mt-3 aspect-video overflow-hidden rounded-2xl border border-white/10">
+              <iframe
+                className="h-full w-full"
+                src={`https://www.youtube.com/embed/${SAMPLE_REVIEW_VIDEO_ID}`}
+                title="Sample vehicle review video"
+                allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
+            </div>
+          </div>
         </div>
 
-        {/* PROPOSED customer-facing copy, pending explicit sign-off -- the
-            old line ("...once Matchmaker connects to real inventory data")
-            is now stale: this IS real researched vehicle data, just not
-            live dealer inventory (VIN-level pricing/availability). */}
+        {/* PROPOSED customer-facing copy, pending explicit sign-off (this
+            task) -- replaces the prior proposed-but-never-confirmed line
+            ("Full spec sheets and trusted review videos will show up
+            here..."), which read as contradictory now that a video is
+            genuinely playing above it. Distinguishes the two gaps that
+            actually remain: the video shown is a real but generic sample,
+            not sourced per-vehicle; spec sheets have no video-equivalent
+            placeholder yet and stay a "coming soon" statement. */}
         <p className="mt-6 border-t border-white/10 pt-4 text-xs text-zinc-500">
-          Full spec sheets and trusted review videos will show up here once Matchmaker connects to
-          live dealer inventory.
+          Shown above is a general sample video, not a review of this specific vehicle — per-vehicle
+          videos aren&apos;t sourced yet. Full spec sheets will show up here once Matchmaker connects
+          to live dealer inventory.
         </p>
       </div>
     </div>,
