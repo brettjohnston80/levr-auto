@@ -273,14 +273,18 @@ export function getMakesForBodyStyle(vehicles: MatchmakerVehicle[], bodyStyle: V
   return [...makes].sort((a, b) => a.localeCompare(b));
 }
 
-// Two-column-by-year Model step (2026-09-02) -- replaces both
+// Per-year Model step primitive (2026-09-02) -- replaces both
 // getModelsForMakeAndBodyStyle (year-agnostic, merged both years into one
 // list) and getModelYearsForMakeAndModel (asked "which years does THIS
-// model span" only after a model was already picked). VehiclePickerFlow's
-// Model step now needs "which models exist for THIS make+bodyStyle+year"
-// up front, for each of the two year columns independently -- this is that
-// function. Sorted alphabetically, same reasoning as the function it
-// replaces: a plain option list, not scored/ranked results.
+// model span" only after a model was already picked). Originally called
+// directly by VehiclePickerFlow, once per year, to populate two
+// independently-sorted columns; now composed INTO
+// getModelRowsForMakeAndBodyStyle below (the Model step's real Table
+// restructure, 2026-09-02) rather than called directly by the component --
+// kept exported and unchanged in its own right, since "models for this
+// make+bodyStyle+year" is still a clean, independently useful primitive.
+// Sorted alphabetically, same reasoning as the function it replaces: a
+// plain option list, not scored/ranked results.
 export function getModelsForMakeBodyStyleAndYear(
   vehicles: MatchmakerVehicle[],
   bodyStyle: VehicleType,
@@ -294,6 +298,48 @@ export function getModelsForMakeBodyStyleAndYear(
   return [...models].sort((a, b) => a.localeCompare(b));
 }
 
+// Model step, aligned-table restructure (2026-09-02, approved plan) --
+// replaces the two-independently-sorted-columns rendering (each column
+// sorted on its own, so a model existing in only one year shifted
+// everything below it out of alignment between columns) with one row per
+// distinct model name across ANY of `years`, sorted once, so the two
+// (or more, see below) columns stay visually aligned: row *i* is the same
+// model in every column, populated where it exists, blank where it
+// doesn't. Composes getModelsForMakeBodyStyleAndYear above (one call per
+// year) rather than re-implementing the make+bodyStyle+year filter --
+// unions their results into the row order, and for each row records which
+// of the input years it actually came from.
+//
+// `years` is a parameter, not hardcoded to exactly two -- same
+// generalization already applied to getTwoMostRecentModelYears itself:
+// this keeps working with no revisit if a third year ever lands, it just
+// produces a row with a 3rd populated/blank cell.
+export type ModelYearRow = {
+  model: string;
+  availableYears: Set<number>;
+};
+
+export function getModelRowsForMakeAndBodyStyle(
+  vehicles: MatchmakerVehicle[],
+  bodyStyle: VehicleType,
+  make: string,
+  years: number[],
+): ModelYearRow[] {
+  const modelsPerYear = new Map<number, Set<string>>();
+  const allModels = new Set<string>();
+  for (const year of years) {
+    const models = new Set(getModelsForMakeBodyStyleAndYear(vehicles, bodyStyle, make, year));
+    modelsPerYear.set(year, models);
+    for (const model of models) allModels.add(model);
+  }
+  return [...allModels]
+    .sort((a, b) => a.localeCompare(b))
+    .map((model) => ({
+      model,
+      availableYears: new Set(years.filter((year) => modelsPerYear.get(year)!.has(model))),
+    }));
+}
+
 // Drives the Model step's two fixed year columns (2026-09-02, replacing an
 // earlier hardcoded [2026, 2027] literal) -- the two most recent distinct
 // model_year values actually present anywhere in the dataset, ascending
@@ -304,9 +350,9 @@ export function getModelsForMakeBodyStyleAndYear(
 // needed just to expose data that's already in the database. Not scoped to
 // any particular make/bodyStyle: the two columns' HEADERS are the same
 // pair of years across every make (a make with no vehicles in the more
-// recent year still gets that column, just empty -- see the Model step's
-// empty-state rendering), only each column's own model LIST is scoped per
-// make/bodyStyle/year via getModelsForMakeBodyStyleAndYear above.
+// recent year still gets that column -- every row's cell for it just
+// renders blank, via getModelRowsForMakeAndBodyStyle's per-row
+// availableYears below, no separate "column is empty" case needed).
 export function getTwoMostRecentModelYears(vehicles: MatchmakerVehicle[]): number[] {
   const years = new Set<number>();
   for (const v of vehicles) years.add(v.modelYear);

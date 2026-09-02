@@ -31,7 +31,7 @@ import {
   getAllVariantsForModel,
   getMakesForBodyStyle,
   getMatchedVehicles,
-  getModelsForMakeBodyStyleAndYear,
+  getModelRowsForMakeAndBodyStyle,
   getTwoMostRecentModelYears,
   pickHighestScoringVariant,
   segmentByPowertrain,
@@ -1583,14 +1583,45 @@ function ComparisonModal({
 // 2026-09-01), which only appeared after a model was already picked and
 // only when that specific model spanned more than one year. That extra
 // click is gone: the Model step itself now shows two side-by-side columns,
-// one per year, each listing whichever models actually exist for this
-// make+bodyStyle+year (getModelsForMakeBodyStyleAndYear,
-// matchmaker-scoring.ts) -- a model only appears in a column if it's
-// genuinely available for that year, no graying-out. Picking a model name
-// from either column resolves make+model+year in one action and
-// auto-selects the highest-scoring trim immediately, identical mechanism
-// to the old single-year Model step, just with the year already known from
-// which column was clicked rather than inferred afterward.
+// one per year. Picking a model name from either column resolves
+// make+model+year in one action and auto-selects the highest-scoring trim
+// immediately, identical mechanism to the old single-year Model step, just
+// with the year already known from which column was clicked rather than
+// inferred afterward.
+//
+// Aligned table, not two independently-sorted lists (2026-09-02, approved
+// plan) -- the first version of this step called
+// getModelsForMakeBodyStyleAndYear once per year and rendered each
+// column's own sorted list on its own, so a model existing in only one
+// year shifted everything below it out of alignment between columns (e.g.
+// Audi Sedan: "A3" only exists in 2026, so 2027's list started at "A5" one
+// row higher than 2026's). getModelRowsForMakeAndBodyStyle
+// (matchmaker-scoring.ts) fixes this: one row per distinct model name
+// across EITHER year, sorted once, so row i is the same model in every
+// column -- populated with a real clickable option where that model
+// exists for that year, a plain "--" where it doesn't (never a
+// special-cased blank/message, see below). A model only ever gets a real
+// button in the years it's genuinely available for, no graying-out.
+//
+// No separate "No <year> models yet." message for a single-year-only make
+// (dropped, 2026-09-02, approved plan) -- with the aligned-table structure,
+// a make with zero models in the more recent year just produces a full
+// column of "--", the exact same per-cell rendering used for any other
+// row's missing year, not a distinct whole-column case to special-case.
+// Verified this reads clearly as "not available in this year" rather than
+// a loading/bug state on two real single-year-only makes (Alfa Romeo
+// Giulia, Ram 1500/2500/3500/Chassis Cab) -- see the build's verification
+// notes.
+//
+// Fixed 2 columns at every screen width, including phones (2026-09-02,
+// approved plan) -- the previous version stacked to one column below `sm`
+// (each year's list shown full-width, one after another), which doesn't
+// make sense once the two columns are row-aligned: stacking would
+// interleave cells in model order (A3/--/A5/A5/--/A6 Sportback e-tron/...)
+// rather than grouping by year. Real model names in this dataset are short
+// enough (A3, Giulia, Tucson, 1500, ...) that two narrow columns read fine
+// even on a phone; `truncate` + `title` on the button text is the safety
+// net for the rare long one.
 //
 // The two years themselves (`modelYears` below) are derived, not hardcoded
 // -- getTwoMostRecentModelYears (matchmaker-scoring.ts) computes the two
@@ -1598,10 +1629,9 @@ function ComparisonModal({
 // `vehicles`, ascending, so the older year always populates the left
 // column and the newer year the right. A future data import that adds a
 // third model year (2028, etc.) surfaces here automatically -- no source
-// change needed. A make with no vehicles at all in the more recent year
-// still gets that column, just rendered with a "No <year> models yet."
-// message instead of a blank list (never hidden or collapsed away) -- see
-// the Model step's own empty-state rendering below.
+// change needed, and getModelRowsForMakeAndBodyStyle's own `years`
+// parameter is equally unbounded, so a 3rd year would just add a 3rd
+// populated/blank cell to every row rather than requiring a rewrite.
 //
 // No Powertrain step either (original approved plan, investigation
 // finding 2) -- getAllVariantsForModel (used both for auto-picking here
@@ -1635,17 +1665,11 @@ export function VehiclePickerFlow({
   );
   // Dataset-wide, not scoped to the current make/bodyStyle -- both year
   // COLUMNS are the same fixed pair across every make (see the file
-  // comment above), only each column's own model LIST varies per
+  // comment above), only each row's per-year availability varies per
   // make/bodyStyle/year.
   const modelYears = useMemo(() => getTwoMostRecentModelYears(vehicles), [vehicles]);
-  const modelsByYear = useMemo(
-    () =>
-      bodyStyle && make
-        ? modelYears.map((year) => ({
-            year,
-            models: getModelsForMakeBodyStyleAndYear(vehicles, bodyStyle, make, year),
-          }))
-        : [],
+  const modelRows = useMemo(
+    () => (bodyStyle && make ? getModelRowsForMakeAndBodyStyle(vehicles, bodyStyle, make, modelYears) : []),
     [vehicles, bodyStyle, make, modelYears],
   );
 
@@ -1741,34 +1765,47 @@ export function VehiclePickerFlow({
         </div>
       )}
 
-      {/* Two columns, one per year (2026-09-02) -- stacks to one column on
-          phones (grid-cols-1), side-by-side from sm+ up. Each column
-          renders its own real model list, or a "No <year> models yet."
-          message when this make/bodyStyle genuinely has none for that
-          year -- never hidden/collapsed, per the approved plan. */}
+      {/* Aligned table, fixed 2 columns at every width including phones
+          (2026-09-02, approved plan) -- year headers first, then one grid
+          "row" (2 cells) per model in modelRows' union order, emitted in
+          row-major order so the grid's default auto-flow aligns them
+          naturally with no explicit row wrapper needed. A cell is a real
+          clickable button when this row has that year in availableYears,
+          or a plain "--" (same not-applicable convention already used in
+          ComparisonModal's per-dimension table below) when it doesn't --
+          never a special-cased "column is empty" message, including when
+          an entire year column is blank for this make (a single-year-only
+          make just produces a full column of "--", which already reads as
+          "not offered this year," verified live). */}
       {step === "model" && (
-        <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2">
-          {modelsByYear.map(({ year, models: yearModels }) => (
-            <div key={year}>
-              <h3 className="text-xs font-semibold tracking-wide text-zinc-500 uppercase">{year}</h3>
-              {yearModels.length > 0 ? (
-                <div className="mt-3 flex flex-col gap-1.5">
-                  {yearModels.map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      onClick={() => pickModel(option, year)}
-                      className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-left text-sm font-medium text-zinc-300 transition-colors hover:border-white/25 hover:bg-white/[0.05] hover:text-white"
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <p className="mt-3 text-sm text-zinc-500">No {year} models yet.</p>
-              )}
-            </div>
+        <div className="mt-8 grid grid-cols-2 gap-x-6 gap-y-1.5">
+          {modelYears.map((year) => (
+            <h3 key={year} className="text-xs font-semibold tracking-wide text-zinc-500 uppercase">
+              {year}
+            </h3>
           ))}
+          {modelRows.map((row) =>
+            modelYears.map((year) =>
+              row.availableYears.has(year) ? (
+                <button
+                  key={`${row.model}-${year}`}
+                  type="button"
+                  onClick={() => pickModel(row.model, year)}
+                  title={row.model}
+                  className="truncate rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-left text-sm font-medium text-zinc-300 transition-colors hover:border-white/25 hover:bg-white/[0.05] hover:text-white"
+                >
+                  {row.model}
+                </button>
+              ) : (
+                <div
+                  key={`${row.model}-${year}`}
+                  className="flex items-center rounded-lg border border-transparent px-3 py-2 text-sm text-zinc-600"
+                >
+                  —
+                </div>
+              ),
+            ),
+          )}
         </div>
       )}
     </div>
