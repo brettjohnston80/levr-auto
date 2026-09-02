@@ -2258,6 +2258,36 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
     }
   }, [currentStep.id, answers.priceRange]);
 
+  // Quiz -> results (and Start Over's results -> quiz) is a useState swap
+  // inside the same route, not a navigation -- so the browser preserves
+  // whatever scrollY the customer was at when they tapped through. On
+  // mobile that's reliably mid-page: the last quiz step is the 9-row
+  // priority ranker, whose Continue button sits far enough down that the
+  // results list then renders already scrolled to roughly its second card
+  // (reported by external testers, 2026-09-02). Nothing else in this
+  // component -- or in drive-transition-provider.tsx, whose only
+  // scrollIntoView calls serve the homepage anchor transition -- ever
+  // resets scroll, so this effect is the sole thing doing it.
+  //
+  // Keyed on `done` alone, which covers BOTH directions with one effect:
+  // goNext()'s final setDone(true) and startOver()'s setDone(false).
+  // startOver is only ever reachable from AnswerPanel's onStartOver, which
+  // only renders in the done === true branch, so `done` genuinely flips on
+  // every Start Over -- no separate imperative call needed inside it.
+  //
+  // Deliberately skips the initial mount (didScrollResetMountRef): on a
+  // normal first load the page is already at the top, and forcing a scroll
+  // here would instead override the browser's own scroll restoration on a
+  // reload or back-navigation, which is real behavior worth preserving.
+  const didScrollResetMountRef = useRef(false);
+  useEffect(() => {
+    if (!didScrollResetMountRef.current) {
+      didScrollResetMountRef.current = true;
+      return;
+    }
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, [done]);
+
   function goNext() {
     if (step < STEPS.length - 1) {
       setStep((s) => s + 1);
