@@ -513,6 +513,7 @@ function CompactSelectField({
   onSelect,
   emptyMessage,
   optionLabels,
+  touched = true,
 }: {
   label: string;
   options: string[];
@@ -525,6 +526,12 @@ function CompactSelectField({
   // years" and "2026"/"2027" as "2026 only"/"2027 only" while the stored
   // value stays the bare year string.
   optionLabels?: Record<string, string>;
+  // Guards the "" option only (2026-09-02, real bug fix) -- see
+  // modelYearTouched's own comment in Matchmaker() for the full story.
+  // Defaults to true and is otherwise a no-op: every other caller's
+  // options never contain "" in the first place, so this only ever
+  // matters for the one field that passes it explicitly (Model year).
+  touched?: boolean;
 }) {
   return (
     <div className="mt-4 first:mt-0">
@@ -534,7 +541,7 @@ function CompactSelectField({
       ) : (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {options.map((option) => {
-            const active = value === option;
+            const active = option === "" ? touched && value === option : value === option;
             return (
               <button
                 key={option}
@@ -577,6 +584,7 @@ function AnswerPanel({
   onStartOver,
   modelYearOptions,
   modelYearLabels,
+  modelYearTouched,
 }: {
   answers: Answers;
   onFieldChange: (id: keyof Answers, value: string) => void;
@@ -590,6 +598,13 @@ function AnswerPanel({
   // there's no reason for a second copy of the derivation.
   modelYearOptions: string[];
   modelYearLabels: Record<string, string>;
+  // Defensive wiring (2026-09-02, real bug fix) -- not reachable via the
+  // normal quiz-completion path today (every select-kind step requires a
+  // click to advance, modelYear included, so this is always true by the
+  // time AnswerPanel can render), but costs nothing to wire correctly in
+  // case Start Over or a future skip path ever changes that. See
+  // modelYearTouched's own comment in Matchmaker() for the full story.
+  modelYearTouched: boolean;
 }) {
   const allowSixPlus = answers.vehicleType ? LARGE_CAPACITY_VEHICLE_TYPES.includes(answers.vehicleType) : false;
   const familySizeOptions = FAMILY_SIZES.filter((size) => size !== "6+" || allowSixPlus);
@@ -623,6 +638,7 @@ function AnswerPanel({
         value={answers.modelYear}
         onSelect={(v) => onFieldChange("modelYear", v)}
         optionLabels={modelYearLabels}
+        touched={modelYearTouched}
       />
       <div className="mt-4">
         <h4 className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">Price range</h4>
@@ -662,6 +678,7 @@ function QuestionPanel({
   onReorderPriorities,
   onBack,
   onContinue,
+  modelYearTouched,
 }: {
   step: Step;
   stepIndex: number;
@@ -672,6 +689,11 @@ function QuestionPanel({
   onSelect: (value: string) => void;
   onPriceRangeChange: (range: PriceRangeValue) => void;
   onReorderPriorities: (order: string[]) => void;
+  // Guards the Model Year step's "" ("Both years") option only (2026-09-02,
+  // real bug fix) -- harmless for every other select-kind step, since none
+  // of their option lists ever contain "" in the first place. See
+  // modelYearTouched's own comment in Matchmaker() for the full story.
+  modelYearTouched: boolean;
   onBack: () => void;
   onContinue: () => void;
 }) {
@@ -709,7 +731,7 @@ function QuestionPanel({
       {step.kind === "select" && (
         <div className="mt-8 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
           {step.options?.map((option) => {
-            const active = value === option;
+            const active = option === "" ? modelYearTouched && value === option : value === option;
             return (
               <button
                 key={option}
@@ -1671,9 +1693,11 @@ function ComparisonModal({
                         type="button"
                         onClick={() => onOpenInfo(column.activeVehicle)}
                         aria-label={`More info on ${column.make} ${column.model}`}
-                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-zinc-500 transition-colors hover:bg-white/10 hover:text-white"
+                        title="More info"
+                        className="flex h-6 shrink-0 items-center gap-1 rounded-full px-1.5 text-[11px] font-semibold text-zinc-500 transition-colors hover:bg-white/10 hover:text-white"
                       >
-                        <InfoIcon />
+                        <InfoIcon size={12} />
+                        Info
                       </button>
                       <button
                         type="button"
@@ -2139,6 +2163,18 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
   // touched, neither a later vehicleType nor useCase change auto-reshuffles
   // it again, so it never silently clobbers manual work.
   const [prioritiesTouched, setPrioritiesTouched] = useState(false);
+  // Tracks whether the customer has ever clicked a Model Year option
+  // (2026-09-02, real bug fix) -- "" is a genuine, clickable option here
+  // ("Both years"), not just the "not yet answered" sentinel the way it is
+  // for every other select-kind field (see modelYearOptions below). A
+  // bare `value === option` check therefore highlighted "Both years" as
+  // pre-selected the instant the question first rendered, before any
+  // click -- indistinguishable from a real choice. This flag is the fix:
+  // QuestionPanel/CompactSelectField only allow the "" option to render as
+  // active once this is true. Set from setField (below), the single hook
+  // point shared by both the quiz's own select() and AnswerPanel's direct
+  // onFieldChange -- so both surfaces stay correct from one write, not two.
+  const [modelYearTouched, setModelYearTouched] = useState(false);
   // Dataset-wide, not answer-dependent (2026-09-02, Model Year filter) --
   // same derivation VehiclePickerFlow's own Model step already uses, so
   // the quiz's Model Year question and the standalone tool's year columns
@@ -2190,6 +2226,7 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
   // live-edit AnswerPanel, or by going Back after touching priorities)
   // no longer reshuffle it.
   function setField(id: keyof Answers, value: string) {
+    if (id === "modelYear") setModelYearTouched(true);
     setAnswers((prev) => {
       const next = { ...prev, [id]: value };
       if (id === "vehicleType" && prev.vehicleType !== value) {
@@ -2255,6 +2292,7 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
     setStandalonePriorities(null);
     setInfoVehicle(null);
     setPrioritiesTouched(false);
+    setModelYearTouched(false);
   }
 
   function dismiss(id: string) {
@@ -2624,6 +2662,7 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
                 onStartOver={startOver}
                 modelYearOptions={modelYearOptions}
                 modelYearLabels={modelYearLabels}
+                modelYearTouched={modelYearTouched}
               />
             </div>
           ) : (
@@ -2640,6 +2679,7 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
                 onReorderPriorities={reorderPriorities}
                 onBack={goBack}
                 onContinue={goNext}
+                modelYearTouched={modelYearTouched}
               />
               <BuildingVisual answers={answers} currentStepId={currentStep.id} />
             </div>
