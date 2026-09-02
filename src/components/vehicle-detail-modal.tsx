@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Answers } from "@/lib/matchmaker-data";
 import { formatPriceEstimate, fuelTypeToPowertrain, type MatchmakerVehicle } from "@/lib/matchmaker-vehicle-display";
 import { SilhouetteIcon } from "@/components/vehicle-silhouette";
+import { countNationwideInventory } from "@/lib/inventory-count";
 import {
   dimensionIndicator,
   dimensionDataPoint,
@@ -86,6 +88,26 @@ export function VehicleDetailModal({
   const bullets = buildFitBullets(vehicle, answers);
   const priceEstimate = formatPriceEstimate(vehicle.trueStartingPriceCents);
 
+  // Nationwide live-inventory count (this task, 2026-09-02) -- make+model
+  // only, never trim-specific (see countNationwideInventory's own comment
+  // for why: a direct spot-check found trim-string matching unreliable on
+  // real data). `null` covers both "not loaded yet" and "the query itself
+  // failed" -- neither should render a misleading count, so the line is
+  // simply absent in both cases rather than showing a stale/wrong number.
+  const [nationwideCount, setNationwideCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setNationwideCount(null);
+    countNationwideInventory(vehicle.make, vehicle.model).then((result) => {
+      if (cancelled) return;
+      setNationwideCount(result.ok ? result.count : null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [vehicle.make, vehicle.model]);
+
   // Portaled to document.body (2026-09-02, real bug found during Step 5
   // verification, not new to this rewrite -- this modal's fixed/inset-0
   // CSS was already unchanged from before). The page-transition wrapper
@@ -163,6 +185,24 @@ export function VehicleDetailModal({
               {vehicle.make} {vehicle.model} {vehicle.trim}
             </h2>
             <p className="mt-1 text-sm font-semibold text-emerald-400">{priceEstimate}</p>
+
+            {/* Nationwide listing count (this task, 2026-09-02) -- deliberately
+                make+model level, not trim-specific (see the state/effect
+                above), so the wording always says "across all trims" rather
+                than implying this count is scoped to the exact trim shown in
+                the heading above. Absent entirely while loading or on a
+                query error -- never a flashed/misleading "0". The zero case
+                gets its own honest sentence, not a bare "0 listings", same
+                "tracked" framing (not "available") already used by the
+                intake match-counter's own zero state, since this table only
+                reflects what's been synced, not the true nationwide market. */}
+            {nationwideCount !== null && (
+              <p className="mt-1 text-xs text-zinc-500">
+                {nationwideCount > 0
+                  ? `${nationwideCount.toLocaleString()} ${vehicle.make} ${vehicle.model} listings nationwide (all trims)`
+                  : `No ${vehicle.make} ${vehicle.model} listings currently tracked nationwide`}
+              </p>
+            )}
 
             {/* The old single-line auto-generated rationale sentence was
                 removed here (2026-09-02) -- redundant with the "How it

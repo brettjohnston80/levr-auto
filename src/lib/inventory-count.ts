@@ -91,3 +91,38 @@ export async function countNearbyInventory(
 
   return { ok: true, count };
 }
+
+/**
+ * Nationwide (no zip/radius) count of real synced listings for make+model
+ * only -- deliberately not trim-specific. A direct string-match spot-check
+ * against real listings.trim data (2026-09-02) found only 1 of 4 real
+ * make/models matched cleanly against Matchmaker's own researched trim
+ * strings; the rest showed genuine structural drift (missing trims,
+ * inconsistent Hybrid-prefixing, word-order swaps) that would silently
+ * undercount or zero out real in-stock inventory. Make+model is the level
+ * that's actually reliable on real data.
+ *
+ * No zip parameter, unlike countNearbyInventory -- Matchmaker collects no
+ * zip anywhere in its own flow (quiz or standalone), so a radius count
+ * isn't reachable here without a real flow change. A true `count` query
+ * (head: true) rather than fetching rows, since -- unlike
+ * countNearbyInventory -- there's no need for the actual dealer_zip values
+ * afterward.
+ */
+export type NationwideCountResult = { ok: true; count: number } | { ok: false; error: string };
+
+export async function countNationwideInventory(make: string, model: string): Promise<NationwideCountResult> {
+  const admin = createAdminClient();
+
+  const { count, error } = await admin
+    .from("listings")
+    .select("*", { count: "exact", head: true })
+    .eq("make", make)
+    .eq("model", model);
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  return { ok: true, count: count ?? 0 };
+}
