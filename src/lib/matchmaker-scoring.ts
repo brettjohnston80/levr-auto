@@ -262,7 +262,7 @@ export function groupByModel(matched: MatchedVehicle[]): ModelGroup[] {
 // filter-independent source is what lets a customer build a comparison
 // with zero quiz answers at all).
 //
-// Sorted alphabetically -- both are plain option lists for a picker step,
+// Sorted alphabetically -- these are plain option lists for a picker step,
 // not scored/ranked results, so alphabetical is the correct, boring
 // default rather than importing any scoring concept here.
 export function getMakesForBodyStyle(vehicles: MatchmakerVehicle[], bodyStyle: VehicleType): string[] {
@@ -273,34 +273,44 @@ export function getMakesForBodyStyle(vehicles: MatchmakerVehicle[], bodyStyle: V
   return [...makes].sort((a, b) => a.localeCompare(b));
 }
 
-export function getModelsForMakeAndBodyStyle(
+// Two-column-by-year Model step (2026-09-02) -- replaces both
+// getModelsForMakeAndBodyStyle (year-agnostic, merged both years into one
+// list) and getModelYearsForMakeAndModel (asked "which years does THIS
+// model span" only after a model was already picked). VehiclePickerFlow's
+// Model step now needs "which models exist for THIS make+bodyStyle+year"
+// up front, for each of the two year columns independently -- this is that
+// function. Sorted alphabetically, same reasoning as the function it
+// replaces: a plain option list, not scored/ranked results.
+export function getModelsForMakeBodyStyleAndYear(
   vehicles: MatchmakerVehicle[],
   bodyStyle: VehicleType,
   make: string,
+  year: number,
 ): string[] {
   const models = new Set<string>();
   for (const v of vehicles) {
-    if (v.bodyStyle === bodyStyle && v.make === make) models.add(v.model);
+    if (v.bodyStyle === bodyStyle && v.make === make && v.modelYear === year) models.add(v.model);
   }
   return [...models].sort((a, b) => a.localeCompare(b));
 }
 
-// MY2027 support (2026-09-01) -- distinct model years a given make+model
-// spans, ascending. Not scoped to bodyStyle, same reasoning as
-// getAllVariantsForModel below. Used by VehiclePickerFlow right after a
-// Model pick to decide whether to show the new model-year step at all: a
-// model with only one year skips it entirely (unchanged single-year
-// behavior), a model with more than one shows a "which year" choice.
-export function getModelYearsForMakeAndModel(
-  vehicles: MatchmakerVehicle[],
-  make: string,
-  model: string,
-): number[] {
+// Drives the Model step's two fixed year columns (2026-09-02, replacing an
+// earlier hardcoded [2026, 2027] literal) -- the two most recent distinct
+// model_year values actually present anywhere in the dataset, ascending
+// (older year -> left column, newer year -> right column). Deliberately a
+// small pure function over the whole `vehicles` array rather than a
+// hardcoded constant, so a future data import that adds a third model year
+// (2028, etc.) surfaces in the picker automatically -- no source change
+// needed just to expose data that's already in the database. Not scoped to
+// any particular make/bodyStyle: the two columns' HEADERS are the same
+// pair of years across every make (a make with no vehicles in the more
+// recent year still gets that column, just empty -- see the Model step's
+// empty-state rendering), only each column's own model LIST is scoped per
+// make/bodyStyle/year via getModelsForMakeBodyStyleAndYear above.
+export function getTwoMostRecentModelYears(vehicles: MatchmakerVehicle[]): number[] {
   const years = new Set<number>();
-  for (const v of vehicles) {
-    if (v.make === make && v.model === model) years.add(v.modelYear);
-  }
-  return [...years].sort((a, b) => a - b);
+  for (const v of vehicles) years.add(v.modelYear);
+  return [...years].sort((a, b) => a - b).slice(-2);
 }
 
 // Deliberately NOT powertrain-scoped -- the standalone tool's confirmed

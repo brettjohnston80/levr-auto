@@ -31,8 +31,8 @@ import {
   getAllVariantsForModel,
   getMakesForBodyStyle,
   getMatchedVehicles,
-  getModelsForMakeAndBodyStyle,
-  getModelYearsForMakeAndModel,
+  getModelsForMakeBodyStyleAndYear,
+  getTwoMostRecentModelYears,
   pickHighestScoringVariant,
   segmentByPowertrain,
   groupByModel,
@@ -793,7 +793,8 @@ function ModelGroupCard({
               </span>
             )}
             <h3 className="text-lg font-semibold text-white">
-              {group.make} {group.model}
+              {group.make} {group.model}{" "}
+              <span className="font-normal text-zinc-500">{group.modelYear}</span>
             </h3>
           </div>
           <span className="shrink-0 text-sm font-semibold text-emerald-400 sm:hidden">
@@ -1422,7 +1423,8 @@ function ComparisonModal({
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-white">
-                          {column.make} {column.model}
+                          {column.make} {column.model}{" "}
+                          <span className="font-normal text-zinc-500">{column.activeVehicle.modelYear}</span>
                         </p>
                         <p className="mt-0.5 text-xs font-semibold text-emerald-400">
                           {formatPriceEstimate(column.activeVehicle.trueStartingPriceCents)}
@@ -1555,39 +1557,51 @@ function ComparisonModal({
 // plan 2026-09-01; Trim step removed as a follow-up, 2026-09-01; model-year
 // step added for MY2027 support, 2026-09-01) -----------------------------
 //
-// Body Style -> Make -> Model -> (Model Year, only when the model has more
-// than one), reading directly from the raw `vehicles` prop via the Step A
-// derivations -- never `matched`/`answers`, same resolution-source
-// principle as the rest of the comparison feature. Shared by both the
-// standalone entry point's 2-vehicle bootstrap and ComparisonModal's
-// "+ Add vehicle" action (Steps C/D): built once here as a self-contained,
-// portal-agnostic content block that only renders its own step content,
-// never a modal/portal itself -- each caller decides how to contain it (a
-// full page section for the standalone entry, layered inside the
-// already-portaled ComparisonModal for "+ Add vehicle").
+// Body Style -> Make -> Model, reading directly from the raw `vehicles`
+// prop via the Step A derivations -- never `matched`/`answers`, same
+// resolution-source principle as the rest of the comparison feature.
+// Shared by both the standalone entry point's 2-vehicle bootstrap and
+// ComparisonModal's "+ Add vehicle" action (Steps C/D): built once here as
+// a self-contained, portal-agnostic content block that only renders its
+// own step content, never a modal/portal itself -- each caller decides how
+// to contain it (a full page section for the standalone entry, layered
+// inside the already-portaled ComparisonModal for "+ Add vehicle").
 //
 // No separate Trim step (removed as a follow-up, 2026-09-01) -- picking a
-// Model (or a Model Year, when that step shows) auto-selects the
-// highest-scoring trim for that specific make+model+year
-// (pickHighestScoringVariant, matchmaker-scoring.ts) and calls onSelect
-// immediately, the same "headline trim" concept ModelGroupCard already
-// uses elsewhere. The customer adjusts which specific trim is actually
-// shown afterward via the comparison column's own trim switcher
-// (getAllVariantsForModel), not during picking -- one fewer click for the
-// common case, and it's what makes it possible to pick the same model
-// twice (see addFlaggedGroup/directSegmentTag below) and then diverge each
-// resulting column to a different trim.
+// model auto-selects the highest-scoring trim for that specific
+// make+model+year (pickHighestScoringVariant, matchmaker-scoring.ts) and
+// calls onSelect immediately, the same "headline trim" concept
+// ModelGroupCard already uses elsewhere. The customer adjusts which
+// specific trim is actually shown afterward via the comparison column's
+// own trim switcher (getAllVariantsForModel), not during picking -- one
+// fewer click for the common case, and it's what makes it possible to pick
+// the same model twice (see addFlaggedGroup/directSegmentTag below) and
+// then diverge each resulting column to a different trim.
 //
-// Model Year step (MY2027 support, 2026-09-01): only shown when
-// getModelYearsForMakeAndModel finds more than one year for the picked
-// make+model -- a single-year model (every real model today) skips it
-// entirely, matching the exact behavior that existed before this step was
-// added. Not a trim list -- just a "which year" choice, same "auto-select
-// the headline trim once the specific make+model+year is known" behavior
-// as the plain Model step. Generalized to however many years actually
-// exist (`years.map(...)`), not hardcoded to exactly two -- costs nothing
-// extra today (there will only ever be two in practice for the foreseeable
-// future) and keeps working with no revisit if a third year ever lands.
+// Model step restructured to two year columns (2026-09-02) -- replaces the
+// earlier separate "Which model year?" step entirely (MY2027 support,
+// 2026-09-01), which only appeared after a model was already picked and
+// only when that specific model spanned more than one year. That extra
+// click is gone: the Model step itself now shows two side-by-side columns,
+// one per year, each listing whichever models actually exist for this
+// make+bodyStyle+year (getModelsForMakeBodyStyleAndYear,
+// matchmaker-scoring.ts) -- a model only appears in a column if it's
+// genuinely available for that year, no graying-out. Picking a model name
+// from either column resolves make+model+year in one action and
+// auto-selects the highest-scoring trim immediately, identical mechanism
+// to the old single-year Model step, just with the year already known from
+// which column was clicked rather than inferred afterward.
+//
+// The two years themselves (`modelYears` below) are derived, not hardcoded
+// -- getTwoMostRecentModelYears (matchmaker-scoring.ts) computes the two
+// most recent distinct model_year values actually present anywhere in
+// `vehicles`, ascending, so the older year always populates the left
+// column and the newer year the right. A future data import that adds a
+// third model year (2028, etc.) surfaces here automatically -- no source
+// change needed. A make with no vehicles at all in the more recent year
+// still gets that column, just rendered with a "No <year> models yet."
+// message instead of a blank list (never hidden or collapsed away) -- see
+// the Model step's own empty-state rendering below.
 //
 // No Powertrain step either (original approved plan, investigation
 // finding 2) -- getAllVariantsForModel (used both for auto-picking here
@@ -1600,11 +1614,7 @@ function ComparisonModal({
 // comfort, and one consistent style across all 9 body styles beats
 // switching visual languages depending on which was picked. Body Style
 // itself stays a pill grid (9 options, identical to the quiz's own Q1).
-// Model Year uses a side-by-side card grid, not the clickable-list style --
-// deliberately distinct, since there are only ever a couple of options and
-// a full-width list row would look sparse/oversized for a single word
-// ("2026").
-type PickerStep = "bodyStyle" | "make" | "model" | "modelYear";
+type PickerStep = "bodyStyle" | "make" | "model";
 
 export function VehiclePickerFlow({
   vehicles,
@@ -1618,24 +1628,25 @@ export function VehiclePickerFlow({
   const [step, setStep] = useState<PickerStep>("bodyStyle");
   const [bodyStyle, setBodyStyle] = useState<VehicleType | "">("");
   const [make, setMake] = useState("");
-  // Brought back (MY2027 support, 2026-09-01) -- removed earlier when the
-  // Trim step was dropped, since nothing downstream needed to remember
-  // "which model" once picking one fired onSelect immediately. The new
-  // Model Year step needs it: pickModelYear has to know which model it's
-  // disambiguating.
-  const [model, setModel] = useState("");
 
   const makes = useMemo(
     () => (bodyStyle ? getMakesForBodyStyle(vehicles, bodyStyle) : []),
     [vehicles, bodyStyle],
   );
-  const models = useMemo(
-    () => (bodyStyle && make ? getModelsForMakeAndBodyStyle(vehicles, bodyStyle, make) : []),
-    [vehicles, bodyStyle, make],
-  );
-  const modelYears = useMemo(
-    () => (make && model ? getModelYearsForMakeAndModel(vehicles, make, model) : []),
-    [vehicles, make, model],
+  // Dataset-wide, not scoped to the current make/bodyStyle -- both year
+  // COLUMNS are the same fixed pair across every make (see the file
+  // comment above), only each column's own model LIST varies per
+  // make/bodyStyle/year.
+  const modelYears = useMemo(() => getTwoMostRecentModelYears(vehicles), [vehicles]);
+  const modelsByYear = useMemo(
+    () =>
+      bodyStyle && make
+        ? modelYears.map((year) => ({
+            year,
+            models: getModelsForMakeBodyStyleAndYear(vehicles, bodyStyle, make, year),
+          }))
+        : [],
+    [vehicles, bodyStyle, make, modelYears],
   );
 
   function pickBodyStyle(value: VehicleType) {
@@ -1656,39 +1667,23 @@ export function VehiclePickerFlow({
   // immediately; the caller (bootstrap or "+ Add vehicle") decides what
   // happens next.
   //
-  // MY2027 support (2026-09-01): a model with only one year still behaves
-  // exactly as before (immediate auto-select, no extra click) -- the new
-  // Model Year step only shows when getModelYearsForMakeAndModel finds
-  // more than one. `years[0]` is always defined in the single-year branch:
-  // the Model step only ever lists models with >=1 real vehicle.
-  function pickModel(value: string) {
-    setModel(value);
-    const years = getModelYearsForMakeAndModel(vehicles, make, value);
-    if (years.length <= 1) {
-      const variants = getAllVariantsForModel(vehicles, make, value, years[0]);
-      onSelect(pickHighestScoringVariant(variants, defaultPriorityOrder(bodyStyle)));
-      return;
-    }
-    setStep("modelYear");
-  }
-  // MY2027 support (2026-09-01) -- same auto-select-highest-scoring-trim
-  // behavior as pickModel's single-year branch, just scoped to the
-  // specific year the customer picked here.
-  function pickModelYear(year: number) {
-    const variants = getAllVariantsForModel(vehicles, make, model, year);
+  // `year` is now known directly from which column's button was clicked
+  // (2026-09-02) -- no more "check how many years this model spans" branch,
+  // since the two-column Model step already disambiguates year at the
+  // moment of picking.
+  function pickModel(value: string, year: number) {
+    const variants = getAllVariantsForModel(vehicles, make, value, year);
     onSelect(pickHighestScoringVariant(variants, defaultPriorityOrder(bodyStyle)));
   }
   function back() {
     if (step === "make") setStep("bodyStyle");
     else if (step === "model") setStep("make");
-    else if (step === "modelYear") setStep("model");
   }
 
   const stepTitle: Record<PickerStep, string> = {
     bodyStyle: "What type of vehicle?",
     make: "Which make?",
     model: "Which model?",
-    modelYear: "Which model year?",
   };
 
   return (
@@ -1746,32 +1741,33 @@ export function VehiclePickerFlow({
         </div>
       )}
 
+      {/* Two columns, one per year (2026-09-02) -- stacks to one column on
+          phones (grid-cols-1), side-by-side from sm+ up. Each column
+          renders its own real model list, or a "No <year> models yet."
+          message when this make/bodyStyle genuinely has none for that
+          year -- never hidden/collapsed, per the approved plan. */}
       {step === "model" && (
-        <div className="mt-8 flex flex-col gap-1.5">
-          {models.map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => pickModel(option)}
-              className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-left text-sm font-medium text-zinc-300 transition-colors hover:border-white/25 hover:bg-white/[0.05] hover:text-white"
-            >
-              {option}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {step === "modelYear" && (
-        <div className="mt-8 grid gap-3 sm:grid-cols-2">
-          {modelYears.map((year) => (
-            <button
-              key={year}
-              type="button"
-              onClick={() => pickModelYear(year)}
-              className="rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-8 text-center text-2xl font-semibold text-white transition-all hover:border-white/25 hover:bg-white/[0.05]"
-            >
-              {year}
-            </button>
+        <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2">
+          {modelsByYear.map(({ year, models: yearModels }) => (
+            <div key={year}>
+              <h3 className="text-xs font-semibold tracking-wide text-zinc-500 uppercase">{year}</h3>
+              {yearModels.length > 0 ? (
+                <div className="mt-3 flex flex-col gap-1.5">
+                  {yearModels.map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => pickModel(option, year)}
+                      className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 text-left text-sm font-medium text-zinc-300 transition-colors hover:border-white/25 hover:bg-white/[0.05] hover:text-white"
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-3 text-sm text-zinc-500">No {year} models yet.</p>
+              )}
+            </div>
           ))}
         </div>
       )}
