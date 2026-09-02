@@ -389,6 +389,15 @@ export type Answers = {
   // until the customer actually reaches and confirms this step.
   priceRange: PriceRangeValue | null;
   priorities: string[];
+  // Model Year filter (2026-09-02, approved plan) -- "" means "Both years"
+  // (no filtering, the default), otherwise the bare year as a string (e.g.
+  // "2026"), matching vehicle.modelYear once parsed/compared as a number.
+  // A real hard filter, same enforcement level as vehicleType/familySize/
+  // priceRange (see passesHardFilters, matchmaker-scoring.ts) -- not typed
+  // as a fixed literal union like VehicleType/Powertrain, since the two
+  // valid years are data-derived (getTwoMostRecentModelYears) rather than a
+  // fixed enum baked into the app.
+  modelYear: string;
 };
 
 /** Shared by the slider's own live label, BuildingVisual's chip, and ResultsList's chip. */

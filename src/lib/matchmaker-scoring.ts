@@ -18,7 +18,13 @@ function minSeatsForFamilySize(familySize: string): number {
 // Hard filters -- a vehicle failing any of these is excluded entirely, not
 // soft-weighted. Powertrain is deliberately NOT here (segmented display
 // only, built in Step 4) and Main Use is NOT here (dimension-priority
-// pre-fill, a separate follow-up per the approved plan).
+// pre-fill, a separate follow-up per the approved plan). Model Year IS
+// here (2026-09-02, approved plan) -- unlike Powertrain, a Model Year
+// filter is meant to genuinely exclude the other year from the primary
+// results list, not just segment it into an alternatives section (that's
+// what getBestOtherYearAlternate below is for, computed separately since
+// the excluded year's vehicles never reach this function's callers at
+// all once filtered out here).
 export function passesHardFilters(vehicle: MatchmakerVehicle, answers: Answers): boolean {
   if (answers.vehicleType !== "" && vehicle.bodyStyle !== answers.vehicleType) {
     return false;
@@ -36,6 +42,10 @@ export function passesHardFilters(vehicle: MatchmakerVehicle, answers: Answers):
     if (vehicle.trueStartingPriceCents < minCents || vehicle.trueStartingPriceCents > maxCents) {
       return false;
     }
+  }
+
+  if (answers.modelYear !== "" && String(vehicle.modelYear) !== answers.modelYear) {
+    return false;
   }
 
   return true;
@@ -230,6 +240,60 @@ export function groupByModel(matched: MatchedVehicle[]): ModelGroup[] {
     }
   }
   return [...groups.values()];
+}
+
+// --- Model Year alternate (2026-09-02, approved plan) ------------------
+//
+// Model Year is a real hard filter (passesHardFilters above), unlike
+// Powertrain -- so once a customer excludes a year, its vehicles never
+// reach getMatchedVehicles/groupByModel/segmentByPowertrain at all, and
+// there's nothing left in `matched` for segmentByPowertrain's bucketing
+// approach to reuse. This computes the single best-scoring candidate from
+// the EXCLUDED year independently, straight from the raw `vehicles` array,
+// for the "Best <excluded year> option" alternate card.
+//
+// Reuses passesHardFilters for vehicleType/riders/price rather than
+// duplicating those checks -- but with `modelYear` cleared on a shallow
+// copy of `answers` first, since passing the real answers through
+// unmodified would have passesHardFilters itself reject every candidate
+// here (they're all, by definition, the year the customer excluded).
+// Powertrain is layered on top as an explicit equality check, NOT via
+// passesHardFilters (which deliberately never hard-filters powertrain
+// anywhere else) -- the approved design calls for this one alternate to
+// specifically honor the customer's SAME powertrain preference, unlike
+// every other place powertrain is only ever a segmentation/display
+// concern.
+//
+// Returns null, not an empty/placeholder group, when nothing in the
+// excluded year matches -- a real, expected outcome (confirmed against
+// live data: 2027 is well under half of 2026's row count overall, and
+// some body styles are far thinner still, e.g. Cargo Van 38/5, Wagon
+// 14/3), and the caller renders no card at all in that case, same as
+// segmentByPowertrain producing zero alternatives today.
+export function getBestOtherYearAlternate(
+  vehicles: MatchmakerVehicle[],
+  answers: Answers,
+  excludedYear: number,
+): ModelGroup | null {
+  const answersIgnoringYear: Answers = { ...answers, modelYear: "" };
+  const candidates = vehicles.filter(
+    (vehicle) =>
+      vehicle.modelYear === excludedYear &&
+      passesHardFilters(vehicle, answersIgnoringYear) &&
+      (answers.powertrain === "" || fuelTypeToPowertrain(vehicle.fuelType) === answers.powertrain),
+  );
+  if (candidates.length === 0) return null;
+
+  const scored: MatchedVehicle[] = candidates
+    .map((vehicle) => ({ ...vehicle, totalScore: weightedTotal(vehicle, answers.priorities) }))
+    .sort((a, b) => b.totalScore - a.totalScore);
+
+  // groupByModel's first-seen-per-key behavior (see its own comment above)
+  // means index 0 here is already the single highest scorer, correctly
+  // grouped with any other same-make/model/year trims as its own variants
+  // list -- exactly the shape ModelGroupCard already expects, no new
+  // rendering path needed for this card.
+  return groupByModel(scored)[0];
 }
 
 // --- Comparison view (approved plan, 2026-09-02) -----------------------

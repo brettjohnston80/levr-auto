@@ -29,6 +29,7 @@ import {
 import { formatPriceEstimate, fuelTypeToPowertrain, type MatchmakerVehicle } from "@/lib/matchmaker-vehicle-display";
 import {
   getAllVariantsForModel,
+  getBestOtherYearAlternate,
   getMakesForBodyStyle,
   getMatchedVehicles,
   getModelRowsForMakeAndBodyStyle,
@@ -55,6 +56,7 @@ const EMPTY_ANSWERS: Answers = {
   powertrain: "",
   priceRange: null,
   priorities: defaultPriorityOrder(""),
+  modelYear: "",
 };
 
 type Step = {
@@ -63,6 +65,16 @@ type Step = {
   title: string;
   subtitle?: string;
   options?: string[];
+  // Optional display-label override per option value (2026-09-02, Model
+  // Year filter) -- every other "select" step's button text IS the stored
+  // answer value (VEHICLE_TYPES/POWERTRAINS/etc.), so this stays undefined
+  // for them and QuestionPanel/CompactSelectField fall back to the raw
+  // option string, unchanged. Model Year needs both: a clean stored value
+  // ("2026", trivially comparable to vehicle.modelYear) and a distinct
+  // display label ("2026 only") -- this is what lets it use the exact
+  // same generic select rendering as every other step rather than a
+  // one-off component.
+  labels?: Record<string, string>;
 };
 
 const STEPS: Step[] = [
@@ -93,6 +105,20 @@ const STEPS: Step[] = [
     title: "Any preference on powertrain?",
     subtitle: "Gas, diesel, hybrid, or fully electric.",
     options: POWERTRAINS,
+  },
+  {
+    id: "modelYear",
+    kind: "select",
+    title: "Any preference on model year?",
+    subtitle: "Both years is the default — pick one to narrow it down.",
+    // options/labels are computed at render time (see stepForRender in
+    // Matchmaker()) -- the two real years are data-derived
+    // (getTwoMostRecentModelYears), not a fixed literal list like
+    // VEHICLE_TYPES/POWERTRAINS. Unlike every other "select" step, "" is
+    // itself a real, clickable option here ("Both years") rather than
+    // reserved purely for "not yet answered" -- Model Year has an actual
+    // no-preference choice a customer can explicitly pick, matching the
+    // approved design's "Both years (default, no filtering)" framing.
   },
   {
     id: "priceRange",
@@ -351,6 +377,7 @@ function BuildingVisual({ answers, currentStepId }: { answers: Answers; currentS
     { label: "Use", value: answers.useCase, stepId: "useCase" },
     { label: "Riders", value: answers.familySize, stepId: "familySize" },
     { label: "Powertrain", value: answers.powertrain, stepId: "powertrain" },
+    { label: "Model year", value: answers.modelYear, stepId: "modelYear" },
     { label: "Budget", value: answers.priceRange ? formatPriceRange(answers.priceRange) : "", stepId: "priceRange" },
   ];
   const chips = allChips.filter((chip) => chip.value);
@@ -408,12 +435,19 @@ function CompactSelectField({
   value,
   onSelect,
   emptyMessage,
+  optionLabels,
 }: {
   label: string;
   options: string[];
   value: string;
   onSelect: (value: string) => void;
   emptyMessage?: string;
+  // Same optional display-label override as Step.labels (QuestionPanel) --
+  // undefined for every existing caller (Vehicle type/Riders/Powertrain),
+  // used only by the new Model Year field so "" can display as "Both
+  // years" and "2026"/"2027" as "2026 only"/"2027 only" while the stored
+  // value stays the bare year string.
+  optionLabels?: Record<string, string>;
 }) {
   return (
     <div className="mt-4 first:mt-0">
@@ -435,7 +469,7 @@ function CompactSelectField({
                     : "border-white/10 bg-white/[0.02] text-zinc-300 hover:border-white/25 hover:bg-white/[0.05]"
                 }`}
               >
-                {option}
+                {optionLabels?.[option] ?? option}
               </button>
             );
           })}
@@ -464,12 +498,21 @@ function AnswerPanel({
   onPriceRangeChange,
   onReorderPriorities,
   onStartOver,
+  modelYearOptions,
+  modelYearLabels,
 }: {
   answers: Answers;
   onFieldChange: (id: keyof Answers, value: string) => void;
   onPriceRangeChange: (range: PriceRangeValue) => void;
   onReorderPriorities: (order: string[]) => void;
   onStartOver: () => void;
+  // Computed once in Matchmaker() (shared with QuestionPanel's own Model
+  // Year step via stepForRender) -- kept as props rather than recomputed
+  // here, same reasoning as familySizeOptions being derived locally: this
+  // one genuinely doesn't depend on anything local to AnswerPanel, so
+  // there's no reason for a second copy of the derivation.
+  modelYearOptions: string[];
+  modelYearLabels: Record<string, string>;
 }) {
   const allowSixPlus = answers.vehicleType ? LARGE_CAPACITY_VEHICLE_TYPES.includes(answers.vehicleType) : false;
   const familySizeOptions = FAMILY_SIZES.filter((size) => size !== "6+" || allowSixPlus);
@@ -496,6 +539,13 @@ function AnswerPanel({
         options={POWERTRAINS}
         value={answers.powertrain}
         onSelect={(v) => onFieldChange("powertrain", v)}
+      />
+      <CompactSelectField
+        label="Model year"
+        options={modelYearOptions}
+        value={answers.modelYear}
+        onSelect={(v) => onFieldChange("modelYear", v)}
+        optionLabels={modelYearLabels}
       />
       <div className="mt-4">
         <h4 className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">Price range</h4>
@@ -594,7 +644,7 @@ function QuestionPanel({
                     : "border-white/10 bg-white/[0.02] text-zinc-200 hover:border-white/25 hover:bg-white/[0.05]"
                 }`}
               >
-                {option}
+                {step.labels?.[option] ?? option}
               </button>
             );
           })}
@@ -746,8 +796,9 @@ function ModelGroupCard({
   // still unflag it even at cap -- cap only blocks NEW flags).
   compareLimitReached: boolean;
   // 1-based rank within the primary results list (2026-09-02, Brett's
-  // request) -- undefined for "Other powertrains worth a look" cards,
-  // which stay unnumbered per instruction. Reflects the group's CURRENT
+  // request) -- undefined for "Other options worth a look" cards (both the
+  // powertrain-alternative and year-alternate kinds), which stay unnumbered
+  // per instruction. Reflects the group's CURRENT
   // position in the already-dismiss-filtered, already-sorted list passed
   // down from ResultsList, so it recomputes for free on every dismiss --
   // no separate "was this slot backfilled" tracking needed, same principle
@@ -931,6 +982,16 @@ function ModelGroupCard({
 // No "Start Over" here anymore -- that moved into AnswerPanel, secondary to
 // editing individual fields directly.
 type AlternativeCard = { powertrain: Powertrain; label: string; group: ModelGroup };
+// Kept structurally separate from AlternativeCard (2026-09-02, Model Year
+// filter, approved plan) rather than folded into the same array -- the
+// powertrain-alternatives pipeline (segmentByPowertrain) and this one
+// (getBestOtherYearAlternate) compute their candidates in genuinely
+// different ways, and there's only ever at most one of these at a time
+// (one excluded year, one best card), unlike the powertrain side which can
+// have several tiers of alternatives. Rendered as one more card appended
+// to the same "Other options worth a look" section rather than a second
+// section.
+type YearAlternativeCard = { year: number; label: string; group: ModelGroup };
 
 // Comparison view (Step B, approved plan 2026-09-02, see
 // data/matchmaker-comparison-view-plan-2026-09-02.md) -- one flagged
@@ -965,6 +1026,15 @@ const PRIMARY_SEGMENT_TAG = "primary";
 function alternativeSegmentTag(powertrain: Powertrain): string {
   return `alt:${powertrain}`;
 }
+// Disjoint from alt:${powertrain} (2026-09-02, Model Year filter) -- the
+// year-alternate card is a structurally separate concept (computed via
+// getBestOtherYearAlternate, not segmentByPowertrain), but shares the same
+// modelGroupFlagKey qualification mechanism so it can be flagged/compared
+// like any other card without colliding with a powertrain-alternative
+// card that happens to resolve to the same underlying ModelGroup.key.
+function yearAlternativeSegmentTag(year: number): string {
+  return `alt-year:${year}`;
+}
 
 // Maximum flagged models at once (confirmed-design item 2, approved plan).
 // Attempting to flag a 6th is blocked with no auto-bump of the oldest --
@@ -989,6 +1059,7 @@ function ResultsList({
   answers,
   primary,
   alternatives,
+  yearAlternative,
   flaggedKeys,
   compareLimitReached,
   onDismiss,
@@ -996,10 +1067,16 @@ function ResultsList({
   onOpenInfo,
   onRestoreAll,
   anyDismissed,
+  modelYearLabels,
 }: {
   answers: Answers;
   primary: ModelGroup[];
   alternatives: AlternativeCard[];
+  // Null whenever "Both years" is selected (nothing excluded) or nothing
+  // in the excluded year matches the customer's other answers -- both
+  // real, expected outcomes, not error states (see getBestOtherYearAlternate,
+  // matchmaker-scoring.ts).
+  yearAlternative: YearAlternativeCard | null;
   // Just the flagKeys, not the full FlaggedGroup[] -- ResultsList only
   // ever needs a yes/no "is this card flagged" check per card, never the
   // stored make/model/trimId, so a Set<string> keeps this component (and
@@ -1012,6 +1089,12 @@ function ResultsList({
   onOpenInfo: (vehicle: MatchmakerVehicle) => void;
   onRestoreAll: () => void;
   anyDismissed: boolean;
+  // Same map Matchmaker() already computes for QuestionPanel/AnswerPanel
+  // ("" -> "Both years", "2026" -> "2026 only") -- needed here because,
+  // unlike BuildingVisual's chips, these chips render bare values with no
+  // label prefix, so a raw "2026" alone would read ambiguously (a year?
+  // a price?) next to "Sedan"/"Gas".
+  modelYearLabels: Record<string, string>;
 }) {
   // Local, not lifted to Matchmaker() -- ResultsList only unmounts (and
   // this resets) on Start Over (the `done` ternary in Matchmaker()), which
@@ -1030,10 +1113,14 @@ function ResultsList({
     answers.useCase,
     answers.familySize,
     answers.powertrain,
+    answers.modelYear ? modelYearLabels[answers.modelYear] : "",
     answers.priceRange ? formatPriceRange(answers.priceRange) : "",
   ].filter(Boolean);
 
-  const hasAnyResults = primary.length > 0 || alternatives.length > 0;
+  const hasAnyResults = primary.length > 0 || alternatives.length > 0 || yearAlternative !== null;
+  const yearAlternativeFlagKey = yearAlternative
+    ? modelGroupFlagKey(yearAlternative.group.key, yearAlternativeSegmentTag(yearAlternative.year))
+    : null;
 
   return (
     <div>
@@ -1103,10 +1190,15 @@ function ResultsList({
             </div>
           )}
 
-          {alternatives.length > 0 && (
+          {(alternatives.length > 0 || yearAlternative) && (
             <div className="mt-10">
+              {/* Renamed from "Other powertrains worth a look" (2026-09-02,
+                  Model Year filter, approved plan) -- this section can now
+                  hold a year-alternate card even when no powertrain
+                  preference is set at all (segmented.alternatives empty),
+                  so a powertrain-specific heading stopped being accurate. */}
               <h3 className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
-                Other powertrains worth a look
+                Other options worth a look
               </h3>
               <div className="mt-4 flex flex-col gap-6">
                 {alternatives.map((alt) => {
@@ -1129,6 +1221,29 @@ function ResultsList({
                     </div>
                   );
                 })}
+                {/* Year-alternate (2026-09-02, approved plan) -- appended
+                    after any powertrain alternatives, same section, own
+                    disjoint flagKey (yearAlternativeSegmentTag) so it can
+                    never collide with a powertrain-alternative card that
+                    happens to resolve to the same underlying
+                    ModelGroup.key. */}
+                {yearAlternative && yearAlternativeFlagKey && (
+                  <div key={`year-${yearAlternative.year}`}>
+                    <p className="mb-2 text-xs font-semibold tracking-wide text-emerald-400 uppercase">
+                      {yearAlternative.label}
+                    </p>
+                    <ModelGroupCard
+                      group={yearAlternative.group}
+                      flagKey={yearAlternativeFlagKey}
+                      isFlagged={flaggedKeys.has(yearAlternativeFlagKey)}
+                      compareLimitReached={compareLimitReached}
+                      priorities={answers.priorities}
+                      onDismiss={onDismiss}
+                      onToggleFlag={onToggleFlag}
+                      onOpenInfo={onOpenInfo}
+                    />
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1908,6 +2023,22 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
   // touched, neither a later vehicleType nor useCase change auto-reshuffles
   // it again, so it never silently clobbers manual work.
   const [prioritiesTouched, setPrioritiesTouched] = useState(false);
+  // Dataset-wide, not answer-dependent (2026-09-02, Model Year filter) --
+  // same derivation VehiclePickerFlow's own Model step already uses, so
+  // the quiz's Model Year question and the standalone tool's year columns
+  // can never drift onto a different pair of years. Options/labels
+  // computed once here and reused by both stepForRender (QuestionPanel,
+  // during the initial quiz) and AnswerPanel (live-editable afterward) --
+  // one source of truth for "" -> "Both years" / "2026" -> "2026 only".
+  const modelYears = useMemo(() => getTwoMostRecentModelYears(vehicles), [vehicles]);
+  const modelYearOptions = useMemo(() => ["", ...modelYears.map(String)], [modelYears]);
+  const modelYearLabels = useMemo(() => {
+    const labels: Record<string, string> = { "": "Both years" };
+    modelYears.forEach((year) => {
+      labels[String(year)] = `${year} only`;
+    });
+    return labels;
+  }, [modelYears]);
 
   const currentStep = STEPS[step];
   const stepForRender = (() => {
@@ -1917,6 +2048,9 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
     if (currentStep.id === "familySize") {
       const allowSixPlus = answers.vehicleType ? LARGE_CAPACITY_VEHICLE_TYPES.includes(answers.vehicleType) : false;
       return { ...currentStep, options: FAMILY_SIZES.filter((size) => size !== "6+" || allowSixPlus) };
+    }
+    if (currentStep.id === "modelYear") {
+      return { ...currentStep, options: modelYearOptions, labels: modelYearLabels };
     }
     return currentStep;
   })();
@@ -2258,6 +2392,25 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
     })
     .filter((entry): entry is { powertrain: Powertrain; label: string; group: ModelGroup } => entry !== null);
 
+  // "Best <excluded year> option" (2026-09-02, approved plan) -- only
+  // computed at all once a single year is actually selected (Model Year's
+  // whole point is "Both years" being a real no-op default, matching
+  // powertrain/priceRange's own "" == no filter convention). Uses the
+  // dismiss-filtered `vehicles` array, same as groupWithDismissAndFlagSort
+  // above does for the primary/powertrain-alternative lists -- a "Not
+  // interested" dismissal should never resurface the same vehicle here
+  // either, even though in practice a vehicle from the currently-excluded
+  // year could only ever have been dismissed in an earlier session where
+  // "Both years" (or the other single year) was selected instead.
+  const yearAlternative: YearAlternativeCard | null = useMemo(() => {
+    if (answers.modelYear === "") return null;
+    const excludedYear = modelYears.find((year) => String(year) !== answers.modelYear);
+    if (excludedYear === undefined) return null;
+    const nonDismissedVehicles = vehicles.filter((v) => !dismissed.has(v.id));
+    const group = getBestOtherYearAlternate(nonDismissedVehicles, answers, excludedYear);
+    return group ? { year: excludedYear, label: `Best ${excludedYear} option`, group } : null;
+  }, [vehicles, answers, modelYears, dismissed]);
+
   const anyDismissed = dismissed.size > 0;
 
   // Which priorities drive comparisonRowOrder() -- the quiz's own live
@@ -2328,6 +2481,7 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
                 answers={answers}
                 primary={visiblePrimary}
                 alternatives={visibleAlternatives}
+                yearAlternative={yearAlternative}
                 flaggedKeys={flaggedKeys}
                 compareLimitReached={compareLimitReached}
                 onDismiss={dismiss}
@@ -2335,6 +2489,7 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
                 onOpenInfo={setInfoVehicle}
                 onRestoreAll={() => setDismissed(new Set())}
                 anyDismissed={anyDismissed}
+                modelYearLabels={modelYearLabels}
               />
               {/* Normal document-flow positioning (2026-09-02, Brett's
                   request) -- previously lg:sticky lg:top-24 lg:self-start,
@@ -2351,6 +2506,8 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
                 onPriceRangeChange={setPriceRange}
                 onReorderPriorities={reorderPriorities}
                 onStartOver={startOver}
+                modelYearOptions={modelYearOptions}
+                modelYearLabels={modelYearLabels}
               />
             </div>
           ) : (
