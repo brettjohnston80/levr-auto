@@ -1697,7 +1697,7 @@ function ComparisonModal({
                         className="flex h-6 shrink-0 items-center gap-1 rounded-full px-1.5 text-[11px] font-semibold text-zinc-500 transition-colors hover:bg-white/10 hover:text-white"
                       >
                         <InfoIcon size={12} />
-                        Info
+                        Details
                       </button>
                       <button
                         type="button"
