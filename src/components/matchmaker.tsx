@@ -548,7 +548,7 @@ function PriorityRanker({ order, onChange }: { order: string[]; onChange: (next:
   }
 
   return (
-    <ol className="space-y-2">
+    <ol className="space-y-1">
       {order.map((label, index) => {
         const priority = ALL_PRIORITIES.find((p) => p.label === label);
         if (!priority) return null;
@@ -559,10 +559,10 @@ function PriorityRanker({ order, onChange }: { order: string[]; onChange: (next:
             // Only `transition-colors`, never `transition-all` -- the lift
             // below applies a transform, and transitioning that would make
             // the carried row visibly lag the finger on pickup.
-            className={`flex items-center gap-3 rounded-2xl border px-4 py-3 transition-colors ${
+            className={`flex items-center gap-3 rounded-[10px] border border-transparent px-3 py-2 transition-colors ${
               dragIndex === index
                 ? "relative z-10 scale-[1.03] border-emerald-500 bg-emerald-500/10 shadow-lg shadow-black/50"
-                : "border-white/10 bg-white/[0.02]"
+                : "bg-white/[0.03]"
             }`}
           >
             {/* Full-height grab strip, 44px wide (2026-09-02, second pass
@@ -578,7 +578,7 @@ function PriorityRanker({ order, onChange }: { order: string[]; onChange: (next:
                 miss doesn't no-op -- the browser instantly claims the
                 gesture as a page scroll and there's no recovery within
                 that gesture.
-                `self-stretch` + `-my-3` (cancelling the row's py-3) makes
+                `self-stretch` + `-my-2` (cancelling the row's py-2) makes
                 this span the row's full interior height instead, taking
                 grabbable area from 56% to ~100% of row height. Width and
                 horizontal position are deliberately unchanged.
@@ -592,7 +592,7 @@ function PriorityRanker({ order, onChange }: { order: string[]; onChange: (next:
                 native page scrolling over a 9-row list taller than the
                 viewport -- trading a drag bug for a worse scroll bug. */}
             <span
-              className="-my-3 -ml-2 flex w-11 shrink-0 cursor-grab touch-none items-center justify-center self-stretch rounded-xl bg-white/[0.04] text-zinc-400 transition-colors active:cursor-grabbing active:bg-white/[0.08]"
+              className="-my-2 -ml-2 flex w-11 shrink-0 cursor-grab touch-none items-center justify-center self-stretch rounded-lg bg-white/[0.04] text-zinc-400 transition-colors active:cursor-grabbing active:bg-white/[0.08]"
               onPointerDown={(e) => handlePointerDown(e, index)}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerEnd}
@@ -607,15 +607,15 @@ function PriorityRanker({ order, onChange }: { order: string[]; onChange: (next:
               <div className="text-sm font-semibold text-white">{dimensionDisplayName(priority.label)}</div>
               <div className="text-xs text-zinc-500">{priority.clarifier}</div>
             </div>
-            {/* Horizontal on mobile, stacked from sm: up (approved option
-                A). Both buttons are full 44x44 targets; stacking two of
-                those vertically would push every row past 88px tall and
-                add ~230px to a 9-row list on exactly the screens this
-                whole pass is meant to help. Side by side, the row height
-                stays driven by the 44px handle instead. Desktop keeps the
-                familiar vertical arrangement, where pointer accuracy makes
-                the smaller footprint a non-issue. */}
-            <div className="flex shrink-0 flex-row sm:flex-col">
+            {/* Side-by-side at EVERY width (2026-09-07). Mobile already
+                worked this way; desktop used to stack them (sm:flex-col),
+                and that was the single biggest driver of desktop row
+                height -- two 44px buttons stacked = 88px, which with the
+                old py-3 and borders produced exactly the measured 114px
+                row. Content itself only needs ~36px. Unstacking them is
+                most of the height reduction in the compact-card restyle.
+                Both buttons remain full 44x44 targets. */}
+            <div className="flex shrink-0 flex-row">
               <button
                 type="button"
                 aria-label={`Move ${dimensionDisplayName(priority.label)} up`}
