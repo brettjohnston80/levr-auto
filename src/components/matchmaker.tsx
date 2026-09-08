@@ -47,6 +47,8 @@ import {
   personalizedDimensionOrder,
   INDICATOR_CLASSES,
   INDICATOR_LEVEL_LABEL,
+  DIMENSION_ABBREVIATION,
+  dimensionDisplayName,
 } from "@/lib/matchmaker-dimension-indicators";
 
 const EMPTY_ANSWERS: Answers = {
@@ -77,6 +79,11 @@ type Step = {
   labels?: Record<string, string>;
 };
 
+// Shared by the Powertrain quiz step and AnswerPanel's live-edit field so
+// the two can never drift on either the option list or the "" label.
+const POWERTRAIN_OPTIONS: string[] = ["", ...POWERTRAINS];
+const POWERTRAIN_LABELS: Record<string, string> = { "": "No preference" };
+
 const STEPS: Step[] = [
   {
     id: "vehicleType",
@@ -102,9 +109,17 @@ const STEPS: Step[] = [
   {
     id: "powertrain",
     kind: "select",
+    // "" is a real, selectable answer here (2026-09-07, tester request),
+    // not just the "not yet answered" sentinel -- same dual role Model
+    // Year's "Both years" already has. Safe to add with no scoring change
+    // because powertrain was never a hard filter: it only ever drives
+    // segmentByPowertrain's primary/alternatives split, where "" already
+    // meant "no preferred powertrain" and put everything in one list.
+    // Listed first so it reads as the no-op default, matching Model Year.
     title: "Any preference on powertrain?",
-    subtitle: "Gas, diesel, hybrid, or fully electric.",
-    options: POWERTRAINS,
+    subtitle: "Pick one to focus the list, or skip it entirely.",
+    options: POWERTRAIN_OPTIONS,
+    labels: POWERTRAIN_LABELS,
   },
   {
     id: "modelYear",
@@ -590,7 +605,7 @@ function PriorityRanker({ order, onChange }: { order: string[]; onChange: (next:
               {index + 1}
             </span>
             <div className="min-w-0 flex-1">
-              <div className="text-sm font-semibold text-white">{priority.label}</div>
+              <div className="text-sm font-semibold text-white">{dimensionDisplayName(priority.label)}</div>
               <div className="text-xs text-zinc-500">{priority.clarifier}</div>
             </div>
             {/* Horizontal on mobile, stacked from sm: up (approved option
@@ -604,7 +619,7 @@ function PriorityRanker({ order, onChange }: { order: string[]; onChange: (next:
             <div className="flex shrink-0 flex-row sm:flex-col">
               <button
                 type="button"
-                aria-label={`Move ${priority.label} up`}
+                aria-label={`Move ${dimensionDisplayName(priority.label)} up`}
                 disabled={index === 0}
                 onClick={() => move(index, -1)}
                 className="flex h-11 w-11 items-center justify-center rounded text-zinc-400 transition-colors hover:text-white disabled:opacity-30 disabled:hover:text-zinc-400"
@@ -613,7 +628,7 @@ function PriorityRanker({ order, onChange }: { order: string[]; onChange: (next:
               </button>
               <button
                 type="button"
-                aria-label={`Move ${priority.label} down`}
+                aria-label={`Move ${dimensionDisplayName(priority.label)} down`}
                 disabled={index === order.length - 1}
                 onClick={() => move(index, 1)}
                 className="flex h-11 w-11 items-center justify-center rounded text-zinc-400 transition-colors hover:text-white disabled:opacity-30 disabled:hover:text-zinc-400"
@@ -769,6 +784,7 @@ function AnswerPanel({
   modelYearOptions,
   modelYearLabels,
   modelYearTouched,
+  powertrainTouched,
 }: {
   answers: Answers;
   onFieldChange: (id: keyof Answers, value: string) => void;
@@ -784,11 +800,12 @@ function AnswerPanel({
   modelYearLabels: Record<string, string>;
   // Defensive wiring (2026-09-02, real bug fix) -- not reachable via the
   // normal quiz-completion path today (every select-kind step requires a
-  // click to advance, modelYear included, so this is always true by the
-  // time AnswerPanel can render), but costs nothing to wire correctly in
-  // case Start Over or a future skip path ever changes that. See
-  // modelYearTouched's own comment in Matchmaker() for the full story.
+  // click to advance, so both are always true by the time AnswerPanel can
+  // render), but costs nothing to wire correctly in case Start Over or a
+  // future skip path ever changes that. One flag per field that has a
+  // real "" option -- see their comments in Matchmaker().
   modelYearTouched: boolean;
+  powertrainTouched: boolean;
 }) {
   const allowSixPlus = answers.vehicleType ? LARGE_CAPACITY_VEHICLE_TYPES.includes(answers.vehicleType) : false;
   const familySizeOptions = FAMILY_SIZES.filter((size) => size !== "6+" || allowSixPlus);
@@ -812,9 +829,11 @@ function AnswerPanel({
       />
       <CompactSelectField
         label="Powertrain"
-        options={POWERTRAINS}
+        options={POWERTRAIN_OPTIONS}
         value={answers.powertrain}
         onSelect={(v) => onFieldChange("powertrain", v)}
+        optionLabels={POWERTRAIN_LABELS}
+        touched={powertrainTouched}
       />
       <CompactSelectField
         label="Model year"
@@ -862,7 +881,7 @@ function QuestionPanel({
   onReorderPriorities,
   onBack,
   onContinue,
-  modelYearTouched,
+  emptyOptionTouched,
 }: {
   step: Step;
   stepIndex: number;
@@ -873,11 +892,12 @@ function QuestionPanel({
   onSelect: (value: string) => void;
   onPriceRangeChange: (range: PriceRangeValue) => void;
   onReorderPriorities: (order: string[]) => void;
-  // Guards the Model Year step's "" ("Both years") option only (2026-09-02,
-  // real bug fix) -- harmless for every other select-kind step, since none
-  // of their option lists ever contain "" in the first place. See
-  // modelYearTouched's own comment in Matchmaker() for the full story.
-  modelYearTouched: boolean;
+  // Guards the "" option of whichever step is currently rendered, for the
+  // two steps that have a real one (Model Year's "Both years", Powertrain's
+  // "No preference"). Harmless for every other select-kind step, since none
+  // of their option lists contain "" at all. The caller resolves which
+  // field's flag applies -- see the touched-flag comments in Matchmaker().
+  emptyOptionTouched: boolean;
   onBack: () => void;
   onContinue: () => void;
 }) {
@@ -915,7 +935,7 @@ function QuestionPanel({
       {step.kind === "select" && (
         <div className="mt-8 grid gap-3 sm:grid-cols-2 md:grid-cols-3">
           {step.options?.map((option) => {
-            const active = option === "" ? modelYearTouched && value === option : value === option;
+            const active = option === "" ? emptyOptionTouched && value === option : value === option;
             return (
               <button
                 key={option}
@@ -1002,12 +1022,23 @@ function DimensionDetailList({
         const level = dimensionIndicator(score, hasData);
         const dataPoint = dimensionDataPoint(vehicle, label, level);
         return (
-          <li key={label} className="flex items-center justify-between gap-3 text-sm">
-            <span className="text-zinc-300">{label}</span>
-            <div className="flex shrink-0 items-center gap-2">
-              <span className="text-xs text-zinc-500">{dataPoint}</span>
+          // Shrink chain (2026-09-07, fixes badges spilling past the card
+          // edge on mobile). Previously the right-hand group was `shrink-0`
+          // and neither the <li> nor the label had `min-w-0`, so nothing in
+          // the row could yield: measured at 390px, the group ran to x=378
+          // inside an <li> ending at x=357 -- a 21px overflow that ate the
+          // card's 25px right padding and stopped 3px short of the border,
+          // i.e. crossing it on any device with slightly wider text metrics
+          // or a longer data point/badge. Now the row can actually shrink,
+          // and the squeeze lands on the data point (supplementary detail)
+          // rather than the badge, which stays `shrink-0` so its pill is
+          // never clipped or wrapped.
+          <li key={label} className="flex min-w-0 items-center justify-between gap-3 text-sm">
+            <span className="min-w-0 text-zinc-300">{dimensionDisplayName(label)}</span>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="truncate text-xs text-zinc-500">{dataPoint}</span>
               <span
-                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${INDICATOR_CLASSES[level]}`}
+                className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${INDICATOR_CLASSES[level]}`}
               >
                 {INDICATOR_LEVEL_LABEL[level]}
               </span>
@@ -1112,7 +1143,11 @@ function ModelGroupCard({
 
   return (
     <div
-      className={`flex flex-col gap-4 rounded-3xl border p-6 shadow-xl shadow-black/20 transition-colors sm:flex-row sm:items-start sm:justify-between ${
+      // overflow-hidden is a safety net only (2026-09-07) -- the shrink
+      // chain on the dimension rows below is the real fix; this guarantees
+      // no future long label/data-point/badge string can paint outside the
+      // card's rounded border even if that chain is later broken.
+      className={`flex flex-col gap-4 overflow-hidden rounded-3xl border p-6 shadow-xl shadow-black/20 transition-colors sm:flex-row sm:items-start sm:justify-between ${
         isFlagged
           ? "border-emerald-500/40 bg-emerald-500/[0.06]"
           : "border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02]"
@@ -1335,6 +1370,41 @@ const FLAG_CAP = 5;
 // previously position 6 (or beyond) with zero extra bookkeeping -- the same
 // "recompute from the filtered source on every render" principle as the
 // per-trim headline recompute and the model-group backfill above it.
+// Matches Tailwind's `sm` breakpoint (640px) from JS. ComparisonModal
+// needs its label-column width as a NUMBER, not a class, because that one
+// value feeds both realColumnWidth's calc() and tableMinWidthPx -- see
+// LABEL_COLUMN_WIDTH_PX's own comment for why a CSS-only `sm:` variant
+// would desync them under table-layout: fixed. Starts false and corrects
+// on mount, which is safe here: the table only ever renders inside an
+// already-open modal, so there is no server-rendered flash.
+function useIsNarrowViewport(): boolean {
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    // A plain `resize` listener rather than matchMedia's `change` event.
+    // Both are correct in a real browser; this is the more conservative of
+    // the two, since it re-reads on any viewport change rather than only
+    // on a breakpoint crossing, and the handler is a single number compare
+    // (React bails out when the value is unchanged).
+    //
+    // Honest note on verification (2026-09-07): live switching could NOT
+    // be confirmed in this project's browser harness. The page is tested
+    // inside a same-origin iframe, and resizing that iframe from the
+    // parent updates its `innerWidth` while firing NEITHER `resize` NOR
+    // matchMedia `change` inside it (measured: 0 of each across repeated
+    // resizes). Both branches were instead verified by mounting fresh at
+    // each width. On a real device -- window resize, or a phone rotating
+    // -- these events fire normally.
+    //
+    // 640 matches Tailwind's `sm` breakpoint, keeping this in step with
+    // the responsive classes used elsewhere in this file.
+    const update = () => setNarrow(window.innerWidth < 640);
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+  return narrow;
+}
+
 const PRIMARY_INITIAL_COUNT = 5;
 const PRIMARY_MAX_COUNT = 10;
 
@@ -1740,7 +1810,20 @@ function ComparisonModal({
   // read; every other row's cells automatically inherit the same column
   // widths with no styling of their own needed, so the <tbody> cells below
   // are untouched.
-  const LABEL_COLUMN_WIDTH_PX = 160; // keep in sync with the sticky th's `w-40` below
+  // Narrowed on mobile (2026-09-07). At 390px the 160px label column was
+  // 41% of the viewport, leaving 182px for vehicle columns against a
+  // 160px floor -- so the sticky column worked perfectly and still only
+  // ever showed ONE vehicle at a time, which defeats a comparison table.
+  // 104px fits every abbreviated label (see `rowLabel` below) on one line.
+  //
+  // Resolved in JS, not via a `sm:` class, and deliberately so: this value
+  // feeds BOTH `realColumnWidth`'s calc() and `tableMinWidthPx`, and under
+  // `table-layout: fixed` a CSS-only change would silently desync those
+  // two from the rendered width -- the exact class of mismatch behind the
+  // 2026-09-02 mobile squish bug. One source of truth, applied as an
+  // inline width on the first row's cells.
+  const isNarrow = useIsNarrowViewport();
+  const LABEL_COLUMN_WIDTH_PX = isNarrow ? 104 : 160;
   const ADD_TILE_COLUMN_WIDTH_PX = 140;
   // Floor per vehicle column, below which we'd rather scroll than squish
   // (real narrow-viewport bug found and fixed 2026-09-02 -- see
@@ -1850,7 +1933,14 @@ function ComparisonModal({
           >
             <thead>
               <tr>
-                <th className="sticky left-0 z-10 w-40 min-w-40 bg-zinc-950" />
+                {/* Width comes from LABEL_COLUMN_WIDTH_PX, not a w-* class
+                    -- this is the table's first row, which is the only row
+                    table-layout: fixed reads widths from, and it must match
+                    the same constant used by realColumnWidth/tableMinWidthPx. */}
+                <th
+                  className="sticky left-0 z-10 bg-zinc-950"
+                  style={{ width: `${LABEL_COLUMN_WIDTH_PX}px` }}
+                />
                 {columns.map((column) => (
                   <th
                     key={column.flagKey}
@@ -1947,11 +2037,20 @@ function ComparisonModal({
             <tbody>
               {rows.map((label) => (
                 <tr key={label} className="border-t border-white/5">
+                  {/* No width classes here on purpose: under table-layout:
+                      fixed only the first row's widths are read, and the
+                      <thead> cell above already sets this column from
+                      LABEL_COLUMN_WIDTH_PX. Abbreviated on mobile (the
+                      same DIMENSION_ABBREVIATION map the compact card row
+                      uses) so a 104px column doesn't wrap "Technology &
+                      Features" onto three lines; `title` keeps the full
+                      label reachable. */}
                   <th
                     scope="row"
-                    className="sticky left-0 z-10 w-40 min-w-40 bg-zinc-950 py-3 pr-4 text-left align-top text-xs font-semibold text-zinc-400"
+                    title={isNarrow ? dimensionDisplayName(label) : undefined}
+                    className="sticky left-0 z-10 bg-zinc-950 py-3 pr-4 text-left align-top text-xs font-semibold text-zinc-400"
                   >
-                    {label}
+                    {isNarrow ? (DIMENSION_ABBREVIATION[label] ?? dimensionDisplayName(label)) : dimensionDisplayName(label)}
                   </th>
                   {columns.map((column) => {
                     if (!isDimensionApplicable(column.activeVehicle, label)) {
@@ -2359,6 +2458,12 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
   // point shared by both the quiz's own select() and AnswerPanel's direct
   // onFieldChange -- so both surfaces stay correct from one write, not two.
   const [modelYearTouched, setModelYearTouched] = useState(false);
+  // Same shape and same reason as modelYearTouched above: Powertrain gained
+  // a real "No preference" option (2026-09-07) whose stored value is "",
+  // which is also the "not yet answered" sentinel -- so without this the
+  // tile would render pre-highlighted on first paint, the exact bug fixed
+  // for Model Year in 479ad9e.
+  const [powertrainTouched, setPowertrainTouched] = useState(false);
   // Dataset-wide, not answer-dependent (2026-09-02, Model Year filter) --
   // same derivation VehiclePickerFlow's own Model step already uses, so
   // the quiz's Model Year question and the standalone tool's year columns
@@ -2411,6 +2516,7 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
   // no longer reshuffle it.
   function setField(id: keyof Answers, value: string) {
     if (id === "modelYear") setModelYearTouched(true);
+    if (id === "powertrain") setPowertrainTouched(true);
     setAnswers((prev) => {
       const next = { ...prev, [id]: value };
       if (id === "vehicleType" && prev.vehicleType !== value) {
@@ -2507,6 +2613,7 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
     setInfoVehicle(null);
     setPrioritiesTouched(false);
     setModelYearTouched(false);
+    setPowertrainTouched(false);
   }
 
   function dismiss(id: string) {
@@ -2716,26 +2823,31 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
   // group -- and no card -- is ever built for it; nothing needs to
   // explicitly hide a fully-dismissed card.
   //
-  // Flag is now group-level (Step B) -- a group bubbles to the top of its
-  // section if ITS OWN qualified flagKey is flagged, a direct Set lookup
-  // rather than the old "check every variant" scan, since flagging no
-  // longer has any per-trim component to check. `segmentTag` tells this
-  // function which qualified flagKey to check -- it's called once for the
-  // primary list and once per alternative-powertrain bucket, and each
-  // call needs its own segment tag so a Tucson-Gas group and a
-  // Tucson-Hybrid group (same raw ModelGroup.key) are never confused with
-  // each other. Flag never changes which trim is the group's
-  // headline/active display -- only dismiss does that.
-  function groupWithDismissAndFlagSort(list: MatchedVehicle[], segmentTag: string): ModelGroup[] {
+  // Flagging deliberately does NOT affect list order (2026-09-07, Brett's
+  // request after tester feedback). This function used to end in a
+  // `.sort()` that bubbled a flagged group to the top of its section --
+  // working as originally designed, but the effect was that flagging a
+  // card mid-list yanked it to position 1, renumbered every rank badge,
+  // and jumped the 5/10 "Show more" window. Flag is now purely a state
+  // toggle: order is whatever `groupByModel` returns (already sorted by
+  // weighted score), independent of what's flagged.
+  //
+  // The `segmentTag` parameter went away with the sort -- it existed only
+  // to build the qualified flagKey being looked up. Nothing else here
+  // needed it, and callers no longer pass one.
+  //
+  // Note this is safe for the "Other options worth a look" cards, which
+  // take `resolved[0]`: you can only flag what's displayed, and the
+  // displayed alternative is already the highest scorer, so removing the
+  // flag-sort can't change which vehicle that section shows.
+  // Flag never changes which trim is a group's headline/active display --
+  // only dismiss does that.
+  function groupWithDismiss(list: MatchedVehicle[]): ModelGroup[] {
     const nonDismissed = list.filter((v) => !dismissed.has(v.id));
-    return groupByModel(nonDismissed).sort(
-      (a, b) =>
-        Number(flaggedKeys.has(modelGroupFlagKey(b.key, segmentTag))) -
-        Number(flaggedKeys.has(modelGroupFlagKey(a.key, segmentTag))),
-    );
+    return groupByModel(nonDismissed);
   }
 
-  const visiblePrimary = groupWithDismissAndFlagSort(segmented.primary, PRIMARY_SEGMENT_TAG);
+  const visiblePrimary = groupWithDismiss(segmented.primary);
 
   // Each alternative powertrain shows only its single best (post-dismiss/
   // flag) MODEL GROUP as one labeled card, e.g. "Best hybrid option" --
@@ -2750,10 +2862,7 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
   // whole purpose.
   const visibleAlternatives = segmented.alternatives
     .map((altGroup) => {
-      const resolved = groupWithDismissAndFlagSort(
-        altGroup.vehicles,
-        alternativeSegmentTag(altGroup.powertrain),
-      );
+      const resolved = groupWithDismiss(altGroup.vehicles);
       return resolved.length > 0
         ? { powertrain: altGroup.powertrain, label: altGroup.label, group: resolved[0] }
         : null;
@@ -2877,6 +2986,7 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
                 modelYearOptions={modelYearOptions}
                 modelYearLabels={modelYearLabels}
                 modelYearTouched={modelYearTouched}
+                powertrainTouched={powertrainTouched}
               />
             </div>
           ) : (
@@ -2893,7 +3003,17 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
                 onReorderPriorities={reorderPriorities}
                 onBack={goBack}
                 onContinue={goNext}
-                modelYearTouched={modelYearTouched}
+                // Only two steps have a real "" option (Model Year's "Both
+                // years", Powertrain's "No preference"); every other select
+                // step's option list never contains "", so `true` is a
+                // no-op for them.
+                emptyOptionTouched={
+                  currentStep.id === "modelYear"
+                    ? modelYearTouched
+                    : currentStep.id === "powertrain"
+                      ? powertrainTouched
+                      : true
+                }
               />
               <BuildingVisual answers={answers} currentStepId={currentStep.id} />
             </div>

@@ -12,6 +12,7 @@ import {
   personalizedDimensionOrder,
   INDICATOR_CLASSES,
   INDICATOR_LEVEL_LABEL,
+  dimensionDisplayName,
 } from "@/lib/matchmaker-dimension-indicators";
 
 // Real, working sample video (this task, 2026-09-01) -- shown identically
@@ -69,7 +70,7 @@ function buildFitBullets(vehicle: MatchmakerVehicle, answers: Answers): string[]
   answers.priorities.slice(0, 3).forEach((label, index) => {
     const score = vehicle.scores[label] ?? 0;
     if (score >= 80) {
-      bullets.push(`Scores well on ${label}, your #${index + 1} priority.`);
+      bullets.push(`Scores well on ${dimensionDisplayName(label)}, your #${index + 1} priority.`);
     }
   });
 
@@ -280,7 +281,7 @@ export function VehicleDetailModal({
                     const dataPoint = dimensionDataPoint(vehicle, label, level);
                     return (
                       <li key={label} className="flex items-center justify-between gap-3 text-sm">
-                        <span className="text-zinc-300">{label}</span>
+                        <span className="text-zinc-300">{dimensionDisplayName(label)}</span>
                         <div className="flex shrink-0 items-center gap-2">
                           <span className="text-xs text-zinc-500">{dataPoint}</span>
                           <span

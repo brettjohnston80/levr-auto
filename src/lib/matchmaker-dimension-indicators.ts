@@ -139,6 +139,31 @@ export const INDICATOR_LEVEL_LABEL: Record<IndicatorLevel, string> = {
 // dimensions can never collide on their first couple letters (e.g.
 // Comfort vs. Cargo Space). Not used by the modal's full breakdown, which
 // has room for the full label.
+// Customer-facing display names, where they differ from the internal
+// dimension key (2026-09-07, approved rename).
+//
+// Deliberately a display LAYER rather than renaming the key itself: the
+// dimension label doubles as a real data key throughout this system --
+// it's what `matchmaker-vehicle-display.ts` maps each DB score column onto
+// (tech_features_score -> "Technology & Features"), what indexes
+// `vehicle.scores`/`vehicle.hasData`, what the ~45 priority-order arrays in
+// PRIORITY_HINTS_BY_USE_CASE contain, and what keys the maps in this file.
+// Renaming the key would also have to line up with the dataset CSV's own
+// "Technology & Features Score" column header and the scoring pipeline, so
+// the string stays put and only what the customer reads changes.
+//
+// Anything NOT listed here displays under its own name unchanged.
+export const DIMENSION_DISPLAY_NAME: Record<string, string> = {
+  "Technology & Features": "Technology",
+};
+
+// The single funnel every user-facing render of a dimension name goes
+// through, so a future rename is one entry above rather than a hunt
+// through render sites.
+export function dimensionDisplayName(label: string): string {
+  return DIMENSION_DISPLAY_NAME[label] ?? label;
+}
+
 export const DIMENSION_ABBREVIATION: Record<string, string> = {
   Safety: "Sf",
   Comfort: "Cf",
@@ -146,7 +171,10 @@ export const DIMENSION_ABBREVIATION: Record<string, string> = {
   "Fuel Economy": "FE",
   Reliability: "Re",
   Performance: "Pf",
-  "Technology & Features": "T&F",
+  // Keyed by the internal label, but derived from the DISPLAY name
+  // ("Technology"), per the 2026-09-07 rename -- "T&F" abbreviated the old
+  // "Technology & Features" and would have read as a stale name on mobile.
+  "Technology & Features": "Tech",
   "Price/Value": "P/V",
   "Resale Value": "RV",
   "Towing & Payload": "T&P",
