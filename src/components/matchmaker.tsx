@@ -1913,6 +1913,25 @@ function ComparisonModal({
   // inline width on the first row's cells.
   const isNarrow = useIsNarrowViewport();
   const LABEL_COLUMN_WIDTH_PX = isNarrow ? 104 : 160;
+
+  // Measured width of the horizontal scroll container. Needed because the
+  // header's stacked-vs-side-by-side layout has to key off the ACTUAL
+  // column width, which no viewport breakpoint can express -- see
+  // headerStacked below. ResizeObserver rather than a window resize
+  // listener: it fires on the element's own size changing for any reason
+  // (orientation, window resize, the modal opening), which is both more
+  // correct and observable in the iframe-based test harness, where window
+  // resize events are not delivered.
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const [scrollerWidth, setScrollerWidth] = useState(0);
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setScrollerWidth(el.clientWidth));
+    setScrollerWidth(el.clientWidth);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const ADD_TILE_COLUMN_WIDTH_PX = 140;
   // Floor per vehicle column, below which we'd rather scroll than squish
   // (real narrow-viewport bug found and fixed 2026-09-02 -- see
@@ -1950,10 +1969,39 @@ function ComparisonModal({
   // non-functional per-<th> `min-w-[160px]` class was already trying (and
   // failing) to enforce -- reusing that already-designed-but-unenforced
   // value here, not introducing a new one.
+  // Below this, a vehicle column cannot fit the name beside the Details
+  // and remove controls: those take ~102px of a column's content box
+  // (Details ~62px + remove 24px + gaps ~16px), px-4 takes 32px, and a
+  // make+model needs ~110px on one line at text-sm.
+  const HEADER_STACK_MIN_COLUMN_PX = 240;
+
   const tableMinWidthPx =
     LABEL_COLUMN_WIDTH_PX +
     (showAddTile ? ADD_TILE_COLUMN_WIDTH_PX : 0) +
     columns.length * VEHICLE_COLUMN_MIN_WIDTH_PX;
+
+  // Header layout keyed to the REAL column width, never a viewport
+  // breakpoint (2026-09-07, landscape regression). The header used to
+  // stack below `sm:` and sit side-by-side above it, which is wrong,
+  // because a column's width depends on BOTH the viewport and how many
+  // vehicles are being compared -- the table takes the larger of its
+  // container and its own min-width, and every vehicle column is floored
+  // at VEHICLE_COLUMN_MIN_WIDTH_PX. So a landscape phone (844x390, 3
+  // columns) crosses `sm:` and got the wide-column layout while its
+  // columns were still 165px, squeezing the name block to 32px and
+  // wrapping it over 7 lines -- the exact bug the stacking was added to
+  // fix. It is not landscape-specific either: at the 5-vehicle cap even a
+  // 1280px desktop lands on 186px columns. No breakpoint can express
+  // this, so the width is measured instead.
+  const tableWidthPx = Math.max(scrollerWidth, tableMinWidthPx);
+  const columnWidthPx =
+    columns.length > 0
+      ? (tableWidthPx - LABEL_COLUMN_WIDTH_PX - (showAddTile ? ADD_TILE_COLUMN_WIDTH_PX : 0)) /
+        columns.length
+      : 0;
+  // Stacks until measured (scrollerWidth 0 on first paint): the narrow
+  // layout is readable at any width, the wide one is not.
+  const headerStacked = columnWidthPx < HEADER_STACK_MIN_COLUMN_PX;
 
   // Quick-duplicate shortcuts (MY2027 plan Part 3, this task) -- one per
   // current column, rendered below the "+ Add vehicle" tile, sharing its
@@ -2015,7 +2063,7 @@ function ComparisonModal({
           </div>
         ) : (
         <>
-        <div className="overflow-x-auto">
+        <div ref={scrollerRef} className="overflow-x-auto">
           <table
             className="w-full table-fixed border-separate border-spacing-0"
             style={{ minWidth: `${tableMinWidthPx}px` }}
@@ -2046,7 +2094,13 @@ function ComparisonModal({
                         one character per line. Desktop columns are ~350px,
                         where the original row layout is comfortable, so
                         that is preserved unchanged. */}
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div
+                      className={
+                        headerStacked
+                          ? "flex flex-col gap-2"
+                          : "flex flex-row items-start justify-between gap-2"
+                      }
+                    >
                       <div className="min-w-0">
                         {/* Wraps, never truncates (2026-09-07 fix). This
                             was `truncate` (overflow-hidden + ellipsis +
