@@ -47,7 +47,6 @@ import {
   personalizedDimensionOrder,
   INDICATOR_CLASSES,
   INDICATOR_LEVEL_LABEL,
-  DIMENSION_ABBREVIATION,
   dimensionDisplayName,
 } from "@/lib/matchmaker-dimension-indicators";
 
@@ -2037,9 +2036,36 @@ function ComparisonModal({
                     style={{ width: realColumnWidth }}
                     className="px-4 pb-4 text-left align-top"
                   >
-                    <div className="flex items-start justify-between gap-2">
+                    {/* Stacks on mobile, side-by-side from sm: up
+                        (2026-09-07). Side-by-side at every width was what
+                        actually broke the header: a vehicle column is
+                        floored at 160px, so after px-4 there are 128px of
+                        content, and the Details button (~62px) plus the
+                        remove control (24px) plus gaps took ~102px of it as
+                        shrink-0 siblings -- leaving the name ~23px, i.e.
+                        one character per line. Desktop columns are ~350px,
+                        where the original row layout is comfortable, so
+                        that is preserved unchanged. */}
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-white">
+                        {/* Wraps, never truncates (2026-09-07 fix). This
+                            was `truncate` (overflow-hidden + ellipsis +
+                            nowrap), which on mobile clipped the name to a
+                            single character -- "GMC Yukon XL 2026" showed
+                            as "G…". A vehicle column is pinned at the
+                            160px floor here, and the Details button plus
+                            the remove control sit beside this block as
+                            shrink-0 siblings, leaving it roughly 30px:
+                            enough for one glyph and an ellipsis. Wrapping
+                            to a second line costs a little header height
+                            and keeps the name readable, which is the whole
+                            point of a comparison column.
+                            PRE-EXISTING, not caused by the 104px label
+                            column: a vehicle column measures 160px either
+                            way, since the table sits at its own min-width
+                            and each column is floored at 160px regardless
+                            of what the label column takes. */}
+                        <p className="text-sm font-semibold break-words text-white">
                           {column.make} {column.model}{" "}
                           <span className="font-normal text-zinc-500">{column.activeVehicle.modelYear}</span>
                         </p>
@@ -2047,6 +2073,9 @@ function ComparisonModal({
                           {formatPriceEstimate(column.activeVehicle.trueStartingPriceCents)}
                         </p>
                       </div>
+                      {/* Actions grouped so they stay on one row together
+                          when the header stacks on mobile. */}
+                      <div className="flex shrink-0 items-center gap-1">
                       {/* "More info" (this task) -- opens VehicleDetailModal
                           for whichever trim is CURRENTLY active in this
                           column (column.activeVehicle already reflects the
@@ -2071,6 +2100,7 @@ function ComparisonModal({
                       >
                         <CloseIcon size={12} />
                       </button>
+                      </div>
                     </div>
 
                     {column.variants.length > 1 && (
@@ -2128,19 +2158,23 @@ function ComparisonModal({
               {rows.map((label) => (
                 <tr key={label} className="border-t border-white/5">
                   {/* No width classes here on purpose: under table-layout:
-                      fixed only the first row's widths are read, and the
-                      <thead> cell above already sets this column from
-                      LABEL_COLUMN_WIDTH_PX. Abbreviated on mobile (the
-                      same DIMENSION_ABBREVIATION map the compact card row
-                      uses) so a 104px column doesn't wrap "Technology &
-                      Features" onto three lines; `title` keeps the full
-                      label reachable. */}
+                      fixed only the first row's WIDTHS are read (from the
+                      <thead> row, which sets this column from
+                      LABEL_COLUMN_WIDTH_PX) -- HEIGHTS are still per-row
+                      and computed normally, which is what lets a wrapped
+                      two-line label make just its own row taller.
+                      Full display names on every viewport (2026-09-07,
+                      Brett's request), replacing the mobile abbreviations
+                      (Cf/Cg/Sf/...). At 104px the longer ones wrap to two
+                      lines rather than being shortened; same funnel as
+                      desktop, so the two surfaces can't drift on wording.
+                      No `title` needed now that the full label is on
+                      screen. */}
                   <th
                     scope="row"
-                    title={isNarrow ? dimensionDisplayName(label) : undefined}
                     className="sticky left-0 z-10 bg-zinc-950 py-3 pr-4 text-left align-top text-xs font-semibold text-zinc-400"
                   >
-                    {isNarrow ? (DIMENSION_ABBREVIATION[label] ?? dimensionDisplayName(label)) : dimensionDisplayName(label)}
+                    {dimensionDisplayName(label)}
                   </th>
                   {columns.map((column) => {
                     if (!isDimensionApplicable(column.activeVehicle, label)) {
