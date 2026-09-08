@@ -1090,6 +1090,7 @@ function ModelGroupCard({
   position,
   priorities,
   onDismiss,
+  onDismissGroup,
   onToggleFlag,
   onOpenInfo,
 }: {
@@ -1119,7 +1120,17 @@ function ModelGroupCard({
   // as the per-trim headline recompute above.
   position?: number;
   priorities: string[];
-  onDismiss: (id: string) => void;
+  // Two dismiss shapes on purpose (2026-09-07), because this component is
+  // shared by two sections with deliberately different behavior:
+  //   - PRIMARY list passes onDismissGroup -- card-level, removes every
+  //     variant and unflags, and the card collapses to a restorable line.
+  //   - "Other options worth a look" (powertrain alternatives and the
+  //     year-alternate card) pass onDismiss -- per-trim, exactly as
+  //     before. Those sections render a single best-of card, so there is
+  //     nothing to collapse: dismissing simply promotes the next best.
+  // onDismissGroup wins when both are supplied.
+  onDismiss?: (id: string) => void;
+  onDismissGroup?: (group: ModelGroup, flagKey: string) => void;
   onToggleFlag: (candidate: FlaggedGroup) => void;
   // Takes the whole vehicle, not just an id (changed for the Comparison
   // Tool's own "More info" button, this task) -- ComparisonModal only ever
@@ -1240,7 +1251,9 @@ function ModelGroupCard({
         <div className="flex flex-wrap items-center gap-2 sm:flex-col sm:items-stretch">
           <button
             type="button"
-            onClick={() => onDismiss(activeVariant.id)}
+            onClick={() =>
+              onDismissGroup ? onDismissGroup(group, flagKey) : onDismiss?.(activeVariant.id)
+            }
             className="rounded-full border border-white/15 px-4 py-2 text-xs font-semibold text-zinc-300 transition-colors hover:border-red-500/40 hover:text-red-400"
           >
             Not interested
@@ -1405,17 +1418,53 @@ function useIsNarrowViewport(): boolean {
   return narrow;
 }
 
+// One entry per model group in the primary list, in score order, tagging
+// whether it renders as a full card or a collapsed "Not interested" line.
+// Built in Matchmaker() by diffing the filtered and unfiltered grouping
+// passes -- see the comment there.
+type PrimaryRow = { collapsed: boolean; group: ModelGroup };
+
+// Collapsed "Not interested" row (2026-09-07). Sits in the dismissed
+// group's original score position rather than vanishing, so the customer
+// can see what they ruled out and undo it.
+//
+// Deliberately minimal: no score, no indicator badges, no trim switcher,
+// no rank number -- it is a tombstone, not a card, and must not compete
+// visually with real results. Roughly a third of a card's height.
+function CollapsedGroupRow({ group, onRestore }: { group: ModelGroup; onRestore: () => void }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.015] px-4 py-3">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium text-zinc-500">
+          {group.make} {group.model}{" "}
+          <span className="font-normal text-zinc-600">{group.modelYear}</span>
+        </p>
+        <p className="text-xs text-zinc-600">Not interested</p>
+      </div>
+      <button
+        type="button"
+        onClick={onRestore}
+        className="shrink-0 rounded-full border border-white/15 px-4 py-1.5 text-xs font-semibold text-zinc-400 transition-colors hover:border-white/30 hover:text-white"
+      >
+        Restore
+      </button>
+    </div>
+  );
+}
+
 const PRIMARY_INITIAL_COUNT = 5;
 const PRIMARY_MAX_COUNT = 10;
 
 function ResultsList({
   answers,
-  primary,
+  primaryRows,
   alternatives,
   yearAlternative,
   flaggedKeys,
   compareLimitReached,
   onDismiss,
+  onDismissGroup,
+  onRestoreGroup,
   onToggleFlag,
   onOpenInfo,
   onRestoreAll,
@@ -1423,7 +1472,10 @@ function ResultsList({
   modelYearLabels,
 }: {
   answers: Answers;
-  primary: ModelGroup[];
+  // Every primary-list group in score order, each tagged collapsed or not
+  // -- NOT just the visible ones, since a collapsed row has to render in
+  // its original position among them.
+  primaryRows: PrimaryRow[];
   alternatives: AlternativeCard[];
   // Null whenever "Both years" is selected (nothing excluded) or nothing
   // in the excluded year matches the customer's other answers -- both
@@ -1437,7 +1489,12 @@ function ResultsList({
   // at all.
   flaggedKeys: Set<string>;
   compareLimitReached: boolean;
+  // Per-trim dismiss, still used by the alternatives and year-alternate
+  // cards, which keep their original behavior (approved scope).
   onDismiss: (id: string) => void;
+  // Card-level dismiss/restore, primary list only.
+  onDismissGroup: (group: ModelGroup, flagKey: string) => void;
+  onRestoreGroup: (group: ModelGroup) => void;
   onToggleFlag: (candidate: FlaggedGroup) => void;
   onOpenInfo: (vehicle: MatchmakerVehicle) => void;
   onRestoreAll: () => void;
@@ -1457,9 +1514,54 @@ function ResultsList({
   // re-collapsing.
   const [showMore, setShowMore] = useState(false);
   const visibleCount = showMore ? PRIMARY_MAX_COUNT : PRIMARY_INITIAL_COUNT;
-  const displayedPrimary = primary.slice(0, visibleCount);
-  const remainingToReveal = Math.min(primary.length, PRIMARY_MAX_COUNT) - PRIMARY_INITIAL_COUNT;
+
+  // The 5/10 window counts ACTIVE cards only -- collapsed rows never
+  // consume a slot (approved 2026-09-07). So dismissing card #3 still
+  // pulls #6 up into view, exactly as it did when a dismissed card
+  // vanished outright; the only difference is that a muted line now marks
+  // where #3 used to be.
+  const activeRowCount = primaryRows.filter((r) => !r.collapsed).length;
+  const remainingToReveal = Math.min(activeRowCount, PRIMARY_MAX_COUNT) - PRIMARY_INITIAL_COUNT;
   const canShowMore = !showMore && remainingToReveal > 0;
+
+  // Walked in score order so a collapsed row lands in its original
+  // position. `shownActive` both numbers the visible cards (a clean 1..N
+  // that ignores collapsed rows entirely) and enforces the window; once
+  // it reaches visibleCount nothing further renders, collapsed included,
+  // since that region is behind "Show more".
+  const renderedPrimary: React.ReactNode[] = [];
+  {
+    let shownActive = 0;
+    for (const row of primaryRows) {
+      if (shownActive >= visibleCount) break;
+      if (row.collapsed) {
+        renderedPrimary.push(
+          <CollapsedGroupRow
+            key={row.group.key}
+            group={row.group}
+            onRestore={() => onRestoreGroup(row.group)}
+          />,
+        );
+        continue;
+      }
+      shownActive += 1;
+      const flagKey = modelGroupFlagKey(row.group.key, PRIMARY_SEGMENT_TAG);
+      renderedPrimary.push(
+        <ModelGroupCard
+          key={row.group.key}
+          group={row.group}
+          flagKey={flagKey}
+          isFlagged={flaggedKeys.has(flagKey)}
+          compareLimitReached={compareLimitReached}
+          position={shownActive}
+          priorities={answers.priorities}
+          onDismissGroup={onDismissGroup}
+          onToggleFlag={onToggleFlag}
+          onOpenInfo={onOpenInfo}
+        />,
+      );
+    }
+  }
 
   const answerChips = [
     answers.vehicleType,
@@ -1470,7 +1572,11 @@ function ResultsList({
     answers.priceRange ? formatPriceRange(answers.priceRange) : "",
   ].filter(Boolean);
 
-  const hasAnyResults = primary.length > 0 || alternatives.length > 0 || yearAlternative !== null;
+  // Collapsed rows deliberately do NOT count as results here: if every
+  // primary card has been dismissed and nothing else matched, the customer
+  // still gets the "You dismissed everything" state and its global Restore
+  // All (unchanged, approved) rather than a list of nothing but tombstones.
+  const hasAnyResults = activeRowCount > 0 || alternatives.length > 0 || yearAlternative !== null;
   const yearAlternativeFlagKey = yearAlternative
     ? modelGroupFlagKey(yearAlternative.group.key, yearAlternativeSegmentTag(yearAlternative.year))
     : null;
@@ -1512,25 +1618,9 @@ function ResultsList({
 
       {hasAnyResults ? (
         <>
-          {primary.length > 0 && (
+          {renderedPrimary.length > 0 && (
             <div className="mt-8 flex flex-col gap-4">
-              {displayedPrimary.map((group, index) => {
-                const flagKey = modelGroupFlagKey(group.key, PRIMARY_SEGMENT_TAG);
-                return (
-                  <ModelGroupCard
-                    key={group.key}
-                    group={group}
-                    flagKey={flagKey}
-                    isFlagged={flaggedKeys.has(flagKey)}
-                    compareLimitReached={compareLimitReached}
-                    position={index + 1}
-                    priorities={answers.priorities}
-                    onDismiss={onDismiss}
-                    onToggleFlag={onToggleFlag}
-                    onOpenInfo={onOpenInfo}
-                  />
-                );
-              })}
+              {renderedPrimary}
               {canShowMore && (
                 <button
                   type="button"
@@ -2849,6 +2939,61 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
 
   const visiblePrimary = groupWithDismiss(segmented.primary);
 
+  // Second, UNFILTERED grouping pass, used only to derive collapsed rows
+  // (2026-09-07, "Not interested" card collapse). Deliberately additive:
+  // groupWithDismiss above is untouched and still feeds scoring, headline
+  // recomputation and the visible list, because filtering before grouping
+  // is what makes those work with no special-casing. Diffing the two
+  // passes by group key is what identifies a fully-dismissed group --
+  // present here, absent there -- without rewriting either.
+  //
+  // Taking the group object from THIS pass (not the filtered one, where it
+  // no longer exists) is also what makes Restore exact: it still holds
+  // every variant, so restoring removes precisely the ids that were
+  // dismissed, and the card's headline is recomputed fresh by the normal
+  // pipeline afterwards rather than restored from anything cached.
+  //
+  // PRIMARY LIST ONLY, by design (approved scope): the alternatives and
+  // year-alternate sections each render exactly one best-of card, so a
+  // collapsed row there would be meaningless -- they keep today's
+  // behavior, where dismissing simply promotes the next best vehicle.
+  const allPrimaryGroups = groupByModel(segmented.primary);
+  const activePrimaryKeys = new Set(visiblePrimary.map((g) => g.key));
+  const primaryRows: PrimaryRow[] = allPrimaryGroups.map((group) =>
+    activePrimaryKeys.has(group.key)
+      ? // Use the FILTERED group for an active row: a partially-dismissed
+        // model must render with its dismissed trims already removed, so
+        // its headline/trim switcher stay correct.
+        { collapsed: false, group: visiblePrimary.find((g) => g.key === group.key) ?? group }
+      : // Use the UNFILTERED group for a collapsed row: it's the only one
+        // that still holds every variant, which Restore needs.
+        { collapsed: true, group },
+  );
+
+  // Card-level dismiss (approved 2026-09-07): removes EVERY trim in the
+  // group in one action, not just whichever one happens to be showing.
+  // Per-trim dismiss was the old behavior and was near-invisible on a
+  // multi-trim model -- the card stayed put and merely re-picked its
+  // headline, which is not what "Not interested" means to a customer.
+  // Also unflags in the same action, so a dismissed card can't linger in
+  // the compare bar.
+  function dismissGroup(group: ModelGroup, flagKey: string) {
+    setDismissed((prev) => {
+      const next = new Set(prev);
+      group.variants.forEach((v) => next.add(v.id));
+      return next;
+    });
+    removeFlag(flagKey);
+  }
+
+  function restoreGroup(group: ModelGroup) {
+    setDismissed((prev) => {
+      const next = new Set(prev);
+      group.variants.forEach((v) => next.delete(v.id));
+      return next;
+    });
+  }
+
   // Each alternative powertrain shows only its single best (post-dismiss/
   // flag) MODEL GROUP as one labeled card, e.g. "Best hybrid option" --
   // not the full group, which can run into the hundreds of vehicles (see
@@ -2956,12 +3101,14 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
             <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
               <ResultsList
                 answers={answers}
-                primary={visiblePrimary}
+                primaryRows={primaryRows}
                 alternatives={visibleAlternatives}
                 yearAlternative={yearAlternative}
                 flaggedKeys={flaggedKeys}
                 compareLimitReached={compareLimitReached}
                 onDismiss={dismiss}
+                onDismissGroup={dismissGroup}
+                onRestoreGroup={restoreGroup}
                 onToggleFlag={toggleFlag}
                 onOpenInfo={setInfoVehicle}
                 onRestoreAll={() => setDismissed(new Set())}
