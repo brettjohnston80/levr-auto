@@ -55,6 +55,21 @@ BODY_STYLE_MAP = {
     'Wagon': 'Wagon', 'Cross Turismo': 'Wagon', 'Sport Turismo': 'Wagon',
 }
 
+# Idempotency guard (2026-09-08). The map above translates RAW research
+# body-style strings into the 9 canonical values, but it did not guarantee
+# that every canonical value was itself a valid key -- 'Cargo Van' was the
+# one that wasn't (only the raw 'cargo van'/'passenger van' spellings were).
+# That made the pipeline unsafe to re-run over its own output: feeding an
+# already-scored dataset back in left those rows unmapped, and
+# clean_body_style DROPS unmapped rows. Round-tripping v20-scored silently
+# lost all 43 Cargo Van rows this way.
+#
+# Derived from the map's own values rather than hardcoded, so any canonical
+# value added later is covered automatically. Purely additive: verified no
+# canonical name is already used as a key mapping to a DIFFERENT value, so
+# this cannot override an existing translation.
+BODY_STYLE_MAP.update({canonical: canonical for canonical in set(BODY_STYLE_MAP.values())})
+
 # Every column that should be pure numeric — the script scans these for
 # embedded text (e.g. "40.2 f / 36.7 r", "4.0/5.0 (RepairPal...)") and
 # either extracts what it can (reliability_rating) or flags it for manual
