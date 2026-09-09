@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { MAKES, MAKES_AND_MODELS, FLAT_PRICE } from "@/lib/vehicle-data";
+import { MAKES_AND_MODELS as FALLBACK_MAKES_AND_MODELS, FLAT_PRICE, withCurrent } from "@/lib/vehicle-data";
+import type { MakeModelOptions } from "@/lib/intake-vehicle-options";
 import { countNearbyInventory } from "@/lib/inventory-count";
 import { INVENTORY_RADIUS_MILES } from "@/lib/inventory-radius";
 import { createClient } from "@/lib/supabase/client";
@@ -223,7 +224,15 @@ function MatchCounter({
   );
 }
 
-export function IntakeFilter() {
+export function IntakeFilter({ makeModelOptions }: { makeModelOptions?: MakeModelOptions }) {
+  // Live make/model options, fetched server-side from the promoted vehicle
+  // dataset and passed down ("choose this car" step 1). Falls back to the
+  // old hardcoded list only if the query returned nothing at all -- i.e. no
+  // promoted batch exists -- so intake can never render empty selects.
+  const baseOptions =
+    makeModelOptions && Object.keys(makeModelOptions).length > 0
+      ? makeModelOptions
+      : FALLBACK_MAKES_AND_MODELS;
   const [vehicle, setVehicle] = useState<Vehicle>(emptyVehicle());
   const [zip, setZip] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -498,19 +507,30 @@ export function IntakeFilter() {
               <MatchCounter ready={matchReady} loading={matchLoading} count={matchCount} />
             </div>
 
+            {/* An in-progress make/model is always kept selectable even if
+                it is not in the live dataset (see withCurrent). A customer
+                can arrive here mid-flow with a value the current batch no
+                longer offers -- restored from the levr_pending_intake
+                localStorage key after signing in, or simply still on screen
+                when a new batch is promoted -- and silently dropping it
+                would blank their selection without explanation. */}
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
               <SelectField
                 label="Make"
                 value={vehicle.make}
                 onChange={(value) => updateVehicle({ make: value, model: "" })}
-                options={MAKES}
+                options={withCurrent(Object.keys(baseOptions), vehicle.make)}
                 placeholder="Select make"
               />
               <SelectField
                 label="Model"
                 value={vehicle.model}
                 onChange={(value) => updateVehicle({ model: value })}
-                options={vehicle.make ? MAKES_AND_MODELS[vehicle.make] : []}
+                options={
+                  vehicle.make
+                    ? withCurrent(baseOptions[vehicle.make] ?? [], vehicle.model)
+                    : []
+                }
                 placeholder={vehicle.make ? "Select model" : "Choose a make first"}
                 disabled={!vehicle.make}
               />

@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { MAKES, MAKES_AND_MODELS, COLORS, OPTIONS } from "@/lib/vehicle-data";
+import {
+  MAKES_AND_MODELS as FALLBACK_MAKES_AND_MODELS,
+  COLORS,
+  OPTIONS,
+  withCurrent,
+} from "@/lib/vehicle-data";
+import type { MakeModelOptions } from "@/lib/intake-vehicle-options";
 import { finalizeUndecidedSearch } from "@/lib/outreach-actions";
 
 function toggleInArray(list: string[], value: string): string[] {
@@ -15,7 +21,23 @@ function toggleInArray(list: string[], value: string): string[] {
 // freeform text here (no dropdown) -- nothing's synced for this make/model
 // until this action runs, so there's no listings data to build options
 // from yet.
-export function AgentUndecidedFinalizeForm({ searchId }: { searchId: string }) {
+export function AgentUndecidedFinalizeForm({
+  searchId,
+  makeModelOptions,
+}: {
+  searchId: string;
+  makeModelOptions?: MakeModelOptions;
+}) {
+  // Same live make/model source intake uses (2026-09-08), replacing the
+  // static MAKES_AND_MODELS shortlist. Without this the agent picking a
+  // vehicle for an undecided customer saw 13 makes while the customer-facing
+  // intake form offered 36 -- an agent could not select a vehicle the
+  // customer could have chosen themselves. Falls back to the static list
+  // only when no batch is promoted, same as intake.
+  const baseOptions =
+    makeModelOptions && Object.keys(makeModelOptions).length > 0
+      ? makeModelOptions
+      : FALLBACK_MAKES_AND_MODELS;
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
   const [trim, setTrim] = useState("");
@@ -63,7 +85,7 @@ export function AgentUndecidedFinalizeForm({ searchId }: { searchId: string }) {
             className="mt-1.5 w-full rounded-lg border border-white/10 bg-zinc-900/80 px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none"
           >
             <option value="">Select make</option>
-            {MAKES.map((m) => (
+            {withCurrent(Object.keys(baseOptions), make).map((m) => (
               <option key={m} value={m}>
                 {m}
               </option>
@@ -79,7 +101,7 @@ export function AgentUndecidedFinalizeForm({ searchId }: { searchId: string }) {
             className="mt-1.5 w-full rounded-lg border border-white/10 bg-zinc-900/80 px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
           >
             <option value="">{make ? "Select model" : "Choose a make first"}</option>
-            {(make ? MAKES_AND_MODELS[make] : []).map((m) => (
+            {(make ? withCurrent(baseOptions[make] ?? [], model) : []).map((m) => (
               <option key={m} value={m}>
                 {m}
               </option>

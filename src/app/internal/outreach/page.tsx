@@ -26,6 +26,7 @@ import { AgentCancellationResolutionForm } from "@/components/agent-cancellation
 import { AgentCancellationLookup } from "@/components/agent-cancellation-lookup";
 import { AgentRevertPurchasedLookup } from "@/components/agent-revert-purchased-lookup";
 import { AgentUndecidedFinalizeForm } from "@/components/agent-undecided-finalize-form";
+import { getIntakeMakeModelOptions } from "@/lib/intake-vehicle-options";
 
 export const metadata: Metadata = {
   title: "Outreach Queue — LEVR Auto Internal",
@@ -63,6 +64,9 @@ const NOTIFICATION_EVENT_LABELS: Record<string, string> = {
 };
 
 export default async function OutreachQueuePage() {
+  // Live make/model options for AgentUndecidedFinalizeForm, from the same
+  // promoted vehicle dataset intake reads.
+  const makeModelOptions = await getIntakeMakeModelOptions();
   const agent = await requireAgent();
   const [
     queue,
@@ -114,7 +118,7 @@ export default async function OutreachQueuePage() {
                     <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}</span>
                   </div>
                   <p className="mt-1 text-xs text-zinc-500">Paid {formatDate(search.paidAt)}</p>
-                  <AgentUndecidedFinalizeForm searchId={search.id} />
+                  <AgentUndecidedFinalizeForm searchId={search.id} makeModelOptions={makeModelOptions} />
                 </div>
               ))}
             </div>

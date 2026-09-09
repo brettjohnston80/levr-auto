@@ -16,6 +16,17 @@ export const MAKES_AND_MODELS: Record<string, string[]> = {
 
 export const MAKES = Object.keys(MAKES_AND_MODELS);
 
+// Keeps an already-selected value present in its own <select>'s option list
+// even when the live dataset no longer contains it, so a mid-flow selection
+// is never silently blanked. Shared by the customer intake form and the
+// agent-side undecided-buyer form, both of which now source their options
+// from the promoted vehicle dataset rather than MAKES_AND_MODELS above.
+// A no-op when the value is empty or already present.
+export function withCurrent(options: string[], current: string): string[] {
+  if (!current || options.includes(current)) return options;
+  return [current, ...options];
+}
+
 export const COLORS = [
   "Black",
   "White",
