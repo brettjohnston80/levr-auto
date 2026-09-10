@@ -37,6 +37,11 @@ export function FinalizeSelfService({
 }) {
   const [step, setStep] = useState<Step>("trim");
   const [trim, setTrim] = useState("");
+  // Which OPTION is selected, distinct from the trim string that gets
+  // saved. Needed because trim options are now split by model year, so two
+  // options can share a trim name -- selecting one must not highlight both.
+  // `trim` remains exactly what is persisted; the schema is unchanged.
+  const [selectedTrimId, setSelectedTrimId] = useState<string | null>(null);
   const [customTrim, setCustomTrim] = useState("");
   const [colors, setColors] = useState<string[]>([]);
   const [options, setOptions] = useState<string[]>([]);
@@ -108,9 +113,12 @@ export function FinalizeSelfService({
           <div className="mt-5 space-y-2">
             <button
               type="button"
-              onClick={() => setTrim("")}
+              onClick={() => {
+                setTrim("");
+                setSelectedTrimId(null);
+              }}
               className={`w-full rounded-xl border p-4 text-left transition-colors ${
-                trim === ""
+                selectedTrimId === null && trim === ""
                   ? "border-emerald-500 bg-emerald-500/10"
                   : "border-white/10 bg-white/[0.02] hover:border-white/25"
               }`}
@@ -119,17 +127,28 @@ export function FinalizeSelfService({
             </button>
             {trimOptions.map((opt) => (
               <button
-                key={opt.trim}
+                key={opt.id}
                 type="button"
-                onClick={() => setTrim(opt.trim)}
+                onClick={() => {
+                  setTrim(opt.trim);
+                  setSelectedTrimId(opt.id);
+                }}
                 className={`w-full rounded-xl border p-4 text-left transition-colors ${
-                  trim === opt.trim
+                  selectedTrimId === opt.id
                     ? "border-emerald-500 bg-emerald-500/10"
                     : "border-white/10 bg-white/[0.02] hover:border-white/25"
                 }`}
               >
                 <div className="flex items-baseline justify-between">
-                  <span className="font-medium text-white">{opt.trim}</span>
+                  <span className="font-medium text-white">
+                    {opt.trim}
+                    {/* Year shown only when known. Without it, a trim that
+                        spans two model years would render as two visually
+                        identical rows. */}
+                    {opt.year != null && (
+                      <span className="ml-2 font-normal text-zinc-500">{opt.year}</span>
+                    )}
+                  </span>
                   <span className="text-sm text-zinc-400">
                     {formatCents(opt.minPriceCents)}
                     {opt.maxPriceCents && opt.maxPriceCents !== opt.minPriceCents

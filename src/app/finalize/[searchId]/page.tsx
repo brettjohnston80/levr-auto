@@ -62,7 +62,7 @@ export default async function FinalizePage({
   const admin = createAdminClient();
   const { data: listingsForModel } = await admin
     .from("listings")
-    .select("trim, price_cents")
+    .select("trim, price_cents, year")
     .eq("make", search.make)
     .eq("model", search.model)
     .not("trim", "is", null);

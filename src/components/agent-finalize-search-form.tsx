@@ -69,8 +69,13 @@ export function AgentFinalizeSearchForm({
         >
           <option value="">No preference — any trim</option>
           {trimOptions.map((opt) => (
-            <option key={opt.trim} value={opt.trim}>
-              {opt.trim} ({formatCents(opt.minPriceCents)}
+            // A native <select> can only carry the trim string as its value,
+            // and that is what must be saved. Where a trim spans two model
+            // years the year is shown in the label so the agent can tell the
+            // two entries apart; both submit the same trim string, which is
+            // correct -- customer_searches stores trim, not year.
+            <option key={opt.id} value={opt.trim}>
+              {opt.trim}{opt.year != null ? ` ${opt.year}` : ""} ({formatCents(opt.minPriceCents)}
               {opt.maxPriceCents && opt.maxPriceCents !== opt.minPriceCents
                 ? `–${formatCents(opt.maxPriceCents)}`
                 : ""}

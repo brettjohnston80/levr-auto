@@ -344,7 +344,7 @@ export async function getFinalizationQueue(): Promise<FinalizationQueueSearch[]>
       distinctMakeModels.map(async ({ make, model }) => {
         const { data } = await supabase
           .from("listings")
-          .select("trim, price_cents")
+          .select("trim, price_cents, year")
           .eq("make", make)
           .eq("model", model)
           .not("trim", "is", null);
