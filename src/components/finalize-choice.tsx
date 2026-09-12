@@ -4,6 +4,7 @@ import { useState } from "react";
 import { requestFinalizationCall } from "@/lib/finalize-actions";
 import { FinalizeSelfService } from "@/components/finalize-self-service";
 import type { TrimOption } from "@/lib/finalize-trims";
+import type { ConfiguratorQuestions } from "@/lib/configurator-matching";
 
 type Mode = "choice" | "self-service" | "call-requested";
 
@@ -13,12 +14,19 @@ export function FinalizeChoice({
   model,
   callAlreadyRequested,
   trimOptions,
+  configuratorQuestions,
 }: {
   searchId: string;
   make: string;
   model: string;
   callAlreadyRequested: boolean;
   trimOptions: TrimOption[];
+  /**
+   * Keyed by TrimOption.id. Empty for every make with no configurator
+   * data, for any trim that did not resolve unambiguously, and entirely
+   * until step 9 promotes a batch.
+   */
+  configuratorQuestions: Record<string, ConfiguratorQuestions>;
 }) {
   const [mode, setMode] = useState<Mode>(callAlreadyRequested ? "call-requested" : "choice");
   const [requesting, setRequesting] = useState(false);
@@ -37,7 +45,15 @@ export function FinalizeChoice({
   }
 
   if (mode === "self-service") {
-    return <FinalizeSelfService searchId={searchId} make={make} model={model} trimOptions={trimOptions} />;
+    return (
+      <FinalizeSelfService
+        searchId={searchId}
+        make={make}
+        model={model}
+        trimOptions={trimOptions}
+        configuratorQuestions={configuratorQuestions}
+      />
+    );
   }
 
   if (mode === "call-requested") {

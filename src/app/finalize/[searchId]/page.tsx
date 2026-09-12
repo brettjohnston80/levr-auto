@@ -3,6 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildTrimOptions } from "@/lib/finalize-trims";
+import { getConfiguratorQuestionsForTrims } from "@/lib/configurator-questions";
+import { hasAnyQuestion, type ConfiguratorQuestions } from "@/lib/configurator-matching";
 import { FinalizeChoice } from "@/components/finalize-choice";
 
 export const metadata: Metadata = {
@@ -60,14 +62,60 @@ export default async function FinalizePage({
   // same admin-client pattern already used for every other listings read
   // in this codebase (outreach-queue.ts's buildTrimOptions call, etc).
   const admin = createAdminClient();
-  const { data: listingsForModel } = await admin
-    .from("listings")
-    .select("trim, price_cents, year")
-    .eq("make", search.make)
-    .eq("model", search.model)
-    .not("trim", "is", null);
 
-  const trimOptions = buildTrimOptions(listingsForModel ?? []);
+  // Paginated, not a plain select. PostgREST caps a select at 1,000 rows
+  // and truncates SILENTLY -- a popular make/model accumulates listings
+  // across repeated syncs (Honda Civic already sits at 569 real rows), and
+  // a capped read here would not error, it would quietly drop trim options
+  // the customer could have chosen. An undecided search has no make/model
+  // yet, so there is nothing to look up at all.
+  //
+  // powertrain rides along as a selected SCALAR rather than the whole
+  // raw_data blob: the configurator gate needs build.powertrain_type to
+  // tell a hybrid build from a gas one, and pulling the full MarketCheck
+  // payload for hundreds of listings to read one string would be wasteful.
+  const listingsForModel: {
+    trim: string | null;
+    price_cents: number | null;
+    year: number | null;
+    powertrain: string | null;
+  }[] = [];
+  if (search.make && search.model) {
+    const PAGE_SIZE = 1000;
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error } = await admin
+        .from("listings")
+        .select("id, trim, price_cents, year, powertrain:raw_data->build->>powertrain_type")
+        .eq("make", search.make)
+        .eq("model", search.model)
+        .not("trim", "is", null)
+        .order("id")
+        .range(from, from + PAGE_SIZE - 1);
+      if (error) break;
+      listingsForModel.push(...((data ?? []) as unknown as typeof listingsForModel));
+      if (!data || data.length < PAGE_SIZE) break;
+    }
+  }
+
+  const trimOptions = buildTrimOptions(listingsForModel);
+
+  // Rich configurator questions, where this exact trim resolves to one
+  // researched build. A miss -- no live batch, no configurator data for
+  // this make, or an ambiguous trim -- yields nothing here and the flow
+  // below is byte-for-byte today's behaviour. Inert until step 9 promotes
+  // a batch.
+  const gating = await getConfiguratorQuestionsForTrims(
+    search.make,
+    search.model,
+    trimOptions,
+    listingsForModel,
+  );
+  const configuratorQuestions: Record<string, ConfiguratorQuestions> = {};
+  for (const [optionId, result] of gating) {
+    if (result.questions && hasAnyQuestion(result.questions)) {
+      configuratorQuestions[optionId] = result.questions;
+    }
+  }
 
   return (
     <section className="bg-zinc-950 py-24">
@@ -78,6 +126,7 @@ export default async function FinalizePage({
           model={search.model}
           callAlreadyRequested={!!search.call_requested_at}
           trimOptions={trimOptions}
+          configuratorQuestions={configuratorQuestions}
         />
       </div>
     </section>

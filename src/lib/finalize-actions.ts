@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { ConfiguratorSelection } from "@/lib/configurator-matching";
 
 export type FinalizeResult = { ok: true } | { ok: false; error: string };
 
@@ -65,7 +66,112 @@ export type FinalizeDetails = {
   trim: string;
   colors: string[];
   requiredOptions: string[];
+  /** The matched configurator build, when the rich flow ran. */
+  configuratorTrimId?: string | null;
+  selections?: ConfiguratorSelection[];
 };
+
+/**
+ * Persists the customer's configurator answers to search_option_selections.
+ *
+ * DELIBERATELY IGNORES the package name, price and contents the client
+ * sent. Only the category, the option name and the chosen priority are
+ * taken from the browser; everything an agent will act on is re-read from
+ * configurator_options here. That closes the obvious hole -- a crafted
+ * request claiming a $0 price on a $1,850 package would otherwise send an
+ * agent into a real negotiation holding a number nobody ever researched.
+ * A selection that does not correspond to a real, obtainable option on
+ * this exact trim is dropped rather than stored.
+ *
+ * Runs BEFORE the status flip, and deletes this search's existing rows
+ * first, so it is safely repeatable: a failure part-way leaves the search
+ * still awaiting finalization with rows the next attempt overwrites,
+ * never a finalized search carrying half its answers.
+ */
+async function writeConfiguratorSelections(
+  admin: ReturnType<typeof createAdminClient>,
+  searchId: string,
+  configuratorTrimId: string | null | undefined,
+  selections: ConfiguratorSelection[] | undefined,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error: clearError } = await admin
+    .from("search_option_selections")
+    .delete()
+    .eq("search_id", searchId);
+  if (clearError) {
+    return { ok: false, error: clearError.message };
+  }
+  if (!configuratorTrimId || !selections || selections.length === 0) {
+    return { ok: true };
+  }
+
+  // Authoritative option data for this trim, paginated -- PostgREST caps a
+  // plain select at 1,000 rows and truncates silently, and a truncated read
+  // here would drop a legitimate answer as if it were fabricated.
+  const PAGE_SIZE = 1000;
+  const options: {
+    category: string;
+    name: string;
+    availability: string;
+    price_cents: number | null;
+    package_name: string | null;
+    package_price_cents: number | null;
+    package_contents: string[] | null;
+  }[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await admin
+      .from("configurator_options")
+      .select(
+        "id, category, name, availability, price_cents, package_name, package_price_cents, package_contents",
+      )
+      .eq("trim_id", configuratorTrimId)
+      .order("id")
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) return { ok: false, error: error.message };
+    options.push(...((data ?? []) as unknown as typeof options));
+    if (!data || data.length < PAGE_SIZE) break;
+  }
+
+  const byKey = new Map(options.map((o) => [`${o.category}::${o.name}`, o]));
+  const seen = new Set<string>();
+  const rows = [];
+  for (const s of selections) {
+    const key = `${s.category}::${s.selection}`;
+    // The table is unique on (search_id, category, selection); a repeated
+    // answer is the same answer, not a second one.
+    if (seen.has(key)) continue;
+    const option = byKey.get(key);
+    if (!option || option.availability === "unavailable") continue;
+
+    const isFeature = s.category === "feature";
+    // A feature the trim already includes is not a question, so a "yes"
+    // against it is not an answer worth sending to an agent.
+    if (isFeature && option.availability === "standard") continue;
+    // A preference records WHICH value and HOW STRONGLY; without a
+    // strength there is no answer to store, and inventing one would tell
+    // an agent something the customer never said.
+    if (!isFeature && !s.priority) continue;
+
+    seen.add(key);
+    const inPackage = option.availability === "package_only" && option.package_name != null;
+    rows.push({
+      search_id: searchId,
+      category: s.category,
+      question_kind: isFeature ? "feature" : "preference",
+      selection: option.name,
+      priority: isFeature ? null : s.priority,
+      package_name: inPackage ? option.package_name : null,
+      package_price_cents: inPackage ? option.package_price_cents : null,
+      package_contents: inPackage ? option.package_contents : null,
+      price_unknown: inPackage ? option.package_price_cents == null : option.price_cents == null,
+    });
+  }
+
+  if (rows.length === 0) return { ok: true };
+  const { error } = await admin.from("search_option_selections").insert(rows);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
 
 /**
  * Self-service finalization -- the explicit "this confirms exactly what
@@ -84,6 +190,20 @@ export async function finalizeSelfService(
   if (!check.ok) return check;
 
   const admin = createAdminClient();
+
+  // Configurator answers land first, deliberately. They are written while
+  // the search is still awaiting finalization, so a failure here aborts
+  // before anything irreversible and the customer can simply retry.
+  const stored = await writeConfiguratorSelections(
+    admin,
+    searchId,
+    details.configuratorTrimId,
+    details.selections,
+  );
+  if (!stored.ok) {
+    return { ok: false, error: `Failed to save your selections: ${stored.error}` };
+  }
+
   const { error } = await admin
     .from("customer_searches")
     .update({
@@ -149,6 +269,24 @@ export async function updateFinalizedSearch(
   }
 
   const admin = createAdminClient();
+
+  // The /account edit form is the GENERIC colour/options form -- it has no
+  // configurator questions in it (step 7 scope was the finalize flow). So a
+  // customer who finalized through the rich flow and then edits here has
+  // just restated their preferences using the generic vocabulary, and the
+  // rich answers they are replacing must go with them. Leaving both would
+  // hand an agent two contradictory statements of intent with nothing to
+  // say which one is current.
+  const stored = await writeConfiguratorSelections(
+    admin,
+    searchId,
+    details.configuratorTrimId,
+    details.selections,
+  );
+  if (!stored.ok) {
+    return { ok: false, error: `Failed to save your selections: ${stored.error}` };
+  }
+
   const { error } = await admin
     .from("customer_searches")
     .update({
