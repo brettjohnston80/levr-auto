@@ -9,6 +9,7 @@ import {
   getCancellationCallQueue,
   getVehicleConsultationQueue,
   getNotificationCallbackQueue,
+  type OutreachSelection,
 } from "@/lib/outreach-queue";
 import { ResolveNotificationCallbackButton } from "@/components/resolve-notification-callback-button";
 import { LogOfferForm } from "@/components/log-offer-form";
@@ -54,6 +55,92 @@ function formatDaysRemaining(daysRemaining: number, pausedAt: string): string {
     return `${Math.abs(daysRemaining)}d overdue (paused ${formatDate(pausedAt)})`;
   }
   return `${daysRemaining}d left to resume (paused ${formatDate(pausedAt)})`;
+}
+
+const SELECTION_CATEGORY_LABELS: Record<string, string> = {
+  exterior_color: "Exterior color",
+  interior: "Interior",
+  seating: "Seating",
+  wheels: "Wheels",
+  roof: "Roof",
+  drivetrain: "Drivetrain",
+  feature: "Feature",
+};
+
+/**
+ * Priority styling carries the meaning, not decoration. A must_have is the
+ * thing an agent holds out for in a real negotiation, so it is the only
+ * one that gets a badge; like_to_have reads as ordinary text and open_to
+ * is deliberately muted. Scanning the list should make the hard
+ * constraints obvious without reading every row.
+ */
+const SELECTION_PRIORITY_STYLES: Record<string, { label: string; className: string }> = {
+  must_have: {
+    label: "MUST HAVE",
+    className: "rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-emerald-300",
+  },
+  like_to_have: { label: "would like", className: "text-zinc-400" },
+  open_to: { label: "open to it", className: "text-zinc-500" },
+};
+
+/**
+ * A customer's configurator answers, read-only (step 8 of 9).
+ *
+ * Renders nothing at all when there are none, which is the case for every
+ * make without configurator data and every search finalized before step 7
+ * -- `Colors:` above stays the authoritative line in that case, and this
+ * section simply does not appear rather than showing an empty shell.
+ */
+function ConfiguratorSelections({ selections }: { selections: OutreachSelection[] }) {
+  if (selections.length === 0) return null;
+
+  return (
+    <div className="mt-4">
+      <h3 className="text-sm font-semibold text-zinc-300">
+        Customer&apos;s build preferences ({selections.length})
+      </h3>
+      <ul className="mt-2 space-y-2 text-sm text-zinc-400">
+        {selections.map((sel) => {
+          const priority = sel.priority ? SELECTION_PRIORITY_STYLES[sel.priority] : null;
+          return (
+            <li key={sel.id}>
+              <span className="text-zinc-500">
+                {SELECTION_CATEGORY_LABELS[sel.category] ?? sel.category}:
+              </span>{" "}
+              <span className="text-zinc-200">{sel.selection}</span>
+              {priority && (
+                <span className={`ml-2 text-xs font-semibold ${priority.className}`}>
+                  {priority.label}
+                </span>
+              )}
+              {sel.packageName && (
+                <p className="mt-0.5 text-xs text-zinc-500">
+                  Only in the <span className="text-zinc-400">{sel.packageName}</span>
+                  {" — "}
+                  {/* An unconfirmed price is said out loud. Rendering a
+                      blank or a $0 here would put a number in an agent's
+                      mouth that nobody ever researched. */}
+                  {sel.priceUnknown || sel.packagePriceCents == null ? (
+                    <span className="text-amber-400">price not confirmed</span>
+                  ) : (
+                    <span className="text-zinc-400">
+                      ${(sel.packagePriceCents / 100).toLocaleString()}
+                    </span>
+                  )}
+                  {sel.packageContents && sel.packageContents.length > 0 && (
+                    <> — includes {sel.packageContents.join(", ")}</>
+                  )}
+                </p>
+              )}
+              {!sel.packageName && sel.priceUnknown && (
+                <p className="mt-0.5 text-xs text-amber-400">price not confirmed</p>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
 }
 
 const NOTIFICATION_EVENT_LABELS: Record<string, string> = {
@@ -367,6 +454,11 @@ export default async function OutreachQueuePage() {
                     <p className="mt-1 text-sm text-zinc-500">Colors: {search.colors.join(", ")}</p>
                   )}
                   {search.zip && <p className="text-sm text-zinc-500">Zip: {search.zip}</p>}
+
+                  {/* Sits above the dealer list on purpose: it describes
+                      WHAT to look for, which an agent needs before working
+                      through who might have it. */}
+                  <ConfiguratorSelections selections={search.selections} />
 
                   <div className="mt-4">
                     <h3 className="text-sm font-semibold text-zinc-300">

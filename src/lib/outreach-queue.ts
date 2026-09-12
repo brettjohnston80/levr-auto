@@ -33,6 +33,55 @@ export interface OutreachAddon {
   dealerResponse: string | null;
 }
 
+/**
+ * One configurator answer, as an agent needs to read it (step 8 of 9).
+ *
+ * Read-only surfacing of search_option_selections. The package fields are
+ * the reason the table exists: "customer wants a heated steering wheel" is
+ * unactionable when that feature is only obtainable inside a $610 package
+ * that also carries two other things, and an agent working real inventory
+ * needs the name, the contents and the price to search or negotiate
+ * correctly.
+ */
+export interface OutreachSelection {
+  id: string;
+  category: string;
+  questionKind: "preference" | "feature";
+  selection: string;
+  /** must_have/like_to_have/open_to for preferences; null for features. */
+  priority: string | null;
+  packageName: string | null;
+  packagePriceCents: number | null;
+  packageContents: string[] | null;
+  /** Price could not be parsed. Must never render as a blank or as $0. */
+  priceUnknown: boolean;
+}
+
+/** Reading order: what the car looks like, then what is added to it. */
+const SELECTION_CATEGORY_ORDER = [
+  "exterior_color",
+  "interior",
+  "seating",
+  "wheels",
+  "roof",
+  "drivetrain",
+  "feature",
+];
+
+/** Strongest constraint first -- that is what an agent holds out for. */
+const SELECTION_PRIORITY_ORDER = ["must_have", "like_to_have", "open_to"];
+
+function compareSelections(a: OutreachSelection, b: OutreachSelection): number {
+  const cat =
+    SELECTION_CATEGORY_ORDER.indexOf(a.category) - SELECTION_CATEGORY_ORDER.indexOf(b.category);
+  if (cat !== 0) return cat;
+  const pri =
+    SELECTION_PRIORITY_ORDER.indexOf(a.priority ?? "") -
+    SELECTION_PRIORITY_ORDER.indexOf(b.priority ?? "");
+  if (pri !== 0) return pri;
+  return a.selection.localeCompare(b.selection);
+}
+
 export interface OutreachDealProgress {
   availabilityReconfirmedAt: string | null;
   depositAmountCents: number | null;
@@ -72,6 +121,13 @@ export interface OutreachSearch {
   dealers: OutreachDealer[];
   listings: OutreachListing[];
   offers: OutreachOffer[];
+  /**
+   * Empty for every search finalized through the generic colour/options
+   * flow -- which is all 34 makes without configurator data, and every
+   * search predating step 7. `colors`/`trim` above stay the authoritative
+   * fields in that case.
+   */
+  selections: OutreachSelection[];
 }
 
 /**
@@ -226,6 +282,47 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
     }
   }
 
+  // Configurator answers for every search in the queue.
+  //
+  // PAGINATED. PostgREST caps a plain select at 1,000 rows and truncates
+  // silently -- one search can carry several answers, so a busy queue
+  // reaches that cap without erroring, and the failure mode is an agent
+  // negotiating against a preference list that is quietly missing rows.
+  const SELECTION_PAGE_SIZE = 1000;
+  const selectionsBySearchId = new Map<string, OutreachSelection[]>();
+  for (let from = 0; ; from += SELECTION_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("search_option_selections")
+      .select(
+        "id, search_id, category, question_kind, selection, priority, package_name, package_price_cents, package_contents, price_unknown",
+      )
+      .in("search_id", searchIds)
+      .order("id")
+      .range(from, from + SELECTION_PAGE_SIZE - 1);
+    if (error) {
+      throw new Error(`Failed to load configurator selections: ${error.message}`);
+    }
+    for (const row of data ?? []) {
+      const list = selectionsBySearchId.get(row.search_id as string) ?? [];
+      list.push({
+        id: row.id as string,
+        category: row.category as string,
+        questionKind: row.question_kind as "preference" | "feature",
+        selection: row.selection as string,
+        priority: (row.priority as string | null) ?? null,
+        packageName: (row.package_name as string | null) ?? null,
+        packagePriceCents: (row.package_price_cents as number | null) ?? null,
+        packageContents: (row.package_contents as string[] | null) ?? null,
+        priceUnknown: row.price_unknown === true,
+      });
+      selectionsBySearchId.set(row.search_id as string, list);
+    }
+    if (!data || data.length < SELECTION_PAGE_SIZE) break;
+  }
+  for (const list of selectionsBySearchId.values()) {
+    list.sort(compareSelections);
+  }
+
   const customerEmailById = new Map((customers ?? []).map((c) => [c.id, c.email as string]));
   const listingsByMakeModel = new Map(
     listingsByPair.map(({ make, model, listings }) => [`${make}::${model}`, listings])
@@ -294,6 +391,7 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
         dealerPhone: l.dealer_phone,
       })),
       offers: offersBySearchId.get(search.id) ?? [],
+      selections: selectionsBySearchId.get(search.id) ?? [],
     };
   });
 }
