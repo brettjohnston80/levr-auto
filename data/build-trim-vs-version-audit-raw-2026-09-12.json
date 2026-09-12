@@ -1,0 +1,5133 @@
+[
+ {
+  "make": "Acura",
+  "model": "ADX",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 3,
+  "mismatches": [
+   {
+    "facet_trim": "A-Spec Package",
+    "listing_count": 3980,
+    "sample_build_trim": "A-Spec Package",
+    "sample_build_version": "AWD A-Spec Package",
+    "sample_heading": "2026 Acura ADX A-Spec Package",
+    "pattern": "build.trim uses a different vocabulary than canonical ('A-Spec Package' vs canonical 'A-Spec FWD'/'A-Spec AWD'); drivetrain is embedded in build.version ('AWD ...') but absent from build.trim, and neither field exactly matches the canonical string.",
+    "build_version_reliable": true,
+    "note": "Verified via live sample. version conveys drivetrain correctly but still doesn't match canonical wording exactly (word order/'Package' suffix).",
+    "verified": true
+   },
+   {
+    "facet_trim": "A-spec w/Advance Package",
+    "listing_count": 2187,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Likely same vocabulary-divergence as 'A-Spec Package' for the Advance trim tier (canonical 'A-Spec Advance FWD/AWD').",
+    "build_version_reliable": "n/a",
+    "note": "Not sample-verified \u2014 deprioritized to control cost before API quota ran out.",
+    "verified": false
+   },
+   {
+    "facet_trim": "Base",
+    "listing_count": 2175,
+    "sample_build_trim": "Base",
+    "sample_build_version": "AWD",
+    "sample_heading": "2026 Acura ADX",
+    "pattern": "Canonical differentiates 'Base FWD' vs 'Base AWD'; build.trim just says 'Base' with drivetrain dropped. Dealer heading drops trim entirely too.",
+    "build_version_reliable": true,
+    "note": "Verified via live sample. version correctly said 'AWD'; heading had no trim info at all.",
+    "verified": true
+   }
+  ]
+ },
+ {
+  "make": "Audi",
+  "model": "A5",
+  "status": "clean",
+  "distinct_trims_seen": 5,
+  "mismatches": []
+ },
+ {
+  "make": "Audi",
+  "model": "Q5",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 7,
+  "mismatches": [
+   {
+    "facet_trim": "Pretige",
+    "listing_count": 8,
+    "sample_build_trim": "Pretige",
+    "sample_build_version": "hybrid quattro tiptronic",
+    "sample_heading": "2013 AUDI Q5",
+    "pattern": "Typo of 'Prestige' in build.trim, not a modifier-drop. Sample is a 2013 model year, unrelated to the MY2026/2027 canonical scope.",
+    "build_version_reliable": false,
+    "note": "Verified via live sample; version field is an unrelated powertrain string, not useful for trim verification. Low-impact legacy artifact, not the RAV4-style pattern. Core current trims (Premium/Premium Plus/Prestige) all match canonical exactly with huge counts.",
+    "verified": true
+   },
+   {
+    "facet_trim": "Progressiv",
+    "listing_count": 5,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Not a canonical trim string; likely a genuinely different (possibly Canada-market) trim name rather than a modifier drop.",
+    "build_version_reliable": "n/a",
+    "note": "Not verified (low count, low priority).",
+    "verified": false
+   },
+   {
+    "facet_trim": "Technik",
+    "listing_count": 5,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Not a canonical trim string; likely a genuinely different (possibly Canada/Europe-market) trim name rather than a modifier drop.",
+    "build_version_reliable": "n/a",
+    "note": "Not verified (low count, low priority).",
+    "verified": false
+   }
+  ]
+ },
+ {
+  "make": "Audi",
+  "model": "RS e-tron GT",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 1,
+  "mismatches": [
+   {
+    "facet_trim": "Base",
+    "listing_count": 97,
+    "sample_build_trim": "Base",
+    "sample_build_version": "-",
+    "sample_heading": "2022 Audi RS e-tron GT quattro Sedan",
+    "pattern": "100% of active RS e-tron GT listings are tagged build.trim='Base', while canonical calls the (sole) trim 'Performance'. Sample is a 2022 pre-refresh model, so this may partly reflect a generation/model-year gap rather than a pure modifier drop.",
+    "build_version_reliable": false,
+    "note": "Verified via live sample. build.version was the literal placeholder '-' (empty/uninformative) and the heading also carries no trim info \u2014 worse than the RAV4 case, where version was at least reliable. No current MY2026/2027 'Performance'-trim listings were found in the sample; national active inventory may simply not include the new generation yet.",
+    "verified": true
+   }
+  ]
+ },
+ {
+  "make": "Audi",
+  "model": "S8",
+  "status": "clean",
+  "distinct_trims_seen": 2,
+  "mismatches": []
+ },
+ {
+  "make": "BMW",
+  "model": "2 Series",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 7,
+  "mismatches": [
+   {
+    "facet_trim": "230i",
+    "listing_count": 1872,
+    "sample_build_trim": "230i",
+    "sample_build_version": "230i xDrive Convertible",
+    "sample_heading": "2018 BMW 2 Series",
+    "pattern": "Canonical distinguishes '230i' vs '230i xDrive', but no separate '230i xDrive' bucket ever appears in the facet \u2014 confirmed on one AWD unit where build.trim said bare '230i' while build.version correctly said '230i xDrive Convertible'.",
+    "build_version_reliable": true,
+    "note": "Verified via 3 live samples: two current/recent RWD 230i units were correctly trimmed, but a third (2018, older generation) showed the xDrive-drop defect. The defect appears real but may be more common in older model years than the current MY2026 badge. Facet also contains prior-generation trim numbers (228, 228i, M235, M235i) which are a different, non-modifier-drop issue (old naming scheme, not filtered by year).",
+    "verified": true
+   }
+  ]
+ },
+ {
+  "make": "BMW",
+  "model": "8 Series",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 5,
+  "mismatches": [
+   {
+    "facet_trim": "M850i",
+    "listing_count": 664,
+    "sample_build_trim": "M850i",
+    "sample_build_version": "M850i xDrive Gran Coupe",
+    "sample_heading": "2026-BMW-8-Series-M850i-Edition-M-Heritage-1/500-Globally",
+    "pattern": "Canonical trim is 'M850i xDrive'; build.trim drops the 'xDrive' suffix (heading also omits it, showing only 'M850i').",
+    "build_version_reliable": true,
+    "note": "Verified via live sample, MY2026. Same likely applies to '840i' vs canonical '840i xDrive' (no separate xDrive bucket exists for 840i either) but that was not separately sample-verified.",
+    "verified": true
+   }
+  ]
+ },
+ {
+  "make": "BMW",
+  "model": "M5 Touring",
+  "status": "clean",
+  "distinct_trims_seen": 1,
+  "mismatches": []
+ },
+ {
+  "make": "BMW",
+  "model": "X7",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 5,
+  "mismatches": [
+   {
+    "facet_trim": "40i",
+    "listing_count": 8326,
+    "sample_build_trim": "40i",
+    "sample_build_version": "xDrive40i",
+    "sample_heading": "Used 2021 BMW X7 xDrive40i",
+    "pattern": "Canonical trim is 'xDrive40i'; build.trim drops the 'xDrive' prefix entirely, leaving just the numeric badge '40i'.",
+    "build_version_reliable": true,
+    "note": "Verified via live sample. Notably the dealer heading correctly includes 'xDrive40i' \u2014 only build.trim is wrong, a clean parallel to the RAV4 case.",
+    "verified": true
+   }
+  ]
+ },
+ {
+  "make": "Buick",
+  "model": "Encore GX",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 6,
+  "mismatches": [
+   {
+    "facet_trim": "Preferred",
+    "listing_count": 8970,
+    "sample_build_trim": "Preferred",
+    "sample_build_version": "Preferred AWD",
+    "sample_heading": "2026 Buick Encore GX Preferred SUV",
+    "pattern": "Canonical differentiates 'Preferred FWD' vs 'Preferred AWD' for MY2026; build.trim collapses both into bare 'Preferred', dropping the drivetrain modifier.",
+    "build_version_reliable": true,
+    "note": "Verified via 3 live samples: 2 FWD units correctly had trim=version='Preferred' (fine since drivetrain is FWD, the implicit default), but a 3rd unit was confirmed AWD (drivetrain=4WD) with build.trim still just 'Preferred' while build.version correctly said 'Preferred AWD' \u2014 a direct confirmation of the RAV4-style pattern. Likely applies identically to 'Sport Touring' (not separately sampled).",
+    "verified": true
+   },
+   {
+    "facet_trim": "Select",
+    "listing_count": 1495,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Not a canonical trim name at all (canonical only lists Preferred/Sport Touring/Avenir); likely a genuinely different trim not captured in the ground-truth research rather than a modifier drop.",
+    "build_version_reliable": "n/a",
+    "note": "Not verified.",
+    "verified": false
+   },
+   {
+    "facet_trim": "Essence",
+    "listing_count": 761,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Not a canonical trim name; likely a genuinely different/missing trim, not a modifier drop.",
+    "build_version_reliable": "n/a",
+    "note": "Not verified.",
+    "verified": false
+   }
+  ]
+ },
+ {
+  "make": "Cadillac",
+  "model": "Escalade IQL",
+  "status": "clean",
+  "distinct_trims_seen": 4,
+  "mismatches": []
+ },
+ {
+  "make": "Chevrolet",
+  "model": "Colorado",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 18,
+  "mismatches": [
+   {
+    "facet_trim": "Work Truck",
+    "listing_count": 8647,
+    "sample_build_trim": "Work Truck",
+    "sample_build_version": "4WD Work Truck Crew Cab Short Box",
+    "sample_heading": "2023 Chevy Colorado",
+    "pattern": "Canonical short-form trim is 'WT'; build.trim spells it out in full as 'Work Truck' instead \u2014 a naming-convention mismatch (not a dropped word, but the two vocabularies never intersect), and it is by far the largest Colorado bucket (8647 vs. the literal 'WT' bucket's 24).",
+    "build_version_reliable": true,
+    "note": "Verified via live sample (2023 MY \u2014 outside the 2026/2027 canonical window, but 'WT' appearing only 24 times vs 'Work Truck' 8647 times strongly suggests this is a persistent, model-wide naming convention rather than year-specific).",
+    "verified": true
+   }
+  ]
+ },
+ {
+  "make": "Chevrolet",
+  "model": "Tahoe",
+  "status": "clean",
+  "distinct_trims_seen": 13,
+  "mismatches": []
+ },
+ {
+  "make": "Ford",
+  "model": "Bronco",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 12,
+  "mismatches": [
+   {
+    "facet_trim": "Stroppe",
+    "listing_count": 126,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical trim is 'Stroppe Edition'; facet value appears to drop the 'Edition' suffix.",
+    "build_version_reliable": "n/a",
+    "note": "NOT sample-verified \u2014 MarketCheck API monthly quota was exhausted before this call could complete. Flagged from facet-level analysis only.",
+    "verified": false
+   },
+   {
+    "facet_trim": "Heritage",
+    "listing_count": 6,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical trim is 'Heritage Edition'; facet value appears to drop the 'Edition' suffix (same suspected pattern as 'Stroppe').",
+    "build_version_reliable": "n/a",
+    "note": "Not sample-verified (API quota exhausted).",
+    "verified": false
+   }
+  ]
+ },
+ {
+  "make": "Ford",
+  "model": "Maverick",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 6,
+  "mismatches": [
+   {
+    "facet_trim": "Lobo Premium",
+    "listing_count": 759,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical only defines 'Lobo Standard' and 'Lobo High' (no 'Lobo Premium') for the Lobo sub-line; facet uses a third label that doesn't map cleanly to either.",
+    "build_version_reliable": "n/a",
+    "note": "NOT sample-verified \u2014 API quota exhausted before this call could complete.",
+    "verified": false
+   }
+  ]
+ },
+ {
+  "make": "GMC",
+  "model": "Canyon",
+  "status": "clean",
+  "distinct_trims_seen": 20,
+  "mismatches": []
+ },
+ {
+  "make": "GMC",
+  "model": "Yukon",
+  "status": "clean",
+  "distinct_trims_seen": 21,
+  "mismatches": []
+ },
+ {
+  "make": "Genesis",
+  "model": "GV80",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 8,
+  "mismatches": [
+   {
+    "facet_trim": "Prestige",
+    "listing_count": 3975,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical always prefixes the engine displacement ('2.5T Prestige' or '3.5T Prestige'); facet drops the prefix entirely, leaving a bare 'Prestige' that can't tell which engine the vehicle has.",
+    "build_version_reliable": "n/a",
+    "note": "NOT sample-verified \u2014 API quota exhausted right as this pair's verification began. This appears to be the single largest suspected systemic finding in the whole audit: essentially every GV80 facet trim (Prestige 3975, Advanced 1978, Prestige Black 795, Select 746) is missing its '2.5T'/'3.5T' prefix. Recommend priority follow-up once quota resets.",
+    "verified": false
+   },
+   {
+    "facet_trim": "Advanced",
+    "listing_count": 1978,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical is '2.5T Advanced' or '3.5T Advanced'; facet drops the engine prefix.",
+    "build_version_reliable": "n/a",
+    "note": "Not sample-verified (API quota exhausted).",
+    "verified": false
+   },
+   {
+    "facet_trim": "Prestige Black",
+    "listing_count": 795,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical is '3.5T Prestige Black'; facet drops the engine prefix.",
+    "build_version_reliable": "n/a",
+    "note": "Not sample-verified (API quota exhausted).",
+    "verified": false
+   },
+   {
+    "facet_trim": "Select",
+    "listing_count": 746,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical is '2.5T Select'; facet drops the engine prefix.",
+    "build_version_reliable": "n/a",
+    "note": "Not sample-verified (API quota exhausted).",
+    "verified": false
+   }
+  ]
+ },
+ {
+  "make": "Honda",
+  "model": "Passport",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 15,
+  "mismatches": [
+   {
+    "facet_trim": "Elite",
+    "listing_count": 560,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical trims are 'TrailSport Elite' and 'TrailSport Elite Blackout'; bare 'Elite' appears to drop the 'TrailSport' prefix.",
+    "build_version_reliable": "n/a",
+    "note": "NOT sample-verified \u2014 API quota exhausted before this call could complete.",
+    "verified": false
+   }
+  ]
+ },
+ {
+  "make": "Hyundai",
+  "model": "Ioniq 6",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 3,
+  "mismatches": [
+   {
+    "facet_trim": "SEL",
+    "listing_count": 505,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical ground truth lists only the performance 'N' trim for Ioniq 6 MY2026; the vast majority of live inventory (SEL/Limited/SE) is the regular non-N car, which has no canonical entry at all.",
+    "build_version_reliable": "n/a",
+    "note": "NOT sample-verified (API quota exhausted). This looks like a canonical/ground-truth completeness gap (missing base trims), not the RAV4-style build.trim modifier-drop defect \u2014 flagging as a different category of issue worth Levr's attention.",
+    "verified": false
+   }
+  ]
+ },
+ {
+  "make": "Hyundai",
+  "model": "Tucson",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 23,
+  "mismatches": [
+   {
+    "facet_trim": "Value",
+    "listing_count": 905,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Not a canonical trim string; likely a genuinely different (possibly Canada-market) trim rather than a modifier drop.",
+    "build_version_reliable": "n/a",
+    "note": "Not sample-verified (API quota exhausted).",
+    "verified": false
+   },
+   {
+    "facet_trim": "Sport",
+    "listing_count": 758,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Not a canonical trim string for this ground-truth set; likely a distinct/older trim.",
+    "build_version_reliable": "n/a",
+    "note": "Not sample-verified.",
+    "verified": false
+   },
+   {
+    "facet_trim": "Blue",
+    "listing_count": 402,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical trim is 'Blue SE'; bare 'Blue' looks like it could be dropping the 'SE' suffix.",
+    "build_version_reliable": "n/a",
+    "note": "NOT sample-verified \u2014 API quota exhausted before this call could complete.",
+    "verified": false
+   }
+  ]
+ },
+ {
+  "make": "Jeep",
+  "model": "Grand Cherokee",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 44,
+  "mismatches": [
+   {
+    "facet_trim": "Altitude",
+    "listing_count": 6487,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Could be canonical 'Laredo Altitude' with the 'Laredo' prefix dropped, OR a genuinely distinct standalone 'Altitude' trim from an older (WK2) generation \u2014 ambiguous without verification.",
+    "build_version_reliable": "n/a",
+    "note": "NOT sample-verified \u2014 API quota exhausted before this call could complete. Given the count (6487) vastly exceeds the exact-match 'Laredo Altitude' bucket (20), this is more likely a distinct older-generation trim than a modifier drop, but that is unconfirmed.",
+    "verified": false
+   }
+  ]
+ },
+ {
+  "make": "Kia",
+  "model": "EV9",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 5,
+  "mismatches": [
+   {
+    "facet_trim": "Light L/R",
+    "listing_count": 526,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical trim is 'Light Long Range'; facet appears to abbreviate 'Long Range' to 'L/R'.",
+    "build_version_reliable": "n/a",
+    "note": "NOT sample-verified \u2014 API quota exhausted before this call could complete.",
+    "verified": false
+   }
+  ]
+ },
+ {
+  "make": "Kia",
+  "model": "Sportage",
+  "status": "clean",
+  "distinct_trims_seen": 23,
+  "mismatches": []
+ },
+ {
+  "make": "Land Rover",
+  "model": "Range Rover Velar",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 11,
+  "mismatches": [
+   {
+    "facet_trim": "S",
+    "listing_count": 2140,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical trim is 'P250 S'; facet drops the 'P250' engine-designation prefix.",
+    "build_version_reliable": "n/a",
+    "note": "NOT sample-verified \u2014 ran out of API quota before reaching this pair.",
+    "verified": false
+   },
+   {
+    "facet_trim": "Belgravia Edition",
+    "listing_count": 874,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical trims are 'P250 Belgravia Edition' / 'P400 Belgravia Edition' / 'P400 Belgravia Edition Satin'; facet drops the engine prefix (and possibly the 'Satin' qualifier).",
+    "build_version_reliable": "n/a",
+    "note": "Not sample-verified.",
+    "verified": false
+   },
+   {
+    "facet_trim": "Autobiography",
+    "listing_count": 46,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical trim is 'P400 Autobiography'; facet drops the 'P400' prefix.",
+    "build_version_reliable": "n/a",
+    "note": "Not sample-verified.",
+    "verified": false
+   }
+  ]
+ },
+ {
+  "make": "Lexus",
+  "model": "RX",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 13,
+  "mismatches": [
+   {
+    "facet_trim": "350 F SPORT",
+    "listing_count": 1404,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical only has '350 F SPORT Design' and '350 F SPORT Handling' (no bare '350 F SPORT'); facet drops the Design/Handling qualifier.",
+    "build_version_reliable": "n/a",
+    "note": "NOT sample-verified \u2014 ran out of API quota before reaching this pair.",
+    "verified": false
+   },
+   {
+    "facet_trim": "450h",
+    "listing_count": 479,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical uses '450h+' (with a plus) as in '450h+ Premium' / '450h+ Luxury'; facet drops both the '+' and the Premium/Luxury suffix.",
+    "build_version_reliable": "n/a",
+    "note": "Not sample-verified.",
+    "verified": false
+   },
+   {
+    "facet_trim": "F SPORT",
+    "listing_count": 152,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Drops the engine-family prefix ('350'/'350h') entirely in addition to the Design/Handling suffix.",
+    "build_version_reliable": "n/a",
+    "note": "Not sample-verified.",
+    "verified": false
+   }
+  ]
+ },
+ {
+  "make": "Lincoln",
+  "model": "Navigator L",
+  "status": "no_listings"
+ },
+ {
+  "make": "Mazda",
+  "model": "CX-90",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 14,
+  "mismatches": [
+   {
+    "facet_trim": "Preferred Package",
+    "listing_count": 5760,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical is '3.3 Turbo Preferred'; facet drops the '3.3 Turbo' engine prefix and appends an extraneous 'Package' suffix.",
+    "build_version_reliable": "n/a",
+    "note": "NOT sample-verified \u2014 ran out of API quota before reaching this pair. Systemic pattern: essentially every CX-90 facet trim (Premium Package 6471, Preferred Package 5760, Premium Plus Package 5238, Premium Sport Package 1996, Select Package 1438, etc.) shows the same prefix-drop/suffix-add mismatch versus canonical's '3.3 Turbo ...' / 'PHEV ...' naming.",
+    "verified": false
+   },
+   {
+    "facet_trim": "Premium Plus Package",
+    "listing_count": 5238,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical is '3.3 Turbo Premium Plus'; facet drops the engine prefix and adds 'Package'.",
+    "build_version_reliable": "n/a",
+    "note": "Not sample-verified.",
+    "verified": false
+   },
+   {
+    "facet_trim": "Premium Sport Package",
+    "listing_count": 1996,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical is '3.3 Turbo Premium Sport'; facet drops the engine prefix and adds 'Package'.",
+    "build_version_reliable": "n/a",
+    "note": "Not sample-verified.",
+    "verified": false
+   }
+  ]
+ },
+ {
+  "make": "Mercedes-Benz",
+  "model": "EQE",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 2,
+  "mismatches": [
+   {
+    "facet_trim": "Base",
+    "listing_count": 367,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical trims are 'EQE 320+' / 'EQE 320 4MATIC' / 'AMG EQE'; the dominant facet value is generic 'Base'.",
+    "build_version_reliable": "n/a",
+    "note": "NOT sample-verified with a dedicated build-object query (API quota exhausted). However, the discovery-call sample for this model showed a dealer heading of '2023-Mercedes-Benz-EQE-350+-Sedan' \u2014 a '350+' trim that isn't in the canonical list at all (canonical has '320+'), suggesting the canonical list may be scoped to a different model year/powertrain than what's currently for sale, in addition to any build.trim quality issue.",
+    "verified": false
+   }
+  ]
+ },
+ {
+  "make": "Mercedes-Benz",
+  "model": "GLC Coupe",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 9,
+  "mismatches": [
+   {
+    "facet_trim": "Base",
+    "listing_count": 1121,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Largest facet bucket; doesn't match any canonical string ('GLC 300 4MATIC Coupe', 'AMG GLC 43/53/63... Coupe').",
+    "build_version_reliable": "n/a",
+    "note": "NOT sample-verified \u2014 ran out of API quota before reaching this pair.",
+    "verified": false
+   },
+   {
+    "facet_trim": "GLC 300",
+    "listing_count": 654,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical is 'GLC 300 4MATIC Coupe'; facet drops the '4MATIC Coupe' suffix.",
+    "build_version_reliable": "n/a",
+    "note": "Not sample-verified. A duplicate no-space variant 'GLC300' (606) shows the same drop.",
+    "verified": false
+   },
+   {
+    "facet_trim": "AMG GLC 53",
+    "listing_count": 277,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical is 'AMG GLC 53 4MATIC+ Coupe'; facet drops the '4MATIC+ Coupe' suffix.",
+    "build_version_reliable": "n/a",
+    "note": "Not sample-verified.",
+    "verified": false
+   }
+  ]
+ },
+ {
+  "make": "Mini",
+  "model": "Cooper 2 Door",
+  "status": "no_listings"
+ },
+ {
+  "make": "Nissan",
+  "model": "Altima",
+  "status": "clean",
+  "distinct_trims_seen": 14,
+  "mismatches": []
+ },
+ {
+  "make": "Nissan",
+  "model": "Rogue Plug-In Hybrid",
+  "status": "clean",
+  "distinct_trims_seen": 2,
+  "mismatches": []
+ },
+ {
+  "make": "Porsche",
+  "model": "Taycan",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 7,
+  "mismatches": [
+   {
+    "facet_trim": "Base",
+    "listing_count": 1242,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical names the entry trim literally 'Taycan' (not 'Base'); facet uses generic 'Base' instead.",
+    "build_version_reliable": "n/a",
+    "note": "NOT sample-verified \u2014 ran out of API quota before reaching this pair.",
+    "verified": false
+   },
+   {
+    "facet_trim": "S",
+    "listing_count": 459,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "No canonical trim is exactly 'S'; may be a truncation of 'Taycan 4S' (dropping '4' and 'Taycan').",
+    "build_version_reliable": "n/a",
+    "note": "Not sample-verified.",
+    "verified": false
+   },
+   {
+    "facet_trim": "GTS",
+    "listing_count": 166,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical is 'Taycan GTS'; facet drops the 'Taycan' prefix. Same pattern applies to every other Taycan facet value (Turbo S, Turbo, Turbo GT) \u2014 none retain the 'Taycan' prefix that canonical always uses.",
+    "build_version_reliable": "n/a",
+    "note": "Not sample-verified. Systemic prefix-drop suspected across the whole model.",
+    "verified": false
+   }
+  ]
+ },
+ {
+  "make": "Rivian",
+  "model": "R1S",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 4,
+  "mismatches": [
+   {
+    "facet_trim": "Launch Edition",
+    "listing_count": 45,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical trim is 'Quad-Motor Max Pack Launch Edition'; facet drops the 'Quad-Motor Max Pack' prefix.",
+    "build_version_reliable": "n/a",
+    "note": "NOT sample-verified \u2014 API quota exhausted. Other non-matching facets ('Adventure' 650, 'Ascend' 21) look like pre-2025 R1S trim names (a naming-scheme change over time), not modifier drops.",
+    "verified": false
+   }
+  ]
+ },
+ {
+  "make": "Subaru",
+  "model": "Outback",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 32,
+  "mismatches": [
+   {
+    "facet_trim": "Limited",
+    "listing_count": 14869,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical distinguishes 'Limited' vs turbo 'Limited XT'; no separate 'Limited XT' facet bucket exists at all, suggesting the 'XT' turbo modifier may be folded into the plain 'Limited' bucket \u2014 the same shape as the RAV4 defect.",
+    "build_version_reliable": "n/a",
+    "note": "NOT sample-verified \u2014 API quota exhausted before reaching this pair. Same suspected issue likely applies to 'Touring' (9730) vs canonical 'Touring XT'.",
+    "verified": false
+   }
+  ]
+ },
+ {
+  "make": "Toyota",
+  "model": "4Runner",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 23,
+  "mismatches": [
+   {
+    "facet_trim": "SR5 Premium",
+    "listing_count": 2307,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Not present in canonical list at all \u2014 could be a real new-generation (6th-gen) trim missing from the ground truth, or a naming variant.",
+    "build_version_reliable": "n/a",
+    "note": "NOT sample-verified \u2014 API quota exhausted before reaching this pair.",
+    "verified": false
+   },
+   {
+    "facet_trim": "Off-Road",
+    "listing_count": 472,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical is 'TRD Off-Road'; facet drops the 'TRD' prefix.",
+    "build_version_reliable": "n/a",
+    "note": "Not sample-verified.",
+    "verified": false
+   },
+   {
+    "facet_trim": "Sport",
+    "listing_count": 318,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical is 'TRD Sport'; facet drops the 'TRD' prefix.",
+    "build_version_reliable": "n/a",
+    "note": "Not sample-verified.",
+    "verified": false
+   }
+  ]
+ },
+ {
+  "make": "Toyota",
+  "model": "GR86",
+  "status": "clean",
+  "distinct_trims_seen": 6,
+  "mismatches": []
+ },
+ {
+  "make": "Toyota",
+  "model": "Sequoia",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 9,
+  "mismatches": [
+   {
+    "facet_trim": "1794",
+    "listing_count": 1567,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical trim is '1794 Edition'; facet drops the 'Edition' suffix \u2014 the same word-dropping shape as the RAV4 'XLE Premium' -> 'XLE' case.",
+    "build_version_reliable": "n/a",
+    "note": "NOT sample-verified \u2014 API quota exhausted before this call could complete.",
+    "verified": false
+   }
+  ]
+ },
+ {
+  "make": "Volkswagen",
+  "model": "Golf R",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 4,
+  "mismatches": [
+   {
+    "facet_trim": "R",
+    "listing_count": 1055,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical (ground truth) labels the single available trim 'Base'; MarketCheck's build.trim instead returns 'R' (matching the model's own performance-badge name). This looks more like a labeling-convention difference than a dropped modifier.",
+    "build_version_reliable": "n/a",
+    "note": "NOT sample-verified \u2014 API quota exhausted before this call could complete.",
+    "verified": false
+   }
+  ]
+ },
+ {
+  "make": "Volvo",
+  "model": "EX40",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 4,
+  "mismatches": [
+   {
+    "facet_trim": "Plus",
+    "listing_count": 30,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical trims are 'Single Motor Plus' / 'Twin Motor Plus'; facet drops the motor-configuration prefix.",
+    "build_version_reliable": "n/a",
+    "note": "NOT sample-verified \u2014 API quota exhausted before this call could complete.",
+    "verified": false
+   },
+   {
+    "facet_trim": "Ultra Black Edition",
+    "listing_count": 11,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical trim is 'Twin Motor Ultra Black Edition'; facet drops the 'Twin Motor' prefix.",
+    "build_version_reliable": "n/a",
+    "note": "Not sample-verified.",
+    "verified": false
+   }
+  ]
+ },
+ {
+  "make": "Acura",
+  "model": "Integra",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 4,
+  "mismatches": [
+   {
+    "facet_trim": "A-Spec with Tech Package",
+    "listing_count": 1633,
+    "sample_build_trim": "A-Spec with Tech Package",
+    "sample_build_version": "A-Spec with Tech Package",
+    "sample_heading": "2026 Acura Integra CVT with A-Spec Technology Package",
+    "pattern": "Naming-convention mismatch only, not a drop: build.trim and build.version agree with each other but neither matches canonical wording 'A-Spec w/Technology Package'. No information lost.",
+    "build_version_reliable": true,
+    "note": "version identical to trim; canonical vocabulary just uses different phrasing than MarketCheck's own consistent naming"
+   },
+   {
+    "facet_trim": "Type-S",
+    "listing_count": 366,
+    "sample_build_trim": "Type-S",
+    "sample_build_version": "Type-S",
+    "sample_heading": "2026 Acura Integra Type S",
+    "pattern": "Punctuation variant only (hyphen vs space): 'Type-S' vs canonical 'Type S'. No word dropped.",
+    "build_version_reliable": true,
+    "note": "version identical to trim; heading uses the canonical spacing 'Type S' though, so dealer heading is actually the most correct source here"
+   }
+  ]
+ },
+ {
+  "make": "Audi",
+  "model": "A6",
+  "status": "clean",
+  "distinct_trims_seen": 3,
+  "mismatches": []
+ },
+ {
+  "make": "Audi",
+  "model": "Q5 Sportback",
+  "status": "clean",
+  "distinct_trims_seen": 3,
+  "mismatches": []
+ },
+ {
+  "make": "Audi",
+  "model": "RS3",
+  "status": "no_listings",
+  "distinct_trims_seen": 0,
+  "mismatches": []
+ },
+ {
+  "make": "Audi",
+  "model": "SQ5",
+  "status": "clean",
+  "distinct_trims_seen": 3,
+  "mismatches": []
+ },
+ {
+  "make": "BMW",
+  "model": "2 Series Gran Coupe",
+  "status": "no_listings",
+  "distinct_trims_seen": 0,
+  "mismatches": []
+ },
+ {
+  "make": "BMW",
+  "model": "8 Series Gran Coupe",
+  "status": "no_listings",
+  "distinct_trims_seen": 0,
+  "mismatches": []
+ },
+ {
+  "make": "BMW",
+  "model": "X1",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 2,
+  "mismatches": [
+   {
+    "facet_trim": "28i",
+    "listing_count": 5348,
+    "sample_build_trim": "28i",
+    "sample_build_version": "xDrive28i",
+    "sample_heading": "New 2027 BMW X1 xDrive28i",
+    "pattern": "build.trim drops the 'xDrive' drivetrain-designator prefix that canonical trim 'xDrive28i' requires; build.version and heading both retain it.",
+    "build_version_reliable": true,
+    "note": null
+   }
+  ]
+ },
+ {
+  "make": "BMW",
+  "model": "Z4",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 4,
+  "mismatches": [
+   {
+    "facet_trim": "30i",
+    "listing_count": 90,
+    "sample_build_trim": "30i",
+    "sample_build_version": "sDrive30i",
+    "sample_heading": "2026 BMW Z4",
+    "pattern": "build.trim drops the 'sDrive' prefix required by canonical trim 'sDrive30i'; build.version retains the full correct value.",
+    "build_version_reliable": true,
+    "note": null
+   },
+   {
+    "facet_trim": "Base",
+    "listing_count": 17,
+    "sample_build_trim": "Base",
+    "sample_build_version": "sDrive30i",
+    "sample_heading": "2019 BMW Z4",
+    "pattern": "build.trim is entirely genericized to 'Base' with no real trim info, while build.version has the correct 'sDrive30i'.",
+    "build_version_reliable": true,
+    "note": "sample was a used 2019 MY, not current-year inventory, but the same trim=Base genericization could recur on any year"
+   }
+  ]
+ },
+ {
+  "make": "Buick",
+  "model": "Envision",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 4,
+  "mismatches": [
+   {
+    "facet_trim": "Essence",
+    "listing_count": 40,
+    "sample_build_trim": "Essence",
+    "sample_build_version": "Essence AWD",
+    "sample_heading": "2022 Buick Envision Essence SUV",
+    "pattern": "Not a drop bug: trim/version agree. 'Essence' was a real Envision trim discontinued before MY2026/2027, so it is legacy stock outside the canonical vocabulary rather than a truncation.",
+    "build_version_reliable": true,
+    "note": null
+   }
+  ]
+ },
+ {
+  "make": "Cadillac",
+  "model": "Lyriq",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 14,
+  "mismatches": [
+   {
+    "facet_trim": "Luxury 1",
+    "listing_count": 26,
+    "sample_build_trim": "Luxury 1",
+    "sample_build_version": "Luxury 1 AWD",
+    "sample_heading": "2025 Cadillac LYRIQ Luxury 1",
+    "pattern": "Not a drop: trim/version consistent. MY2025 Lyriq used numbered trim tiers (Luxury 1/2/3, Sport 1/2/3) that were renamed to plain Luxury/Sport for MY2026-27; legacy naming outside canonical vocabulary.",
+    "build_version_reliable": true,
+    "note": null
+   },
+   {
+    "facet_trim": "Sport 3",
+    "listing_count": 26,
+    "sample_build_trim": "Sport 3",
+    "sample_build_version": "Sport 3 AWD",
+    "sample_heading": "2025 Cadillac LYRIQ Sport 3",
+    "pattern": "Same legacy MY2025 numbered-tier naming as 'Luxury 1'.",
+    "build_version_reliable": true,
+    "note": null
+   }
+  ]
+ },
+ {
+  "make": "Chevrolet",
+  "model": "Corvette",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 7,
+  "mismatches": [
+   {
+    "facet_trim": "2LT",
+    "listing_count": 1136,
+    "sample_build_trim": "2LT",
+    "sample_build_version": "Grand Sport Convertible 2LT",
+    "sample_heading": "2027 Chevrolet Corvette 2LT",
+    "pattern": "Severe: build.trim only carries the equipment-package code (1LT/2LT/3LT/1LZ/2LZ/3LZ) and drops the actual model name entirely (Stingray/Grand Sport/Z06/etc.), which only appears in build.version. Same pattern almost certainly applies to 3LT, 1LT, 1LZ, 2LZ, 3LZ (not individually re-verified).",
+    "build_version_reliable": true,
+    "note": "This is worse than a modifier drop - build.trim alone cannot distinguish which Corvette model/trim a listing actually is"
+   }
+  ]
+ },
+ {
+  "make": "Chevrolet",
+  "model": "Trailblazer",
+  "status": "clean",
+  "distinct_trims_seen": 4,
+  "mismatches": []
+ },
+ {
+  "make": "Ford",
+  "model": "Bronco Sport",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 6,
+  "mismatches": [
+   {
+    "facet_trim": "Free Wheeling",
+    "listing_count": 21,
+    "sample_build_trim": "Free Wheeling",
+    "sample_build_version": "Free Wheeling 4X4",
+    "sample_heading": "New 2025 Ford Bronco Sport Free Wheeling",
+    "pattern": "Not a drop: trim/version consistent. 'Free Wheeling' was a real MY2025 special-edition trim not carried into the MY2026/2027 canonical list (Big Bend/Heritage/Outer Banks/Badlands only); legacy stock.",
+    "build_version_reliable": true,
+    "note": null
+   }
+  ]
+ },
+ {
+  "make": "Ford",
+  "model": "Mustang",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 11,
+  "mismatches": [
+   {
+    "facet_trim": "Shelby GT500",
+    "listing_count": 4,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Not verified (low count, clearly a discontinued/legacy Mustang nameplate, not related to the 2026 EcoBoost/GT/Dark Horse lineup) - skipped verification for efficiency.",
+    "build_version_reliable": "n/a",
+    "note": "unverified"
+   },
+   {
+    "facet_trim": "Mach 1",
+    "listing_count": 3,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Same as Shelby GT500 - legacy/discontinued nameplate at the minimum-count threshold, not verified.",
+    "build_version_reliable": "n/a",
+    "note": "unverified"
+   }
+  ]
+ },
+ {
+  "make": "GMC",
+  "model": "Hummer EV Pickup",
+  "status": "no_listings",
+  "distinct_trims_seen": 0,
+  "mismatches": []
+ },
+ {
+  "make": "GMC",
+  "model": "Yukon XL",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 6,
+  "mismatches": [
+   {
+    "facet_trim": "SLT",
+    "listing_count": 7,
+    "sample_build_trim": "SLT",
+    "sample_build_version": "4WD SLT",
+    "sample_heading": "2019 GMC Yukon XL SLT",
+    "pattern": "Not a drop: trim/version consistent. 'SLT' is an old (2019) Yukon XL trim no longer offered on MY2026/2027 (Elevation/AT4/Denali/AT4 Ultimate/Denali Ultimate); legacy stock.",
+    "build_version_reliable": true,
+    "note": null
+   }
+  ]
+ },
+ {
+  "make": "Genesis",
+  "model": "GV80 Coupe",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 5,
+  "mismatches": [
+   {
+    "facet_trim": "E-SC",
+    "listing_count": 416,
+    "sample_build_trim": "E-SC",
+    "sample_build_version": "3.5T E-SC AWD",
+    "sample_heading": "2026 GV80 Coupe 3.5T e-SC AWD",
+    "pattern": "build.trim drops the '3.5T' engine-designator prefix and abbreviates 'E-Supercharger' to 'E-SC', vs canonical '3.5T E-Supercharger'. build.version keeps the '3.5T' prefix (still abbreviates to 'E-SC' rather than spelling out E-Supercharger).",
+    "build_version_reliable": true,
+    "note": "version is more complete than trim but still uses the abbreviation 'E-SC' rather than canonical's full 'E-Supercharower' wording"
+   },
+   {
+    "facet_trim": "Base",
+    "listing_count": 28,
+    "sample_build_trim": "Base",
+    "sample_build_version": "3.5T AWD",
+    "sample_heading": "2026 Genesis GV80 Coupe 3.5T",
+    "pattern": "build.trim is genericized to 'Base' with the actual engine/trim designator '3.5T' dropped entirely; only build.version and the dealer heading retain it.",
+    "build_version_reliable": true,
+    "note": null
+   }
+  ]
+ },
+ {
+  "make": "Honda",
+  "model": "Pilot",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 11,
+  "mismatches": [
+   {
+    "facet_trim": "EX",
+    "listing_count": 15,
+    "sample_build_trim": "EX",
+    "sample_build_version": "4WD EX",
+    "sample_heading": "2019 Honda Pilot EX",
+    "pattern": "Not a drop: trim/version consistent. 'EX' was a real Pilot trim discontinued after ~2019 (current lineup uses EX-L, not EX); legacy stock, not a truncation of 'EX-L'.",
+    "build_version_reliable": true,
+    "note": null
+   },
+   {
+    "facet_trim": "LX",
+    "listing_count": 12,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Not verified; almost certainly the same legacy-trim situation as 'EX'.",
+    "build_version_reliable": "n/a",
+    "note": "unverified"
+   },
+   {
+    "facet_trim": "Touring+",
+    "listing_count": 9,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Not verified; likely a distinct/legacy Touring variant, not in canonical list.",
+    "build_version_reliable": "n/a",
+    "note": "unverified"
+   }
+  ]
+ },
+ {
+  "make": "Hyundai",
+  "model": "Ioniq 9",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 6,
+  "mismatches": [
+   {
+    "facet_trim": "Calligraphy Design",
+    "listing_count": 3,
+    "sample_build_trim": "Calligraphy Design",
+    "sample_build_version": "Calligraphy Design AWD (Before July 2026",
+    "sample_heading": "2026 Hyundai IONIQ 9 Performance Calligraphy Design SUV",
+    "pattern": "Both build.trim AND build.version drop the 'Performance' prefix required by canonical 'Performance Calligraphy Design'; only the dealer heading retains the correct full name.",
+    "build_version_reliable": false,
+    "note": "build.version string itself looks malformed/truncated - has an unclosed parenthesis: 'Calligraphy Design AWD (Before July 2026' - a data quality issue in its own right"
+   }
+  ]
+ },
+ {
+  "make": "Hyundai",
+  "model": "Venue",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 3,
+  "mismatches": [
+   {
+    "facet_trim": "Limited",
+    "listing_count": 23,
+    "sample_build_trim": "Limited",
+    "sample_build_version": "Limited IVT",
+    "sample_heading": "2025 Hyundai Venue Limited",
+    "pattern": "Not a drop: trim/version consistent. 'Limited' was a real Venue trim discontinued before MY2026 (canonical is SE/SEL only); legacy stock.",
+    "build_version_reliable": true,
+    "note": null
+   }
+  ]
+ },
+ {
+  "make": "Jeep",
+  "model": "Grand Cherokee L",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 8,
+  "mismatches": [
+   {
+    "facet_trim": "Altitude",
+    "listing_count": 266,
+    "sample_build_trim": "Altitude",
+    "sample_build_version": "Altitude X",
+    "sample_heading": "2025 Jeep Grand Cherokee L Altitude X",
+    "pattern": "Ambiguous: sample is a MY2025 listing with trim/version consistent as 'Altitude'/'Altitude X', not clearly derived from canonical 'Laredo Altitude' (no 'Laredo' appears anywhere in the record). Could be a separate appearance-package trim rather than a truncation.",
+    "build_version_reliable": true,
+    "note": "not confirmed as the RAV4-style drop pattern; flagged mainly because it doesn't string-match canonical 'Laredo Altitude'"
+   },
+   {
+    "facet_trim": "Overland",
+    "listing_count": 97,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Not verified; 'Overland' is not in the canonical trim list at all (could be a legacy or missing-from-canonical trim).",
+    "build_version_reliable": "n/a",
+    "note": "unverified"
+   },
+   {
+    "facet_trim": "Summit Reserve",
+    "listing_count": 25,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Not verified; also absent from canonical list.",
+    "build_version_reliable": "n/a",
+    "note": "unverified"
+   }
+  ]
+ },
+ {
+  "make": "Kia",
+  "model": "K4",
+  "status": "clean",
+  "distinct_trims_seen": 5,
+  "mismatches": []
+ },
+ {
+  "make": "Kia",
+  "model": "Telluride",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 16,
+  "mismatches": [
+   {
+    "facet_trim": "X-Line EX",
+    "listing_count": 1977,
+    "sample_build_trim": "X-Line EX",
+    "sample_build_version": "X-Line EX AWD",
+    "sample_heading": "New 2027 Kia Telluride X-Line EX",
+    "pattern": "Word-order inconsistency rather than a drop: build.trim/version agree internally as 'X-Line EX', but canonical (and MarketCheck's own facet elsewhere, 'EX X-Line' at count 30) uses the reverse order 'EX X-Line'. Same underlying trim is represented two different ways across listings.",
+    "build_version_reliable": true,
+    "note": "no info lost, but the inconsistent word order breaks exact-string matching against canonical vocabulary"
+   },
+   {
+    "facet_trim": "X-Pro SX Prestige",
+    "listing_count": 1646,
+    "sample_build_trim": "X-Pro SX Prestige",
+    "sample_build_version": "X-Pro SX Prestige AWD",
+    "sample_heading": "2027 Kia Telluride X-Pro SX-Prestige",
+    "pattern": "Same reordering issue vs canonical 'SX Prestige X-Pro'.",
+    "build_version_reliable": true,
+    "note": null
+   },
+   {
+    "facet_trim": "SX-Prestige",
+    "listing_count": 2422,
+    "sample_build_trim": "SX-Prestige",
+    "sample_build_version": "SX-Prestige HEV AWD",
+    "sample_heading": "New 2027 Kia Telluride Hybrid SX-PRESTIGE",
+    "pattern": "Punctuation variant: hyphen used instead of the space in canonical 'SX Prestige'.",
+    "build_version_reliable": true,
+    "note": null
+   }
+  ]
+ },
+ {
+  "make": "Lexus",
+  "model": "ES",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 5,
+  "mismatches": [
+   {
+    "facet_trim": "350",
+    "listing_count": 39,
+    "sample_build_trim": "350",
+    "sample_build_version": "350",
+    "sample_heading": "2025 Lexus ES ES 350",
+    "pattern": "Not a drop bug: entire active-listing facet for ES (all 5 trim values, only 69 total listings nationally) is previous-generation gas ES350 naming ('350', 'F SPORT', etc.), completely disjoint from the MY2026 electrified-only canonical vocabulary (350e/350h/500e Premium/Luxury). Appears to reflect a model-generation transition with little/no true MY2026 inventory live yet, not a field-truncation issue.",
+    "build_version_reliable": true,
+    "note": "worth re-checking again later in the model year once real MY2026 ES stock exists"
+   }
+  ]
+ },
+ {
+  "make": "Lexus",
+  "model": "RZ",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 4,
+  "mismatches": [
+   {
+    "facet_trim": "Premium",
+    "listing_count": 377,
+    "sample_build_trim": "Premium",
+    "sample_build_version": "350e Premium FWD",
+    "sample_heading": "2026 Lexus RZ 350e PREMIUM",
+    "pattern": "build.trim drops the powertrain-designator prefix ('350e') required by canonical trims like '350e Premium'; build.version and heading retain it.",
+    "build_version_reliable": true,
+    "note": null
+   },
+   {
+    "facet_trim": "F SPORT",
+    "listing_count": 87,
+    "sample_build_trim": "F SPORT",
+    "sample_build_version": "550e F SPORT AWD",
+    "sample_heading": "New 2026 Lexus RZ 550e F SPORT AWD",
+    "pattern": "Same prefix-drop pattern: canonical is '550e F SPORT', build.trim drops '550e'.",
+    "build_version_reliable": true,
+    "note": null
+   },
+   {
+    "facet_trim": "Base",
+    "listing_count": 40,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Not verified; likely the base 350e trim genericized to 'Base' with no powertrain/level info, similar to the Genesis GV80 Coupe and Mercedes EQE SUV 'Base' pattern seen elsewhere.",
+    "build_version_reliable": "n/a",
+    "note": "unverified"
+   }
+  ]
+ },
+ {
+  "make": "Lucid",
+  "model": "Air",
+  "status": "clean",
+  "distinct_trims_seen": 3,
+  "mismatches": []
+ },
+ {
+  "make": "Mazda",
+  "model": "MX-5 Miata",
+  "status": "clean",
+  "distinct_trims_seen": 5,
+  "mismatches": []
+ },
+ {
+  "make": "Mercedes-Benz",
+  "model": "EQE SUV",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 1,
+  "mismatches": [
+   {
+    "facet_trim": "Base",
+    "listing_count": 369,
+    "sample_build_trim": "Base",
+    "sample_build_version": "EQE 320+",
+    "sample_heading": "2026 Mercedes-Benz EQE EQE 320+",
+    "pattern": "Severe, total collapse: build.trim is 'Base' for 100% of EQE SUV listings (all 369) regardless of actual trim (320+, 320 4MATIC, AMG EQE, etc.) - build.trim carries zero differentiating information for this model. build.version has the correct real trim in every case.",
+    "build_version_reliable": true,
+    "note": "worst case found in this batch - build.trim is completely unusable for this model, not just missing a modifier"
+   }
+  ]
+ },
+ {
+  "make": "Mercedes-Benz",
+  "model": "GLE",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 6,
+  "mismatches": [
+   {
+    "facet_trim": "GLE350",
+    "listing_count": 7536,
+    "sample_build_trim": "GLE350",
+    "sample_build_version": "GLE 350 4MATIC",
+    "sample_heading": "2026 Mercedes-Benz GLE 350 4MATIC SUV",
+    "pattern": "build.trim both removes the space ('GLE 350' -> 'GLE350') and drops the '4MATIC' drivetrain suffix entirely; build.version and heading retain the full 'GLE 350 4MATIC'. Same pattern likely affects GLE450 (vs 'GLE 450 4MATIC'), GLE580 (vs 'GLE 580 4MATIC') and AMG GLE63 S (vs 'AMG GLE 63 S') per the facet list, not individually re-verified.",
+    "build_version_reliable": true,
+    "note": null
+   }
+  ]
+ },
+ {
+  "make": "Mini",
+  "model": "Cooper 4 Door",
+  "status": "no_listings",
+  "distinct_trims_seen": 0,
+  "mismatches": []
+ },
+ {
+  "make": "Nissan",
+  "model": "Armada",
+  "status": "clean",
+  "distinct_trims_seen": 6,
+  "mismatches": []
+ },
+ {
+  "make": "Nissan",
+  "model": "Sentra",
+  "status": "clean",
+  "distinct_trims_seen": 6,
+  "mismatches": []
+ },
+ {
+  "make": "Ram",
+  "model": "1500",
+  "status": "no_listings",
+  "distinct_trims_seen": 0,
+  "mismatches": []
+ },
+ {
+  "make": "Rivian",
+  "model": "R1T",
+  "status": "clean",
+  "distinct_trims_seen": 1,
+  "mismatches": []
+ },
+ {
+  "make": "Subaru",
+  "model": "Solterra",
+  "status": "clean",
+  "distinct_trims_seen": 5,
+  "mismatches": []
+ },
+ {
+  "make": "Toyota",
+  "model": "C-HR",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 4,
+  "mismatches": [
+   {
+    "facet_trim": "XLE Premium",
+    "listing_count": 18,
+    "sample_build_trim": "XLE Premium",
+    "sample_build_version": "XLE Premium",
+    "sample_heading": "2018 Toyota C-HR XLE SUV Front-wheel Drive",
+    "pattern": "Not a drop: trim/version consistent. Sample is a previous-generation (2018) C-HR; the redesigned MY2026/2027 C-HR is hybrid-only with SE/XSE trims, so 'XLE'/'XLE Premium' listings are old-generation carryover stock outside the canonical vocabulary, not a truncation.",
+    "build_version_reliable": true,
+    "note": null
+   },
+   {
+    "facet_trim": "XLE",
+    "listing_count": 17,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Same old-generation-carryover explanation as 'XLE Premium'; not separately verified.",
+    "build_version_reliable": "n/a",
+    "note": "unverified"
+   }
+  ]
+ },
+ {
+  "make": "Toyota",
+  "model": "Grand Highlander",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 5,
+  "mismatches": [
+   {
+    "facet_trim": "Nightshade",
+    "listing_count": 1787,
+    "sample_build_trim": "Nightshade",
+    "sample_build_version": "Hybrid Nightshade AWD",
+    "sample_heading": "2026 Toyota Grand Highlander Hybrid",
+    "pattern": "build.trim drops the 'Hybrid' prefix required by canonical trim 'Hybrid Nightshade' (Nightshade only exists as a Hybrid trim); build.version retains the full correct name. Same RAV4-style pattern as the originally-reported XLE/XLE Premium bug.",
+    "build_version_reliable": true,
+    "note": null
+   }
+  ]
+ },
+ {
+  "make": "Toyota",
+  "model": "Sienna",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 10,
+  "mismatches": [
+   {
+    "facet_trim": "XLE Premium",
+    "listing_count": 4,
+    "sample_build_trim": "XLE Premium",
+    "sample_build_version": "XLE Premium V6 8-Passenger",
+    "sample_heading": "2018 Toyota Sienna XLE Premium 8 Passenger Van",
+    "pattern": "Not a drop: trim/version consistent. Sample is a 2018 (previous-generation) Sienna; 'XLE Premium' is not part of the current MY2026 canonical trim list, so this is legacy carryover stock, not a truncation.",
+    "build_version_reliable": true,
+    "note": null
+   },
+   {
+    "facet_trim": "XSE 25th Anniversary",
+    "listing_count": 3,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Not verified; likely a special-edition trim outside the canonical list, at the minimum count threshold.",
+    "build_version_reliable": "n/a",
+    "note": "unverified"
+   }
+  ]
+ },
+ {
+  "make": "Volkswagen",
+  "model": "ID.4",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 5,
+  "mismatches": [
+   {
+    "facet_trim": "PRO S PLUS",
+    "listing_count": 143,
+    "sample_build_trim": "PRO S PLUS",
+    "sample_build_version": "ID.4 AWD PRO S Plus",
+    "sample_heading": "2026 Volkswagen ID.4 Pro S Plus",
+    "pattern": "build.trim drops the 'AWD' prefix required by canonical trim 'AWD Pro S Plus' (that trim only exists in AWD form); build.version retains it. The facet also can't distinguish whether plain 'PRO'/'PRO S' listings (counts 682/474) are the FWD or AWD variant since 'AWD' is stripped from trim in general.",
+    "build_version_reliable": true,
+    "note": null
+   }
+  ]
+ },
+ {
+  "make": "Volvo",
+  "model": "EX60",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 2,
+  "mismatches": [
+   {
+    "facet_trim": "Ultra",
+    "listing_count": 44,
+    "sample_build_trim": "Ultra",
+    "sample_build_version": "P10 Ultra AWD",
+    "sample_heading": "2027 Volvo EX60 Twin Motor Ultra",
+    "pattern": "build.trim drops the powertrain-designator prefix ('P10 AWD') required by canonical trim 'P10 AWD Ultra'; build.version keeps 'P10' but is itself missing the 'AWD' portion ('P10 Ultra AWD' vs canonical 'P10 AWD Ultra'), so even build.version doesn't exactly match canonical wording/order.",
+    "build_version_reliable": false,
+    "note": "build.version is closer than build.trim but still reorders/drops relative to the canonical string"
+   }
+  ]
+ },
+ {
+  "make": "Acura",
+  "model": "MDX",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 10,
+  "mismatches": [
+   {
+    "facet_trim": "Technology Package",
+    "listing_count": 5309,
+    "sample_build_trim": "Technology Package",
+    "sample_build_version": "w/Technology Package",
+    "sample_heading": "New 2026 Acura MDX Technology Package",
+    "pattern": "Canonical trim is 'Technology Package FWD' / 'Technology Package SH-AWD' - build.trim drops the FWD/SH-AWD drivetrain qualifier entirely, collapsing two distinct canonical trims into one facet value. Same drop pattern applies to 'Advance Package' (3491 listings, canonical 'Advance Package' has no FWD/AWD split so less severe) and 'A-Spec Package' (2644, canonical is bare 'A-Spec') and 'A-spec w/Advance Package' (1997, canonical 'A-Spec Advance') and 'Type S w/Advance Package' (2443, canonical 'Type S') - not individually re-verified, pattern inferred from consistent facet family.",
+    "build_version_reliable": false,
+    "note": "build.version is not a clean restatement of the full trim - it's a fragment ('w/Technology Package') rather than a proper trim string, and drops the drivetrain (FWD) that the canonical name and dealer heading also omit here (drivetrain field elsewhere is 'FWD'). Neither trim nor version reliably distinguishes FWD vs SH-AWD variants of the same package."
+   }
+  ]
+ },
+ {
+  "make": "Audi",
+  "model": "A6 Sportback e-tron",
+  "status": "clean",
+  "distinct_trims_seen": 3,
+  "mismatches": []
+ },
+ {
+  "make": "Audi",
+  "model": "Q6 Sportback e-tron",
+  "status": "clean",
+  "distinct_trims_seen": 3,
+  "mismatches": []
+ },
+ {
+  "make": "Audi",
+  "model": "RS6 Avant",
+  "status": "no_listings"
+ },
+ {
+  "make": "Audi",
+  "model": "SQ5 Sportback",
+  "status": "clean",
+  "distinct_trims_seen": 3,
+  "mismatches": []
+ },
+ {
+  "make": "BMW",
+  "model": "3 Series",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 4,
+  "mismatches": [
+   {
+    "facet_trim": "330i",
+    "listing_count": 9067,
+    "sample_build_trim": "330i",
+    "sample_build_version": "330i xDrive Sedan",
+    "sample_heading": "New 2026 BMW 330i xDrive",
+    "pattern": "Canonical treats '330i' and '330i xDrive' as two separate trims, but build.trim uses the bare '330i' facet value for BOTH the RWD and xDrive (AWD) cars - the xDrive modifier is dropped from build.trim. Same likely applies to 'M340i' (922 listings) vs canonical 'M340i xDrive'.",
+    "build_version_reliable": true,
+    "note": "build.version correctly retains 'xDrive' when present (e.g. '330i xDrive Sedan') and is plain '330i Sedan' for RWD cars in other sampled listings, so version is a reliable field here even though trim is not."
+   }
+  ]
+ },
+ {
+  "make": "BMW",
+  "model": "ALPINA XB7",
+  "status": "no_listings"
+ },
+ {
+  "make": "BMW",
+  "model": "X2",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 2,
+  "mismatches": [
+   {
+    "facet_trim": "28i",
+    "listing_count": 1354,
+    "sample_build_trim": "28i",
+    "sample_build_version": "xDrive28i",
+    "sample_heading": "2026 BMW X2 xDrive28i Sports Activity Coupe",
+    "pattern": "Canonical trim is 'xDrive28i' - build.trim drops the 'xDrive' prefix entirely, leaving just the numeric suffix '28i' which does not match any canonical trim string. Same likely applies to '35i' (114 listings) vs canonical 'M35i' (drops the 'M' prefix).",
+    "build_version_reliable": true,
+    "note": "build.version correctly restores the full 'xDrive28i' trim name."
+   }
+  ]
+ },
+ {
+  "make": "BMW",
+  "model": "i4",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 5,
+  "mismatches": [
+   {
+    "facet_trim": "40",
+    "listing_count": 1051,
+    "sample_build_trim": "40",
+    "sample_build_version": "eDrive40 Gran Coupe",
+    "sample_heading": "2026 BMW i4 eDrive40",
+    "pattern": "Canonical has two distinct trims sharing the '40' suffix - 'eDrive40' and 'xDrive40' - but build.trim drops the drivetrain prefix entirely, leaving an ambiguous bare '40' that cannot distinguish which of the two real trims a listing is. '35' (37 listings, likely a shortened '35' variant not in canonical) shows the same pattern.",
+    "build_version_reliable": true,
+    "note": "build.version correctly retains the full 'eDrive40'/'xDrive40' distinction."
+   }
+  ]
+ },
+ {
+  "make": "Buick",
+  "model": "Envista",
+  "status": "clean",
+  "distinct_trims_seen": 3,
+  "mismatches": []
+ },
+ {
+  "make": "Cadillac",
+  "model": "Optiq",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 9,
+  "mismatches": [
+   {
+    "facet_trim": "V-Series",
+    "listing_count": 160,
+    "sample_build_trim": "V-Series",
+    "sample_build_version": "V-Series",
+    "sample_heading": "2027 Cadillac OPTIQ OPTIQ-V",
+    "pattern": "Canonical trim is bare 'V' but MarketCheck's build.trim/version both render it as 'V-Series' - the opposite direction from the usual drop (an added suffix rather than a dropped modifier), still a literal mismatch against the canonical vocabulary. Dealer heading calls it 'OPTIQ-V', a third distinct spelling.",
+    "build_version_reliable": true,
+    "note": "trim and version agree with each other ('V-Series') but neither matches the canonical 'V', and the heading uses yet a different form ('OPTIQ-V') - three different spellings of the same trim across the three fields."
+   }
+  ]
+ },
+ {
+  "make": "Chevrolet",
+  "model": "Equinox",
+  "status": "clean",
+  "distinct_trims_seen": 9,
+  "mismatches": []
+ },
+ {
+  "make": "Chevrolet",
+  "model": "Traverse",
+  "status": "clean",
+  "distinct_trims_seen": 11,
+  "mismatches": []
+ },
+ {
+  "make": "Ford",
+  "model": "E-Transit",
+  "status": "no_listings"
+ },
+ {
+  "make": "Ford",
+  "model": "Mustang Mach-E",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 6,
+  "mismatches": [
+   {
+    "facet_trim": "Premium AWD",
+    "listing_count": 2546,
+    "sample_build_trim": "Premium AWD",
+    "sample_build_version": "Premium",
+    "sample_heading": "2026 Ford Mustang Mach-E Premium",
+    "pattern": "Reverse of the usual pattern: canonical trim is bare 'Premium', but build.trim appends the drivetrain ('Premium AWD' / 'Premium RWD' / 'Select RWD' / 'Select AWD' / 'GT AWD'), so build.trim never exactly matches the canonical vocabulary even though it is arguably more descriptive, not less.",
+    "build_version_reliable": true,
+    "note": "Here build.version is actually the one that matches canonical exactly ('Premium'), while build.trim is the field that diverges by adding the drivetrain suffix - opposite of the RAV4 case where trim was the impoverished field."
+   }
+  ]
+ },
+ {
+  "make": "GMC",
+  "model": "Hummer EV SUV",
+  "status": "no_listings"
+ },
+ {
+  "make": "Genesis",
+  "model": "Electrified GV70",
+  "status": "no_listings"
+ },
+ {
+  "make": "Honda",
+  "model": "Accord",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 13,
+  "mismatches": [
+   {
+    "facet_trim": "Hybrid Sport",
+    "listing_count": 3662,
+    "sample_build_trim": "Hybrid Sport",
+    "sample_build_version": "Hybrid Sport",
+    "sample_heading": "2026 Honda Accord Hybrid",
+    "pattern": "Not a truncation bug like RAV4 - trim and version agree exactly here ('Hybrid Sport'). The mismatch is that the Levr canonical vocabulary for Accord (LX, SE, Sport, EX-L, Sport-L, Touring) is missing the Hybrid-prefixed trims entirely, even though Hybrid Sport/Sport-L/Touring/EX-L account for over 11,000 of the ~28,000 live Accord listings - a canonical-research gap rather than a MarketCheck field-dropping defect.",
+    "build_version_reliable": true,
+    "note": "build.version is reliable and matches build.trim exactly; the underlying issue here is the ground-truth trim list, not the MarketCheck field."
+   }
+  ]
+ },
+ {
+  "make": "Honda",
+  "model": "Prelude",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 1,
+  "mismatches": [
+   {
+    "facet_trim": "Base",
+    "listing_count": 1103,
+    "sample_build_trim": "Base",
+    "sample_build_version": "-",
+    "sample_heading": "2026 Honda Prelude",
+    "pattern": "Every single live Prelude listing (100% of 1103) carries build.trim='Base', which is not a real Prelude trim at all - the real trims are 'Hybrid' and 'Hybrid Two-Tone' per canonical research and Honda's own naming (Prelude is hybrid-only). This is worse than a dropped modifier - build.trim is simply wrong/generic for the entire model.",
+    "build_version_reliable": false,
+    "note": "build.version is a literal placeholder dash '-' (empty/no data), and even the dealer's own heading ('2026 Honda Prelude') omits the trim entirely. All three of Levr's usual signals (build.trim, build.version, heading) fail to surface the real trim for this model - none can be used to recover 'Hybrid' vs 'Hybrid Two-Tone'."
+   }
+  ]
+ },
+ {
+  "make": "Hyundai",
+  "model": "Kona",
+  "status": "clean",
+  "distinct_trims_seen": 9,
+  "mismatches": []
+ },
+ {
+  "make": "Infiniti",
+  "model": "QX60",
+  "status": "clean",
+  "distinct_trims_seen": 6,
+  "mismatches": []
+ },
+ {
+  "make": "Jeep",
+  "model": "Grand Wagoneer",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 13,
+  "mismatches": [
+   {
+    "facet_trim": "85th Anniversary",
+    "listing_count": 899,
+    "sample_build_trim": "85th Anniversary",
+    "sample_build_version": "85th Anniversary 4WD",
+    "sample_heading": "2026 Jeep Grand Wagoneer 85th Anniversary Edition",
+    "pattern": "Canonical trim is '85th Anniversary Edition' - both build.trim AND build.version drop the word 'Edition', while the dealer's own heading retains the full correct name. This mirrors the RAV4 case exactly (MarketCheck's own build fields both under-report vs. the dealer heading), except here even build.version fails to recover the dropped word.",
+    "build_version_reliable": false,
+    "note": "build.version also drops 'Edition' (just adds drivetrain '4WD'), so it is not a reliable fallback here - only the dealer heading has the complete, correct trim name."
+   }
+  ]
+ },
+ {
+  "make": "Kia",
+  "model": "K4 Hatchback",
+  "status": "no_listings"
+ },
+ {
+  "make": "Land Rover",
+  "model": "Defender",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 13,
+  "mismatches": [
+   {
+    "facet_trim": "X-Dynamic SE",
+    "listing_count": 3569,
+    "sample_build_trim": "X-Dynamic SE",
+    "sample_build_version": "110 X-Dynamic SE P400",
+    "sample_heading": "2026 Land Rover Defender 110 X-Dynamic SE SUV",
+    "pattern": "Canonical trims for this model always bundle the body-length code ('90'/'110'/'130') and powertrain code (e.g. 'P400') with the trim name (e.g. '110 P400 X-Dynamic SE' or, in newer naming, 'X-Dynamic SE (110)'). build.trim strips both the length and powertrain codes, leaving a bare 'X-Dynamic SE' that cannot be matched to a specific canonical trim string. Same applies to 'S' (2424), 'V8' (555), 'X' (262), 'Trophy Edition' (141), etc.",
+    "build_version_reliable": true,
+    "note": "build.version correctly retains the full '110 X-Dynamic SE P400' descriptor; only build.trim is impoverished."
+   }
+  ]
+ },
+ {
+  "make": "Lexus",
+  "model": "GX",
+  "status": "clean",
+  "distinct_trims_seen": 10,
+  "mismatches": []
+ },
+ {
+  "make": "Lexus",
+  "model": "TX",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 5,
+  "mismatches": [
+   {
+    "facet_trim": "Premium",
+    "listing_count": 3876,
+    "sample_build_trim": "Premium",
+    "sample_build_version": "350 Premium AWD",
+    "sample_heading": "New 2026 LEXUS TX 350 Premium",
+    "pattern": "Canonical trims are always prefixed with the engine/series number ('350 Premium', '350 Luxury', '350 F SPORT Handling', '500h F SPORT Performance Premium', etc.) - build.trim drops the '350'/'500h'/'550h+' prefix entirely, so 'Premium' (3876), 'Luxury' (1352) and 'F Sport' (399) are all ambiguous against the canonical list (e.g. 'F Sport' could map to either the 350 F SPORT Handling or either 500h F SPORT Performance trim).",
+    "build_version_reliable": true,
+    "note": "build.version correctly restores the engine prefix ('350 Premium AWD')."
+   }
+  ]
+ },
+ {
+  "make": "Lucid",
+  "model": "Gravity",
+  "status": "no_listings"
+ },
+ {
+  "make": "Mazda",
+  "model": "Mazda3",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 10,
+  "mismatches": [
+   {
+    "facet_trim": "Select Sport",
+    "listing_count": 3259,
+    "sample_build_trim": "Select Sport",
+    "sample_build_version": "Select Sport AT 4-Door SKYACTIV",
+    "sample_heading": "New 2026 Mazda3 Sedan 2.5 S Select Sport",
+    "pattern": "Canonical trims all carry the engine/spec prefix ('2.5 S Select Sport', '2.5 S Preferred', '2.5 S Carbon Edition', '2.5 Turbo Premium Plus', '2.5 S Premium') - build.trim drops the '2.5 S'/'2.5' prefix across essentially every Mazda3 trim ('Preferred' 2996, 'Carbon Edition' 1159, 'S' 1103, 'Turbo Premium Plus' 988, 'Premium' 633 - all missing their canonical prefixes).",
+    "build_version_reliable": false,
+    "note": "build.version does NOT restore the dropped '2.5 S' prefix either ('Select Sport AT 4-Door SKYACTIV') - it adds transmission/body detail instead. Only the dealer heading ('2.5 S Select Sport') carries the complete canonical-matching trim name."
+   }
+  ]
+ },
+ {
+  "make": "Mercedes-Benz",
+  "model": "EQS",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 2,
+  "mismatches": [
+   {
+    "facet_trim": "Base",
+    "listing_count": 367,
+    "sample_build_trim": "Base",
+    "sample_build_version": "EQS 450 4MATIC",
+    "sample_heading": "2026 Mercedes-Benz EQS 450 4MATIC Sedan",
+    "pattern": "Virtually all EQS listings (367 of 371, ~99%) carry the generic placeholder build.trim='Base' instead of the real trim (canonical: 'EQS 450+', 'EQS 450 4MATIC', 'EQS 580 4MATIC', etc.) - build.trim is essentially non-functional for this model.",
+    "build_version_reliable": true,
+    "note": "build.version is reliable and correctly shows the real trim ('EQS 450 4MATIC'), matching the dealer heading - so downstream code must use version/heading, not trim, for this model."
+   }
+  ]
+ },
+ {
+  "make": "Mercedes-Benz",
+  "model": "GLS",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 4,
+  "mismatches": [
+   {
+    "facet_trim": "Base",
+    "listing_count": 3398,
+    "sample_build_trim": "Base",
+    "sample_build_version": "GLS 450 4MATIC",
+    "sample_heading": "2026 Mercedes-Benz GLS 450 4MATIC SUV",
+    "pattern": "Same 'Base' placeholder bug as EQS - the overwhelming majority of GLS listings (3398 of 3848, ~88%) carry build.trim='Base' instead of the real trim (canonical: 'GLS 450 4MATIC', 'GLS 580 4MATIC', 'AMG GLS 63'). Appears to be a Mercedes-Benz-wide MarketCheck build.trim defect rather than model-specific.",
+    "build_version_reliable": true,
+    "note": "build.version is reliable ('GLS 450 4MATIC') and matches the dealer heading. 'Maybach' (156 listings) is also not in the canonical list and may be a genuinely missing canonical trim (Maybach GLS 600) rather than a drop bug - not independently verified."
+   }
+  ]
+ },
+ {
+  "make": "Mini",
+  "model": "Cooper Convertible",
+  "status": "no_listings"
+ },
+ {
+  "make": "Nissan",
+  "model": "Frontier",
+  "status": "clean",
+  "distinct_trims_seen": 5,
+  "mismatches": []
+ },
+ {
+  "make": "Nissan",
+  "model": "Z",
+  "status": "clean",
+  "distinct_trims_seen": 4,
+  "mismatches": []
+ },
+ {
+  "make": "Ram",
+  "model": "2500",
+  "status": "no_listings"
+ },
+ {
+  "make": "Rivian",
+  "model": "R2",
+  "status": "no_listings"
+ },
+ {
+  "make": "Subaru",
+  "model": "Trailseeker",
+  "status": "clean",
+  "distinct_trims_seen": 3,
+  "mismatches": []
+ },
+ {
+  "make": "Toyota",
+  "model": "Camry",
+  "status": "clean",
+  "distinct_trims_seen": 11,
+  "mismatches": []
+ },
+ {
+  "make": "Toyota",
+  "model": "Highlander",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 13,
+  "mismatches": [
+   {
+    "facet_trim": "XLE",
+    "listing_count": 1551,
+    "sample_build_trim": "XLE",
+    "sample_build_version": "Hybrid XLE AWD",
+    "sample_heading": "Toyota Highlander Hybrid XLE 2026",
+    "pattern": "Directly analogous to the confirmed RAV4 XLE Premium bug, but for the Hybrid modifier: canonical has separate trims 'XLE' and 'Hybrid XLE' (also 'Limited'/'Hybrid Limited', 'Platinum'/'Hybrid Platinum'), but build.trim drops the 'Hybrid' prefix for hybrid vehicles, so both plain-gas XLE and Hybrid XLE units are bucketed under the identical build.trim='XLE'. Confirmed by pulling 5 sample listings under the 'XLE' facet - 3 of 5 were actually Hybrid XLE (powertrain_type HEV, version 'Hybrid XLE AWD') and 2 of 5 were true non-hybrid XLE (version 'XLE AWD') - both indistinguishable by build.trim alone.",
+    "build_version_reliable": true,
+    "note": "build.version reliably distinguishes the two ('Hybrid XLE AWD' vs 'XLE AWD') and should be preferred over build.trim for this model."
+   }
+  ]
+ },
+ {
+  "make": "Toyota",
+  "model": "Tacoma",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 10,
+  "mismatches": [
+   {
+    "facet_trim": "TRD Off Road",
+    "listing_count": 14056,
+    "sample_build_trim": "TRD Off Road",
+    "sample_build_version": "TRD Off Road Hybrid 4x4 Double Cab",
+    "sample_heading": "New 2026 Toyota Tacoma TRD Off-Road 4WD Double Cab",
+    "pattern": "Same Hybrid-drop pattern as Highlander: canonical distinguishes 'TRD Off-Road' from 'TRD Off-Road Hybrid' (and 'TRD Sport' from 'TRD Sport Hybrid', 'Limited' from 'Limited Hybrid'), but build.trim uses the identical bare 'TRD Off Road' for both powertrains - confirmed by pulling a listing filtered to powertrain_type=HEV under this same facet value, which returned build.trim='TRD Off Road' but build.version='TRD Off Road Hybrid 4x4 Double Cab'. Separately, the facet also renders the hyphenated canonical 'TRD Off-Road' as unhyphenated 'TRD Off Road' (minor formatting difference, not counted as part of this mismatch).",
+    "build_version_reliable": true,
+    "note": "build.version reliably includes 'Hybrid' when present and should be preferred over build.trim for this model."
+   }
+  ]
+ },
+ {
+  "make": "Volkswagen",
+  "model": "Jetta",
+  "status": "clean",
+  "distinct_trims_seen": 7,
+  "mismatches": []
+ },
+ {
+  "make": "Volvo",
+  "model": "EX90",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 2,
+  "mismatches": [
+   {
+    "facet_trim": "Ultra",
+    "listing_count": 422,
+    "sample_build_trim": "Ultra",
+    "sample_build_version": "Twin Motor Performance Ultra 7-Seater",
+    "sample_heading": "New 2026 Volvo EX90 Twin Motor Performance Ultra 7-Seater AWD",
+    "pattern": "Canonical trims always include the motor-configuration prefix ('Twin Motor Ultra' vs 'Twin Motor Performance Ultra'; 'Single Motor Plus' vs 'Twin Motor Plus' vs 'Twin Motor Performance Plus') - build.trim drops the prefix entirely for every EX90 listing, collapsing two or three distinct canonical trims into a single ambiguous 'Ultra' or 'Plus' facet value. Confirmed for both facet values: 'Ultra' sample was actually 'Twin Motor Performance Ultra', and a separate 'Plus' sample (304 listings) was actually 'Single Motor Plus' (version 'Single Motor Plus 7-Seater').",
+    "build_version_reliable": true,
+    "note": "build.version reliably retains the full motor-configuration name and should be preferred over build.trim for this model."
+   }
+  ]
+ },
+ {
+  "make": "Acura",
+  "model": "RDX",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 6,
+  "mismatches": [
+   {
+    "facet_trim": "A-Spec Package",
+    "listing_count": 970,
+    "sample_build_trim": "A-Spec Package",
+    "sample_build_version": "A-Spec Package SH-AWD",
+    "sample_heading": "New 2026 Acura RDX A-Spec Package",
+    "pattern": "Canonical trim vocabulary uses the short 'A-Spec' but MarketCheck's build.trim/build.version/heading all consistently say 'A-Spec Package' (opposite direction from the classic RAV4 drop: an extra word is present, not dropped).",
+    "build_version_reliable": true,
+    "note": "trim, version and heading all agree with each other here -- this is NOT a MarketCheck-internal inconsistency, it's a mismatch against Levr's own (apparently abbreviated) canonical trim string."
+   },
+   {
+    "facet_trim": "A-Spec w/ Advance Package",
+    "listing_count": 626,
+    "sample_build_trim": "A-Spec w/ Advance Package",
+    "sample_build_version": "A-Spec w/ Advance Package SH-AWD",
+    "sample_heading": "New 2026 Acura RDX w/A-Spec Advance Package",
+    "pattern": "Canonical 'A-Spec Advance' vs real-world 'A-Spec w/ Advance Package' -- extra 'w/' and 'Package' wording for the same trim.",
+    "build_version_reliable": true,
+    "note": "Same phenomenon as A-Spec Package above; heading uses yet a third word order ('w/A-Spec Advance Package'), suggesting OEM-side naming isn't standardized, but trim vs version are internally consistent."
+   }
+  ]
+ },
+ {
+  "make": "Audi",
+  "model": "A6 allroad",
+  "status": "clean",
+  "distinct_trims_seen": 2,
+  "mismatches": []
+ },
+ {
+  "make": "Audi",
+  "model": "Q6 e-tron",
+  "status": "clean",
+  "distinct_trims_seen": 3,
+  "mismatches": []
+ },
+ {
+  "make": "Audi",
+  "model": "RS7",
+  "status": "no_listings",
+  "distinct_trims_seen": 0,
+  "mismatches": []
+ },
+ {
+  "make": "Audi",
+  "model": "SQ6 Sportback e-tron",
+  "status": "clean",
+  "distinct_trims_seen": 2,
+  "mismatches": []
+ },
+ {
+  "make": "BMW",
+  "model": "4 Series",
+  "status": "clean",
+  "distinct_trims_seen": 4,
+  "mismatches": []
+ },
+ {
+  "make": "BMW",
+  "model": "M2",
+  "status": "no_listings",
+  "distinct_trims_seen": 0,
+  "mismatches": []
+ },
+ {
+  "make": "BMW",
+  "model": "X3",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 5,
+  "mismatches": [
+   {
+    "facet_trim": "30",
+    "listing_count": 14262,
+    "sample_build_trim": "30",
+    "sample_build_version": "30 XDRIVE",
+    "sample_heading": "2026 BMW X3 30 xDrive",
+    "pattern": "build.trim drops the 'xDrive' drivetrain suffix that is part of the real trim name (canonical '30 xDrive'); version and dealer heading both retain it correctly.",
+    "build_version_reliable": true,
+    "note": "High-volume, clean parallel to the RAV4 finding."
+   },
+   {
+    "facet_trim": "M50",
+    "listing_count": 1262,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Same 'drops xDrive' pattern inferred from the '30' sample above (canonical trim is 'M50 xDrive'); not independently sampled to save calls.",
+    "build_version_reliable": "n/a",
+    "note": "Not separately verified."
+   }
+  ]
+ },
+ {
+  "make": "BMW",
+  "model": "i5",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 2,
+  "mismatches": [
+   {
+    "facet_trim": "40",
+    "listing_count": 467,
+    "sample_build_trim": "40",
+    "sample_build_version": "eDrive40 Sedan",
+    "sample_heading": "2026 BMW i5 eDrive40",
+    "pattern": "build.trim drops the 'eDrive'/'xDrive' prefix, keeping only the number '40' -- this collapses the two distinct canonical trims 'eDrive40' and 'xDrive40' into an indistinguishable value.",
+    "build_version_reliable": true,
+    "note": "M60 (142 listings) matched canonical exactly and was not flagged."
+   }
+  ]
+ },
+ {
+  "make": "Cadillac",
+  "model": "CT4",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 5,
+  "mismatches": [
+   {
+    "facet_trim": "V-Series",
+    "listing_count": 37,
+    "sample_build_trim": "V-Series",
+    "sample_build_version": "V-Series AWD",
+    "sample_heading": "2025 Cadillac CT4 V-Series",
+    "pattern": "Canonical ground-truth trim is the short 'V' but MarketCheck's build.trim/build.version/heading all consistently say 'V-Series'.",
+    "build_version_reliable": true,
+    "note": "Internally consistent across all three fields (not a drop-type bug) -- looks like Levr's own trim table uses a shorthand ('V') that doesn't match the OEM's real trim name ('V-Series'). Same relationship applies to 'V-Series Blackwing' (15 listings) vs canonical 'V Blackwing', not separately sampled."
+   }
+  ]
+ },
+ {
+  "make": "Cadillac",
+  "model": "Vistiq",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 5,
+  "mismatches": [
+   {
+    "facet_trim": "Platinum Sport",
+    "listing_count": 10,
+    "sample_build_trim": "Platinum Sport",
+    "sample_build_version": "Platinum Sport AWD",
+    "sample_heading": "2026 Cadillac VISTIQ Platinum",
+    "pattern": "'Platinum Sport' isn't in Levr's canonical Vistiq lineup (Luxury/Sport/Premium Luxury/Platinum) -- appears to be a genuine additional trim combo. Here it's the DEALER HEADING that under-reports (drops 'Sport'), while build.trim/build.version correctly retain the full name -- the reverse of the usual failure mode.",
+    "build_version_reliable": true,
+    "note": "Low count (10); possibly a Levr ground-truth coverage gap (missing trim) rather than a MarketCheck build.trim bug -- flagging for visibility since heading was the unreliable field here, not trim."
+   }
+  ]
+ },
+ {
+  "make": "Chevrolet",
+  "model": "Equinox EV",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 5,
+  "mismatches": [
+   {
+    "facet_trim": "2LT",
+    "listing_count": 1668,
+    "sample_build_trim": "2LT",
+    "sample_build_version": "2LT FWD",
+    "sample_heading": "2026 Chevrolet Equinox EV LT2 w/PDE",
+    "pattern": "build.trim and build.version both REORDER canonical 'LT2' to '2LT' (numeral moved to front), even though the dealer's own heading uses the canonical-matching 'LT2' order.",
+    "build_version_reliable": false,
+    "note": "Reorder-type bug, not a drop -- version carries the same reordering as trim, so version does NOT rescue this one; only the raw dealer heading preserves the correct 'LT2' order."
+   },
+   {
+    "facet_trim": "1LT",
+    "listing_count": 788,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Same reorder pattern inferred vs canonical 'LT1'; not independently sampled.",
+    "build_version_reliable": "n/a",
+    "note": "Not separately verified."
+   }
+  ]
+ },
+ {
+  "make": "Chevrolet",
+  "model": "Trax",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 6,
+  "mismatches": [
+   {
+    "facet_trim": "RS",
+    "listing_count": 12128,
+    "sample_build_trim": "RS",
+    "sample_build_version": "2RS",
+    "sample_heading": "2026 Chevrolet Trax 2RS SUV",
+    "pattern": "build.trim drops the tier-number prefix ('1' or '2') from canonical '1RS'/'2RS', collapsing both distinct trims into the ambiguous 'RS'; version and heading both correctly retain the number.",
+    "build_version_reliable": true,
+    "note": "'Activ' (6584) is just a casing difference from canonical 'ACTIV' and was not treated as a real mismatch."
+   }
+  ]
+ },
+ {
+  "make": "Ford",
+  "model": "Escape",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 13,
+  "mismatches": [
+   {
+    "facet_trim": "PHEV",
+    "listing_count": 155,
+    "sample_build_trim": "PHEV",
+    "sample_build_version": "Plug-in FWD",
+    "sample_heading": "2024 Ford Escape Plug-In Hybrid Base | 4,395 mi",
+    "pattern": "build.trim replaces the canonical human-readable 'Plug-In Hybrid' with the bare acronym 'PHEV'; heading and version both retain a recognizable spelled-out form.",
+    "build_version_reliable": true,
+    "note": "Several other facet values (Limited, SE, SEL, Titanium, S, Base -- counts 4-59) don't match canonical at all; these look like leftover prior-generation Escape trim names bleeding into 'new' inventory classification rather than a drop pattern, so not itemized as mismatches."
+   }
+  ]
+ },
+ {
+  "make": "Ford",
+  "model": "Ranger",
+  "status": "clean",
+  "distinct_trims_seen": 4,
+  "mismatches": []
+ },
+ {
+  "make": "GMC",
+  "model": "Sierra 1500",
+  "status": "clean",
+  "distinct_trims_seen": 9,
+  "mismatches": []
+ },
+ {
+  "make": "Genesis",
+  "model": "G70",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 5,
+  "mismatches": [
+   {
+    "facet_trim": "Prestige",
+    "listing_count": 593,
+    "sample_build_trim": "Prestige",
+    "sample_build_version": "2.5T Prestige RWD",
+    "sample_heading": "2026 Genesis G70 2.5T Prestige Sedan",
+    "pattern": "build.trim strips the engine designator ('2.5T'/'3.3T') entirely from every G70 trim -- canonical '2.5T Prestige' becomes just 'Prestige'. Version and heading both retain the engine prefix.",
+    "build_version_reliable": true,
+    "note": "Systemic across the whole G70 trim ladder -- also applies to 'Sport Prestige' (1129 listings, canonical '3.3T Sport Prestige') and 'Standard' (622 listings, canonical '2.5T' -- here the trim is renamed entirely, not just truncated) and 'Prestige Graphite' (230, canonical '3.3T Prestige Graphite'), not separately sampled. Minor extra quirk: build.make came back as 'GENESIS' in all caps in the sample."
+   },
+   {
+    "facet_trim": "Standard",
+    "listing_count": 622,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical trim is '2.5T' (no words in common with 'Standard') -- build.trim appears to substitute a generic label entirely rather than truncate.",
+    "build_version_reliable": "n/a",
+    "note": "Not independently sampled; inferred from the same G70 engine-designator-drop pattern confirmed on 'Prestige'."
+   }
+  ]
+ },
+ {
+  "make": "Honda",
+  "model": "CR-V",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 10,
+  "mismatches": [
+   {
+    "facet_trim": "Sport-L",
+    "listing_count": 7546,
+    "sample_build_trim": "Sport-L",
+    "sample_build_version": "Hybrid Sport-L AWD",
+    "sample_heading": "New 2027 Honda CR-V Sport-L",
+    "pattern": "build.trim (and even the dealer heading) drop the word 'Hybrid' from canonical 'Sport-L Hybrid'; only build.version retains it (reordered to 'Hybrid Sport-L').",
+    "build_version_reliable": true,
+    "note": "Unlike RAV4, the dealer's own heading is ALSO missing the modifier here -- only build.version reveals the full trim. Same pattern repeats across 'Sport' (4237, canonical 'Sport Hybrid'), 'Sport Touring' (4296, canonical 'Sport Touring Hybrid') and 'TrailSport' (2127, canonical 'TrailSport Hybrid') -- all four CR-V hybrid trims are affected at high volume nationally, not separately sampled."
+   },
+   {
+    "facet_trim": "Sport Touring",
+    "listing_count": 4296,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Same 'drops Hybrid' pattern as Sport-L above; canonical is 'Sport Touring Hybrid'.",
+    "build_version_reliable": "n/a",
+    "note": "Not independently sampled."
+   }
+  ]
+ },
+ {
+  "make": "Honda",
+  "model": "Prologue",
+  "status": "clean",
+  "distinct_trims_seen": 3,
+  "mismatches": []
+ },
+ {
+  "make": "Hyundai",
+  "model": "Kona Electric",
+  "status": "no_listings",
+  "distinct_trims_seen": 0,
+  "mismatches": []
+ },
+ {
+  "make": "Infiniti",
+  "model": "QX65",
+  "status": "clean",
+  "distinct_trims_seen": 3,
+  "mismatches": []
+ },
+ {
+  "make": "Jeep",
+  "model": "Grand Wagoneer L",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 12,
+  "mismatches": [
+   {
+    "facet_trim": "85th Anniversary",
+    "listing_count": 257,
+    "sample_build_trim": "85th Anniversary",
+    "sample_build_version": "85th Anniversary 4WD",
+    "sample_heading": "NEW 2026 JEEP GRAND WAGONEER L 85TH ANNIVERSARY EDITION 4X4",
+    "pattern": "build.trim AND build.version both drop the word 'Edition' from canonical '85th Anniversary Edition'; only the dealer heading retains the full name.",
+    "build_version_reliable": false,
+    "note": "Here version does NOT rescue the missing word -- unlike most other findings in this audit, only the raw heading text has the complete trim. Other non-canonical facet values ('Overland', 'Series I/II/III' -- counts 6-14) look like a mix-up with the shorter non-L 'Grand Wagoneer'/'Wagoneer' trim naming bleeding into this model's search results; informational only, not itemized as mismatches."
+   }
+  ]
+ },
+ {
+  "make": "Kia",
+  "model": "K5",
+  "status": "clean",
+  "distinct_trims_seen": 4,
+  "mismatches": []
+ },
+ {
+  "make": "Land Rover",
+  "model": "Discovery",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 6,
+  "mismatches": [
+   {
+    "facet_trim": "Dynamic SE",
+    "listing_count": 478,
+    "sample_build_trim": "Dynamic SE",
+    "sample_build_version": "P300 Dynamic SE",
+    "sample_heading": "2025 Land Rover Discovery Dynamic SE SUV",
+    "pattern": "build.trim (and the dealer heading) both drop the 'P300' engine/powertrain prefix from canonical 'P300 Dynamic SE'; only build.version retains it.",
+    "build_version_reliable": true,
+    "note": "Heading also lacks the prefix here -- version is the only reliable field. Same 'drops P-designator prefix' pattern almost certainly applies to 'Gemini Edition' (312, canonical 'P360 Gemini Edition') and 'Tempest Edition' (65, canonical 'P360 Tempest Edition'), not separately verified."
+   }
+  ]
+ },
+ {
+  "make": "Lexus",
+  "model": "IS",
+  "status": "clean",
+  "distinct_trims_seen": 8,
+  "mismatches": []
+ },
+ {
+  "make": "Lexus",
+  "model": "UX",
+  "status": "no_listings",
+  "distinct_trims_seen": 1,
+  "mismatches": []
+ },
+ {
+  "make": "MINI",
+  "model": "Countryman",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 5,
+  "mismatches": [
+   {
+    "facet_trim": "S",
+    "listing_count": 3699,
+    "sample_build_trim": "S",
+    "sample_build_version": "S ALL4",
+    "sample_heading": "2027 MINI Countryman Cooper S ALL4",
+    "pattern": "build.trim drops both the drivetrain 'ALL4' and, more importantly, the entire trim-package tier (Signature Plus / Iconic / Oxford Edition) that differentiates canonical trims like 'S ALL4 Signature Plus' vs 'S ALL4 Iconic'. The dealer heading has 'Cooper S ALL4' but likewise omits the package tier.",
+    "build_version_reliable": false,
+    "note": "None of build.trim, build.version, or heading capture the full canonical trim -- the package-tier info doesn't appear to be exposed in any searchable field for this model, likely only in window-sticker options data. Same applies to 'John Cooper Works' (394, drops 'ALL4'+tier vs canonical 'JCW ALL4 ...') and 'SE' (26, same)."
+   }
+  ]
+ },
+ {
+  "make": "Mercedes-Benz",
+  "model": "AMG GT",
+  "status": "no_listings",
+  "distinct_trims_seen": 0,
+  "mismatches": []
+ },
+ {
+  "make": "Mercedes-Benz",
+  "model": "EQS SUV",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 1,
+  "mismatches": [
+   {
+    "facet_trim": "Base",
+    "listing_count": 273,
+    "sample_build_trim": "Base",
+    "sample_build_version": "EQS 400 4MATIC",
+    "sample_heading": "New 2027 Mercedes-Benz EQS 400 SUV 4MATIC",
+    "pattern": "build.trim is completely generic ('Base') for 100% of national EQS SUV listings -- it carries none of the model-designator info ('400' vs '550') that actually distinguishes canonical trims 'EQS 400 4MATIC' / 'EQS 550 4MATIC'.",
+    "build_version_reliable": true,
+    "note": "Total information-loss case, more severe than a partial modifier drop. build.version is fully reliable and matches heading exactly; build.trim is unusable on its own for this model."
+   }
+  ]
+ },
+ {
+  "make": "Mercedes-Benz",
+  "model": "Maybach GLS",
+  "status": "no_listings",
+  "distinct_trims_seen": 0,
+  "mismatches": []
+ },
+ {
+  "make": "Mini",
+  "model": "Countryman",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 5,
+  "mismatches": [
+   {
+    "facet_trim": "S",
+    "listing_count": 3699,
+    "sample_build_trim": "S",
+    "sample_build_version": "S ALL4",
+    "sample_heading": "2027 MINI Countryman Cooper S ALL4",
+    "pattern": "Same live inventory / same bug as the 'MINI Countryman' entry above -- build.trim drops 'ALL4' and the entire package tier (canonical for this MY2026 bucket: 'S ALL4 Signature Plus', 'S ALL4 Iconic', etc.).",
+    "build_version_reliable": false,
+    "note": "Duplicate model entry (case variant 'Mini' vs 'MINI') pointing at identical MarketCheck data; see MINI Countryman note for full detail. Also applies to 'John Cooper Works' (394) and 'SE' (26)."
+   }
+  ]
+ },
+ {
+  "make": "Nissan",
+  "model": "Kicks",
+  "status": "clean",
+  "distinct_trims_seen": 7,
+  "mismatches": []
+ },
+ {
+  "make": "Polestar",
+  "model": "4",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 1,
+  "mismatches": [
+   {
+    "facet_trim": "Base",
+    "listing_count": 151,
+    "sample_build_trim": "Base",
+    "sample_build_version": "LRDM",
+    "sample_heading": "New 2026 Polestar 4 Long Range Dual Motor",
+    "pattern": "build.trim is generic 'Base' for all Polestar 4 listings nationally, carrying none of the canonical distinction (Single vs Dual Motor, Plus vs non-Plus).",
+    "build_version_reliable": false,
+    "note": "build.version has its OWN quirk here -- 'LRDM' is a cryptic internal abbreviation code, not the human-readable 'Long Range Dual Motor' text, so it doesn't directly match canonical strings either. Only the dealer heading provides a usable, canonical-matching trim name for this model -- same total-information-loss pattern as Mercedes EQS SUV."
+   }
+  ]
+ },
+ {
+  "make": "Ram",
+  "model": "3500",
+  "status": "no_listings",
+  "distinct_trims_seen": 0,
+  "mismatches": []
+ },
+ {
+  "make": "Subaru",
+  "model": "Ascent",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 10,
+  "mismatches": [
+   {
+    "facet_trim": "Bronze Edition",
+    "listing_count": 4,
+    "sample_build_trim": "Bronze Edition",
+    "sample_build_version": "Bronze Edition 7 Passenger",
+    "sample_heading": "2025 Subaru Ascent",
+    "pattern": "build.trim (and version) drop the word 'Limited' from canonical 'Limited Bronze Edition'.",
+    "build_version_reliable": false,
+    "note": "Low-volume (4) but a clean example -- the heading field itself is unusually terse and unhelpful ('2025 Subaru Ascent', no trim at all), though the underlying VDP URL slug for the same listing preserves the full 'Limited Bronze Edition 7-Passenger' text the dealer actually used. 'Onyx Edition-Touring' (1202) and similar hyphenated variants are just punctuation differences from canonical 'Onyx Edition Touring' and were not treated as real mismatches."
+   }
+  ]
+ },
+ {
+  "make": "Subaru",
+  "model": "Uncharted",
+  "status": "clean",
+  "distinct_trims_seen": 3,
+  "mismatches": []
+ },
+ {
+  "make": "Toyota",
+  "model": "Corolla",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 10,
+  "mismatches": [
+   {
+    "facet_trim": "XLE",
+    "listing_count": 358,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical Corolla trims only include 'XLE Hybrid' (no plain 'XLE' -- the XLE trim is hybrid-only for this generation); facet value 'XLE' at meaningful volume (358) strongly suggests build.trim is dropping the 'Hybrid' suffix, matching the identical pattern already confirmed on Honda CR-V and the original RAV4 case.",
+    "build_version_reliable": "n/a",
+    "note": "NOT independently verified with a sample pull -- the MarketCheck API's monthly quota was exhausted before this could be confirmed with include_build_object. Flagged as a high-confidence candidate based on pattern consistency with verified findings elsewhere in this audit."
+   }
+  ]
+ },
+ {
+  "make": "Toyota",
+  "model": "Land Cruiser",
+  "status": "not_processed",
+  "distinct_trims_seen": null,
+  "mismatches": [],
+  "note": "MarketCheck API monthly quota was exhausted before this pair could be queried at all."
+ },
+ {
+  "make": "Toyota",
+  "model": "Tundra",
+  "status": "not_processed",
+  "distinct_trims_seen": null,
+  "mismatches": [],
+  "note": "MarketCheck API monthly quota was exhausted before this pair could be queried at all."
+ },
+ {
+  "make": "Volkswagen",
+  "model": "Jetta GLI",
+  "status": "not_processed",
+  "distinct_trims_seen": null,
+  "mismatches": [],
+  "note": "MarketCheck API monthly quota was exhausted before this pair could be queried at all."
+ },
+ {
+  "make": "Volvo",
+  "model": "V60 Cross Country",
+  "status": "not_processed",
+  "distinct_trims_seen": null,
+  "mismatches": [],
+  "note": "MarketCheck API monthly quota was exhausted before this pair could be queried at all."
+ },
+ {
+  "make": "Alfa Romeo",
+  "model": "Giulia",
+  "status": "clean",
+  "distinct_trims_seen": 16,
+  "mismatches": [],
+  "note": "Canonical vocab for this model is just 'Base' (research data looks incomplete/placeholder). Live inventory shows many legitimate distinct trim names (Ti, Veloce, Quadrifoglio, Sprint, etc.) that are not shortened/reordered versions of 'Base' -- this looks like a canonical-vocab gap, not a MarketCheck trim-truncation bug."
+ },
+ {
+  "make": "Audi",
+  "model": "A8",
+  "status": "clean",
+  "distinct_trims_seen": 4,
+  "mismatches": [],
+  "note": "Canonical is 'L 55 TFSI quattro'. Facet is dominated by 'Base' (1575, mostly older-generation A8s) with no meaningful-count facet trim that is a word-subset of the canonical string."
+ },
+ {
+  "make": "Audi",
+  "model": "Q7",
+  "status": "clean",
+  "distinct_trims_seen": 12,
+  "mismatches": [],
+  "note": "Exact matches for Premium/Premium Plus/Prestige dominate. The non-matching facets (S Line Premium Plus, S line Prestige, etc.) are MORE descriptive than canonical, not truncated -- opposite direction from the RAV4 bug, so not flagged."
+ },
+ {
+  "make": "Audi",
+  "model": "S e-tron GT",
+  "status": "clean",
+  "distinct_trims_seen": 2,
+  "mismatches": []
+ },
+ {
+  "make": "Audi",
+  "model": "SQ6 e-tron",
+  "status": "clean",
+  "distinct_trims_seen": 2,
+  "mismatches": []
+ },
+ {
+  "make": "BMW",
+  "model": "4 Series Convertible",
+  "status": "no_listings",
+  "distinct_trims_seen": 0,
+  "mismatches": []
+ },
+ {
+  "make": "BMW",
+  "model": "M3",
+  "status": "no_listings",
+  "distinct_trims_seen": 0,
+  "mismatches": [],
+  "note": "num_found=63 but trim facet came back empty (all sample listings are older/no-trim-tagged used M3s) -- treated as no usable trim data per instructions."
+ },
+ {
+  "make": "BMW",
+  "model": "X5",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 24,
+  "mismatches": [
+   {
+    "facet_trim": "40i",
+    "listing_count": 16215,
+    "sample_build_trim": "40i",
+    "sample_build_version": "sDrive40i",
+    "sample_heading": "Bmw X5 2021",
+    "pattern": "build.trim drops the sDrive/xDrive drivetrain prefix (canonical: sDrive40i / xDrive40i)",
+    "build_version_reliable": true,
+    "note": "heading is generic and does not include trim at all"
+   },
+   {
+    "facet_trim": "50e",
+    "listing_count": 4706,
+    "sample_build_trim": "50e",
+    "sample_build_version": "xDrive50e",
+    "sample_heading": "2026 BMW X5 xDrive50e SUV",
+    "pattern": "build.trim drops the xDrive prefix (canonical: xDrive50e)",
+    "build_version_reliable": true,
+    "note": "heading correctly shows the full xDrive50e name"
+   }
+  ],
+  "note": "Also checked 'M60i' (1685 count): build.trim and build.version both equal 'M60i' exactly -- NOT a mismatch, so excluded here (canonical 'M60i xDrive' may be an overspecified canonical entry for this trim)."
+ },
+ {
+  "make": "BMW",
+  "model": "i7",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 4,
+  "mismatches": [
+   {
+    "facet_trim": "60",
+    "listing_count": 284,
+    "sample_build_trim": "60",
+    "sample_build_version": "xDrive60 Sedan",
+    "sample_heading": "2026 BMW i7 xDrive60",
+    "pattern": "build.trim drops the xDrive prefix (canonical: xDrive60)",
+    "build_version_reliable": true,
+    "note": null
+   },
+   {
+    "facet_trim": "50",
+    "listing_count": 253,
+    "sample_build_trim": "50",
+    "sample_build_version": "eDrive50 Sedan",
+    "sample_heading": "2025 BMW i7 eDrive50",
+    "pattern": "build.trim drops the eDrive prefix (canonical: eDrive50)",
+    "build_version_reliable": true,
+    "note": null
+   },
+   {
+    "facet_trim": "M70",
+    "listing_count": 36,
+    "sample_build_trim": "M70",
+    "sample_build_version": "M70 Sedan",
+    "sample_heading": "2026 BMW i7 M70",
+    "pattern": "canonical vocab lists 'M70 xDrive' but NEITHER build.trim NOR build.version NOR heading include 'xDrive' for this sample -- unlike the other i7 cases, version is not a reliable fallback here",
+    "build_version_reliable": false,
+    "note": "build.version itself is missing the modifier too, so this case is worse than a simple trim-only drop"
+   }
+  ]
+ },
+ {
+  "make": "Cadillac",
+  "model": "CT5",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 5,
+  "mismatches": [
+   {
+    "facet_trim": "Luxury",
+    "listing_count": 444,
+    "sample_build_trim": "Luxury",
+    "sample_build_version": "Luxury AWD",
+    "sample_heading": "Used 2023 CADILLAC CT5 Premium Luxury",
+    "pattern": "build.trim AND build.version both drop the 'Premium' modifier (canonical: Premium Luxury); only the dealer's own heading retains the correct full trim name",
+    "build_version_reliable": false,
+    "note": "worse than the RAV4 case -- build.version is also wrong here, not just build.trim; heading is the only reliable field"
+   }
+  ]
+ },
+ {
+  "make": "Cadillac",
+  "model": "XT5",
+  "status": "clean",
+  "distinct_trims_seen": 5,
+  "mismatches": []
+ },
+ {
+  "make": "Chevrolet",
+  "model": "Silverado 1500",
+  "status": "clean",
+  "distinct_trims_seen": 32,
+  "mismatches": [],
+  "note": "'Work Truck' (7916) vs canonical 'WT' is a naming-convention difference, but it's the facet being MORE descriptive than canonical, not a drop -- opposite direction from the target bug."
+ },
+ {
+  "make": "Chrysler",
+  "model": "Pacifica",
+  "status": "clean",
+  "distinct_trims_seen": 15,
+  "mismatches": [],
+  "note": "Large volume of 'Touring'/'Touring L'/'Touring-L' facets reflect an older Pacifica generation naming scheme (pre-Select/Limited/Pinnacle rename), not a truncation of current canonical trims."
+ },
+ {
+  "make": "Ford",
+  "model": "Expedition",
+  "status": "clean",
+  "distinct_trims_seen": 21,
+  "mismatches": [],
+  "note": "All 4 canonical trims (Active, Platinum, Tremor, King Ranch) appear with high exact-match counts. Limited/XLT/XL/Eddie Bauer are older-generation trims, not truncations."
+ },
+ {
+  "make": "Ford",
+  "model": "Super Duty",
+  "status": "no_listings",
+  "distinct_trims_seen": 0,
+  "mismatches": []
+ },
+ {
+  "make": "GMC",
+  "model": "Sierra 2500HD",
+  "status": "clean",
+  "distinct_trims_seen": 15,
+  "mismatches": [],
+  "note": "All 7 canonical trims (Pro, SLE, SLT, AT4, Denali, AT4X, Denali Ultimate) appear as exact matches with large counts -- one of the cleanest models checked."
+ },
+ {
+  "make": "Genesis",
+  "model": "G80",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 8,
+  "mismatches": [
+   {
+    "facet_trim": "Base",
+    "listing_count": 929,
+    "sample_build_trim": "Base",
+    "sample_build_version": "2.5T AWD",
+    "sample_heading": "Used 2026 Genesis G80 2.5T Sedan",
+    "pattern": "build.trim is replaced entirely with a generic 'Base' placeholder instead of the real engine-designation trim '2.5T'; version and heading are correct",
+    "build_version_reliable": true,
+    "note": null
+   },
+   {
+    "facet_trim": "Sport Prestige",
+    "listing_count": 781,
+    "sample_build_trim": "Sport Prestige",
+    "sample_build_version": "2.5T Sport Prestige AWD",
+    "sample_heading": "2026 Genesis G80 2.5T Sport Prestige Sedan",
+    "pattern": "build.trim drops the '2.5T' engine-designation prefix (canonical: 2.5T Sport Prestige)",
+    "build_version_reliable": true,
+    "note": null
+   }
+  ],
+  "note": "Not verified but same pattern likely applies to facet 'Advanced' (311, subset of canonical '2.5T Advanced') and 'Prestige Black' (296, subset of '3.5T Prestige Black')."
+ },
+ {
+  "make": "Honda",
+  "model": "CR-V e:FCEV",
+  "status": "no_listings",
+  "distinct_trims_seen": 0,
+  "mismatches": []
+ },
+ {
+  "make": "Honda",
+  "model": "Ridgeline",
+  "status": "clean",
+  "distinct_trims_seen": 11,
+  "mismatches": []
+ },
+ {
+  "make": "Hyundai",
+  "model": "Nexo",
+  "status": "clean",
+  "distinct_trims_seen": 2,
+  "mismatches": [],
+  "note": "Only 22 total listings. 'Blue' matches canonical exactly; 'Limited' is an older-generation trim name, not a truncation of 'Standard'."
+ },
+ {
+  "make": "Infiniti",
+  "model": "QX80",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 18,
+  "mismatches": [
+   {
+    "facet_trim": "Autograph",
+    "listing_count": 1685,
+    "sample_build_trim": "Autograph",
+    "sample_build_version": "Autograph 4WD",
+    "sample_heading": "2026 INFINITI QX80",
+    "pattern": "build.trim drops the '4WD' drivetrain suffix (2026 canonical: Autograph 4WD)",
+    "build_version_reliable": true,
+    "note": "2027 canonical vocab is just 'Autograph' (no suffix), so part of this facet's count may legitimately be MY2027 vehicles rather than a truncation"
+   }
+  ],
+  "note": "Also checked 'Luxe' (2203 count) -- sample returned was a MY2027 vehicle where 'Luxe' alone IS the correct canonical trim, so that sample did not confirm a drop; inconclusive for that facet value given it likely mixes MY2026 (needs RWD/4WD suffix) and MY2027 (no suffix) inventory. 'Sport' (1538) was not verified."
+ },
+ {
+  "make": "Jeep",
+  "model": "Recon",
+  "status": "clean",
+  "distinct_trims_seen": 1,
+  "mismatches": [],
+  "note": "Only facet value is 'Moab 4XE' (261), which is MORE descriptive than canonical 'Moab' -- opposite direction from the target bug (canonical itself looks like it dropped '4XE')."
+ },
+ {
+  "make": "Kia",
+  "model": "Niro",
+  "status": "clean",
+  "distinct_trims_seen": 15,
+  "mismatches": [],
+  "note": "'Wind'/'Wave' are legitimate current-generation Niro trim names missing from the canonical vocab (a vocab gap), not truncations of an existing canonical trim."
+ },
+ {
+  "make": "Land Rover",
+  "model": "Discovery Sport",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 9,
+  "mismatches": [
+   {
+    "facet_trim": "Landmark",
+    "listing_count": 1189,
+    "sample_build_trim": "Landmark",
+    "sample_build_version": "2.0 Landmark",
+    "sample_heading": "2019 LAND ROVER DISCOVERY SPORT",
+    "pattern": "build.trim drops the engine-designation qualifier entirely; canonical MY2026 trim is 'P250 Landmark' and even version uses a different (older, displacement-based) representation of that same qualifier rather than the 'P250' badge",
+    "build_version_reliable": true,
+    "note": "sample returned is a 2019 MY vehicle, not MY2026, so this is suggestive of the pattern rather than a same-model-year confirmation"
+   }
+  ]
+ },
+ {
+  "make": "Lexus",
+  "model": "LC",
+  "status": "clean",
+  "distinct_trims_seen": 3,
+  "mismatches": []
+ },
+ {
+  "make": "Lincoln",
+  "model": "Aviator",
+  "status": "clean",
+  "distinct_trims_seen": 10,
+  "mismatches": [],
+  "note": "All 3 canonical trims match exactly with large counts. 'Grand Touring'/'Livery'/'Luxury' are separate real Aviator trims/packages missing from canonical vocab, not truncations."
+ },
+ {
+  "make": "Mazda",
+  "model": "CX-30",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 13,
+  "mismatches": [
+   {
+    "facet_trim": "S",
+    "listing_count": 1325,
+    "sample_build_trim": "S",
+    "sample_build_version": "2.5 S AWD",
+    "sample_heading": "Certified Pre-Owned 2026 Mazda CX-30 2.5 S SUV",
+    "pattern": "build.trim drops the '2.5' engine-displacement prefix (canonical: 2.5 S)",
+    "build_version_reliable": true,
+    "note": null
+   }
+  ],
+  "note": "Checked 'Select' (731) too, but that sample was a 2021 MY vehicle whose version is literally 'Select' (a genuine older-generation trim name), not a truncation of the newer 'Select Sport' canonical trim -- excluded as a false positive. Unverified but likely same '2.5'-prefix-drop pattern: 'Turbo Premium Plus' (693, canonical 2.5 Turbo Premium Plus) and 'Turbo Aire Edition' (685, canonical 2.5 Turbo Aire Edition)."
+ },
+ {
+  "make": "Mercedes-Benz",
+  "model": "C-Class",
+  "status": "clean",
+  "distinct_trims_seen": 32,
+  "mismatches": [],
+  "note": "Facet is dominated by discontinued engine-designation trims (C250, C350, C230, C280, etc.) from older model years not covered by the MY2026 canonical vocab -- a generation mismatch rather than a truncation bug. 'C300' vs canonical 'C 300' (missing internal space) and 'AMG C43'/'C63 AMG' vs 'AMG C 43' (spacing/reordering) are minor formatting inconsistencies, not verified via sample."
+ },
+ {
+  "make": "Mercedes-Benz",
+  "model": "G-Class",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 12,
+  "mismatches": [
+   {
+    "facet_trim": "G580",
+    "listing_count": 97,
+    "sample_build_trim": "G580",
+    "sample_build_version": "G 580 with EQ",
+    "sample_heading": "2025 Mercedes-Benz G-Class G 580e 4MATIC",
+    "pattern": "build.trim drops the entire 'with EQ Technology' qualifier that identifies this as the electric G-Class variant (canonical: G 580 w/EQ Technology)",
+    "build_version_reliable": false,
+    "note": "build.version also truncates the qualifier (drops the word 'Technology'), and the heading uses yet a third representation ('G 580e') -- three different, none matching canonical exactly, with build.trim the most degraded"
+   }
+  ],
+  "note": "'G63 AMG' (123 count) sample was a 2015 MY vehicle where trim and version both already say 'G63 AMG' identically -- a pure word-order/formatting difference from canonical 'AMG G 63', not a trim-vs-version drop, so excluded."
+ },
+ {
+  "make": "Mercedes-Benz",
+  "model": "Maybach S-Class",
+  "status": "no_listings",
+  "distinct_trims_seen": 0,
+  "mismatches": []
+ },
+ {
+  "make": "Mitsubishi",
+  "model": "Eclipse Cross",
+  "status": "clean",
+  "distinct_trims_seen": 7,
+  "mismatches": []
+ },
+ {
+  "make": "Nissan",
+  "model": "LEAF",
+  "status": "clean",
+  "distinct_trims_seen": 10,
+  "mismatches": [],
+  "note": "Checked 'S' and 'SV' facets (both large counts, look like candidates for a dropped '+'). Both samples returned older-generation (2019/2025 pre-plus-naming) LEAF vehicles where trim, version, and heading all consistently agree on the plain name with no '+' anywhere -- these appear to be a genuinely different, older trim lineup rather than a truncation of the current S+/SV+/Platinum+ naming, so not confirmed as a mismatch."
+ },
+ {
+  "make": "Porsche",
+  "model": "911",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 36,
+  "mismatches": [
+   {
+    "facet_trim": "S",
+    "listing_count": 1095,
+    "sample_build_trim": "S",
+    "sample_build_version": "Carrera S Cabriolet",
+    "sample_heading": "2022 Porsche 911",
+    "pattern": "build.trim drops the 'Carrera' model-line prefix (canonical: Carrera S)",
+    "build_version_reliable": true,
+    "note": null
+   },
+   {
+    "facet_trim": "GTS",
+    "listing_count": 1009,
+    "sample_build_trim": "GTS",
+    "sample_build_version": "Carrera GTS Coupe",
+    "sample_heading": "2024 Porsche 911",
+    "pattern": "build.trim drops the 'Carrera' prefix (canonical: Carrera GTS)",
+    "build_version_reliable": true,
+    "note": null
+   },
+   {
+    "facet_trim": "T",
+    "listing_count": 266,
+    "sample_build_trim": "T",
+    "sample_build_version": "Carrera T Coupe",
+    "sample_heading": "2018 Porsche 911",
+    "pattern": "build.trim drops the 'Carrera' prefix (canonical: Carrera T)",
+    "build_version_reliable": true,
+    "note": null
+   }
+  ],
+  "note": "Very systematic and high-volume pattern -- MarketCheck strips 'Carrera' from build.trim across the whole Carrera sub-line (S, GTS, T, and presumably 4S/GTS variants too), while build.version consistently retains it. Heading never includes trim for this model."
+ },
+ {
+  "make": "Ram",
+  "model": "Chassis Cab 3500",
+  "status": "no_listings",
+  "distinct_trims_seen": 0,
+  "mismatches": []
+ },
+ {
+  "make": "Subaru",
+  "model": "BRZ",
+  "status": "clean",
+  "distinct_trims_seen": 8,
+  "mismatches": []
+ },
+ {
+  "make": "Subaru",
+  "model": "WRX",
+  "status": "clean",
+  "distinct_trims_seen": 8,
+  "mismatches": [],
+  "note": "Canonical 'Limited SPT' does not appear in current listings at all; 'Sport-Tech' facet has no shared words with 'Limited SPT' so it wasn't treated as a truncation candidate."
+ },
+ {
+  "make": "Toyota",
+  "model": "Corolla Cross",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 7,
+  "mismatches": [
+   {
+    "facet_trim": "XSE",
+    "listing_count": 1526,
+    "sample_build_trim": "XSE",
+    "sample_build_version": "Hybrid XSE AWD",
+    "sample_heading": "Pre-Owned 2026 Toyota Corolla Cross Hybrid XSE",
+    "pattern": "build.trim drops the 'Hybrid' prefix (canonical: Hybrid XSE)",
+    "build_version_reliable": true,
+    "note": null
+   },
+   {
+    "facet_trim": "SE",
+    "listing_count": 978,
+    "sample_build_trim": "SE",
+    "sample_build_version": "Hybrid SE AWD",
+    "sample_heading": "2026 Toyota Corolla Cross SE",
+    "pattern": "build.trim drops the 'Hybrid' prefix (canonical: Hybrid SE)",
+    "build_version_reliable": true,
+    "note": "heading is also unreliable in this sample -- it omits 'Hybrid' too, unlike the XSE sample where the heading was correct"
+   }
+  ],
+  "note": "Same family of Toyota trim-truncation bug as the previously confirmed RAV4 XLE/XLE Premium case: Hybrid-prefixed Corolla Cross trims are collapsed to their bare suffix in build.trim."
+ },
+ {
+  "make": "Toyota",
+  "model": "Mirai",
+  "status": "clean",
+  "distinct_trims_seen": 3,
+  "mismatches": []
+ },
+ {
+  "make": "Toyota",
+  "model": "bZ",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 2,
+  "mismatches": [
+   {
+    "facet_trim": "XLE",
+    "listing_count": 4564,
+    "sample_build_trim": "XLE",
+    "sample_build_version": "XLE FWD Plus",
+    "sample_heading": "New 2027 Toyota BZ XLE XLE FWD PLUS",
+    "pattern": "build.trim collapses at least 4 distinct real trims/configs (XLE FWD, XLE AWD, XLE Plus FWD, XLE FWD Plus) into one bare 'XLE' value, dropping the drivetrain and package qualifiers entirely",
+    "build_version_reliable": true,
+    "note": "heading has a redundant duplicated 'XLE XLE FWD PLUS' string -- a separate heading-generation quirk on top of the trim bug"
+   },
+   {
+    "facet_trim": "Limited",
+    "listing_count": 862,
+    "sample_build_trim": "Limited",
+    "sample_build_version": "Limited AWD",
+    "sample_heading": "New 2027 Toyota BZ Limited LIMITED AWD All-Wheel Drive",
+    "pattern": "build.trim drops the FWD/AWD drivetrain qualifier, collapsing Limited FWD and Limited AWD into one 'Limited' value",
+    "build_version_reliable": true,
+    "note": "heading again has redundant duplicated trim text"
+   }
+  ],
+  "note": "The bZ trim facet only has 2 values total (XLE, Limited) covering 7+ real canonical configurations combined -- the most severe collapsing found in this batch."
+ },
+ {
+  "make": "Volkswagen",
+  "model": "Taos",
+  "status": "clean",
+  "distinct_trims_seen": 5,
+  "mismatches": []
+ },
+ {
+  "make": "Volvo",
+  "model": "V90 Cross Country",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 5,
+  "mismatches": [
+   {
+    "facet_trim": "Ultra",
+    "listing_count": 29,
+    "sample_build_trim": "Ultra",
+    "sample_build_version": "B6 Ultra AWD",
+    "sample_heading": "2025 Volvo V90 Cross..",
+    "pattern": "build.trim drops the 'B6' engine-designation prefix (canonical: B6 Ultra)",
+    "build_version_reliable": true,
+    "note": "heading is truncated/generic and doesn't include trim"
+   }
+  ]
+ },
+ {
+  "make": "Alfa Romeo",
+  "model": "Stelvio",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 7,
+  "mismatches": [
+   {
+    "facet_trim": "Quadrifoglio",
+    "listing_count": 12,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Not a truncation of canonical 'Base' \u2014 distinct real trim line missing from ground-truth canonical list (coverage gap, not a MarketCheck drop). Not verified (API quota exhausted before this pair).",
+    "build_version_reliable": "n/a",
+    "note": "canonical list for this model appears to only capture the base trim; Ti, Veloce, Intensa also appear as real unlisted trims (counts 3-5)."
+   }
+  ]
+ },
+ {
+  "make": "Audi",
+  "model": "Q3",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 6,
+  "mismatches": [
+   {
+    "facet_trim": "Base",
+    "listing_count": 8069,
+    "sample_build_trim": "Base",
+    "sample_build_version": "S line quattro",
+    "sample_heading": "New 2026 Audi Q3 S Line",
+    "pattern": "build.trim drops the entire 'S line' trim name (canonical's only 2026 trim) and replaces it with the generic placeholder 'Base'. build.version and heading correctly carry 'S line quattro'/'S Line'.",
+    "build_version_reliable": true,
+    "note": "affects 98% of active Q3 listings (8069 of 8196) \u2014 this is the dominant trim value nationally, essentially the RAV4 pattern at even larger scale."
+   }
+  ]
+ },
+ {
+  "make": "Audi",
+  "model": "Q8",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 3,
+  "mismatches": [
+   {
+    "facet_trim": "Premium Plus",
+    "listing_count": 2481,
+    "sample_build_trim": "Premium Plus",
+    "sample_build_version": "55 Premium Plus quattro Tiptonic",
+    "sample_heading": "2027 Audi Q8",
+    "pattern": "Not a build.trim drop \u2014 build.trim faithfully reports the real trim ('Premium Plus'); the canonical list itself only contains '55 TFSI' (an engine/powertrain designator, not Audi's actual Premium/Premium Plus/Prestige trim ladder), so every real facet trim mismatches. Likely a gap/error in Levr's ground-truth vocabulary for this model, not a MarketCheck data-quality issue.",
+    "build_version_reliable": true,
+    "note": "'55' from '55 TFSI' does appear inside build.version as a prefix, so the ground-truth engine code isn't wrong, just mis-modeled as the sole 'trim'."
+   }
+  ]
+ },
+ {
+  "make": "Audi",
+  "model": "S3",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 3,
+  "mismatches": [
+   {
+    "facet_trim": "Premium Plus",
+    "listing_count": 5,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Real extra trim not present in canonical list (canonical only has 'Base'); coverage gap, not verified (low volume, quota exhausted).",
+    "build_version_reliable": "n/a",
+    "note": ""
+   }
+  ]
+ },
+ {
+  "make": "Audi",
+  "model": "SQ7",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 3,
+  "mismatches": [
+   {
+    "facet_trim": "Base",
+    "listing_count": 24,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Generic 'Base' bucket not in canonical (Premium Plus, Prestige); not verified \u2014 quota exhausted before this pair could be sampled.",
+    "build_version_reliable": "n/a",
+    "note": "Given the pattern seen on every other verified make/model, this is a strong candidate for the same build.trim-genericizes-to-'Base' issue, but unconfirmed for SQ7 specifically."
+   }
+  ]
+ },
+ {
+  "make": "BMW",
+  "model": "4 Series Gran Coupe",
+  "status": "no_listings",
+  "distinct_trims_seen": 0,
+  "mismatches": []
+ },
+ {
+  "make": "BMW",
+  "model": "M4",
+  "status": "no_listings",
+  "distinct_trims_seen": 0,
+  "mismatches": []
+ },
+ {
+  "make": "BMW",
+  "model": "X5 M",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 2,
+  "mismatches": [
+   {
+    "facet_trim": "X5 M",
+    "listing_count": 474,
+    "sample_build_trim": "X5 M",
+    "sample_build_version": "Competition",
+    "sample_heading": "2026 BMW X5 M Competition",
+    "pattern": "build.trim is set to the model name itself ('X5 M') instead of the actual trim; the only real trim distinguisher, 'Competition' (canonical's sole listed trim), lives only in build.version and heading.",
+    "build_version_reliable": true,
+    "note": "This is a total loss of trim info in build.trim (worse than a partial modifier drop) affecting 474 of 480 active listings."
+   }
+  ]
+ },
+ {
+  "make": "BMW",
+  "model": "iX",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 6,
+  "mismatches": [
+   {
+    "facet_trim": "45",
+    "listing_count": 27,
+    "sample_build_trim": "45",
+    "sample_build_version": "xDrive45",
+    "sample_heading": "2026 BMW iX xDrive45",
+    "pattern": "build.trim strips the 'xDrive' prefix, leaving only the bare number. Canonical trim is 'xDrive45'.",
+    "build_version_reliable": true,
+    "note": "Same 'xDrive' stripping pattern almost certainly applies to facet value '60' (count 12, canonical 'xDrive60') and 'M70' (count 2, canonical 'M70 xDrive' \u2014 also reordered) though not individually re-verified."
+   },
+   {
+    "facet_trim": "Base",
+    "listing_count": 62,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Largest single bucket (62 of 125 listings); not verified before quota ran out. Likely either the generic-'Base' pattern seen elsewhere, or an xDrive50 trim missing from the canonical list entirely (coverage gap) \u2014 inconclusive.",
+    "build_version_reliable": "n/a",
+    "note": ""
+   }
+  ]
+ },
+ {
+  "make": "Cadillac",
+  "model": "Escalade",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 11,
+  "mismatches": [
+   {
+    "facet_trim": "Sport Platinum",
+    "listing_count": 35,
+    "sample_build_trim": "Sport Platinum",
+    "sample_build_version": "4WD Sport Platinum",
+    "sample_heading": "2024 CADILLAC ESCALADESPORT PLATINUM SPORT UTILITY 4D",
+    "pattern": "Word order reversed vs. canonical 'Platinum Sport' (the dominant real facet value, count 1943, which does match canonical). A minority of listings (35) instead carry the words swapped in build.trim/build.version/heading alike \u2014 a genuine reordering inconsistency, not a Levr-side error since canonical 'Platinum Sport' is confirmed correct by the majority.",
+    "build_version_reliable": true,
+    "note": "sample heading also has an unrelated scraper text-concatenation glitch: 'ESCALADESPORT' (missing space) \u2014 a dealer-heading quirk, not a build-object issue."
+   },
+   {
+    "facet_trim": "V-Series",
+    "listing_count": 257,
+    "sample_build_trim": "V-Series",
+    "sample_build_version": "4WD Escalade-V",
+    "sample_heading": "2026 Cadillac Escalade V-Series",
+    "pattern": "Not a drop \u2014 build.trim ('V-Series') is actually fuller than canonical's shorthand 'V'. Naming-convention mismatch in the opposite direction from the RAV4 case.",
+    "build_version_reliable": true,
+    "note": ""
+   },
+   {
+    "facet_trim": "Escalade",
+    "listing_count": 89,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Not verified (quota exhausted) \u2014 likely the base trim reported as the model name itself, similar to Jeep Cherokee's 'Cherokee' pattern, but unconfirmed for Escalade.",
+    "build_version_reliable": "n/a",
+    "note": ""
+   }
+  ]
+ },
+ {
+  "make": "Chevrolet",
+  "model": "Blazer",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 5,
+  "mismatches": [
+   {
+    "facet_trim": "Premier",
+    "listing_count": 10,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Real trim not present in canonical list (2LT, 3LT, RS only) \u2014 coverage gap. Not verified, quota exhausted.",
+    "build_version_reliable": "n/a",
+    "note": ""
+   }
+  ]
+ },
+ {
+  "make": "Chevrolet",
+  "model": "Silverado EV",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 4,
+  "mismatches": [
+   {
+    "facet_trim": "Work Truck",
+    "listing_count": 165,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Not a drop \u2014 'Work Truck' is the spelled-out form of canonical's abbreviation 'WT'; same trim, different naming convention. Not individually re-verified (quota exhausted) but very likely a benign 1:1 mapping rather than a data-quality defect.",
+    "build_version_reliable": "n/a",
+    "note": ""
+   }
+  ]
+ },
+ {
+  "make": "Chrysler",
+  "model": "Voyager",
+  "status": "clean",
+  "distinct_trims_seen": 1,
+  "mismatches": []
+ },
+ {
+  "make": "Ford",
+  "model": "Expedition MAX",
+  "status": "no_listings",
+  "distinct_trims_seen": 0,
+  "mismatches": []
+ },
+ {
+  "make": "Ford",
+  "model": "Transit",
+  "status": "no_listings",
+  "distinct_trims_seen": 1,
+  "mismatches": []
+ },
+ {
+  "make": "GMC",
+  "model": "Sierra 3500HD",
+  "status": "clean",
+  "distinct_trims_seen": 7,
+  "mismatches": []
+ },
+ {
+  "make": "Genesis",
+  "model": "G90",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 2,
+  "mismatches": [
+   {
+    "facet_trim": "Base",
+    "listing_count": 516,
+    "sample_build_trim": "Base",
+    "sample_build_version": "3.5T E-Supercharger Auto AWD",
+    "sample_heading": "2026 Genesis G90 3.5T E-SC Mhev Sedan",
+    "pattern": "build.trim collapses the entire real trim ('3.5T', canonical's base trim) into the generic placeholder 'Base', discarding all engine/trim info. build.version and heading correctly retain it.",
+    "build_version_reliable": true,
+    "note": "affects 77% of active G90 listings (516 of 674) \u2014 a very large-scale instance of the pattern."
+   },
+   {
+    "facet_trim": "Prestige Black",
+    "listing_count": 158,
+    "sample_build_trim": "Prestige Black",
+    "sample_build_version": "3.5T E-Supercharger Prestige Black AWD",
+    "sample_heading": "2026 Genesis G90 3.5T E-SC Mhev Prestige Black Sedan",
+    "pattern": "build.trim drops the '3.5T E-Supercharger' prefix required by canonical's full trim name '3.5T E-Supercharger Prestige Black', keeping only the suffix.",
+    "build_version_reliable": true,
+    "note": ""
+   }
+  ]
+ },
+ {
+  "make": "Honda",
+  "model": "Civic",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 10,
+  "mismatches": [
+   {
+    "facet_trim": "Sport Touring",
+    "listing_count": 1600,
+    "sample_build_trim": "Sport Touring",
+    "sample_build_version": "Sport Touring Hybrid CVT",
+    "sample_heading": "2026 Honda Civic Sedan Hybrid",
+    "pattern": "build.trim drops the 'Hybrid' modifier required by canonical trim 'Sport Touring Hybrid'. build.version retains it; the dealer heading is generic and doesn't mention trim at all.",
+    "build_version_reliable": true,
+    "note": "Vehicle's own powertrain_type field confirms HEV, i.e. this genuinely is the Hybrid trim being mislabeled."
+   },
+   {
+    "facet_trim": "Touring",
+    "listing_count": 28,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Possibly a further-truncated 'Sport Touring Hybrid' (missing both 'Sport' and 'Hybrid'), or a legacy/older-generation Civic trim leaking into current inventory. Not verified, quota exhausted.",
+    "build_version_reliable": "n/a",
+    "note": "EX(57), EX-T(10), EX-L(8), LX-P(5) also appear and are not in the canonical list \u2014 these look like older-generation Civic trim names (10th-gen) rather than truncations, i.e. a separate data-quality issue (stale trim vocabulary), not verified."
+   }
+  ]
+ },
+ {
+  "make": "Hyundai",
+  "model": "Elantra",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 10,
+  "mismatches": [
+   {
+    "facet_trim": "SEL",
+    "listing_count": 3806,
+    "sample_build_trim": "SEL",
+    "sample_build_version": "2.0 SEL Sport Premium",
+    "sample_heading": "2026 Hyundai Elantra SEL Sport Premium",
+    "pattern": "build.trim drops the entire 'Sport Premium' modifier from canonical trim 'SEL Sport Premium', keeping only the base code 'SEL'. build.version and heading both correctly retain the full name.",
+    "build_version_reliable": true,
+    "note": "Textbook RAV4-style truncation, at large scale (3806 listings)."
+   },
+   {
+    "facet_trim": "SEL Sport Plus",
+    "listing_count": 7909,
+    "sample_build_trim": "SEL Sport Plus",
+    "sample_build_version": "2.0 SEL Sport Plus IVT",
+    "sample_heading": "2026 Hyundai Elantra SEL Sport Plus",
+    "pattern": "NOT a build.trim drop \u2014 build.trim, build.version, and heading all independently agree the real trim name is 'SEL Sport Plus', not the canonical entry 'SEL Sport Premium'. This is the single largest trim bucket for Elantra (7909 listings) and strongly suggests Levr's ground-truth canonical name for this trim is wrong/outdated (should likely read 'SEL Sport Plus').",
+    "build_version_reliable": true,
+    "note": "Important: this looks like an error in Levr's own research dataset, not a MarketCheck defect \u2014 flagging for correction."
+   },
+   {
+    "facet_trim": "N",
+    "listing_count": 2132,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Real distinct trim (Elantra N performance model) missing from canonical list, which only has 'N Line' \u2014 coverage gap, not verified further.",
+    "build_version_reliable": "n/a",
+    "note": ""
+   }
+  ]
+ },
+ {
+  "make": "Hyundai",
+  "model": "Santa Cruz",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 6,
+  "mismatches": [
+   {
+    "facet_trim": "Night",
+    "listing_count": 3,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Very low count (3), likely a 'Night Edition' special trim not in canonical list; not verified \u2014 cost not justified at this volume.",
+    "build_version_reliable": "n/a",
+    "note": "Otherwise this model/year is clean \u2014 SE, SEL, SEL Activity, XRT, Limited all match canonical exactly."
+   }
+  ]
+ },
+ {
+  "make": "Jeep",
+  "model": "Cherokee",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 8,
+  "mismatches": [
+   {
+    "facet_trim": "Base",
+    "listing_count": 63,
+    "sample_build_trim": "Base",
+    "sample_build_version": "Cherokee HEV 4X4",
+    "sample_heading": "2026 Jeep Cherokee",
+    "pattern": "build.trim reports the generic placeholder 'Base' instead of canonical's actual base-trim name 'Cherokee' (Jeep's real naming convention re-uses the model name as the entry trim). Even the dealer heading omits the trim.",
+    "build_version_reliable": true,
+    "note": ""
+   }
+  ]
+ },
+ {
+  "make": "Jeep",
+  "model": "Wrangler",
+  "status": "no_listings",
+  "distinct_trims_seen": 6,
+  "mismatches": []
+ },
+ {
+  "make": "Kia",
+  "model": "Niro EV",
+  "status": "no_listings",
+  "distinct_trims_seen": 0,
+  "mismatches": []
+ },
+ {
+  "make": "Land Rover",
+  "model": "Range Rover",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 8,
+  "mismatches": [
+   {
+    "facet_trim": "SE",
+    "listing_count": 5563,
+    "sample_build_trim": "SE",
+    "sample_build_version": "3.0 SE SWB",
+    "sample_heading": "New 2026 Range Rover SE",
+    "pattern": "build.trim (and the dealer heading) drop the 'P400' powertrain designation and the wheelbase modifier entirely, vs. canonical 2026 name 'P400 SE (Standard Wheelbase)'. build.version keeps only a generic displacement ('3.0') and an abbreviated wheelbase code ('SWB'), still not the full canonical string.",
+    "build_version_reliable": false,
+    "note": "This is the dominant facet value (5563 of 5981 listings, 93%). Even build.version doesn't fully reconstruct the canonical name here."
+   },
+   {
+    "facet_trim": "Autobiography",
+    "listing_count": 262,
+    "sample_build_trim": "Autobiography",
+    "sample_build_version": "4.4 Autobiography SWB",
+    "sample_heading": "New 2025 Range Rover Autobiography SUV",
+    "pattern": "Same pattern as 'SE' \u2014 drops the 'P530' powertrain code and wheelbase descriptor from canonical 'P530 Autobiography (Standard Wheelbase)'.",
+    "build_version_reliable": false,
+    "note": "Sample listing was model year 2025, not 2026 \u2014 still demonstrates the same naming pattern for this trim family."
+   },
+   {
+    "facet_trim": "SV",
+    "listing_count": 102,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Same P-code/wheelbase-drop pattern inferred by structural similarity to SE/Autobiography, not individually verified (quota exhausted).",
+    "build_version_reliable": "n/a",
+    "note": ""
+   }
+  ]
+ },
+ {
+  "make": "Lexus",
+  "model": "LS",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 1,
+  "mismatches": [
+   {
+    "facet_trim": "Base",
+    "listing_count": 5,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "All 5 active LS listings show generic trim 'Base' rather than canonical's '500 Heritage Edition'. Verification samples were inconclusive/unavailable \u2014 one attempt without car_type filter returned an unrelated 2011 used LS, and a repeat attempt with the correct filter hit the API's monthly quota limit before returning.",
+    "build_version_reliable": "n/a",
+    "note": "Very low overall volume (5 listings nationally) for this halo trim \u2014 directionally consistent with the generic-'Base' pattern seen everywhere else, but not directly confirmed for this model."
+   }
+  ]
+ },
+ {
+  "make": "Lincoln",
+  "model": "Corsair",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 4,
+  "mismatches": [
+   {
+    "facet_trim": "Base",
+    "listing_count": 9,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Generic 'Base' bucket not in canonical (Premiere, Reserve, Grand Touring); not verified, low volume.",
+    "build_version_reliable": "n/a",
+    "note": ""
+   }
+  ]
+ },
+ {
+  "make": "Mazda",
+  "model": "CX-5",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 17,
+  "mismatches": [
+   {
+    "facet_trim": "S Preferred",
+    "listing_count": 14467,
+    "sample_build_trim": "S Preferred",
+    "sample_build_version": "S Preferred Auto AWD",
+    "sample_heading": "2026 Mazda CX-5 2.5 S Preferred",
+    "pattern": "Both build.trim AND build.version drop the '2.5' engine-displacement prefix required by canonical trim '2.5 S Preferred'. Only the dealer's own raw heading text retains the full, correct name.",
+    "build_version_reliable": false,
+    "note": "This same '2.5'-prefix drop pattern is visible across essentially the entire CX-5 facet distribution: 'S Select' (9944), 'S Premium Plus' (6929), 'S Premium' (5542), and bare 'S' (1664) all mismatch their canonical counterparts ('2.5 S Select', '2.5 S Premium Plus', '2.5 S Premium', '2.5 S') the same way \u2014 together over 97% of all active CX-5 listings. Not individually re-verified but structurally identical."
+   }
+  ]
+ },
+ {
+  "make": "Mercedes-Benz",
+  "model": "CLA",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 6,
+  "mismatches": [
+   {
+    "facet_trim": "Base",
+    "listing_count": 3188,
+    "sample_build_trim": "Base",
+    "sample_build_version": "350 4Matic",
+    "sample_heading": "2026 Mercedes-Benz CLA 350 Sedan Base Sedan",
+    "pattern": "build.trim collapses to the generic placeholder 'Base', discarding all real trim/engine info. Even build.version here only partially recovers it ('350 4Matic', missing the 'CLA' prefix) \u2014 only the dealer heading gives a fuller picture.",
+    "build_version_reliable": false,
+    "note": "Dominant bucket: 3188 of 3490 active listings (91%). Vehicle is flagged powertrain_type 'BEV', consistent with the redesigned electric-capable CLA generation."
+   }
+  ]
+ },
+ {
+  "make": "Mercedes-Benz",
+  "model": "GLA",
+  "status": "clean",
+  "distinct_trims_seen": 5,
+  "mismatches": []
+ },
+ {
+  "make": "Mercedes-Benz",
+  "model": "Maybach SL",
+  "status": "no_listings",
+  "distinct_trims_seen": 0,
+  "mismatches": []
+ },
+ {
+  "make": "Mitsubishi",
+  "model": "Outlander",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 8,
+  "mismatches": [
+   {
+    "facet_trim": "SEL Platinum Edition",
+    "listing_count": 35,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Real trim not present in canonical list \u2014 coverage gap. Not verified, quota exhausted.",
+    "build_version_reliable": "n/a",
+    "note": "Otherwise clean; 'RALLIART' vs canonical 'Ralliart' is a casing-only difference, not a real mismatch."
+   }
+  ]
+ },
+ {
+  "make": "Nissan",
+  "model": "Murano",
+  "status": "clean",
+  "distinct_trims_seen": 4,
+  "mismatches": []
+ },
+ {
+  "make": "Porsche",
+  "model": "Cayenne",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 8,
+  "mismatches": [
+   {
+    "facet_trim": "Turbo",
+    "listing_count": 3,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Borderline count (3) not matching canonical's 'Turbo E-Hybrid'/'Turbo Electric'/'Turbo GT' entries; not verified, low priority given size. Otherwise this model is clean across Base/S/GTS/E-Hybrid/S E-Hybrid/Turbo E-Hybrid/Electric.",
+    "build_version_reliable": "n/a",
+    "note": ""
+   }
+  ]
+ },
+ {
+  "make": "Ram",
+  "model": "Chassis Cab 4500",
+  "status": "no_listings",
+  "distinct_trims_seen": 0,
+  "mismatches": []
+ },
+ {
+  "make": "Subaru",
+  "model": "Crosstrek",
+  "status": "clean",
+  "distinct_trims_seen": 5,
+  "mismatches": []
+ },
+ {
+  "make": "Tesla",
+  "model": "Cybertruck",
+  "status": "clean",
+  "distinct_trims_seen": 2,
+  "mismatches": []
+ },
+ {
+  "make": "Toyota",
+  "model": "Crown",
+  "status": "clean",
+  "distinct_trims_seen": 4,
+  "mismatches": []
+ },
+ {
+  "make": "Toyota",
+  "model": "Prius",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 10,
+  "mismatches": [
+   {
+    "facet_trim": "XSE",
+    "listing_count": 25,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Real trim not in canonical list (LE, XLE, Nightshade, Limited only) \u2014 coverage gap, not verified.",
+    "build_version_reliable": "n/a",
+    "note": "Also present and unverified: 'XSE Premium'(22), 'SE'(13). Facet values 'Four'(10), 'Two'(7), 'Three'(3) look like leftover prior-generation (Gen4) Prius trim naming contaminating current 'new' inventory data \u2014 a separate, likely more concerning data-quality issue (stale/wrong-generation trim taxonomy) worth flagging to the team even though it's not the build.trim-vs-build.version drop pattern this audit targets."
+   }
+  ]
+ },
+ {
+  "make": "Volkswagen",
+  "model": "Atlas",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 8,
+  "mismatches": [
+   {
+    "facet_trim": "Atlas Peak Edition",
+    "listing_count": 1682,
+    "sample_build_trim": "Atlas Peak Edition",
+    "sample_build_version": "2.0T Atlas Peak Edition 4MOTION",
+    "sample_heading": "New 2026 Volkswagen Atlas 2.0T Peak Edition AWD",
+    "pattern": "build.trim/version/heading all agree on 'Atlas Peak Edition' / 'Peak Edition' \u2014 none include canonical's 'SE with Technology' base-trim suffix ('Peak Edition SE with Technology'). This looks like a mismatch between how VW/dealers actually market this trim and Levr's canonical naming, rather than a MarketCheck-side drop.",
+    "build_version_reliable": true,
+    "note": ""
+   },
+   {
+    "facet_trim": "SE w/Tech",
+    "listing_count": 9111,
+    "sample_build_trim": "SE w/Tech",
+    "sample_build_version": "2.0T SE w/Tech",
+    "sample_heading": "2026 Volkswagen Atlas SE w/Technology",
+    "pattern": "Not a drop \u2014 'w/Tech' is simply an abbreviated form of canonical 'with Technology', used consistently in build.trim, build.version and heading alike.",
+    "build_version_reliable": true,
+    "note": ""
+   },
+   {
+    "facet_trim": "SEL R-Line",
+    "listing_count": 193,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Real trim not in canonical (which only has 'SEL Premium R-Line') \u2014 coverage gap, not verified.",
+    "build_version_reliable": "n/a",
+    "note": ""
+   }
+  ]
+ },
+ {
+  "make": "Volkswagen",
+  "model": "Tiguan",
+  "status": "clean",
+  "distinct_trims_seen": 8,
+  "mismatches": [
+   {
+    "facet_trim": "SEL R-LINE",
+    "listing_count": 8,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Small-volume candidate, possibly missing 'Turbo' vs canonical 'SEL R-Line Turbo'; not verified given low count. Dominant facet values 'SE R-LINE BLACK' and 'SEL R-LINE TURBO' are only casing differences from canonical and are NOT counted as real mismatches.",
+    "build_version_reliable": "n/a",
+    "note": ""
+   }
+  ]
+ },
+ {
+  "make": "Volvo",
+  "model": "XC40",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 7,
+  "mismatches": [
+   {
+    "facet_trim": "Plus",
+    "listing_count": 3030,
+    "sample_build_trim": "Plus",
+    "sample_build_version": "B5 Plus Dark AWD",
+    "sample_heading": "2026 Volvo XC40 B5 Plus",
+    "pattern": "build.trim drops the 'B4'/'B5' engine-code prefix from every canonical trim (e.g. 'B5 Plus' -> 'Plus'). build.version and heading correctly retain it.",
+    "build_version_reliable": true,
+    "note": "This is the single largest facet bucket (3030 of 5771 listings, 52%). The identical prefix-drop pattern structurally applies to 'Ultra' (1324, canonical 'B5 Ultra'), 'Core' (703, canonical 'B4/B5 Core'), and 'Ultra Black Edition' (701, canonical 'B5 Ultra Black Edition') \u2014 together the B4/B5 prefix is missing from virtually 100% of XC40 build.trim values. Not each individually re-verified but the pattern is structurally exhaustive across the whole model line."
+   }
+  ]
+ },
+ {
+  "make": "Alfa Romeo",
+  "model": "Tonale",
+  "status": "clean",
+  "distinct_trims_seen": 7,
+  "mismatches": [],
+  "note": "Canonical Sprint/Sport Speciale/Veloce all present with large counts. Extra facet values (TI, Base, Intensa, Special Edition) are distinct trims from other model years, not truncations of a canonical trim."
+ },
+ {
+  "make": "Audi",
+  "model": "Q4 Sportback e-tron",
+  "status": "clean",
+  "distinct_trims_seen": 3,
+  "mismatches": [],
+  "note": "Premium/Premium Plus match. 'Prestige' (57) is a real trim missing from canonical vocabulary, not a truncation."
+ },
+ {
+  "make": "Audi",
+  "model": "Q9",
+  "status": "clean",
+  "distinct_trims_seen": 1,
+  "mismatches": []
+ },
+ {
+  "make": "Audi",
+  "model": "S5",
+  "status": "clean",
+  "distinct_trims_seen": 6,
+  "mismatches": [],
+  "note": "Premium Plus/Prestige/Base/Premium all match. Technik(8)/Progressiv(1) are unrelated trims, not truncations."
+ },
+ {
+  "make": "Audi",
+  "model": "SQ8",
+  "status": "clean",
+  "distinct_trims_seen": 3,
+  "mismatches": [],
+  "note": "Canonical vocabulary only lists 'Base' for MY2027, but most real listings show 'Prestige'(882) and 'Premium Plus'(436) as their own distinct facet values (not truncations of 'Base') -- this looks like a gap in the canonical/ground-truth vocabulary rather than a MarketCheck field-drop bug."
+ },
+ {
+  "make": "BMW",
+  "model": "5 Series",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 26,
+  "mismatches": [
+   {
+    "facet_trim": "540i",
+    "listing_count": 1797,
+    "sample_build_trim": "540i",
+    "sample_build_version": "540i xDrive Sedan",
+    "sample_heading": "2018 BMW 540 XI",
+    "pattern": "build.trim drops the 'xDrive' drivetrain modifier that build.version retains (canonical trim is '540i xDrive'). Sample pulled was a 2018 (old-gen) listing.",
+    "build_version_reliable": true,
+    "note": "verified"
+   },
+   {
+    "facet_trim": "550e",
+    "listing_count": 826,
+    "sample_build_trim": "550e",
+    "sample_build_version": "550e xDrive Sedan",
+    "sample_heading": "2027 BMW 5 Series 550e xDrive",
+    "pattern": "Same drop pattern confirmed on a current MY2027 unit: dealer heading explicitly says 'xDrive' and build.version says '550e xDrive Sedan', but build.trim is truncated to '550e' (canonical trim is '550e xDrive').",
+    "build_version_reliable": true,
+    "note": "verified -- clean confirmation on current model year"
+   }
+  ]
+ },
+ {
+  "make": "BMW",
+  "model": "M4 Convertible",
+  "status": "clean",
+  "distinct_trims_seen": 2,
+  "mismatches": [],
+  "note": "Facet only shows 'Base'(308) and 'M4'(269) -- both are legacy (2015-2020) non-Competition M4 Convertibles, not related to the current MY2026/2027 canonical trim 'Competition xDrive'. Verified one sample (Base/2016): build.version was '-' (a placeholder dash, not null) and heading had no trim info -- a version-field quality quirk, but no evidence of a modifier-drop bug on the current trim since apparently no active 2026/2027 M4 Convertible inventory was surfaced by this query."
+ },
+ {
+  "make": "BMW",
+  "model": "X6",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 11,
+  "mismatches": [
+   {
+    "facet_trim": "40i",
+    "listing_count": 2343,
+    "sample_build_trim": "40i",
+    "sample_build_version": "xDrive40i",
+    "sample_heading": "2027 BMW X6 xDrive40i xDrive40i",
+    "pattern": "build.trim drops the 'xDrive' prefix that both build.version and the dealer heading retain (canonical trim is 'xDrive40i').",
+    "build_version_reliable": true,
+    "note": "verified on current MY2027 unit"
+   }
+  ]
+ },
+ {
+  "make": "BMW",
+  "model": "iX3",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 1,
+  "mismatches": [
+   {
+    "facet_trim": "50",
+    "listing_count": 712,
+    "sample_build_trim": "50",
+    "sample_build_version": "50 XDRIVE",
+    "sample_heading": "2027 BMW iX3 50 xDrive",
+    "pattern": "build.trim drops the 'xDrive' suffix present in canonical trim '50 xDrive'; every single listing (712/712) for this model exhibits it.",
+    "build_version_reliable": true,
+    "note": "build.version is present but in ALL CAPS ('50 XDRIVE') -- a minor casing quirk of its own"
+   }
+  ]
+ },
+ {
+  "make": "Cadillac",
+  "model": "Escalade ESV",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 13,
+  "mismatches": [
+   {
+    "facet_trim": "Sport Platinum",
+    "listing_count": 524,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Word-order swap of canonical 'Platinum Sport' -- both orderings coexist as separate facet buckets (Platinum Sport=1070, Sport Platinum=524), suggesting inconsistent word ordering in the trim field rather than a clean single source of truth.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- MarketCheck API monthly quota was exhausted before this sample could be pulled; flagged from facet pattern only. Also notable: 'Premium Luxury'(937) and 'Premium Luxury Platinum'(175) appear as real trims not present in the canonical vocabulary at all (likely a canonical-vocabulary gap, not a truncation bug)."
+   }
+  ]
+ },
+ {
+  "make": "Chevrolet",
+  "model": "Blazer EV",
+  "status": "clean",
+  "distinct_trims_seen": 4,
+  "mismatches": []
+ },
+ {
+  "make": "Chevrolet",
+  "model": "Silverado HD",
+  "status": "no_listings",
+  "distinct_trims_seen": 0,
+  "mismatches": []
+ },
+ {
+  "make": "Dodge",
+  "model": "Charger",
+  "status": "clean",
+  "distinct_trims_seen": 26,
+  "mismatches": [],
+  "note": "All current-generation canonical trims (Scat Pack, R/T, R/T Plus, Daytona Scat Pack, Scat Pack Plus) match exactly with large counts. Remaining facet values are legacy LX-platform Charger trims (SXT, GT, SE, SRT, etc.), not truncations."
+ },
+ {
+  "make": "Ford",
+  "model": "Explorer",
+  "status": "clean",
+  "distinct_trims_seen": 23,
+  "mismatches": [],
+  "note": "Active/ST-Line/Tremor/Platinum/ST all match with large counts (case/hyphen variants like 'ST-LINE' and 'ST Line' treated as the same trim). Remaining values (XLT, Limited, Sport, Timberline, etc.) are legacy pre-2026 Explorer trims."
+ },
+ {
+  "make": "Ford",
+  "model": "Transit Passenger Wagon",
+  "status": "no_listings",
+  "distinct_trims_seen": 0,
+  "mismatches": []
+ },
+ {
+  "make": "GMC",
+  "model": "Sierra EV",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 3,
+  "mismatches": [
+   {
+    "facet_trim": "Elevation",
+    "listing_count": 760,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Every canonical Sierra EV trim is a compound like 'Elevation Standard Range' / 'Elevation Extended Range', but the facet only ever shows the bare tier name ('Elevation', 'Denali', 'AT4') -- the entire battery-range modifier (Standard/Extended/Max Range) appears to be dropped, across 100% of the 1,050 total listings (760+213+77=1050).",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted before a sample could be pulled. This is the most systemic-looking pattern found in this batch: literally none of the compound canonical trim names ever appear in the facet."
+   },
+   {
+    "facet_trim": "Denali",
+    "listing_count": 213,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Same range-modifier drop as 'Elevation' above (canonical: 'Denali Standard/Extended/Max Range').",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted"
+   }
+  ]
+ },
+ {
+  "make": "Genesis",
+  "model": "GV60",
+  "status": "clean",
+  "distinct_trims_seen": 5,
+  "mismatches": [],
+  "note": "Performance/Prestige/Advanced match canonical. 'Standard'(78) doesn't match canonical 'Base' but reads as a naming synonym rather than a truncation; 'Magma'(11) is a real trim missing from canonical vocabulary."
+ },
+ {
+  "make": "Honda",
+  "model": "HR-V",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 5,
+  "mismatches": [
+   {
+    "facet_trim": "EX",
+    "listing_count": 1658,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical vocabulary only has 'EX-L' (no bare 'EX') for HR-V; 'EX'(1658) looks like it could be a truncation dropping the '-L' suffix, OR a real distinct lower trim missing from canonical -- ambiguous without a sample.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted before sample pull; flagged as a plausible but unconfirmed candidate."
+   }
+  ]
+ },
+ {
+  "make": "Hyundai",
+  "model": "Elantra N",
+  "status": "no_listings",
+  "distinct_trims_seen": 0,
+  "mismatches": []
+ },
+ {
+  "make": "Hyundai",
+  "model": "Santa Fe",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 28,
+  "mismatches": [
+   {
+    "facet_trim": "Limited HEV",
+    "listing_count": 303,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical vocabulary spells the hybrid modifier as 'Hybrid' (e.g. 'Limited Hybrid'), but most hybrid listings show the powertrain abbreviation 'HEV' instead ('Limited HEV'=303, 'SEL HEV'=69) -- only 'Calligraphy Hybrid'(11) uses the canonical wording. Inconsistent modifier spelling across trims of the same model, not an outright drop.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted. Base trims (SE/SEL/XRT/Limited/Calligraphy) all matched canonical cleanly with large counts."
+   }
+  ]
+ },
+ {
+  "make": "Jeep",
+  "model": "Compass",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 22,
+  "mismatches": [
+   {
+    "facet_trim": "85th Anniversary",
+    "listing_count": 804,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Drops the 'Edition' suffix from canonical '85th Anniversary Edition'.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted"
+   },
+   {
+    "facet_trim": "Altitude",
+    "listing_count": 1194,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Could be a truncation dropping the 'Latitude'/'Limited' prefix from canonical 'Latitude Altitude' or 'Limited Altitude', or could be a genuine distinct legacy trim -- ambiguous without a sample.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted. Core trims (Limited, Latitude Altitude, Latitude, Trailhawk, Limited Altitude) all matched canonical cleanly with large counts."
+   }
+  ]
+ },
+ {
+  "make": "Kia",
+  "model": "Carnival",
+  "status": "clean",
+  "distinct_trims_seen": 6,
+  "mismatches": [],
+  "note": "EX/LXS/SX Prestige/SX/LX all match canonical with large counts. 'LX Seat Pkg'(678) adds a package qualifier rather than dropping information."
+ },
+ {
+  "make": "Kia",
+  "model": "Seltos",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 7,
+  "mismatches": [
+   {
+    "facet_trim": "X-Line",
+    "listing_count": 115,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical only has compound trims 'X-Line S' and 'X-Line SX'; bare 'X-Line'(115) looks like a truncation dropping the S/SX suffix.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted. LX/S/EX/SX all matched canonical cleanly with large counts."
+   }
+  ]
+ },
+ {
+  "make": "Land Rover",
+  "model": "Range Rover Evoque",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 19,
+  "mismatches": [
+   {
+    "facet_trim": "S",
+    "listing_count": 1743,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Drops the 'P250' powertrain prefix from canonical 'P250 S' -- this is the single largest facet bucket for the model.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted"
+   },
+   {
+    "facet_trim": "Hoxton Edition",
+    "listing_count": 380,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Drops the 'P250' prefix from canonical 'P250 Hoxton Edition'.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted"
+   },
+   {
+    "facet_trim": "Dynamic SE",
+    "listing_count": 238,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Drops the 'P250' prefix from canonical 'P250 Dynamic SE'.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted. All three candidates share the same apparent root cause: MarketCheck's Evoque trim field seems to systematically drop the 'P250' engine-designation prefix that is part of every canonical trim name for this model."
+   }
+  ]
+ },
+ {
+  "make": "Lexus",
+  "model": "LX",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 8,
+  "mismatches": [
+   {
+    "facet_trim": "Luxury",
+    "listing_count": 1019,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Drops the '600'/'700h' powertrain prefix from canonical '600 Luxury' / '700h Luxury'.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted"
+   },
+   {
+    "facet_trim": "Overtrail",
+    "listing_count": 99,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Drops the '700h' prefix from canonical '700h Overtrail'.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted"
+   },
+   {
+    "facet_trim": "F-Sport",
+    "listing_count": 488,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Reformats/truncates canonical '600 F SPORT Handling' or '700h F SPORT Handling' -- drops the prefix and the 'Handling' suffix, and hyphenates 'F-Sport'.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted. This model shows the same prefix-drop pattern across essentially every canonical trim (Premium=62 drops '600', Ultra Luxury=21 drops '700h')."
+   }
+  ]
+ },
+ {
+  "make": "Lincoln",
+  "model": "Nautilus",
+  "status": "clean",
+  "distinct_trims_seen": 5,
+  "mismatches": [],
+  "note": "Reserve/Premiere/Black Label all match canonical with large counts."
+ },
+ {
+  "make": "Mazda",
+  "model": "CX-50",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 18,
+  "mismatches": [
+   {
+    "facet_trim": "Premium",
+    "listing_count": 12428,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Drops the '2.5 S'/'Hybrid' powertrain prefix from canonical '2.5 S Premium' / 'Hybrid Premium'. This is the single largest facet bucket for the model.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted"
+   },
+   {
+    "facet_trim": "Preferred",
+    "listing_count": 9723,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Drops the '2.5 S'/'Hybrid' prefix from canonical '2.5 S Preferred' / 'Hybrid Preferred'.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted"
+   },
+   {
+    "facet_trim": "Premium Plus",
+    "listing_count": 4994,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Drops the '2.5 Turbo'/'Hybrid' prefix from canonical '2.5 Turbo Premium Plus' / 'Hybrid Premium Plus'.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted. This is the most extreme case found in the whole audit: essentially every single major canonical trim (Select, Preferred, Meridian Edition, Premium, Turbo, Premium Plus -- together >32,000 of ~35,000 total listings) appears with its engine-designation prefix stripped. A smaller minority of listings (e.g. 'S PREFERRED', 'TURBO PREMIUM PLUS', all caps) DO retain a prefix, suggesting two inconsistent parsing paths feed the same trim field."
+   }
+  ]
+ },
+ {
+  "make": "Mercedes-Benz",
+  "model": "CLE",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 3,
+  "mismatches": [
+   {
+    "facet_trim": "CLE 300",
+    "listing_count": 1898,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Drops the '4MATIC' suffix from canonical 'CLE 300 4MATIC'.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted"
+   },
+   {
+    "facet_trim": "CLE 450",
+    "listing_count": 1168,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Drops the '4MATIC' suffix from canonical 'CLE 450 4MATIC'.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted"
+   },
+   {
+    "facet_trim": "AMG 53",
+    "listing_count": 995,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Drops the model-line token 'CLE' from the middle of canonical 'AMG CLE 53' (AMG [CLE] 53 -> AMG 53).",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted. All 3 distinct facet trims for this model are truncations -- there is no CLE listing (100%) matching a canonical string exactly."
+   }
+  ]
+ },
+ {
+  "make": "Mercedes-Benz",
+  "model": "GLB",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 5,
+  "mismatches": [
+   {
+    "facet_trim": "Base",
+    "listing_count": 2349,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Second-largest bucket is a generic 'Base' where canonical never uses that word for this model (canonical trims are 'GLB 250', 'GLB 250 4MATIC', 'AMG GLB 35') -- looks like a fallback/default value replacing the real trim.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted"
+   },
+   {
+    "facet_trim": "GLB35 AMG",
+    "listing_count": 50,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Word-order swap of canonical 'AMG GLB 35' (also missing the space in 'GLB35').",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted. 'GLB 250'(5138) and 'AMG GLB 35'(307) do match canonical cleanly, so the mismatch is concentrated in the 'Base' bucket and the AMG word-order variants."
+   }
+  ]
+ },
+ {
+  "make": "Mercedes-Benz",
+  "model": "S-Class",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 32,
+  "mismatches": [
+   {
+    "facet_trim": "S 580",
+    "listing_count": 1672,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Drops the '4MATIC' suffix from canonical 'S 580 4MATIC'.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted"
+   },
+   {
+    "facet_trim": "S 500",
+    "listing_count": 631,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Drops the '4MATIC' suffix from canonical 'S 500 4MATIC'.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted"
+   },
+   {
+    "facet_trim": "AMG S 63",
+    "listing_count": 230,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Drops the 'E Performance' suffix from canonical 'AMG S 63 E Performance'.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted. Also 'S 580e'(81) drops '4MATIC' from canonical 'S 580e 4MATIC', and 'S63'/'S 63'(79+69) further drop the 'AMG' prefix on top of the 'E Performance' suffix. Most of the largest buckets (S550, S560, Maybach, S450, S430, etc.) are legacy pre-current-gen S-Class trims, unrelated to the drop pattern."
+   }
+  ]
+ },
+ {
+  "make": "Mitsubishi",
+  "model": "Outlander PHEV",
+  "status": "clean",
+  "distinct_trims_seen": 3,
+  "mismatches": [],
+  "note": "Very low overall volume (52 listings). Only 'SE'(31) reaches canonical; 'LE'(11) and 'GT'(10) are distinct trims, not truncations, and barely clear the count threshold."
+ },
+ {
+  "make": "Nissan",
+  "model": "Pathfinder",
+  "status": "clean",
+  "distinct_trims_seen": 13,
+  "mismatches": [],
+  "note": "S/SV/SL/Rock Creek/Platinum all match canonical cleanly with large counts."
+ },
+ {
+  "make": "Porsche",
+  "model": "Macan",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 7,
+  "mismatches": [
+   {
+    "facet_trim": "Turbo",
+    "listing_count": 226,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical only has 'Turbo Electric' (no bare 'Turbo') for current-gen Macan; 'Turbo'(226) vs 'Turbo Electric'(221) appear as separate facet buckets of comparable size, suggesting the 'Electric' modifier is being dropped from roughly half of these listings.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted. Base/T/S/GTS all match canonical cleanly."
+   }
+  ]
+ },
+ {
+  "make": "Ram",
+  "model": "Chassis Cab 5500",
+  "status": "no_listings",
+  "distinct_trims_seen": 0,
+  "mismatches": []
+ },
+ {
+  "make": "Subaru",
+  "model": "Forester",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 39,
+  "mismatches": [
+   {
+    "facet_trim": "Premium",
+    "listing_count": 14674,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical lists both 'Premium' (gas) and 'Premium Hybrid' as distinct trims for the redesigned model, but no '*Hybrid' variant appears anywhere in the facet at all (same for Sport/Limited/Touring/Wilderness Hybrid) -- the hybrid powertrain modifier appears to be dropped entirely, merging hybrid and gas listings into the same bare trim bucket.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted before a hybrid-filtered sample could be pulled to confirm. Base trim buckets (Premium/Limited/Touring/Sport/Wilderness/Base) otherwise match canonical cleanly; remaining long tail (i Premium, X Limited, 2.5X, etc.) are legacy pre-2025 Forester trims."
+   }
+  ]
+ },
+ {
+  "make": "Tesla",
+  "model": "Model 3",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 9,
+  "mismatches": [
+   {
+    "facet_trim": "Base",
+    "listing_count": 4509,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Largest bucket by far; canonical vocabulary has no 'Base' trim for Model 3 (closest is 'Standard RWD') -- looks like a generic fallback value rather than the real trim name.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted"
+   },
+   {
+    "facet_trim": "Performance",
+    "listing_count": 628,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Drops the 'AWD' suffix from canonical 'Performance AWD'.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted"
+   },
+   {
+    "facet_trim": "Premium",
+    "listing_count": 58,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Drops the 'RWD'/'AWD' suffix from canonical 'Premium RWD' / 'Premium AWD'; 'Standard'(13) shows the same drop pattern against canonical 'Standard RWD'.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted"
+   }
+  ]
+ },
+ {
+  "make": "Toyota",
+  "model": "Crown Signia",
+  "status": "clean",
+  "distinct_trims_seen": 2,
+  "mismatches": [],
+  "note": "XLE and Limited both match canonical exactly with large counts -- unlike RAV4, no truncation observed here."
+ },
+ {
+  "make": "Toyota",
+  "model": "Prius Prime",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 9,
+  "mismatches": [
+   {
+    "facet_trim": "Premium",
+    "listing_count": 139,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Drops the 'XSE' prefix from canonical 'XSE Premium' -- same drop-the-modifier shape as the already-confirmed RAV4 XLE/XLE Premium bug, just on the front of the string instead of the back.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted right as this call was attempted. SE and XSE both match canonical cleanly; 'XLE'(197), 'Advanced'(121), 'LE'(121), 'Limited'(105), 'Plus'(92) are legacy/cross-model trims, not truncations."
+   }
+  ]
+ },
+ {
+  "make": "Volkswagen",
+  "model": "Atlas Cross Sport",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 14,
+  "mismatches": [
+   {
+    "facet_trim": "SE w/Tech",
+    "listing_count": 6583,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Abbreviates canonical 'SE with Technology' to 'SE w/Tech' -- largest bucket for the model.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted"
+   },
+   {
+    "facet_trim": "SEL R-LINE",
+    "listing_count": 1607,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Likely drops the 'Black' modifier from canonical 'SEL R-Line Black' -- notably the exact-match bucket 'SEL R-Line Black' only has 179 listings vs 1607 for the bare 'SEL R-LINE', implying most Black-trim listings lose the modifier.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted. 'SEL Premium'(75) similarly looks like it drops 'R-Line' from canonical 'SEL Premium R-Line'."
+   }
+  ]
+ },
+ {
+  "make": "Volvo",
+  "model": "EX30",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 2,
+  "mismatches": [
+   {
+    "facet_trim": "Ultra",
+    "listing_count": 1032,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Drops the 'Twin Motor Performance' prefix from canonical 'Twin Motor Performance Ultra'. Every single listing for this model (1032+668=1700=num_found) falls into one of these two truncated buckets -- 100% mismatch rate.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted"
+   },
+   {
+    "facet_trim": "Plus",
+    "listing_count": 668,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Drops the 'Single Motor Extended Range' or 'Twin Motor Performance' prefix from canonical (e.g. 'Single Motor Extended Range Plus').",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted"
+   }
+  ]
+ },
+ {
+  "make": "Volvo",
+  "model": "XC60",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 33,
+  "mismatches": [
+   {
+    "facet_trim": "Plus",
+    "listing_count": 6912,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Drops the 'B5'/'T8' engine-designation prefix from canonical 'B5 Plus' / 'T8 Plus'. Largest bucket for the model.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted"
+   },
+   {
+    "facet_trim": "Ultra",
+    "listing_count": 3038,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Drops the 'B5'/'T8' prefix from canonical 'B5 Ultra' / 'T8 Ultra'.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted"
+   },
+   {
+    "facet_trim": "Core",
+    "listing_count": 1484,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Drops the 'B5'/'T8' prefix from canonical 'B5 Core' / 'T8 Core'.",
+    "build_version_reliable": "n/a",
+    "note": "NOT VERIFIED -- quota exhausted. Same B5/T8-prefix-drop root cause as Volvo EX30 above -- looks like a make-wide Volvo pattern. 'Polestar'(133) similarly drops 'T8' and 'Engineered' from canonical 'T8 Polestar Engineered'."
+   }
+  ]
+ },
+ {
+  "make": "Audi",
+  "model": "A3",
+  "status": "clean",
+  "distinct_trims_seen": 6,
+  "mismatches": [],
+  "note": "Premium(1127) and Premium Plus(661) match canonical exactly and dominate. Base/S-line/Komfort/Progressiv are low-count, likely non-US or legacy trims, not modifier-drop pattern."
+ },
+ {
+  "make": "Audi",
+  "model": "Q4 e-tron",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 3,
+  "mismatches": [
+   {
+    "facet_trim": "Premium Plus",
+    "listing_count": 444,
+    "sample_build_trim": "Premium Plus",
+    "sample_build_version": "40 Premium Plus",
+    "sample_heading": null,
+    "pattern": "build.trim drops the battery/power designation prefix (\"40\"/\"45\"/\"55\") that canonical trims require (e.g. canonical \"45 Premium Plus\"). build.version correctly retains it.",
+    "build_version_reliable": true,
+    "note": "Sample was a MY2023 listing but the same bare 'Premium Plus'/'Premium' trim strings dominate current facets too, so pattern holds across years."
+   }
+  ]
+ },
+ {
+  "make": "Audi",
+  "model": "RS Q8",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 1,
+  "mismatches": [
+   {
+    "facet_trim": "Base",
+    "listing_count": 1171,
+    "sample_build_trim": "Base",
+    "sample_build_version": "-",
+    "sample_heading": "2027 Audi RS Q8 SUV performance",
+    "pattern": "100% of RS Q8 listings show build.trim=\"Base\" instead of canonical \"performance\" (the only real US RS Q8 trim). Not a partial drop \u2014 build.trim is wholesale wrong.",
+    "build_version_reliable": false,
+    "note": "build.version is literally the placeholder string \"-\" (empty/garbage), so it offers no correction either. Only the dealer heading text (\"...performance\") carries the correct trim."
+   }
+  ]
+ },
+ {
+  "make": "Audi",
+  "model": "S6 Sportback e-tron",
+  "status": "clean",
+  "distinct_trims_seen": 2,
+  "mismatches": []
+ },
+ {
+  "make": "Audi",
+  "model": "SQ9",
+  "status": "clean",
+  "distinct_trims_seen": 1,
+  "mismatches": [],
+  "note": "Trim 'Base' matches canonical exactly. (Separately, headings say 'Audi Q9' not 'SQ9' \u2014 a model-name quirk, out of scope for this trim audit.)"
+ },
+ {
+  "make": "BMW",
+  "model": "7 Series",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 19,
+  "mismatches": [
+   {
+    "facet_trim": "750e",
+    "listing_count": 494,
+    "sample_build_trim": "750e",
+    "sample_build_version": "750e xDrive Sedan",
+    "sample_heading": "New 2026 BMW 750e xDrive",
+    "pattern": "build.trim drops the \"xDrive\" suffix that canonical trims require (\"750e xDrive\"). 750e is only sold as xDrive in the US, so every 750e listing is mislabeled the same way. build.version and heading both correctly include xDrive.",
+    "build_version_reliable": true,
+    "note": null
+   },
+   {
+    "facet_trim": "760i",
+    "listing_count": 735,
+    "sample_build_trim": "760i",
+    "sample_build_version": "760i xDrive Sedan",
+    "sample_heading": "2026 BMW 7 Series 760i xDrive Sedan",
+    "pattern": "Same xDrive-drop pattern as 750e; canonical requires \"760i xDrive\", build.trim gives bare \"760i\".",
+    "build_version_reliable": true,
+    "note": null
+   },
+   {
+    "facet_trim": "740i",
+    "listing_count": 2959,
+    "sample_build_trim": "740i",
+    "sample_build_version": "740i Sedan",
+    "sample_heading": "2026 BMW 7 Series 740i",
+    "pattern": "Ambiguous: canonical MY2026 does list bare \"740i\" as valid, and this sample was genuinely RWD (not xDrive), so this specific sample is not mislabeled. However \"740i xDrive\" never appears anywhere in the facet despite being a valid canonical trim, suggesting xDrive 740i units are being folded into this same bare \"740i\" bucket.",
+    "build_version_reliable": true,
+    "note": "Included for completeness; the confirmed bugs are the 750e/760i xDrive drops above."
+   }
+  ]
+ },
+ {
+  "make": "BMW",
+  "model": "M5",
+  "status": "clean",
+  "distinct_trims_seen": 4,
+  "mismatches": [],
+  "note": "build.trim=\"M5\" / build.version=\"M5 Sedan\" for the single-trim current M5 (canonical uses placeholder \"Base\"). No information is actually dropped \u2014 this is a naming-convention difference, not a data-loss bug. 'Competition'(53) count is legacy F90-generation naming, out of scope."
+ },
+ {
+  "make": "BMW",
+  "model": "X6 M",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 3,
+  "mismatches": [
+   {
+    "facet_trim": "X6 M",
+    "listing_count": 266,
+    "sample_build_trim": "X6 M",
+    "sample_build_version": "Competition",
+    "sample_heading": "2026 BMW X6 M",
+    "pattern": "build.trim shows the base model name (\"X6 M\") instead of the actual trim; build.version correctly says \"Competition\" \u2014 exactly matching the canonical trim. Same shape as the RAV4 bug: build.trim is missing/wrong, build.version has the right answer.",
+    "build_version_reliable": true,
+    "note": null
+   }
+  ]
+ },
+ {
+  "make": "Buick",
+  "model": "Enclave",
+  "status": "clean",
+  "distinct_trims_seen": 14,
+  "mismatches": [],
+  "note": "Sport Touring(5487)/Preferred(5188)/Avenir(4817) match canonical exactly with dominant counts. Essence/Premium/Leather/CXL variants are pre-redesign legacy Enclave trims, not truncations."
+ },
+ {
+  "make": "Cadillac",
+  "model": "Escalade IQ",
+  "status": "clean",
+  "distinct_trims_seen": 8,
+  "mismatches": [],
+  "note": "Sport/Premium Sport/Luxury/Premium Luxury all match canonical exactly. Sport 1/2, Luxury 1/2 appear to be real numbered sub-tiers (adding detail, not dropping it) \u2014 opposite direction from the bug pattern."
+ },
+ {
+  "make": "Chevrolet",
+  "model": "Bolt",
+  "status": "clean",
+  "distinct_trims_seen": 2,
+  "mismatches": []
+ },
+ {
+  "make": "Chevrolet",
+  "model": "Suburban",
+  "status": "clean",
+  "distinct_trims_seen": 11,
+  "mismatches": [],
+  "note": "All 6 canonical trims (LS, LT, RST, Z71, Premier, High Country) present with large counts. LTZ/Base/LT1/LT2/Fleet are pre-2021 legacy trims."
+ },
+ {
+  "make": "Dodge",
+  "model": "Durango",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 43,
+  "mismatches": [
+   {
+    "facet_trim": "GT HEMI Plus V8",
+    "listing_count": 5419,
+    "sample_build_trim": "GT HEMI Plus V8",
+    "sample_build_version": "GT HEMI Plus V8 AWD",
+    "sample_heading": "New 2026 Dodge Durango Gt Plus Awd Hemi V8",
+    "pattern": "Word-order swap vs canonical \"GT Plus HEMI V8\" (2026) \u2014 MarketCheck says \"GT HEMI Plus V8\", canonical/dealer heading order it \"GT Plus HEMI V8\"/\"Gt Plus...Hemi\". All the same words are present, just reordered, so this is a lower-severity finding than the true drop cases.",
+    "build_version_reliable": true,
+    "note": "build.version matches build.trim exactly (same reordering), so version doesn't self-correct this one."
+   }
+  ]
+ },
+ {
+  "make": "Ford",
+  "model": "F-150",
+  "status": "clean",
+  "distinct_trims_seen": 23,
+  "mismatches": [],
+  "note": "All 9 canonical trims present with strong counts. Canonical 'Raptor R' never appears as its own facet bucket, which could mean it's being folded into plain 'Raptor' \u2014 but 3 sampled 'Raptor' listings were all genuine V6 Raptors (not the V8 Raptor R), so no mismatch could be confirmed."
+ },
+ {
+  "make": "GMC",
+  "model": "Acadia",
+  "status": "clean",
+  "distinct_trims_seen": 15,
+  "mismatches": [],
+  "note": "Elevation/Denali/AT4/Denali Ultimate match canonical exactly with big counts; SLE/SLT variants are pre-2024-redesign legacy trims."
+ },
+ {
+  "make": "GMC",
+  "model": "Terrain",
+  "status": "clean",
+  "distinct_trims_seen": 11,
+  "mismatches": [],
+  "note": "Elevation/AT4/Denali match canonical exactly; SLE/SLT variants are pre-2026-redesign legacy trims."
+ },
+ {
+  "make": "Genesis",
+  "model": "GV70",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 9,
+  "mismatches": [
+   {
+    "facet_trim": "Sport Prestige",
+    "listing_count": 3498,
+    "sample_build_trim": "Sport Prestige",
+    "sample_build_version": "3.5T Sport Prestige AWD",
+    "sample_heading": "2026 GV70 3.5T Sport Prestige AWD",
+    "pattern": "build.trim systematically drops the engine-designation prefix (\"2.5T\"/\"3.5T\") that canonical trims require (e.g. \"3.5T Sport Prestige\"). build.version correctly retains it.",
+    "build_version_reliable": true,
+    "note": null
+   },
+   {
+    "facet_trim": "Advanced",
+    "listing_count": 3324,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Same engine-prefix-drop pattern inferred from facet only (canonical \"2.5T Advanced\"); not separately sample-verified \u2014 the \"Sport Prestige\" verification above already confirms the systemic cause.",
+    "build_version_reliable": "n/a",
+    "note": "Not independently verified with a sample call; inferred from the same confirmed pattern."
+   }
+  ]
+ },
+ {
+  "make": "Honda",
+  "model": "Odyssey",
+  "status": "clean",
+  "distinct_trims_seen": 9,
+  "mismatches": [],
+  "note": "EX-L/Touring/Elite match canonical exactly. 'Sport L' vs canonical 'Sport-L' is a punctuation-only difference, not a drop. Verified bare 'SPORT'(576) sample: build.trim=build.version=\"SPORT\" on a 2023 unit \u2014 this is a genuinely distinct older-generation trim (pre-Sport-L years), not a mislabeled Sport-L."
+ },
+ {
+  "make": "Hyundai",
+  "model": "Ioniq 5",
+  "status": "clean",
+  "distinct_trims_seen": 6,
+  "mismatches": [],
+  "note": "SEL/Limited/SE/XRT/N all match canonical. Checked 3 'SE' samples for signs canonical 'SE Standard Range' was being collapsed into bare 'SE' \u2014 versions read 'SE RWD'/'SE AWD', no 'Standard Range' mention in trim OR version, so inconclusive/no confirmed drop."
+ },
+ {
+  "make": "Hyundai",
+  "model": "Sonata",
+  "status": "clean",
+  "distinct_trims_seen": 14,
+  "mismatches": [],
+  "note": "SEL/SE/N Line match canonical. Verified 'Limited'(1943) samples are genuine non-hybrid gas Limited trims (Combustion powertrain, 1.6T/2.4L engines) \u2014 not a mislabeled 'Limited Hybrid'; canonical list is just missing the plain gas Limited trim. Verified 'Sport'(1089) sample is a genuine 2018 legacy trim, not a truncated 'SEL Sport'."
+ },
+ {
+  "make": "Jeep",
+  "model": "Gladiator",
+  "status": "clean",
+  "distinct_trims_seen": 27,
+  "mismatches": [],
+  "note": "All major canonical trims present with strong counts (Sport S, Rubicon, Mojave, Willys, Sport, Sahara, Mojave X, Rubicon X, 85th Anniversary Edition, Texas Trail, Rewind). Non-matches (Overland, High Altitude, Nighthawk, etc.) look like genuinely distinct trims from other model years, not truncations."
+ },
+ {
+  "make": "Kia",
+  "model": "EV6",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 5,
+  "mismatches": [
+   {
+    "facet_trim": "Wind",
+    "listing_count": 1526,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "build.trim likely drops the drivetrain suffix (\"RWD\"/\"AWD\") required by canonical (\"Wind RWD\"/\"Wind AWD\").",
+    "build_version_reliable": "n/a",
+    "note": "UNVERIFIED \u2014 API quota exhausted before the sample verification call could run. Inferred from facet-vs-canonical comparison only."
+   },
+   {
+    "facet_trim": "Light L/R",
+    "listing_count": 1408,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Likely a heavily abbreviated form of canonical \"Light Long Range RWD\"/\"Light Long Range AWD\" \u2014 \"Long Range\" shortened to \"L/R\" and drivetrain suffix dropped.",
+    "build_version_reliable": "n/a",
+    "note": "UNVERIFIED \u2014 API quota exhausted before sample could be pulled."
+   },
+   {
+    "facet_trim": "GT-Line",
+    "listing_count": 1189,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Likely drops drivetrain suffix vs canonical \"GT-Line RWD\"/\"GT-Line AWD\".",
+    "build_version_reliable": "n/a",
+    "note": "UNVERIFIED \u2014 API quota exhausted before sample could be pulled."
+   }
+  ]
+ },
+ {
+  "make": "Kia",
+  "model": "Sorento",
+  "status": "clean",
+  "distinct_trims_seen": 28,
+  "mismatches": [],
+  "note": "S, LX, EX, SX, X-Line EX, X-Line SX, X-Line SX Prestige, X-Pro SX Prestige, SX Prestige all match canonical exactly with strong counts. Hybrid/PHEV variants (EX Hybrid, SX Prestige Hybrid, etc.) ADD information vs canonical rather than dropping it, so they don't fit the bug pattern."
+ },
+ {
+  "make": "Land Rover",
+  "model": "Range Rover Sport",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 24,
+  "mismatches": [
+   {
+    "facet_trim": "Dynamic SE",
+    "listing_count": 3328,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical always pairs \"Dynamic SE\" with a powertrain code (\"P400 Dynamic SE\", \"P460e Dynamic SE\", \"P530 Dynamic SE\", or 2027-style \"Dynamic SE P400\" etc.); bare \"Dynamic SE\" appears to drop the powertrain designation entirely.",
+    "build_version_reliable": "n/a",
+    "note": "UNVERIFIED \u2014 API quota exhausted before sample could be pulled. This is the highest-count non-matching trim for this model, strongly resembling the confirmed GV70/E-Class prefix-drop pattern."
+   },
+   {
+    "facet_trim": "SE",
+    "listing_count": 2757,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical requires \"P360 SE\" (2026) or \"SE P360\" (2027); bare \"SE\" appears to drop the \"P360\" powertrain code.",
+    "build_version_reliable": "n/a",
+    "note": "UNVERIFIED \u2014 API quota exhausted."
+   },
+   {
+    "facet_trim": "Autobiography",
+    "listing_count": 248,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical requires a powertrain-qualified form (\"P530 Autobiography\", \"P550e Autobiography\", \"Autobiography P530\"); bare \"Autobiography\" appears to drop it.",
+    "build_version_reliable": "n/a",
+    "note": "UNVERIFIED \u2014 API quota exhausted."
+   }
+  ]
+ },
+ {
+  "make": "Lexus",
+  "model": "NX",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 8,
+  "mismatches": [
+   {
+    "facet_trim": "350",
+    "listing_count": 8972,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical MY2026 NX has many trims built on the '350' name that need further modifiers (350 Premium, 350 Luxury, 350 F SPORT Handling); notably, NOT ONE hybrid designation (350h, 350h Premium, 350h Luxury, 350h F SPORT Handling, 450h+ variants) appears anywhere in the facet despite being real, common trims \u2014 suggesting hybrid units may be getting folded into bare '350' or another bucket, dropping the 'h'/'+' and trim-level modifiers entirely.",
+    "build_version_reliable": "n/a",
+    "note": "UNVERIFIED \u2014 API quota exhausted before the planned sample pull (with year=2026 filter) could run. This is a suspicion based on absence-of-evidence in the facet list, not a confirmed sample."
+   },
+   {
+    "facet_trim": "F Sport",
+    "listing_count": 216,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Likely a generic/shortened form of canonical \"350 F SPORT Handling\" / \"350h F SPORT Handling\" / \"450h+ F SPORT Handling\", dropping both the engine designation and the word \"Handling\".",
+    "build_version_reliable": "n/a",
+    "note": "UNVERIFIED \u2014 API quota exhausted."
+   }
+  ]
+ },
+ {
+  "make": "Lincoln",
+  "model": "Navigator",
+  "status": "clean",
+  "distinct_trims_seen": 12,
+  "mismatches": [],
+  "note": "Premiere/Reserve/Black Label all match canonical exactly with strong counts. The '...L' variants (Reserve L, Black Label L, Premiere L) add extended-wheelbase info rather than dropping anything."
+ },
+ {
+  "make": "Mazda",
+  "model": "CX-70",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 5,
+  "mismatches": [
+   {
+    "facet_trim": "Premium Package",
+    "listing_count": 2323,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical trim is \"3.3 Turbo Premium\"; build.trim appears to drop the \"3.3 Turbo\" engine-designation prefix entirely and append an unrelated \"Package\" suffix instead.",
+    "build_version_reliable": "n/a",
+    "note": "UNVERIFIED \u2014 API quota exhausted before sample could be pulled."
+   },
+   {
+    "facet_trim": "Premium Plus Package",
+    "listing_count": 1494,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Same pattern vs canonical \"3.3 Turbo Premium Plus\" \u2014 prefix dropped, \"Package\" appended.",
+    "build_version_reliable": "n/a",
+    "note": "UNVERIFIED \u2014 API quota exhausted."
+   },
+   {
+    "facet_trim": "Preferred Package",
+    "listing_count": 1374,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Same pattern vs canonical \"3.3 Turbo Preferred\".",
+    "build_version_reliable": "n/a",
+    "note": "UNVERIFIED \u2014 API quota exhausted. Also note 'SC'(256)/'SC Plus'(262) facet values look like heavy abbreviations of canonical 'PHEV Select Choice'/'PHEV Select Choice Plus', dropping 'PHEV Select Choice' down to initials \u2014 flagged but not counted in the capped top-3."
+   }
+  ]
+ },
+ {
+  "make": "Mercedes-Benz",
+  "model": "E-Class",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 40,
+  "mismatches": [
+   {
+    "facet_trim": "E450",
+    "listing_count": 1932,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical requires \"E 450 4MATIC\"; bare \"E450\" appears to drop the \"4MATIC\" drivetrain modifier (beyond just the whitespace difference).",
+    "build_version_reliable": "n/a",
+    "note": "UNVERIFIED \u2014 API quota exhausted before sample could be pulled."
+   },
+   {
+    "facet_trim": "AMG E53",
+    "listing_count": 1142,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical requires \"AMG E 53 Hybrid\"; facet drops \"Hybrid\" (a related 'AMG E 53' with a space, count 175, shows the same drop).",
+    "build_version_reliable": "n/a",
+    "note": "UNVERIFIED \u2014 API quota exhausted."
+   },
+   {
+    "facet_trim": "E450 All-Terrain",
+    "listing_count": 307,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical requires \"E 450 4MATIC All-Terrain\"; facet drops \"4MATIC\" (all All-Terrain E-Class units are 4MATIC in reality, so this modifier carries real meaning being lost, not just cosmetic).",
+    "build_version_reliable": "n/a",
+    "note": "UNVERIFIED \u2014 API quota exhausted. Plain 'E350' vs canonical 'E 350' was judged whitespace-only, not counted as a mismatch."
+   }
+  ]
+ },
+ {
+  "make": "Mercedes-Benz",
+  "model": "GLC",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 9,
+  "mismatches": [
+   {
+    "facet_trim": "Base",
+    "listing_count": 18783,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "The single largest trim bucket for GLC (72% of all listings) is the generic value \"Base\", which does not correspond to any canonical GLC trim at all (GLC 300, GLC 300 4MATIC, GLC 350e 4MATIC, AMG GLC 43, etc.). If real, this would be a much larger-scale version of the RS Q8-style total-mislabel bug rather than a partial word-drop.",
+    "build_version_reliable": "n/a",
+    "note": "UNVERIFIED \u2014 this is the single highest-priority item in the whole audit and the API quota ran out before it could be confirmed with a sample. Strongly recommend re-running this one check first when quota resets."
+   },
+   {
+    "facet_trim": "AMG GLC 53",
+    "listing_count": 320,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical requires \"AMG GLC 53 4MATIC+\"; facet drops the \"4MATIC+\" suffix.",
+    "build_version_reliable": "n/a",
+    "note": "UNVERIFIED \u2014 API quota exhausted."
+   },
+   {
+    "facet_trim": "GLC350e",
+    "listing_count": 102,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "Canonical requires \"GLC 350e 4MATIC\"; facet drops \"4MATIC\" (this PHEV is only sold with 4MATIC in the US).",
+    "build_version_reliable": "n/a",
+    "note": "UNVERIFIED \u2014 API quota exhausted."
+   }
+  ]
+ },
+ {
+  "make": "Mercedes-Benz",
+  "model": "SL",
+  "status": "mismatch_found",
+  "distinct_trims_seen": 2,
+  "mismatches": [
+   {
+    "facet_trim": "Mercedes-AMG",
+    "listing_count": 563,
+    "sample_build_trim": null,
+    "sample_build_version": null,
+    "sample_heading": null,
+    "pattern": "The ENTIRE trim facet for SL is just two values, \"Mercedes-AMG\" and \"Mercedes-Maybach\" \u2014 sub-brand/division labels, not actual trim levels. None of the real SL trims (SL 43, SL 55, SL 63, SL 63 S E Performance) appear anywhere. This looks like a total trim-field failure for this model, similar in severity to RS Q8 and possibly GLC's 'Base' issue.",
+    "build_version_reliable": "n/a",
+    "note": "UNVERIFIED \u2014 API quota exhausted before the sample pull could run. Given ALL SL trims are AMG-branded in reality, 'Mercedes-AMG' as trim conveys zero differentiating information; this is arguably the most severe facet-level finding in the whole audit and should be the second thing re-checked when quota resets."
+   }
+  ]
+ },
+ {
+  "make": "Mitsubishi",
+  "model": "Outlander Sport",
+  "status": "not_processed",
+  "distinct_trims_seen": null,
+  "mismatches": [],
+  "note": "NOT PROCESSED \u2014 MarketCheck API monthly quota was exhausted (HTTP 429) before this pair could be queried at all."
+ },
+ {
+  "make": "Nissan",
+  "model": "Rogue",
+  "status": "not_processed",
+  "distinct_trims_seen": null,
+  "mismatches": [],
+  "note": "NOT PROCESSED \u2014 API quota exhausted before this pair could be queried."
+ },
+ {
+  "make": "Porsche",
+  "model": "Panamera",
+  "status": "not_processed",
+  "distinct_trims_seen": null,
+  "mismatches": [],
+  "note": "NOT PROCESSED \u2014 API quota exhausted before this pair could be queried."
+ },
+ {
+  "make": "Ram",
+  "model": "ProMaster",
+  "status": "not_processed",
+  "distinct_trims_seen": null,
+  "mismatches": [],
+  "note": "NOT PROCESSED \u2014 API quota exhausted before this pair could be queried."
+ },
+ {
+  "make": "Subaru",
+  "model": "Impreza",
+  "status": "not_processed",
+  "distinct_trims_seen": null,
+  "mismatches": [],
+  "note": "NOT PROCESSED \u2014 API quota exhausted before this pair could be queried."
+ },
+ {
+  "make": "Tesla",
+  "model": "Model Y",
+  "status": "not_processed",
+  "distinct_trims_seen": null,
+  "mismatches": [],
+  "note": "NOT PROCESSED \u2014 API quota exhausted before this pair could be queried."
+ },
+ {
+  "make": "Toyota",
+  "model": "GR Supra",
+  "status": "not_processed",
+  "distinct_trims_seen": null,
+  "mismatches": [],
+  "note": "NOT PROCESSED \u2014 API quota exhausted before this pair could be queried."
+ },
+ {
+  "make": "Toyota",
+  "model": "RAV4",
+  "status": "not_processed",
+  "distinct_trims_seen": null,
+  "mismatches": [],
+  "note": "NOT PROCESSED \u2014 API quota exhausted before this pair could be queried. (This is the model with the already-confirmed XLE/XLE Premium bug per the task background; no new live verification was obtained here due to the outage.)"
+ },
+ {
+  "make": "Volkswagen",
+  "model": "Golf GTI",
+  "status": "not_processed",
+  "distinct_trims_seen": null,
+  "mismatches": [],
+  "note": "NOT PROCESSED \u2014 API quota exhausted before this pair could be queried."
+ },
+ {
+  "make": "Volvo",
+  "model": "EX30 Cross Country",
+  "status": "not_processed",
+  "distinct_trims_seen": null,
+  "mismatches": [],
+  "note": "NOT PROCESSED \u2014 API quota exhausted before this pair could be queried."
+ },
+ {
+  "make": "Volvo",
+  "model": "XC90",
+  "status": "not_processed",
+  "distinct_trims_seen": null,
+  "mismatches": [],
+  "note": "NOT PROCESSED \u2014 API quota exhausted before this pair could be queried."
+ }
+]
