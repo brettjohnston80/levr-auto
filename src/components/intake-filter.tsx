@@ -6,7 +6,12 @@ import type { MakeModelOptions } from "@/lib/intake-vehicle-options";
 import { countNearbyInventory } from "@/lib/inventory-count";
 import { INVENTORY_RADIUS_MILES } from "@/lib/inventory-radius";
 import { createClient } from "@/lib/supabase/client";
-import { saveIntakeSearch, saveUndecidedIntakeSearch } from "@/lib/intake-actions";
+import {
+  saveIntakeSearch,
+  saveUndecidedIntakeSearch,
+  type MatchmakerContext,
+} from "@/lib/intake-actions";
+import { clearMatchmakerPrefill, readMatchmakerPrefill } from "@/lib/matchmaker-prefill";
 import { createCheckoutSession } from "@/lib/payment-actions";
 import { AuthGateModal } from "@/components/auth-gate-modal";
 
@@ -244,7 +249,13 @@ export function IntakeFilter({ makeModelOptions }: { makeModelOptions?: MakeMode
   const [payError, setPayError] = useState<string | null>(null);
   const [savingUndecided, setSavingUndecided] = useState(false);
   const [undecidedError, setUndecidedError] = useState<string | null>(null);
+  // Display/reference-only context from a Matchmaker card, when the
+  // customer arrived that way. Null for every other intake path.
+  const [matchmakerContext, setMatchmakerContext] = useState<MatchmakerContext | null>(null);
   const resumeChecked = useRef(false);
+  // Separate guard from resumeChecked, for a separate effect -- sharing one
+  // would couple the pre-fill read to the purchase-resume read.
+  const prefillChecked = useRef(false);
 
   const zipTouched = zip.length > 0;
   const zipValid = /^\d{5}$/.test(zip);
@@ -280,11 +291,22 @@ export function IntakeFilter({ makeModelOptions }: { makeModelOptions?: MakeMode
     };
   }, [matchReady, vehicle.make, vehicle.model, zip]);
 
-  async function performSave(vehicleToSave: Vehicle, zipToSave: string) {
+  // `matchmakerToSave` is passed explicitly rather than read from state,
+  // and that is the point: the resume path below deliberately calls this
+  // WITHOUT it. A resumed purchase is whatever vehicle was stashed before
+  // sign-in, which has no necessary relationship to a Matchmaker pre-fill
+  // that happens to still be sitting in localStorage -- silently attaching
+  // one to the other would record a price and model year for a vehicle the
+  // customer never picked from a card.
+  async function performSave(
+    vehicleToSave: Vehicle,
+    zipToSave: string,
+    matchmakerToSave?: MatchmakerContext
+  ) {
     setSaving(true);
     setSaveError(null);
 
-    const result = await saveIntakeSearch(vehicleToSave, zipToSave);
+    const result = await saveIntakeSearch(vehicleToSave, zipToSave, matchmakerToSave);
 
     setSaving(false);
 
@@ -352,6 +374,36 @@ export function IntakeFilter({ makeModelOptions }: { makeModelOptions?: MakeMode
     window.location.href = checkoutResult.url;
   }
 
+  // Matchmaker pre-fill ("choose this car", steps 4-5). A SEPARATE effect
+  // from the resume effect below, reading a SEPARATE key, doing a strictly
+  // weaker thing: it only populates visible form fields and some
+  // display-only context. It never saves, never authenticates, and never
+  // reaches createCheckoutSession.
+  //
+  // That separation is load-bearing. The effect below exists to finish an
+  // interrupted PURCHASE and can end at a real Stripe redirect with no
+  // further click; a stale entry there caused a real incident on
+  // 2026-08-23. This one is only ever a suggestion the customer can edit or
+  // ignore, so the two must not be merged or made to read each other's keys.
+  //
+  // Cleared immediately once applied, so a reload or a later unrelated
+  // visit does not silently re-populate a vehicle the customer has moved on
+  // from -- the same reasoning behind the key's own 10-minute TTL.
+  useEffect(() => {
+    if (prefillChecked.current) return;
+    prefillChecked.current = true;
+
+    const prefill = readMatchmakerPrefill();
+    if (!prefill) return;
+
+    setVehicle({ make: prefill.make, model: prefill.model });
+    setMatchmakerContext({
+      priceCents: prefill.matchmakerPriceCents,
+      modelYear: prefill.matchmakerModelYear,
+    });
+    clearMatchmakerPrefill();
+  }, []);
+
   // Resume-after-email-confirmation: if a pending intake (vehicle-based or
   // undecided) was stashed before a signup and the user is now signed in
   // (e.g. they clicked the confirmation link and landed back here), finish
@@ -381,7 +433,7 @@ export function IntakeFilter({ makeModelOptions }: { makeModelOptions?: MakeMode
 
   async function handleContinue() {
     if (!canSubmit || saving) return;
-    await performSave(vehicle, zip);
+    await performSave(vehicle, zip, matchmakerContext ?? undefined);
   }
 
   function handleUndecidedClick() {
@@ -394,7 +446,7 @@ export function IntakeFilter({ makeModelOptions }: { makeModelOptions?: MakeMode
     if (hasPendingUndecidedIntake()) {
       performUndecidedSave();
     } else {
-      performSave(vehicle, zip);
+      performSave(vehicle, zip, matchmakerContext ?? undefined);
     }
   }
 

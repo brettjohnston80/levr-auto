@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { GetStartedButton } from "@/components/get-started-button";
+import { stashMatchmakerPrefill } from "@/lib/matchmaker-prefill";
 import { VehicleDetailModal } from "@/components/vehicle-detail-modal";
 import { PriceRangeSlider } from "@/components/price-range-slider";
 import {
@@ -1139,7 +1140,6 @@ function ModelGroupCard({
   // lookup logic on either side.
   onOpenInfo: (vehicle: MatchmakerVehicle) => void;
 }) {
-  const [searchClicked, setSearchClicked] = useState(false);
   // Sticky manual trim selection -- null until the customer picks
   // something from the selector. Recomputed as a plain fallback on every
   // render rather than tracked via an effect: if the manually-picked id
@@ -1289,18 +1289,17 @@ function ModelGroupCard({
           </button>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setSearchClicked(true)}
+        {/* Unambiguous by construction: a card always has exactly one
+            activeVariant in scope, so there is nothing to disambiguate the
+            way the page-bottom CTA has to. Stashes THAT vehicle, then
+            navigates -- `/matchmaker` has no `#get-started`, so goTo()
+            resolves to a real router.push("/#get-started"). */}
+        <GetStartedButton
+          onBeforeNavigate={() => stashVehiclePrefill(activeVariant)}
           className="w-full rounded-full bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400"
         >
           Start My Search
-        </button>
-        {searchClicked && (
-          <p className="text-center text-xs text-zinc-500">
-            Placeholder — this will kick off your real search once the intake filter connects.
-          </p>
-        )}
+        </GetStartedButton>
       </div>
     </div>
   );
@@ -1339,6 +1338,35 @@ type FlaggedGroup = {
   model: string;
   trimId: string;
 };
+
+/**
+ * Hands a chosen vehicle off to intake ("choose this car", steps 4-5).
+ *
+ * PRE-FILL ONLY. This writes the dedicated `levr_matchmaker_prefill` key
+ * and nothing else -- it is deliberately not the same mechanism as
+ * intake's `levr_pending_intake` / `levr_pending_undecided_intake`, which
+ * RESUME AN INTERRUPTED PURCHASE and can reach a real Stripe redirect with
+ * no further click (see matchmaker-prefill.ts for the 2026-08-23 incident).
+ * Nothing here may ever be pointed at those keys.
+ *
+ * Trim is deliberately NOT carried: intake stopped collecting trim in
+ * August 2026 (it moved to /finalize), so there is no field to pre-fill it
+ * into -- and the 2026-09-12 trim-reconciliation audit found Matchmaker's
+ * researched trim strings frequently disagree with MarketCheck's, so
+ * carrying one would risk pre-filling a trim real inventory does not use.
+ *
+ * Price and model year ride along for the two display/reference-only
+ * columns added in step 2. `trueStartingPriceCents` is an estimate, never a
+ * quote, and nothing downstream prices anything from it.
+ */
+function stashVehiclePrefill(vehicle: MatchmakerVehicle) {
+  stashMatchmakerPrefill({
+    make: vehicle.make,
+    model: vehicle.model,
+    matchmakerPriceCents: vehicle.trueStartingPriceCents,
+    matchmakerModelYear: vehicle.modelYear,
+  });
+}
 
 // Qualified flag identity, shared by ResultsList (computing each card's
 // own flagKey prop) and Matchmaker()'s sort logic (checking whether a
@@ -1469,6 +1497,7 @@ function ResultsList({
   onRestoreAll,
   anyDismissed,
   modelYearLabels,
+  singleFlaggedVehicle,
 }: {
   answers: Answers;
   // Every primary-list group in score order, each tagged collapsed or not
@@ -1504,6 +1533,12 @@ function ResultsList({
   // label prefix, so a raw "2026" alone would read ambiguously (a year?
   // a price?) next to "Sedan"/"Gas".
   modelYearLabels: Record<string, string>;
+  // The resolved vehicle when EXACTLY ONE is flagged, else null. Resolved
+  // up in Matchmaker(), which is the only place holding both the full
+  // FlaggedGroup[] and the vehicles array -- ResultsList deliberately only
+  // receives flaggedKeys (see its comment above), and widening that to the
+  // FlaggedGroup shape just to serve one button would undo that boundary.
+  singleFlaggedVehicle: MatchmakerVehicle | null;
 }) {
   // Local, not lifted to Matchmaker() -- ResultsList only unmounts (and
   // this resets) on Start Over (the `done` ternary in Matchmaker()), which
@@ -1716,9 +1751,28 @@ function ResultsList({
           {flaggedKeys.size > 0 ? "Found the one (or a few)?" : "See something you like?"}
         </h3>
         <p className="mt-2 text-sm text-zinc-400">
-          Get started and we&apos;ll build your real search — make, model, trim, and color.
+          {/* Says "the vehicle you picked" rather than naming fields on
+              purpose. The old copy promised "make, model, trim, and color",
+              but trim and colour moved to /finalize in Aug 2026 and neither
+              is carried. This wording also stays honest in the zero- and
+              multiple-flagged cases, where nothing carries over at all --
+              naming the fields would promise a transfer that did not
+              happen. Approved 2026-09-12. */}
+          Get started and we&apos;ll build your real search — we&apos;ll carry over the vehicle you
+          picked.
         </p>
-        <GetStartedButton className="mt-6 inline-flex items-center justify-center rounded-full bg-emerald-500 px-8 py-3.5 text-base font-semibold text-zinc-950 transition-colors hover:bg-emerald-400">
+        {/* Single-flagged carry-through. Exactly one flagged vehicle is the
+            only unambiguous case, so it is the only one that pre-fills:
+            with none flagged there is nothing to carry, and with several
+            there is no way to know which one the customer means -- guessing
+            would put a vehicle they did not choose into their intake form.
+            Both of those fall through to plain navigation, unchanged. */}
+        <GetStartedButton
+          onBeforeNavigate={
+            singleFlaggedVehicle ? () => stashVehiclePrefill(singleFlaggedVehicle) : undefined
+          }
+          className="mt-6 inline-flex items-center justify-center rounded-full bg-emerald-500 px-8 py-3.5 text-base font-semibold text-zinc-950 transition-colors hover:bg-emerald-400"
+        >
           Get Started
         </GetStartedButton>
       </div>
@@ -2820,6 +2874,22 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
   const flaggedKeys = useMemo(() => new Set(flaggedGroups.map((g) => g.flagKey)), [flaggedGroups]);
   const compareLimitReached = flaggedGroups.length >= FLAG_CAP;
 
+  // The page-bottom CTA's single-flagged carry-through ("choose this car",
+  // step 4). Non-null ONLY when exactly one vehicle is flagged: zero means
+  // nothing to carry, and two or more is genuinely ambiguous, so both
+  // yield null and the CTA navigates without pre-filling anything.
+  //
+  // Resolved against the raw `vehicles` array rather than the filtered
+  // results, deliberately and for the same reason ComparisonModal does it:
+  // a flagged vehicle stays flagged after an answer change that would drop
+  // it from the visible list, so looking it up in the filtered list would
+  // intermittently fail to resolve a vehicle the customer can still see
+  // flagged. `trimId` is the specific variant they flagged.
+  const singleFlaggedVehicle = useMemo(() => {
+    if (flaggedGroups.length !== 1) return null;
+    return vehicles.find((v) => v.id === flaggedGroups[0].trimId) ?? null;
+  }, [flaggedGroups, vehicles]);
+
   // Monotonic counter backing directSegmentTag's uniqueness suffix (fix,
   // 2026-09-01) -- a plain ref, not state, since its value only needs to be
   // correct at the moment a new flagKey string is built (synchronously,
@@ -3202,6 +3272,7 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
                 onRestoreAll={() => setDismissed(new Set())}
                 anyDismissed={anyDismissed}
                 modelYearLabels={modelYearLabels}
+                singleFlaggedVehicle={singleFlaggedVehicle}
               />
               {/* Normal document-flow positioning (2026-09-02, Brett's
                   request) -- previously lg:sticky lg:top-24 lg:self-start,

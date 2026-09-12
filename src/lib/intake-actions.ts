@@ -20,9 +20,26 @@ export type SaveIntakeResult =
 // explicit later step. No payment step yet either -- paid_at stays null and
 // search_status starts at 'awaiting_finalization' (the column default)
 // until Stripe lands.
+/**
+ * Context carried over when the customer arrived from a Matchmaker card
+ * ("choose this car", steps 4-5). Optional: every other intake path --
+ * typing a make/model directly, the "not sure yet" flow -- legitimately has
+ * none, which is why both columns are nullable with no default.
+ *
+ * DISPLAY/REFERENCE ONLY. Neither value influences what the customer is
+ * charged (a flat FLAT_PRICE built inline per Checkout Session) or how the
+ * guarantee resolves (against a real dealer's MSRP). The price is the
+ * Matchmaker's own researched estimate, not a quote.
+ */
+export type MatchmakerContext = {
+  priceCents: number | null;
+  modelYear: number | null;
+};
+
 export async function saveIntakeSearch(
   vehicle: IntakeVehicle,
-  zip: string
+  zip: string,
+  matchmaker?: MatchmakerContext
 ): Promise<SaveIntakeResult> {
   const supabase = await createClient();
 
@@ -41,6 +58,11 @@ export async function saveIntakeSearch(
       make: vehicle.make,
       model: vehicle.model,
       zip: zip || null,
+      // Explicit nulls rather than omitted keys, so a search that did not
+      // come from a Matchmaker card is recorded as definitively having no
+      // Matchmaker context rather than merely unset.
+      matchmaker_price_cents: matchmaker?.priceCents ?? null,
+      matchmaker_model_year: matchmaker?.modelYear ?? null,
     })
     .select("id")
     .single();
