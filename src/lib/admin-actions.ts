@@ -4,11 +4,14 @@ import "server-only";
 import { revalidatePath } from "next/cache";
 import { getAuthorizedAgent } from "./agent-auth";
 import { createAdminClient } from "./supabase/admin";
+import { isTestEmail } from "./test-accounts";
 
 export interface AdminSearchRow {
   id: string;
   customerName: string | null;
   customerEmail: string | null;
+  /** Tester-program row -- flagged in the table, never hidden. */
+  isTest: boolean;
   make: string | null;
   model: string | null;
   searchStatus: string;
@@ -102,6 +105,7 @@ export async function getAdminSearches(): Promise<AdminSearchRow[]> {
       id: search.id,
       customerName: customer ? [customer.first_name, customer.last_name].filter(Boolean).join(" ") || null : null,
       customerEmail: resolvedEmail,
+      isTest: isTestEmail(resolvedEmail),
       make: search.make,
       model: search.model,
       searchStatus: search.search_status,

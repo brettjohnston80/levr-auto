@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminClient } from "./supabase/admin";
+import { getTestCustomerIds } from "./test-accounts";
 
 export interface RefundDueSearch {
   id: string;
@@ -38,7 +39,19 @@ export async function getRefundsDueQueue(): Promise<RefundDueSearch[]> {
     return [];
   }
 
-  const customerIds = [...new Set(searches.map((s) => s.customer_id))];
+  // Tester-program rows never reach this worklist. A seeded test search
+  // that sits past Day 30 with no qualifying offer is resolved 'refunded'
+  // by the Day-30 job exactly like a real one -- that is correct, and the
+  // job is deliberately left alone -- but this queue is a list of real
+  // money a human is about to refund through Stripe. A test row here is an
+  // instruction to refund a customer who does not exist.
+  const testCustomerIds = await getTestCustomerIds();
+  const realSearches = searches.filter((s) => !testCustomerIds.has(s.customer_id));
+  if (realSearches.length === 0) {
+    return [];
+  }
+
+  const customerIds = [...new Set(realSearches.map((s) => s.customer_id))];
   const { data: customers, error: customersError } = await admin
     .from("customers")
     .select("id, email, first_name, last_name")
@@ -50,7 +63,7 @@ export async function getRefundsDueQueue(): Promise<RefundDueSearch[]> {
 
   const customerById = new Map((customers ?? []).map((c) => [c.id, c]));
 
-  return searches.map((search) => {
+  return realSearches.map((search) => {
     const customer = customerById.get(search.customer_id);
     return {
       id: search.id,

@@ -2,6 +2,7 @@ import "server-only";
 import type Anthropic from "@anthropic-ai/sdk";
 import { getAnthropic } from "@/lib/anthropic";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getTestCustomerIds } from "@/lib/test-accounts";
 import { CAPTIONS_TOOL, extractCaptions, type PlatformCaptions } from "@/lib/caption-tool";
 import { chicagoTimeToUtc } from "@/lib/timezone";
 import { THEMES, applicablePlatforms, weekStartFor, addDaysToDateString, type Theme } from "@/lib/social-schedule";
@@ -215,11 +216,11 @@ export interface TestimonialSource {
  * (buildTestimonialSource), so a re-run can never surface different real
  * data, only re-word the same data.
  */
-async function selectTestimonialForWeek(weekDataStartIso: string, weekDataEndIso: string): Promise<string | null> {
+export async function selectTestimonialForWeek(weekDataStartIso: string, weekDataEndIso: string): Promise<string | null> {
   const admin = createAdminClient();
   const { data } = await admin
     .from("post_deal_surveys")
-    .select("id, levr_overall_rating, levr_overall_comment, submitted_at")
+    .select("id, customer_search_id, levr_overall_rating, levr_overall_comment, submitted_at")
     .not("submitted_at", "is", null)
     .gte("submitted_at", weekDataStartIso)
     .lt("submitted_at", weekDataEndIso)
@@ -228,7 +229,38 @@ async function selectTestimonialForWeek(weekDataStartIso: string, weekDataEndIso
     .order("levr_overall_rating", { ascending: false })
     .order("submitted_at", { ascending: false });
 
-  const winner = (data ?? []).find((s) => (s.levr_overall_comment ?? "").trim().length > 0);
+  const candidates = data ?? [];
+  if (candidates.length === 0) return null;
+
+  // post_deal_surveys carries no customer_id, only customer_search_id, so
+  // ownership needs one resolution hop before the tester filter can be
+  // applied. Same reasoning as the deal selector above: a testimonial is
+  // public-facing copy, and a glowing quote written by a tester is not a
+  // customer testimonial.
+  const testCustomerIds = await getTestCustomerIds();
+  let testSearchIds = new Set<string>();
+  if (testCustomerIds.size > 0) {
+    const searchIds = [
+      ...new Set(candidates.map((s) => s.customer_search_id as string).filter(Boolean)),
+    ];
+    if (searchIds.length > 0) {
+      const { data: owners } = await admin
+        .from("customer_searches")
+        .select("id, customer_id")
+        .in("id", searchIds);
+      testSearchIds = new Set(
+        (owners ?? [])
+          .filter((o) => testCustomerIds.has(o.customer_id as string))
+          .map((o) => o.id as string)
+      );
+    }
+  }
+
+  const winner = candidates.find(
+    (s) =>
+      !testSearchIds.has(s.customer_search_id as string) &&
+      (s.levr_overall_comment ?? "").trim().length > 0
+  );
   return winner?.id ?? null;
 }
 
@@ -338,18 +370,32 @@ export interface DealSource {
  * selectTestimonialForWeek above. Never selects customer name, email, or
  * zip -- structurally impossible to leak, not just a formatting discipline.
  */
-async function selectDealForWeek(weekDataStartIso: string, weekDataEndIso: string): Promise<string | null> {
+export async function selectDealForWeek(weekDataStartIso: string, weekDataEndIso: string): Promise<string | null> {
   const admin = createAdminClient();
 
-  const { data: searches } = await admin
+  const { data: allSearches } = await admin
     .from("customer_searches")
-    .select("id, purchased_at, purchased_qualifying_offer_id")
+    .select("id, customer_id, purchased_at, purchased_qualifying_offer_id")
     .eq("search_status", "purchased")
     .gte("purchased_at", weekDataStartIso)
     .lt("purchased_at", weekDataEndIso)
     .not("purchased_qualifying_offer_id", "is", null);
 
-  if (!searches || searches.length === 0) return null;
+  // Tester-program purchases are excluded at SELECTION, which is the only
+  // place it can be done once and stay done: buildDealSource re-fetches an
+  // already-selected id, so a row that can never be selected can never be
+  // regenerated into a post either.
+  //
+  // This is the highest-stakes filter in the tester program. Social posts
+  // are the one path where seeded test data could reach PUBLIC-FACING
+  // output -- a fabricated "$8,000 off a Tahoe" drafted from a search
+  // nobody really made. Approval on /internal/social gates publication, but
+  // a draft built from fake numbers should never be put in front of that
+  // decision in the first place.
+  const testCustomerIds = await getTestCustomerIds();
+  const searches = (allSearches ?? []).filter((s) => !testCustomerIds.has(s.customer_id as string));
+
+  if (searches.length === 0) return null;
 
   const offerIds = searches.map((s) => s.purchased_qualifying_offer_id as string);
   const { data: offers } = await admin

@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "./supabase/admin";
 import { buildTrimOptions, type TrimOption } from "./finalize-trims";
 import { RESUME_WINDOW_DAYS } from "./vehicle-data";
+import { isTestEmail } from "./test-accounts";
 
 export interface OutreachDealer {
   name: string;
@@ -118,6 +119,8 @@ export interface OutreachSearch {
   colors: string[];
   zip: string | null;
   customerEmail: string | null;
+  /** Tester-program row -- flagged, never hidden. See isTest note below. */
+  isTest: boolean;
   dealers: OutreachDealer[];
   listings: OutreachListing[];
   offers: OutreachOffer[];
@@ -378,6 +381,7 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
       colors: search.colors,
       zip: search.zip,
       customerEmail: customerEmailById.get(search.customer_id) ?? null,
+      isTest: isTestEmail(customerEmailById.get(search.customer_id) ?? null),
       dealers,
       listings: rawListings.map((l) => ({
         id: l.id,
@@ -401,6 +405,8 @@ export interface FinalizationQueueSearch {
   make: string;
   model: string;
   customerEmail: string | null;
+  /** Tester-program row -- flagged, never hidden. See isTest note below. */
+  isTest: boolean;
   callRequestedAt: string;
   trimOptions: TrimOption[];
 }
@@ -461,6 +467,7 @@ export async function getFinalizationQueue(): Promise<FinalizationQueueSearch[]>
     make: search.make,
     model: search.model,
     customerEmail: customerEmailById.get(search.customer_id) ?? null,
+    isTest: isTestEmail(customerEmailById.get(search.customer_id) ?? null),
     callRequestedAt: search.call_requested_at as string,
     trimOptions: trimOptionsByMakeModel.get(`${search.make}::${search.model}`) ?? [],
   }));
@@ -471,6 +478,8 @@ export interface SwitchCallQueueSearch {
   make: string;
   model: string;
   customerEmail: string | null;
+  /** Tester-program row -- flagged, never hidden. See isTest note below. */
+  isTest: boolean;
   switchCallRequestedAt: string;
 }
 
@@ -516,6 +525,7 @@ export async function getSwitchCallQueue(): Promise<SwitchCallQueueSearch[]> {
     make: search.make,
     model: search.model,
     customerEmail: customerEmailById.get(search.customer_id) ?? null,
+    isTest: isTestEmail(customerEmailById.get(search.customer_id) ?? null),
     switchCallRequestedAt: search.switch_call_requested_at as string,
   }));
 }
@@ -526,6 +536,8 @@ export interface CancellationCallQueueSearch {
   make: string;
   model: string;
   customerEmail: string | null;
+  /** Tester-program row -- flagged, never hidden. See isTest note below. */
+  isTest: boolean;
   cancellationCallRequestedAt: string;
 }
 
@@ -564,6 +576,7 @@ export async function getCancellationCallQueue(): Promise<CancellationCallQueueS
     make: search.make,
     model: search.model,
     customerEmail: customerEmailById.get(search.customer_id) ?? null,
+    isTest: isTestEmail(customerEmailById.get(search.customer_id) ?? null),
     cancellationCallRequestedAt: search.cancellation_call_requested_at as string,
   }));
 }
@@ -575,6 +588,8 @@ export interface OverdueFollowUpSearch {
   make: string;
   model: string;
   customerEmail: string | null;
+  /** Tester-program row -- flagged, never hidden. See isTest note below. */
+  isTest: boolean;
   paidAt: string;
 }
 
@@ -626,6 +641,7 @@ export async function getOverdueFollowUpQueue(): Promise<OverdueFollowUpSearch[]
     make: search.make,
     model: search.model,
     customerEmail: customerEmailById.get(search.customer_id) ?? null,
+    isTest: isTestEmail(customerEmailById.get(search.customer_id) ?? null),
     paidAt: search.paid_at as string,
   }));
 }
@@ -635,6 +651,8 @@ export interface PausedSearch {
   make: string;
   model: string;
   customerEmail: string | null;
+  /** Tester-program row -- flagged, never hidden. See isTest note below. */
+  isTest: boolean;
   pausedAt: string;
   // Negative once a search is past its resume window -- e.g. -3 means 3
   // days overdue. Callers sort ascending on this to surface the most
@@ -686,6 +704,7 @@ export async function getPausedSearchesQueue(): Promise<PausedSearch[]> {
       make: search.make,
       model: search.model,
       customerEmail: customerEmailById.get(search.customer_id) ?? null,
+      isTest: isTestEmail(customerEmailById.get(search.customer_id) ?? null),
       pausedAt,
       daysRemaining,
     };
@@ -697,6 +716,8 @@ export async function getPausedSearchesQueue(): Promise<PausedSearch[]> {
 export interface VehicleConsultationQueueSearch {
   id: string;
   customerEmail: string | null;
+  /** Tester-program row -- flagged, never hidden. See isTest note below. */
+  isTest: boolean;
   paidAt: string;
 }
 
@@ -734,6 +755,7 @@ export async function getVehicleConsultationQueue(): Promise<VehicleConsultation
   return searches.map((search) => ({
     id: search.id,
     customerEmail: customerEmailById.get(search.customer_id) ?? null,
+    isTest: isTestEmail(customerEmailById.get(search.customer_id) ?? null),
     paidAt: search.paid_at as string,
   }));
 }
@@ -741,6 +763,8 @@ export async function getVehicleConsultationQueue(): Promise<VehicleConsultation
 export interface NotificationCallbackQueueItem {
   id: string;
   customerEmail: string | null;
+  /** Tester-program row -- flagged, never hidden. See isTest note below. */
+  isTest: boolean;
   make: string | null;
   model: string | null;
   eventType: string;
@@ -795,6 +819,7 @@ export async function getNotificationCallbackQueue(): Promise<NotificationCallba
     return {
       id: e.id,
       customerEmail: customerEmailById.get(e.customer_id) ?? null,
+      isTest: isTestEmail(customerEmailById.get(e.customer_id) ?? null),
       make: search?.make ?? null,
       model: search?.model ?? null,
       eventType: e.event_type,

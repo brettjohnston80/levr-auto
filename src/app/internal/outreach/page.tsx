@@ -57,6 +57,31 @@ function formatDaysRemaining(daysRemaining: number, pausedAt: string): string {
   return `${daysRemaining}d left to resume (paused ${formatDate(pausedAt)})`;
 }
 
+/**
+ * Tester-program rows are FLAGGED, never hidden.
+ *
+ * Exclusion was the other option and it is the wrong one here: these queues
+ * are how an agent resolves a finalization call, a switch request, a
+ * cancellation call or a vehicle consultation. Hiding test rows would make
+ * every agent-mediated flow untestable, which is most of what a tester
+ * program is for -- the tester would request a call and nothing would ever
+ * appear for anyone to action.
+ *
+ * The hazard exclusion would protect against is an agent doing real-world
+ * work on a fake row -- phoning a dealer about a search nobody made. A loud
+ * badge solves that better than invisibility does, because it leaves the
+ * row workable while making it impossible to mistake for real. These pages
+ * are agent-only; no customer ever sees this.
+ */
+function TestBadge({ isTest }: { isTest: boolean }) {
+  if (!isTest) return null;
+  return (
+    <span className="ml-2 rounded-full border border-amber-400/50 bg-amber-400/15 px-2 py-0.5 text-[10px] font-bold tracking-wide text-amber-300 uppercase">
+      Test account
+    </span>
+  );
+}
+
 const SELECTION_CATEGORY_LABELS: Record<string, string> = {
   exterior_color: "Exterior color",
   interior: "Interior",
@@ -202,7 +227,7 @@ export default async function OutreachQueuePage() {
                 <div key={search.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <h3 className="text-base font-semibold text-white">Vehicle not yet chosen</h3>
-                    <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}</span>
+                    <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}<TestBadge isTest={search.isTest} /></span>
                   </div>
                   <p className="mt-1 text-xs text-zinc-500">Paid {formatDate(search.paidAt)}</p>
                   <AgentUndecidedFinalizeForm searchId={search.id} makeModelOptions={makeModelOptions} />
@@ -259,7 +284,7 @@ export default async function OutreachQueuePage() {
                     <h3 className="text-base font-semibold text-white">
                       {search.make} {search.model}
                     </h3>
-                    <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}</span>
+                    <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}<TestBadge isTest={search.isTest} /></span>
                   </div>
                   <p className="mt-1 text-xs text-zinc-500">
                     Requested {formatDate(search.callRequestedAt)}
@@ -290,7 +315,7 @@ export default async function OutreachQueuePage() {
                     <h3 className="text-base font-semibold text-white">
                       {search.make} {search.model}
                     </h3>
-                    <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}</span>
+                    <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}<TestBadge isTest={search.isTest} /></span>
                   </div>
                   <p className="mt-1 text-xs text-zinc-500">
                     Requested {formatDate(search.switchCallRequestedAt)}
@@ -316,7 +341,7 @@ export default async function OutreachQueuePage() {
                     <h3 className="text-base font-semibold text-white">
                       {search.make} {search.model}
                     </h3>
-                    <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}</span>
+                    <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}<TestBadge isTest={search.isTest} /></span>
                   </div>
                   <p className="mt-1 text-xs text-zinc-500">
                     Requested {formatDate(search.cancellationCallRequestedAt)}
@@ -346,7 +371,7 @@ export default async function OutreachQueuePage() {
                       {NOTIFICATION_EVENT_LABELS[item.eventType] ?? item.eventType}
                       {item.make && item.model ? ` — ${item.make} ${item.model}` : ""}
                     </h3>
-                    <span className="text-sm text-zinc-400">{item.customerEmail ?? "unknown customer"}</span>
+                    <span className="text-sm text-zinc-400">{item.customerEmail ?? "unknown customer"}<TestBadge isTest={item.isTest} /></span>
                   </div>
                   <p className="mt-1 text-xs text-zinc-500">{formatDate(item.createdAt)}</p>
                   <ResolveNotificationCallbackButton eventId={item.id} />
@@ -376,7 +401,7 @@ export default async function OutreachQueuePage() {
                       {NOTIFICATION_EVENT_LABELS[item.eventType] ?? item.eventType}
                       {item.make && item.model ? ` — ${item.make} ${item.model}` : ""}
                     </h3>
-                    <span className="text-sm text-zinc-400">{item.customerEmail ?? "unknown customer"}</span>
+                    <span className="text-sm text-zinc-400">{item.customerEmail ?? "unknown customer"}<TestBadge isTest={item.isTest} /></span>
                   </div>
                   <p className="mt-1 text-xs text-amber-400">{formatDate(item.createdAt)}</p>
                   <ResolveNotificationCallbackButton eventId={item.id} />
@@ -400,7 +425,7 @@ export default async function OutreachQueuePage() {
                     <h3 className="text-base font-semibold text-white">
                       {search.make} {search.model}
                     </h3>
-                    <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}</span>
+                    <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}<TestBadge isTest={search.isTest} /></span>
                   </div>
                   <p className="mt-1 text-xs text-amber-400">{formatHoursOverdue(search.paidAt)}</p>
                 </div>
@@ -423,7 +448,7 @@ export default async function OutreachQueuePage() {
                     <h3 className="text-base font-semibold text-white">
                       {search.make} {search.model}
                     </h3>
-                    <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}</span>
+                    <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}<TestBadge isTest={search.isTest} /></span>
                   </div>
                   <p className="mt-1 text-xs text-amber-400">
                     {formatDaysRemaining(search.daysRemaining, search.pausedAt)}
@@ -448,7 +473,7 @@ export default async function OutreachQueuePage() {
                       {search.make} {search.model}
                       {search.trim ? ` — ${search.trim}` : ""}
                     </h2>
-                    <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}</span>
+                    <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}<TestBadge isTest={search.isTest} /></span>
                   </div>
                   {search.colors.length > 0 && (
                     <p className="mt-1 text-sm text-zinc-500">Colors: {search.colors.join(", ")}</p>

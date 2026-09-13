@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "./supabase/admin";
 import { syncListingsForMakeModel } from "./marketcheck-sync";
+import { getTestCustomerIds } from "./test-accounts";
 
 interface MakeModel {
   make: string;
@@ -40,11 +41,23 @@ function diffMakeModels(all: MakeModel[], exclude: MakeModel[]): MakeModel[] {
 export async function getNightlyMakeModels(): Promise<MakeModel[]> {
   const supabase = createAdminClient();
 
-  const rows: MakeModel[] = [];
+  // Tester-program accounts are excluded here, at the scheduler, rather
+  // than at the two cron call sites. One place to get right, and it fails
+  // in the safe direction: a filter that misses costs API quota, never
+  // correctness of what a real customer sees.
+  //
+  // MarketCheck's quota is the binding constraint on this project -- the
+  // trim-reconciliation audit exhausted it mid-run and that work is still
+  // blocked on the reset. Ten testers each picking a different vehicle
+  // would otherwise multiply nightly calls directly, for inventory nobody
+  // is really buying.
+  const testCustomerIds = await getTestCustomerIds();
+
+  const rows: { make: string; model: string; customer_id: string }[] = [];
   for (let from = 0; ; from += PAGE_SIZE) {
     const { data, error } = await supabase
       .from("customer_searches")
-      .select("id, make, model")
+      .select("id, make, model, customer_id")
       .eq("search_status", "searching")
       .order("id")
       .range(from, from + PAGE_SIZE - 1);
@@ -52,11 +65,20 @@ export async function getNightlyMakeModels(): Promise<MakeModel[]> {
     if (error) {
       throw new Error(`Failed to load nightly make/models: ${error.message}`);
     }
-    rows.push(...((data ?? []) as MakeModel[]));
+    rows.push(...((data ?? []) as typeof rows));
     if (!data || data.length < PAGE_SIZE) break;
   }
 
-  return dedupeMakeModels(rows);
+  // Filtered in application code rather than via a .not(...in...) clause:
+  // the id list is built at runtime and an empty set makes that clause
+  // awkward to express, while these rows are already in memory. Same
+  // convention as inventory-count.ts's Haversine pass.
+  const realRows = rows.filter((row) => !testCustomerIds.has(row.customer_id));
+
+  // A row with no make/model is the "not sure yet" intake path -- there is
+  // nothing to sync for it until an agent fills those in, and letting it
+  // through produces a null::null dedupe key that reaches runBatchSync.
+  return dedupeMakeModels(realRows.filter((row) => row.make && row.model));
 }
 
 /**

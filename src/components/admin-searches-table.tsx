@@ -156,7 +156,17 @@ export function AdminSearchesTable({ searches }: { searches: AdminSearchRow[] })
                 <tr key={row.id}>
                   <td className="px-4 py-3">
                     <div className="text-white">{row.customerName ?? "—"}</div>
-                    <div className="text-zinc-500">{row.customerEmail ?? "unknown"}</div>
+                    <div className="text-zinc-500">
+                      {row.customerEmail ?? "unknown"}
+                      {/* Flagged, not filtered out -- this table is the one
+                          place an operator goes to see EVERY search, so
+                          hiding rows here would defeat its purpose. */}
+                      {row.isTest && (
+                        <span className="ml-2 rounded-full border border-amber-400/50 bg-amber-400/15 px-2 py-0.5 text-[10px] font-bold tracking-wide text-amber-300 uppercase">
+                          Test
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-zinc-300">
                     {row.make && row.model ? `${row.make} ${row.model}` : "Undecided"}
