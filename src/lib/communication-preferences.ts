@@ -1,2 +1,2 @@
 // Shared types for customers' notification preferences.
-export type CommunicationFrequency = "real_time" | "daily_digest";
+export type CommunicationFrequency = "real_time" | "daily_digest" | "both";

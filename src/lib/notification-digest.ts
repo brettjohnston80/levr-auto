@@ -13,7 +13,8 @@ export interface DigestSummary {
 }
 
 /**
- * Daily rollup for communication_frequency = 'daily_digest' customers.
+ * Daily rollup for customers on 'daily_digest' OR 'both' -- 'both' gets
+ * the per-event email from notifications.ts AND this rollup.
  * Finds every notification_events row still digest_sent_at IS NULL for
  * those customers (an event's own digest_sent_at is the complete tracking
  * mechanism -- no separate "last digest sent" state needed on customers),
@@ -35,7 +36,9 @@ export async function sendNotificationDigests(): Promise<DigestSummary> {
   const { data: digestCustomers, error: customersError } = await admin
     .from("customers")
     .select("id, email, first_name, last_name")
-    .eq("communication_frequency", "daily_digest")
+    // 'both' receives the per-event mail AND this rollup -- see
+    // notifications.ts for the other half.
+    .in("communication_frequency", ["daily_digest", "both"])
     .eq("notify_by_email", true);
 
   if (customersError) {

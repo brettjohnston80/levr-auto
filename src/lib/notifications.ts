@@ -120,7 +120,7 @@ export function composeEventLine(
 /**
  * The one shared hook point for all four notify-worthy events -- always
  * inserts a notification_events row (regardless of preference), and
- * additionally sends immediately only for a real_time customer with
+ * additionally sends immediately for a 'real_time' or 'both' customer with
  * notify_by_email on. Deliberately non-blocking end to end (wrapped in its
  * own try/catch, every failure logged not thrown) -- the caller's own
  * primary write (the offer, the response, the deal-progress update, the
@@ -184,7 +184,14 @@ export async function logNotificationEvent(input: LogNotificationEventInput): Pr
       );
     }
 
-    if (customer.communication_frequency === "real_time" && customer.notify_by_email && customer.email) {
+    // 'both' means real-time AND the digest, so it must send here too.
+    // Equality against 'real_time' alone would make 'both' match neither
+    // this nor the digest query, i.e. silently mean "no notifications".
+    const sendsImmediately =
+      customer.communication_frequency === "real_time" ||
+      customer.communication_frequency === "both";
+
+    if (sendsImmediately && customer.notify_by_email && customer.email) {
       const { subject, html } = composeEventEmail(
         input.eventType,
         input.eventData as unknown as Record<string, unknown>,

@@ -4,13 +4,17 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { GetStartedButton } from "@/components/get-started-button";
+import { HeaderAccountLink } from "@/components/header-account-link";
 
+// Log In is NOT in this list -- it is rendered by HeaderAccountLink below,
+// which resolves the real session so a signed-in customer sees their name
+// instead. Leaving a hardcoded /login entry here would reproduce, on
+// mobile, exactly the bug this fixes on desktop.
 const NAV_LINKS = [
   { href: "/#how-it-works", label: "How It Works" },
   { href: "/matchmaker", label: "Matchmaker" },
   { href: "/faq", label: "FAQ" },
   { href: "/articles", label: "Articles" },
-  { href: "/login", label: "Log In" },
 ];
 
 function MenuIcon() {
@@ -96,6 +100,9 @@ export function MobileNavMenu() {
                   {link.label}
                 </Link>
               ))}
+              <span onClick={close}>
+                <HeaderAccountLink className="transition-colors hover:text-white" />
+              </span>
             </nav>
 
             <div className="mt-auto pb-4" onClick={close}>

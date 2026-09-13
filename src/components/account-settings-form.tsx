@@ -14,6 +14,18 @@ export interface AccountSettingsExisting {
   communicationFrequency: CommunicationFrequency;
 }
 
+/**
+ * The three real values of customers.communication_frequency. 'both' means
+ * the per-event email AND the daily rollup -- notifications.ts and
+ * notification-digest.ts each have to recognise it, or selecting it would
+ * silently mean "no notifications at all".
+ */
+const FREQUENCY_OPTIONS: { value: CommunicationFrequency; label: string }[] = [
+  { value: "real_time", label: "Real-time updates" },
+  { value: "daily_digest", label: "Daily digest" },
+  { value: "both", label: "Both" },
+];
+
 export function AccountSettingsForm({ existing }: { existing: AccountSettingsExisting }) {
   const [firstName, setFirstName] = useState(existing.firstName ?? "");
   const [lastName, setLastName] = useState(existing.lastName ?? "");
@@ -119,7 +131,7 @@ export function AccountSettingsForm({ existing }: { existing: AccountSettingsExi
               onChange={(e) => setNotifyByText(e.target.checked)}
               className="h-4 w-4 rounded border-white/20 bg-zinc-900 text-emerald-500 focus:ring-emerald-500/40"
             />
-            Text message
+            Text
           </label>
           <label className="flex items-center gap-2 text-sm text-zinc-300">
             <input
@@ -128,34 +140,35 @@ export function AccountSettingsForm({ existing }: { existing: AccountSettingsExi
               onChange={(e) => setNotifyByAgentCallback(e.target.checked)}
               className="h-4 w-4 rounded border-white/20 bg-zinc-900 text-emerald-500 focus:ring-emerald-500/40"
             />
-            A personal agent calls me
+            Phone call
           </label>
         </div>
       </div>
 
       <div className="mt-4">
         <p className="text-xs text-zinc-400">How often?</p>
-        <div className="mt-2 flex gap-2">
-          <button
-            type="button"
-            onClick={() => setFrequency("real_time")}
-            className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-              frequency === "real_time" ? "bg-emerald-500 text-zinc-950" : "border border-white/10 text-zinc-400"
-            }`}
-          >
-            Real-time updates
-          </button>
-          <button
-            type="button"
-            onClick={() => setFrequency("daily_digest")}
-            className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-              frequency === "daily_digest"
-                ? "bg-emerald-500 text-zinc-950"
-                : "border border-white/10 text-zinc-400"
-            }`}
-          >
-            Daily digest
-          </button>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {/* Driven off a list rather than three hand-written buttons, so
+              the set of options and the stored values cannot drift apart --
+              the previous pair repeated the same markup twice with the
+              value inlined in each copy. 'both' requires migration
+              20260913120000; without it the DB check constraint rejects
+              the write. */}
+          {FREQUENCY_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setFrequency(option.value)}
+              aria-pressed={frequency === option.value}
+              className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                frequency === option.value
+                  ? "bg-emerald-500 text-zinc-950"
+                  : "border border-white/10 text-zinc-400"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
         </div>
       </div>
 
