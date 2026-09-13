@@ -88,8 +88,28 @@ function getPausedResumeInfo(pausedAt: string | null): { copy: string; withinWin
 const UNDECIDED_PAID_COPY =
   "We're finding the right vehicle for you — your agent will reach out soon to talk through what you're looking for.";
 
+// The undecided copy promises a call that is still coming, so it is only
+// true while the search is actually waiting for one. An ALLOW-LIST, not a
+// block-list, matching this file's own canCancel/canSwitch convention and
+// getOverdueFollowUpQueue's: a status added later defaults to the plain
+// status copy rather than silently inheriting a promise of agent contact.
+//
+// Without this guard the `paidAt && !make` check above ran before every
+// status branch, so a paid "not sure yet" search that was CANCELLED still
+// rendered "your agent will reach out soon" directly under a CANCELLED
+// badge -- reproduced in a real browser 2026-09-12. Reachable by the normal
+// self-service path: undecided intake -> pay -> cancel before the
+// consultation call happens. Same badge-vs-body contradiction already fixed
+// once for the unpaid awaiting_finalization case above; the undecided
+// branch was added later and did not inherit the guard.
+const UNDECIDED_COPY_STATUSES = ["awaiting_finalization"];
+
 function getStatusCopy(search: DashboardSearch): string {
-  if (search.paidAt && !search.make) {
+  if (
+    search.paidAt &&
+    !search.make &&
+    UNDECIDED_COPY_STATUSES.includes(search.searchStatus)
+  ) {
     return UNDECIDED_PAID_COPY;
   }
   if (search.searchStatus === "awaiting_finalization" && !search.paidAt) {
