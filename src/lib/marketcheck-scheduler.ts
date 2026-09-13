@@ -7,6 +7,19 @@ interface MakeModel {
   model: string;
 }
 
+/**
+ * PostgREST caps a plain select at 1,000 rows and truncates SILENTLY.
+ *
+ * Both queries in this file were previously unpaginated, and the weekly one
+ * was already losing data in production: `listings` holds 1,761 rows, so
+ * the read returned 1,000 and Toyota Camry and Toyota RAV4 never appeared
+ * in the weekly set at all (measured 2026-09-12). The failure mode is
+ * invisible -- no error, just make/models quietly going stale, which then
+ * costs MORE MarketCheck calls later via on-demand syncs. Exactly the
+ * resource this file exists to budget.
+ */
+const PAGE_SIZE = 1000;
+
 function dedupeMakeModels(rows: MakeModel[]): MakeModel[] {
   const seen = new Map<string, MakeModel>();
   for (const row of rows) {
@@ -26,16 +39,24 @@ function diffMakeModels(all: MakeModel[], exclude: MakeModel[]): MakeModel[] {
  */
 export async function getNightlyMakeModels(): Promise<MakeModel[]> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("customer_searches")
-    .select("make, model")
-    .eq("search_status", "searching");
 
-  if (error) {
-    throw new Error(`Failed to load nightly make/models: ${error.message}`);
+  const rows: MakeModel[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("customer_searches")
+      .select("id, make, model")
+      .eq("search_status", "searching")
+      .order("id")
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) {
+      throw new Error(`Failed to load nightly make/models: ${error.message}`);
+    }
+    rows.push(...((data ?? []) as MakeModel[]));
+    if (!data || data.length < PAGE_SIZE) break;
   }
 
-  return dedupeMakeModels(data ?? []);
+  return dedupeMakeModels(rows);
 }
 
 /**
@@ -48,16 +69,25 @@ export async function getNightlyMakeModels(): Promise<MakeModel[]> {
  */
 export async function getWeeklyMakeModels(): Promise<MakeModel[]> {
   const supabase = createAdminClient();
-  const [{ data: known, error: knownError }, nightly] = await Promise.all([
-    supabase.from("listings").select("make, model"),
-    getNightlyMakeModels(),
-  ]);
 
-  if (knownError) {
-    throw new Error(`Failed to load weekly make/models: ${knownError.message}`);
+  const known: MakeModel[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("listings")
+      .select("id, make, model")
+      .order("id")
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (error) {
+      throw new Error(`Failed to load weekly make/models: ${error.message}`);
+    }
+    known.push(...((data ?? []) as MakeModel[]));
+    if (!data || data.length < PAGE_SIZE) break;
   }
 
-  return diffMakeModels(dedupeMakeModels(known ?? []), nightly);
+  const nightly = await getNightlyMakeModels();
+
+  return diffMakeModels(dedupeMakeModels(known), nightly);
 }
 
 export interface BatchSyncResult {
