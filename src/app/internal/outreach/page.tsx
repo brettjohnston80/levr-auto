@@ -168,6 +168,10 @@ function ConfiguratorSelections({
 
   const rankedCategories = ["exterior_color", "interior", "seating"];
   const features = selections.filter((s) => s.questionKind === "feature");
+  // "Get me this" and "never offer me this" are different instructions and
+  // must never blur together in a list an agent works from.
+  const wantedFeatures = features.filter((s) => !s.excluded);
+  const refusedFeatures = features.filter((s) => s.excluded);
 
   const trimLabel = (t: OutreachTrimPreference) =>
     t.modelYear != null ? `${t.trim} ${t.modelYear}` : t.trim;
@@ -233,14 +237,28 @@ function ConfiguratorSelections({
       {features.length > 0 && (
         <div className="mt-3">
           <p className="text-xs font-semibold text-zinc-400 uppercase">Features</p>
-          <ul className="mt-1 space-y-1 text-sm text-zinc-400">
-            {features.map((sel) => (
-              <li key={sel.id}>
-                <span className="text-zinc-200">{sel.selection}</span>
-                <PackageNote sel={sel} />
-              </li>
-            ))}
-          </ul>
+          {/*
+            Wanted features keep their full package context -- that is what
+            an agent negotiates with. REFUSED ones deliberately show NO
+            price and NO package contents: an agent does not need to know
+            what a tow package costs in order to not ask for it, and
+            listing the price invites treating a refusal as a line item to
+            discuss. Same amber "never offer this" treatment the ranked
+            categories use, via the same component, so the two cannot drift.
+          */}
+          {wantedFeatures.length > 0 && (
+            <ul className="mt-1 space-y-1 text-sm text-zinc-400">
+              {wantedFeatures.map((sel) => (
+                <li key={sel.id}>
+                  <span className="text-zinc-200">{sel.selection}</span>
+                  <PackageNote sel={sel} />
+                </li>
+              ))}
+            </ul>
+          )}
+          <ExcludedBlock
+            items={refusedFeatures.map((sel) => ({ id: sel.id, label: sel.selection }))}
+          />
         </div>
       )}
     </div>

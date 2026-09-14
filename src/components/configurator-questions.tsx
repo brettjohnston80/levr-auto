@@ -181,27 +181,42 @@ export function FeatureQuestion({
   selections: ConfiguratorSelection[];
   onChange: (next: ConfiguratorSelection[]) => void;
 }) {
-  const isOn = (name: string) =>
-    selections.some((s) => s.category === "feature" && s.selection === name);
+  const entryFor = (name: string) =>
+    selections.find((s) => s.category === "feature" && s.selection === name) ?? null;
 
-  function toggle(choice: ConfiguratorChoice) {
-    if (isOn(choice.name)) {
-      onChange(
-        selections.filter((s) => !(s.category === "feature" && s.selection === choice.name)),
-      );
+  /**
+   * Sets a feature to wanted, refused, or back to neutral.
+   *
+   * NEUTRAL STORES NOTHING AT ALL, and that is the point: to an agent, a
+   * feature the customer never mentioned and one they were never asked
+   * about mean the same thing. Only an actual statement -- "get me this"
+   * or "never offer me this" -- earns a row.
+   */
+  function set(choice: ConfiguratorChoice, excluded: boolean) {
+    const rest = selections.filter(
+      (s) => !(s.category === "feature" && s.selection === choice.name),
+    );
+    const current = entryFor(choice.name);
+    // Clicking the pill a feature already has clears it, the same
+    // toggle-off behaviour the ranked control uses -- so the same button
+    // both sets and unsets, and there is no way to end up in a state the
+    // customer cannot get back out of.
+    if (current && current.excluded === excluded) {
+      onChange(rest);
       return;
     }
     onChange([
-      ...selections,
+      ...rest,
       {
         category: "feature",
         questionKind: "feature",
         selection: choice.name,
-        // Features are never ranked and never excluded -- they are
-        // independent adds, not competing choices, so there is no order to
-        // express between "heated wheel" and "moonroof".
+        // Never ranked. There is no meaningful ordering between "heated
+        // steering wheel" and "moonroof" -- they are independent adds, not
+        // competing choices, which is why features stayed off the ranked
+        // model when colours moved onto it.
         rankPosition: null,
-        excluded: false,
+        excluded,
         packageName: choice.packageName,
         packagePriceCents: choice.packagePriceCents,
         packageContents: choice.packageContents,
@@ -217,29 +232,62 @@ export function FeatureQuestion({
     <div className="mt-6">
       <h2 className="text-xl font-semibold text-white">Any of these worth asking for?</h2>
       <p className="mt-2 text-sm text-zinc-400">
-        These cost extra on this trim — everything else it comes with already. Optional.
+        These aren&apos;t included on this trim by default. Tell us which you want, or flag any
+        you&apos;d rather not have. Skipping one is fine.
       </p>
       <div className="mt-5 space-y-2">
         {choices.map((choice) => {
-          const active = isOn(choice.name);
+          const entry = entryFor(choice.name);
+          const wanted = entry !== null && !entry.excluded;
+          const refused = entry?.excluded ?? false;
           return (
-            <button
+            // Stacks below sm for the same measured reason as the ranking
+            // pool rows: side by side, two pills take ~150px of a 390px
+            // screen and the label truncates.
+            <div
               key={choice.name}
-              type="button"
-              onClick={() => toggle(choice)}
-              aria-pressed={active}
-              className={`w-full rounded-xl border p-3.5 text-left transition-colors ${
-                active
-                  ? "border-emerald-500 bg-emerald-500/10"
-                  : "border-white/10 bg-white/[0.02] hover:border-white/25"
+              className={`flex flex-col gap-2.5 rounded-xl border p-3.5 transition-colors sm:flex-row sm:items-center sm:gap-3 ${
+                wanted
+                  ? "border-emerald-500/60 bg-emerald-500/[0.07]"
+                  : refused
+                    ? "border-amber-500/40 bg-amber-500/[0.05]"
+                    : "border-white/10 bg-white/[0.02]"
               }`}
             >
-              <div className="flex items-baseline justify-between gap-3">
-                <span className="min-w-0 text-sm font-medium text-white">{choice.name}</span>
-                <PriceTag choice={choice} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="min-w-0 text-sm font-medium text-white">{choice.name}</span>
+                  <PriceTag choice={choice} />
+                </div>
+                <PackageNote choice={choice} />
               </div>
-              <PackageNote choice={choice} />
-            </button>
+              <div className="flex shrink-0 items-center gap-1.5 sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => set(choice, false)}
+                  aria-pressed={wanted}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                    wanted
+                      ? "border-emerald-500 bg-emerald-500 text-zinc-950"
+                      : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/25 hover:text-zinc-200"
+                  }`}
+                >
+                  Want it
+                </button>
+                <button
+                  type="button"
+                  onClick={() => set(choice, true)}
+                  aria-pressed={refused}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                    refused
+                      ? "border-amber-500 bg-amber-500 text-zinc-950"
+                      : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-amber-500/60 hover:text-amber-300"
+                  }`}
+                >
+                  Not open to it
+                </button>
+              </div>
+            </div>
           );
         })}
       </div>

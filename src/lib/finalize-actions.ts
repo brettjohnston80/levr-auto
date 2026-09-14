@@ -307,11 +307,13 @@ async function writeConfiguratorSelections(
     // A feature the trim already includes is not a question, so a "yes"
     // against it is not an answer worth sending to an agent.
     if (isFeature && option.availability === "standard") continue;
-    // Features are a yes/no checklist -- deliberately never ranked and
-    // never excluded, matching the shape constraint. A ranked entry that
-    // is neither ranked nor excluded says nothing and is dropped rather
-    // than stored as a half-populated row.
-    if (isFeature && (s.rankPosition != null || s.excluded)) continue;
+    // Features are NEVER ranked -- they are independent adds with no
+    // meaningful ordering between them -- but since 2026-09-14 they CAN be
+    // excluded: "explicitly does not want this" is a real instruction,
+    // distinct from saying nothing. A rank on a feature is still nonsense
+    // and is dropped rather than stored as a half-populated row.
+    if (isFeature && s.rankPosition != null) continue;
+    // A ranked entry that is neither ranked nor excluded says nothing.
     if (!isFeature && !statesAnOpinion(s)) continue;
 
     seen.add(key);
@@ -328,9 +330,13 @@ async function writeConfiguratorSelections(
   for (const category of categories) {
     const inCategory = kept.filter((k) => k.s.category === category);
     if (category === "feature") {
-      for (const { option } of inCategory) {
-        features.push(option.name);
-        rows.push(buildSelectionRow(searchId, "feature", "feature", option, null, false));
+      for (const { s, option } of inCategory) {
+        // required_options is a list of things to GET. A refused feature
+        // reaching it would read to every legacy surface as something the
+        // customer WANTS -- the exact inversion of what they said, and the
+        // same trap excluded colours are already kept out of.
+        if (!s.excluded) features.push(option.name);
+        rows.push(buildSelectionRow(searchId, "feature", "feature", option, null, s.excluded));
       }
       continue;
     }
