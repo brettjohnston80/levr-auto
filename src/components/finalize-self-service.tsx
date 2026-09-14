@@ -81,11 +81,6 @@ export function FinalizeSelfService({
   // across model years and they are genuinely different cars.
   const [rankedTrimIds, setRankedTrimIds] = useState<string[]>([]);
   const [excludedTrimIds, setExcludedTrimIds] = useState<string[]>([]);
-  // Escape hatch for a trim real inventory does not list. Free text cannot
-  // be meaningfully ranked against inventory options, so choosing it means
-  // there is no ranked list -- only the legacy trim string.
-  const [customMode, setCustomMode] = useState(false);
-  const [customTrim, setCustomTrim] = useState("");
   const [colors, setColors] = useState<string[]>([]);
   const [options, setOptions] = useState<string[]>([]);
   const [selections, setSelections] = useState<ConfiguratorSelection[]>([]);
@@ -95,9 +90,7 @@ export function FinalizeSelfService({
 
   const trimById = new Map(trimOptions.map((o) => [o.id, o]));
   const topTrimId = rankedTrimIds[0] ?? null;
-  const effectiveTrim = customMode
-    ? customTrim
-    : (topTrimId && trimById.get(topTrimId)?.trim) || "";
+  const effectiveTrim = (topTrimId && trimById.get(topTrimId)?.trim) || "";
 
   // ⚠ ONLY THE #1 RANKED TRIM DRIVES THE QUESTIONS, and that is the whole
   // reason ranking trim is safe. The rest of the list is the agent's
@@ -155,16 +148,6 @@ export function FinalizeSelfService({
     setExcludedTrimIds(nextExcluded);
   }
 
-  function chooseCustomTrim(on: boolean) {
-    // Switching to free text abandons the ranked list and any build-
-    // specific answers with it, for the same reason as above.
-    if (on) {
-      setRankedTrimIds([]);
-      setExcludedTrimIds([]);
-      setSelections([]);
-    }
-    setCustomMode(on);
-  }
 
   /**
    * The customer's trim ranking, as the write path wants it.
@@ -176,9 +159,6 @@ export function FinalizeSelfService({
    * yields an empty list, i.e. "any trim is fine".
    */
   function buildTrimPreferences(): TrimPreference[] {
-    // A typed custom trim ranks nothing -- it names no inventory option to
-    // search for in order, and only reaches the legacy trim column.
-    if (customMode) return [];
     const toPref = (id: string, rankPosition: number | null): TrimPreference | null => {
       const opt = trimById.get(id);
       if (!opt) return null;
@@ -255,7 +235,7 @@ export function FinalizeSelfService({
 
       {step === "trim" && (
         <div className="mt-6">
-          {trimOptions.length > 0 && !customMode ? (
+          {trimOptions.length > 0 ? (
             <RankingQuestion
               title={`Which ${make} ${model} trim?`}
               subtitle="Rank them in the order you'd like us to search — we'll work down your list. Mark anything you're not open to, and leave the rest alone."
@@ -281,48 +261,32 @@ export function FinalizeSelfService({
               onChange={handleTrimRanking}
             />
           ) : (
+            /*
+              No synced inventory for this make/model yet. There is nothing
+              real to rank, and NO free-text box: a trim the customer types
+              is not an inventory option, cannot be ranked against one, and
+              was only ever reaching the legacy trim column as an
+              unvalidated string. Leaving it open is the honest answer --
+              the agent sources across trims and the customer still gets a
+              24h window to narrow it once inventory lands.
+            */
             <>
               <h2 className="text-xl font-semibold text-white">
                 Which {make} {model} trim?
               </h2>
               <p className="mt-2 text-sm text-zinc-400">
-                No live inventory synced yet — enter a trim, or leave it open.
+                We haven&apos;t synced live inventory for this one yet, so there&apos;s nothing to
+                rank here. We&apos;ll search every trim — you can narrow it down later from your
+                account.
               </p>
             </>
           )}
-
-          <div className="mt-5 space-y-2">
-            {trimOptions.length > 0 && (
-              <button
-                type="button"
-                onClick={() => chooseCustomTrim(!customMode)}
-                className={`w-full rounded-xl border p-3.5 text-left text-sm transition-colors ${
-                  customMode
-                    ? "border-emerald-500 bg-emerald-500/10"
-                    : "border-white/10 bg-white/[0.02] hover:border-white/25"
-                }`}
-              >
-                <span className="font-medium text-white">
-                  {customMode ? "Back to the trim list" : "Type a specific trim instead"}
-                </span>
-              </button>
-            )}
-            {(customMode || trimOptions.length === 0) && (
-              <input
-                type="text"
-                value={customTrim}
-                onChange={(e) => setCustomTrim(e.target.value)}
-                placeholder="e.g. XLE, Sport, Limited — or leave blank for no preference"
-                className="w-full rounded-xl border border-white/10 bg-zinc-900/80 px-4 py-3 text-sm font-medium text-white placeholder:text-zinc-600 focus:border-emerald-500 focus:outline-none"
-              />
-            )}
-          </div>
 
           {/* Ranking nothing is a legitimate answer -- "any trim" -- so
               Next is never blocked on having built a list. */}
           <div className="mt-6 flex items-center justify-between gap-3">
             <p className="text-xs text-zinc-500">
-              {rankedTrimIds.length === 0 && !customMode
+              {rankedTrimIds.length === 0 && trimOptions.length > 0
                 ? "Don't rank any, and we'll treat every trim as fine."
                 : ""}
             </p>

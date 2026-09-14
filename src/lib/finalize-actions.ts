@@ -582,7 +582,11 @@ export async function finalizeSelfService(
   const { error } = await admin
     .from("customer_searches")
     .update({
-      trim: trims.topTrim ?? details.trim ?? null,
+      // `|| null`, not `?? null`: with the free-text trim removed, an
+      // unranked trim arrives as an EMPTY STRING rather than null, and
+      // ?? would store that verbatim -- giving this column two different
+      // representations of "no preference" for every reader to handle.
+      trim: trims.topTrim || details.trim || null,
       colors: trims.topConfiguratorTrimId ? stored.colors : details.colors,
       required_options: trims.topConfiguratorTrimId
         ? stored.requiredOptions
@@ -683,7 +687,11 @@ export async function updateFinalizedSearch(
   const { error } = await admin
     .from("customer_searches")
     .update({
-      trim: trims.topTrim ?? details.trim ?? null,
+      // `|| null`, not `?? null`: with the free-text trim removed, an
+      // unranked trim arrives as an EMPTY STRING rather than null, and
+      // ?? would store that verbatim -- giving this column two different
+      // representations of "no preference" for every reader to handle.
+      trim: trims.topTrim || details.trim || null,
       colors: trims.topConfiguratorTrimId ? stored.colors : details.colors,
       required_options: trims.topConfiguratorTrimId
         ? stored.requiredOptions

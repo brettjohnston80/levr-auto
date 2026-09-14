@@ -43,6 +43,23 @@ export async function updateAccountSettings(formData: FormData): Promise<UpdateA
     return { ok: false, error: "A phone number is required." };
   }
 
+  // ⚠ ZERO CHANNELS IS NOT A PREFERENCE, IT IS AN UNREACHABLE ACCOUNT.
+  // Rejected rather than auto-corrected on purpose: silently flipping a
+  // channel back on would tell the customer their save succeeded exactly as
+  // asked while storing something else, and this is the setting that
+  // decides whether they ever hear that an offer came in. The client
+  // already prevents reaching this state, so in practice only a crafted or
+  // stale request lands here -- and it should be told no, not quietly
+  // rewritten. Email is named because it is the one channel that always
+  // works: there is no SMS provider integrated, so a text-only customer is
+  // already flagged undeliverable rather than actually messaged.
+  if (!notifyByEmail && !notifyByText && !notifyByAgentCallback) {
+    return {
+      ok: false,
+      error: "Pick at least one way for us to reach you — email is the safest default.",
+    };
+  }
+
   const admin = createAdminClient();
   const { error } = await admin
     .from("customers")

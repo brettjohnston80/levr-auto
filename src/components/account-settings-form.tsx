@@ -26,6 +26,9 @@ const FREQUENCY_OPTIONS: { value: CommunicationFrequency; label: string }[] = [
   { value: "both", label: "Both" },
 ];
 
+const CHANNEL_FLOOR_HINT =
+  "Add another way to reach you before turning this one off — we need at least one.";
+
 export function AccountSettingsForm({ existing }: { existing: AccountSettingsExisting }) {
   const [firstName, setFirstName] = useState(existing.firstName ?? "");
   const [lastName, setLastName] = useState(existing.lastName ?? "");
@@ -33,6 +36,15 @@ export function AccountSettingsForm({ existing }: { existing: AccountSettingsExi
   const [notifyByEmail, setNotifyByEmail] = useState(existing.notifyByEmail);
   const [notifyByText, setNotifyByText] = useState(existing.notifyByText);
   const [notifyByAgentCallback, setNotifyByAgentCallback] = useState(existing.notifyByAgentCallback);
+  // THE FLOOR IS "THE LAST ONE STANDING", NOT "EMAIL SPECIFICALLY", and
+  // guarding only email is not enough -- caught in testing: with email off
+  // and text on, unchecking text still reached a zero-channel state. So
+  // whichever channel is the sole remaining one is the one that locks.
+  // This also leaves a genuine text-only or callback-only preference
+  // intact, which a hard email requirement would have overwritten -- a
+  // real customer runs text-only today.
+  const channelsOn = [notifyByEmail, notifyByText, notifyByAgentCallback].filter(Boolean).length;
+  const locks = (on: boolean) => on && channelsOn === 1;
   const [frequency, setFrequency] = useState<CommunicationFrequency>(existing.communicationFrequency);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -115,34 +127,63 @@ export function AccountSettingsForm({ existing }: { existing: AccountSettingsExi
       <div className="mt-4">
         <p className="text-xs text-zinc-400">How should we reach you?</p>
         <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:gap-6">
-          <label className="flex items-center gap-2 text-sm text-zinc-300">
+          {/*
+            Email is the FLOOR, not a fixed value. It can be switched off in
+            favour of text or a callback -- a real customer does exactly that
+            today -- but it cannot be switched off when it is the LAST channel
+            standing, because that leaves an account we have no way to contact
+            at all. The guarantee binds precisely when it is needed and stays
+            out of the way otherwise.
+          */}
+          <label
+            className={`flex items-center gap-2 text-sm ${
+              locks(notifyByEmail) ? "text-zinc-400" : "text-zinc-300"
+            }`}
+            title={locks(notifyByEmail) ? CHANNEL_FLOOR_HINT : undefined}
+          >
             <input
               type="checkbox"
               checked={notifyByEmail}
+              disabled={locks(notifyByEmail)}
               onChange={(e) => setNotifyByEmail(e.target.checked)}
-              className="h-4 w-4 rounded border-white/20 bg-zinc-900 text-emerald-500 focus:ring-emerald-500/40"
+              className="h-4 w-4 rounded border-white/20 bg-zinc-900 text-emerald-500 focus:ring-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-60"
             />
             Email
           </label>
-          <label className="flex items-center gap-2 text-sm text-zinc-300">
+          <label
+            className={`flex items-center gap-2 text-sm ${
+              locks(notifyByText) ? "text-zinc-400" : "text-zinc-300"
+            }`}
+            title={locks(notifyByText) ? CHANNEL_FLOOR_HINT : undefined}
+          >
             <input
               type="checkbox"
               checked={notifyByText}
+              disabled={locks(notifyByText)}
               onChange={(e) => setNotifyByText(e.target.checked)}
-              className="h-4 w-4 rounded border-white/20 bg-zinc-900 text-emerald-500 focus:ring-emerald-500/40"
+              className="h-4 w-4 rounded border-white/20 bg-zinc-900 text-emerald-500 focus:ring-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-60"
             />
             Text
           </label>
-          <label className="flex items-center gap-2 text-sm text-zinc-300">
+          <label
+            className={`flex items-center gap-2 text-sm ${
+              locks(notifyByAgentCallback) ? "text-zinc-400" : "text-zinc-300"
+            }`}
+            title={locks(notifyByAgentCallback) ? CHANNEL_FLOOR_HINT : undefined}
+          >
             <input
               type="checkbox"
               checked={notifyByAgentCallback}
+              disabled={locks(notifyByAgentCallback)}
               onChange={(e) => setNotifyByAgentCallback(e.target.checked)}
-              className="h-4 w-4 rounded border-white/20 bg-zinc-900 text-emerald-500 focus:ring-emerald-500/40"
+              className="h-4 w-4 rounded border-white/20 bg-zinc-900 text-emerald-500 focus:ring-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-60"
             />
             Phone call
           </label>
         </div>
+        {channelsOn === 1 && (
+          <p className="mt-2 text-xs text-zinc-500">{CHANNEL_FLOOR_HINT}</p>
+        )}
       </div>
 
       <div className="mt-4">
