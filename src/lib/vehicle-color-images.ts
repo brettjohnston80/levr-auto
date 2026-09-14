@@ -6,11 +6,11 @@ import path from "path";
  * Real photos for a specific colour of a specific vehicle, when we happen
  * to have them.
  *
- * WHAT IS ACTUALLY ON DISK (2026-09-13): Toyota Camry only -- 22 images,
- * 14 exterior and 8 interior, matched to their exact configurator_options
- * names and verified rendering. Honda Civic was captured by the sourcing
- * pilot but the files have not been delivered to this machine, so Civic
- * resolves to no image like every other make.
+ * WHAT IS ACTUALLY ON DISK (2026-09-13): Toyota Camry and Honda Civic,
+ * 39 images in total -- Camry 14 exterior / 8 interior, Civic 11 exterior
+ * / 6 interior. Every one is matched to an exact configurator_options
+ * name via a hand-checked map and verified to resolve. Every other make
+ * resolves to no image, which is the normal case and renders name-only.
  *
  * Note that NONE of them are being shown right now regardless: see
  * VEHICLE_COLOR_IMAGES_ENABLED immediately below. Every colour renders

@@ -50,3 +50,9 @@ skills-lock.json
 
 # one-time data-import artifacts (not source code, applied manually via Supabase Table Editor)
 /supabase/zip_coordinates_import.csv
+
+# Source image archives. The unpacked, name-matched, downscaled images live
+# under public/vehicle-colors/; the originals are archived outside the repo
+# (~/Downloads/camry-civic-originals-2026-09-13). Committing the raw zip
+# would add ~14MB of duplicates of files we already track in a better form.
+/camry_civic_color_images.zip
