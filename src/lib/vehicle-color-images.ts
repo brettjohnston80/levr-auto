@@ -53,7 +53,7 @@ import path from "path";
  * lookups below return "no image" while this is false, so no caller can
  * bypass it by rendering a URL it obtained some other way.
  */
-export const VEHICLE_COLOR_IMAGES_ENABLED = false;
+export const VEHICLE_COLOR_IMAGES_ENABLED = true;
 
 const IMAGE_ROOT = path.join(process.cwd(), "public", "vehicle-colors");
 const ACCEPTED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".avif"];
