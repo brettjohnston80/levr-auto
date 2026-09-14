@@ -14,6 +14,7 @@ import {
   RankedQuestion,
   SelectionSummary,
 } from "@/components/configurator-questions";
+import { RankingQuestion } from "@/components/ranking-question";
 
 type Step =
   | "trim"
@@ -75,12 +76,15 @@ export function FinalizeSelfService({
   configuratorQuestions: Record<string, ConfiguratorQuestions>;
 }) {
   const [step, setStep] = useState<Step>("trim");
-  const [trim, setTrim] = useState("");
-  // Which OPTION is selected, distinct from the trim string that gets
-  // saved. Needed because trim options are now split by model year, so two
-  // options can share a trim name -- selecting one must not highlight both.
-  // `trim` remains exactly what is persisted; the schema is unchanged.
-  const [selectedTrimId, setSelectedTrimId] = useState<string | null>(null);
+  // Trim is RANKED now, like every other category. Ids are TrimOption.id
+  // (trim+year), not trim names, because two options can share a name
+  // across model years and they are genuinely different cars.
+  const [rankedTrimIds, setRankedTrimIds] = useState<string[]>([]);
+  const [excludedTrimIds, setExcludedTrimIds] = useState<string[]>([]);
+  // Escape hatch for a trim real inventory does not list. Free text cannot
+  // be meaningfully ranked against inventory options, so choosing it means
+  // there is no ranked list -- only the legacy trim string.
+  const [customMode, setCustomMode] = useState(false);
   const [customTrim, setCustomTrim] = useState("");
   const [colors, setColors] = useState<string[]>([]);
   const [options, setOptions] = useState<string[]>([]);
@@ -89,13 +93,21 @@ export function FinalizeSelfService({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
-  const effectiveTrim = trim === "__custom__" ? customTrim : trim;
+  const trimById = new Map(trimOptions.map((o) => [o.id, o]));
+  const topTrimId = rankedTrimIds[0] ?? null;
+  const effectiveTrim = customMode
+    ? customTrim
+    : (topTrimId && trimById.get(topTrimId)?.trim) || "";
 
-  // Rich questions apply only to the trim currently selected. "No
-  // preference" and a typed custom trim both correctly resolve to null --
-  // neither identifies a single researched build.
+  // ⚠ ONLY THE #1 RANKED TRIM DRIVES THE QUESTIONS, and that is the whole
+  // reason ranking trim is safe. The rest of the list is the agent's
+  // fallback SEARCH ORDER, not a second set of answers -- a colour only
+  // means something against one specific build, so asking about several at
+  // once would produce answers no single car could satisfy. An empty list
+  // or a typed custom trim resolves to null: neither identifies one
+  // researched build.
   const questions: ConfiguratorQuestions | null =
-    (selectedTrimId && configuratorQuestions[selectedTrimId]) || null;
+    (topTrimId && configuratorQuestions[topTrimId]) || null;
 
   const steps: Step[] = ["trim"];
   if (questions) {
@@ -128,37 +140,60 @@ export function FinalizeSelfService({
    * the ranking UI feel like it silently eats work. Answers are only
    * invalidated when the build they describe genuinely changes.
    */
-  function chooseTrim(nextTrim: string, nextTrimId: string | null) {
-    const nextBuild = (nextTrimId && configuratorQuestions[nextTrimId]?.configuratorTrimId) || null;
+  function handleTrimRanking(nextRanked: string[], nextExcluded: string[]) {
+    // THE RESET IS KEYED TO THE RESOLVED BUILD OF #1, NOT TO THE LIST.
+    // Reordering ranks 2+, excluding a trim, or undoing an exclusion all
+    // leave the #1 build untouched and must NOT discard colour answers --
+    // that is most of what this screen's dragging does, and wiping on
+    // every change would make the UI feel like it eats work. Only a
+    // genuine change of the build those answers describe invalidates them.
+    const nextBuild =
+      (nextRanked[0] && configuratorQuestions[nextRanked[0]]?.configuratorTrimId) || null;
     const currentBuild = questions?.configuratorTrimId ?? null;
     if (nextBuild !== currentBuild) setSelections([]);
-    setTrim(nextTrim);
-    setSelectedTrimId(nextTrimId);
+    setRankedTrimIds(nextRanked);
+    setExcludedTrimIds(nextExcluded);
+  }
+
+  function chooseCustomTrim(on: boolean) {
+    // Switching to free text abandons the ranked list and any build-
+    // specific answers with it, for the same reason as above.
+    if (on) {
+      setRankedTrimIds([]);
+      setExcludedTrimIds([]);
+      setSelections([]);
+    }
+    setCustomMode(on);
   }
 
   /**
    * The customer's trim ranking, as the write path wants it.
    *
-   * STEP 6 REPLACES THIS WITH A REAL MULTI-ITEM RANKING. Until then the
-   * picker still yields a single trim, so this produces the degenerate
-   * one-item list -- which is a genuine ranked list, not a placeholder:
-   * rank 1 is exactly what a single pick means, and it is what decides the
-   * legacy `trim` column and which build the answers validate against. A
-   * typed custom trim or "no preference" ranks nothing, because neither
-   * names a real inventory trim to search for in order.
+   * Ranks become 1..n in list order; exclusions carry a null rank. The #1
+   * entry is what decides the legacy `trim` column and which configurator
+   * build the colour/feature answers get validated against, server-side --
+   * see writeTrimPreferences. Ranking nothing is a legitimate answer and
+   * yields an empty list, i.e. "any trim is fine".
    */
   function buildTrimPreferences(): TrimPreference[] {
-    if (!effectiveTrim || trim === "__custom__") return [];
-    const option = trimOptions.find((o) => o.id === selectedTrimId);
+    // A typed custom trim ranks nothing -- it names no inventory option to
+    // search for in order, and only reaches the legacy trim column.
+    if (customMode) return [];
+    const toPref = (id: string, rankPosition: number | null): TrimPreference | null => {
+      const opt = trimById.get(id);
+      if (!opt) return null;
+      return {
+        trim: opt.trim,
+        modelYear: opt.year ?? null,
+        rankPosition,
+        excluded: rankPosition === null,
+        configuratorTrimId: configuratorQuestions[id]?.configuratorTrimId ?? null,
+      };
+    };
     return [
-      {
-        trim: effectiveTrim,
-        modelYear: option?.year ?? null,
-        rankPosition: 1,
-        excluded: false,
-        configuratorTrimId: questions?.configuratorTrimId ?? null,
-      },
-    ];
+      ...rankedTrimIds.map((id, i) => toPref(id, i + 1)),
+      ...excludedTrimIds.map((id) => toPref(id, null)),
+    ].filter(Boolean) as TrimPreference[];
   }
 
   async function handleConfirm() {
@@ -220,83 +255,81 @@ export function FinalizeSelfService({
 
       {step === "trim" && (
         <div className="mt-6">
-          <h2 className="text-xl font-semibold text-white">
-            Which {make} {model} trim?
-          </h2>
-          <p className="mt-2 text-sm text-zinc-400">
-            {trimOptions.length > 0
-              ? "Based on real current inventory."
-              : "No live inventory synced yet — enter a trim, or leave it open."}
-          </p>
-          <div className="mt-5 space-y-2">
-            <button
-              type="button"
-              onClick={() => chooseTrim("", null)}
-              className={`w-full rounded-xl border p-4 text-left transition-colors ${
-                selectedTrimId === null && trim === ""
-                  ? "border-emerald-500 bg-emerald-500/10"
-                  : "border-white/10 bg-white/[0.02] hover:border-white/25"
-              }`}
-            >
-              <span className="font-medium text-white">No preference — any trim</span>
-            </button>
-            {trimOptions.map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => chooseTrim(opt.trim, opt.id)}
-                className={`w-full rounded-xl border p-4 text-left transition-colors ${
-                  selectedTrimId === opt.id
-                    ? "border-emerald-500 bg-emerald-500/10"
-                    : "border-white/10 bg-white/[0.02] hover:border-white/25"
-                }`}
-              >
-                <div className="flex items-baseline justify-between">
-                  <span className="font-medium text-white">
-                    {opt.trim}
-                    {/* Year shown only when known. Without it, a trim that
-                        spans two model years would render as two visually
-                        identical rows. */}
-                    {opt.year != null && (
-                      <span className="ml-2 font-normal text-zinc-500">{opt.year}</span>
-                    )}
-                  </span>
-                  <span className="text-sm text-zinc-400">
+          {trimOptions.length > 0 && !customMode ? (
+            <RankingQuestion
+              title={`Which ${make} ${model} trim?`}
+              subtitle="Rank them in the order you'd like us to search — we'll work down your list. Mark anything you're not open to, and leave the rest alone."
+              items={trimOptions.map((opt) => ({
+                id: opt.id,
+                label: opt.trim,
+                // Year is shown only when known. Without it a trim spanning
+                // two model years renders as two identical-looking rows.
+                sublabel: opt.year != null ? String(opt.year) : null,
+                detail: (
+                  <span className="mt-0.5 block text-xs text-zinc-500">
                     {formatCents(opt.minPriceCents)}
                     {opt.maxPriceCents && opt.maxPriceCents !== opt.minPriceCents
                       ? `–${formatCents(opt.maxPriceCents)}`
                       : ""}
+                    {" · "}
+                    {opt.count} available nationwide
                   </span>
-                </div>
-                <span className="text-xs text-zinc-500">{opt.count} currently available nationwide</span>
+                ),
+              }))}
+              ranked={rankedTrimIds}
+              excluded={excludedTrimIds}
+              onChange={handleTrimRanking}
+            />
+          ) : (
+            <>
+              <h2 className="text-xl font-semibold text-white">
+                Which {make} {model} trim?
+              </h2>
+              <p className="mt-2 text-sm text-zinc-400">
+                No live inventory synced yet — enter a trim, or leave it open.
+              </p>
+            </>
+          )}
+
+          <div className="mt-5 space-y-2">
+            {trimOptions.length > 0 && (
+              <button
+                type="button"
+                onClick={() => chooseCustomTrim(!customMode)}
+                className={`w-full rounded-xl border p-3.5 text-left text-sm transition-colors ${
+                  customMode
+                    ? "border-emerald-500 bg-emerald-500/10"
+                    : "border-white/10 bg-white/[0.02] hover:border-white/25"
+                }`}
+              >
+                <span className="font-medium text-white">
+                  {customMode ? "Back to the trim list" : "Type a specific trim instead"}
+                </span>
               </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => chooseTrim("__custom__", null)}
-              className={`w-full rounded-xl border p-4 text-left transition-colors ${
-                trim === "__custom__"
-                  ? "border-emerald-500 bg-emerald-500/10"
-                  : "border-white/10 bg-white/[0.02] hover:border-white/25"
-              }`}
-            >
-              <span className="font-medium text-white">Type a specific trim</span>
-            </button>
-            {trim === "__custom__" && (
+            )}
+            {(customMode || trimOptions.length === 0) && (
               <input
                 type="text"
                 value={customTrim}
                 onChange={(e) => setCustomTrim(e.target.value)}
-                placeholder="e.g. XLE, Sport, Limited"
+                placeholder="e.g. XLE, Sport, Limited — or leave blank for no preference"
                 className="w-full rounded-xl border border-white/10 bg-zinc-900/80 px-4 py-3 text-sm font-medium text-white placeholder:text-zinc-600 focus:border-emerald-500 focus:outline-none"
               />
             )}
           </div>
-          <div className="mt-6 flex justify-end">
+
+          {/* Ranking nothing is a legitimate answer -- "any trim" -- so
+              Next is never blocked on having built a list. */}
+          <div className="mt-6 flex items-center justify-between gap-3">
+            <p className="text-xs text-zinc-500">
+              {rankedTrimIds.length === 0 && !customMode
+                ? "Don't rank any, and we'll treat every trim as fine."
+                : ""}
+            </p>
             <button
               type="button"
               onClick={goNext}
-              className="rounded-full bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-zinc-950 hover:bg-emerald-400"
+              className="shrink-0 rounded-full bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-zinc-950 hover:bg-emerald-400"
             >
               Next
             </button>
@@ -307,7 +340,7 @@ export function FinalizeSelfService({
       {step === "exteriorColor" && questions && (
         <RankedQuestion
           title="What color?"
-          subtitle={`These are the colors a ${trim} can actually be built in. Rank the ones you'd like, or let us know if there's one you're not open to.`}
+          subtitle={`These are the colors a ${effectiveTrim} can actually be built in. Rank the ones you'd like, or let us know if there's one you're not open to.`}
           choices={questions.exteriorColor}
           category="exterior_color"
           selections={selections}

@@ -1,4 +1,5 @@
 import "server-only";
+import { resolveColorImages } from "@/lib/vehicle-color-images";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   configuratorFuelClass,
@@ -207,11 +208,17 @@ export async function getConfiguratorQuestionsForTrims(
 
   const build = (trimId: string): ConfiguratorQuestions => {
     const rows = byTrim.get(trimId) ?? [];
-    const pick = (category: string, allowed: Set<string>) =>
-      rows
+    const pick = (category: string, allowed: Set<string>) => {
+      const choices = rows
         .filter((r) => r.category === category && allowed.has(r.availability))
         .map(toChoice)
         .sort(sortChoices);
+      // Photos are looked up only for the two categories that can have
+      // them; seating and features are layouts and equipment, not colours.
+      if (category !== "exterior_color" && category !== "interior") return choices;
+      const images = resolveColorImages(make, model, category, choices.map((c) => c.name));
+      return choices.map((c) => ({ ...c, imageUrl: images[c.name] ?? null }));
+    };
 
     // A colour/interior/seating question needs a real CHOICE -- offering a
     // single option is not a question, it is a statement. A feature list

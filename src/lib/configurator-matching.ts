@@ -190,6 +190,13 @@ export interface ConfiguratorChoice {
   packageName: string | null;
   packagePriceCents: number | null;
   packageContents: string[] | null;
+  /**
+   * Real photo of this colour on this vehicle, when one exists on disk.
+   * NULL is the normal case for almost every make -- callers render the
+   * option with no image rather than a placeholder. See
+   * vehicle-color-images.ts.
+   */
+  imageUrl?: string | null;
 }
 
 /**

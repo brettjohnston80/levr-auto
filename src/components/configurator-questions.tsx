@@ -4,17 +4,19 @@ import {
   type ConfiguratorChoice,
   type ConfiguratorSelection,
 } from "@/lib/configurator-matching";
+import { RankingQuestion, type RankableItem } from "@/components/ranking-question";
 
 // The rich configurator question UI (step 7 of 9), shown only for a trim
 // that resolved to exactly one researched build. Every other trim -- and
 // every one of the 34 makes with no configurator data -- keeps the generic
 // colour/options steps unchanged.
 //
-// RANKING REPLACED THE THREE-WAY PRIORITY SCALE (2026-09-14). The controls
-// here are the interim shape: rank-by-click-order plus an explicit "not
-// open to it". Step 6 of the redesign replaces the interaction with a pool
-// and drag-to-reorder; the DATA shape these emit is already final, which is
-// why the write path can be built and verified against it now.
+// RANKING REPLACED THE THREE-WAY PRIORITY SCALE (2026-09-14). RankedQuestion
+// below is now a thin ADAPTER: it translates between this flow's
+// ConfiguratorSelection[] and the shared RankingQuestion's (ranked ids,
+// excluded ids) shape, and owns nothing about the interaction itself. The
+// pool / ordered list / exclusions UI, and the pointer-drag reordering,
+// live in ranking-question.tsx so trim can reuse them unchanged.
 
 function formatCents(cents: number): string {
   return `$${Math.round(cents / 100).toLocaleString()}`;
@@ -98,133 +100,66 @@ export function RankedQuestion({
   selections: ConfiguratorSelection[];
   onChange: (next: ConfiguratorSelection[]) => void;
 }) {
+  const byName = new Map(choices.map((c) => [c.name, c]));
   const mine = selections.filter((s) => s.category === category);
-  const entryFor = (name: string) => mine.find((s) => s.selection === name) ?? null;
 
-  /**
-   * Rewrites this category's entries, renumbering the ranked ones densely.
-   *
-   * The server renumbers too, and that is not redundant -- it is the one
-   * that guarantees the partial unique index holds. This one exists so the
-   * customer sees 1, 2, 3 rather than 1, 3, 4 the instant they unrank
-   * something in the middle.
-   */
-  function commit(next: ConfiguratorSelection[]) {
+  // Option NAME is the id here: search_option_selections is unique on
+  // (search_id, category, selection), so a name already identifies an
+  // answer within its category.
+  const ranked = mine
+    .filter((s) => !s.excluded && s.rankPosition != null)
+    .sort((a, b) => (a.rankPosition ?? 0) - (b.rankPosition ?? 0))
+    .map((s) => s.selection);
+  const excluded = mine.filter((s) => s.excluded).map((s) => s.selection);
+
+  const items: RankableItem[] = choices.map((c) => ({
+    id: c.name,
+    label: c.name,
+    imageUrl: c.imageUrl ?? null,
+    detail: (
+      <>
+        <span className="mt-0.5 block">
+          <PriceTag choice={c} />
+        </span>
+        <PackageNote choice={c} />
+      </>
+    ),
+  }));
+
+  function handleChange(nextRanked: string[], nextExcluded: string[]) {
     const others = selections.filter((s) => s.category !== category);
-    const ranked = next
-      .filter((s) => !s.excluded)
-      .map((s, i) => ({ ...s, rankPosition: i + 1, excluded: false }));
-    const excluded = next
-      .filter((s) => s.excluded)
-      .map((s) => ({ ...s, rankPosition: null, excluded: true }));
-    onChange([...others, ...ranked, ...excluded]);
-  }
-
-  function entryFrom(choice: ConfiguratorChoice, excluded: boolean): ConfiguratorSelection {
-    return {
-      category,
-      questionKind: "ranked",
-      selection: choice.name,
-      rankPosition: null,
-      excluded,
-      packageName: choice.packageName,
-      packagePriceCents: choice.packagePriceCents,
-      packageContents: choice.packageContents,
-      priceUnknown:
-        choice.availability === "package_only"
-          ? choice.packagePriceCents == null
-          : choice.priceCents == null,
+    const build = (name: string, rankPosition: number | null, isExcluded: boolean) => {
+      const c = byName.get(name);
+      if (!c) return null;
+      return {
+        category,
+        questionKind: "ranked" as const,
+        selection: name,
+        rankPosition,
+        excluded: isExcluded,
+        packageName: c.packageName,
+        packagePriceCents: c.packagePriceCents,
+        packageContents: c.packageContents,
+        priceUnknown:
+          c.availability === "package_only" ? c.packagePriceCents == null : c.priceCents == null,
+      };
     };
+    const rows = [
+      ...nextRanked.map((name, i) => build(name, i + 1, false)),
+      ...nextExcluded.map((name) => build(name, null, true)),
+    ].filter(Boolean) as ConfiguratorSelection[];
+    onChange([...others, ...rows]);
   }
-
-  // Ranking appends to the end of the list -- the customer builds their
-  // order by picking in order. Clicking a ranked item again unranks it.
-  function toggleRank(choice: ConfiguratorChoice) {
-    const existing = entryFor(choice.name);
-    const rest = mine.filter((s) => s.selection !== choice.name);
-    if (existing && !existing.excluded) {
-      commit(rest);
-      return;
-    }
-    commit([...rest.filter((s) => !s.excluded), entryFrom(choice, false), ...rest.filter((s) => s.excluded)]);
-  }
-
-  // Excluding is a separate statement, not the bottom of the ranking: an
-  // unranked option means no opinion, an excluded one means "never offer
-  // me this". Conflating them would lose the difference entirely.
-  function toggleExclude(choice: ConfiguratorChoice) {
-    const existing = entryFor(choice.name);
-    const rest = mine.filter((s) => s.selection !== choice.name);
-    if (existing?.excluded) {
-      commit(rest);
-      return;
-    }
-    commit([...rest, entryFrom(choice, true)]);
-  }
-
-  const rankedCount = mine.filter((s) => !s.excluded).length;
 
   return (
-    <div className="mt-6">
-      <h2 className="text-xl font-semibold text-white">{title}</h2>
-      <p className="mt-2 text-sm text-zinc-400">{subtitle}</p>
-      <div className="mt-5 space-y-2">
-        {choices.map((choice) => {
-          const entry = entryFor(choice.name);
-          const ranked = entry && !entry.excluded;
-          const excluded = entry?.excluded ?? false;
-          return (
-            <div
-              key={choice.name}
-              className={`rounded-xl border p-3.5 transition-colors ${
-                ranked
-                  ? "border-emerald-500/60 bg-emerald-500/[0.07]"
-                  : excluded
-                    ? "border-amber-500/40 bg-amber-500/[0.05]"
-                    : "border-white/10 bg-white/[0.02]"
-              }`}
-            >
-              <div className="flex items-baseline justify-between gap-3">
-                <span className="min-w-0 text-sm font-medium text-white">
-                  {ranked ? (
-                    <span className="mr-1.5 text-emerald-400">{entry!.rankPosition}.</span>
-                  ) : null}
-                  {choice.name}
-                </span>
-                <PriceTag choice={choice} />
-              </div>
-              <PackageNote choice={choice} />
-              <div className="mt-2.5 flex flex-wrap gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => toggleRank(choice)}
-                  aria-pressed={!!ranked}
-                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
-                    ranked
-                      ? "border-emerald-500 bg-emerald-500 text-zinc-950"
-                      : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/25 hover:text-zinc-200"
-                  }`}
-                >
-                  {ranked ? `Ranked #${entry!.rankPosition}` : `Rank it #${rankedCount + 1}`}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleExclude(choice)}
-                  aria-pressed={excluded}
-                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
-                    excluded
-                      ? "border-amber-500 bg-amber-500 text-zinc-950"
-                      : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/25 hover:text-zinc-200"
-                  }`}
-                >
-                  Not open to it
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    <RankingQuestion
+      title={title}
+      subtitle={subtitle}
+      items={items}
+      ranked={ranked}
+      excluded={excluded}
+      onChange={handleChange}
+    />
   );
 }
 
