@@ -6,6 +6,7 @@ import { buildTrimOptions } from "@/lib/finalize-trims";
 import { getConfiguratorQuestionsForTrims } from "@/lib/configurator-questions";
 import { hasAnyQuestion, type ConfiguratorQuestions } from "@/lib/configurator-matching";
 import { FinalizeChoice } from "@/components/finalize-choice";
+import { getIntakeMakeModelOptions } from "@/lib/intake-vehicle-options";
 
 export const metadata: Metadata = {
   title: "Finalize Your Search — LEVR Auto",
@@ -104,6 +105,12 @@ export default async function FinalizePage({
   // this make, or an ambiguous trim -- yields nothing here and the flow
   // below is byte-for-byte today's behaviour. Inert until step 9 promotes
   // a batch.
+  // Same source the intake form uses, so the two surfaces can never offer
+  // different vehicles. An undecided search (no make/model yet) is handled
+  // by the agent consultation queue, not here, so the edit control is only
+  // rendered once there is actually a vehicle to correct.
+  const makeModelOptions = search.make && search.model ? await getIntakeMakeModelOptions() : {};
+
   const gating = await getConfiguratorQuestionsForTrims(
     search.make,
     search.model,
@@ -127,6 +134,7 @@ export default async function FinalizePage({
           callAlreadyRequested={!!search.call_requested_at}
           trimOptions={trimOptions}
           configuratorQuestions={configuratorQuestions}
+          makeModelOptions={makeModelOptions}
         />
       </div>
     </section>

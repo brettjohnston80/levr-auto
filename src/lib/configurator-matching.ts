@@ -213,24 +213,53 @@ export function hasAnyQuestion(q: ConfiguratorQuestions): boolean {
   );
 }
 
-/** The three-way strength asked alongside a colour/interior/seating pick. */
-export type SelectionPriority = "must_have" | "like_to_have" | "open_to";
-
-export const PRIORITY_LABELS: Record<SelectionPriority, string> = {
-  must_have: "Must have",
-  like_to_have: "Would like",
-  open_to: "Open to it",
-};
-
-/** One answer, as the customer's form holds it before saving. */
+/**
+ * One answer, as the customer's form holds it before saving.
+ *
+ * Replaces the must_have/like_to_have/open_to scale (tester feedback,
+ * 2026-09-14). That scale asked the customer to rate each colour in
+ * isolation, which is not how anyone chooses one -- they have an order of
+ * preference and usually a couple they would actively refuse.
+ *
+ * The two ranked states are mutually exclusive and exhaustive, mirroring
+ * search_option_selections_rank_shape: ranked carries a 1-based
+ * rankPosition with excluded false, refused carries a null rankPosition
+ * with excluded true. An option the customer did not touch produces NO
+ * entry at all -- "no opinion" needs no third state and can never be
+ * confused with "ranked last".
+ */
 export interface ConfiguratorSelection {
   category: "exterior_color" | "interior" | "seating" | "feature";
-  questionKind: "preference" | "feature";
+  questionKind: "ranked" | "feature";
   selection: string;
-  /** Always set for 'preference'; always null for 'feature'. */
-  priority: SelectionPriority | null;
+  /** 1-based position in the category's list; null when excluded or a feature. */
+  rankPosition: number | null;
+  /** True only for an explicitly refused ranked option. */
+  excluded: boolean;
   packageName: string | null;
   packagePriceCents: number | null;
   packageContents: string[] | null;
   priceUnknown: boolean;
+}
+
+/**
+ * One ranked trim preference, as the form holds it before saving.
+ *
+ * Trim is ranked like everything else now, but lives in its own table
+ * (search_trim_preferences) because a trim option is identified by trim AND
+ * model year -- "LE 2026" and "LE 2027" are different real choices with
+ * different inventory and different prices. See that table's own comment.
+ */
+export interface TrimPreference {
+  trim: string;
+  /** Nullable: buildTrimOptions tolerates listings carrying no year. */
+  modelYear: number | null;
+  rankPosition: number | null;
+  excluded: boolean;
+  /**
+   * Which researched build this trim resolved to, when it resolved at all.
+   * NULL is the common case -- 34 of 36 makes have no configurator data.
+   * Re-validated server-side before storage; never trusted as sent.
+   */
+  configuratorTrimId: string | null;
 }

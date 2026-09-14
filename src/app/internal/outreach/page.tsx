@@ -10,6 +10,7 @@ import {
   getVehicleConsultationQueue,
   getNotificationCallbackQueue,
   type OutreachSelection,
+  type OutreachTrimPreference,
 } from "@/lib/outreach-queue";
 import { ResolveNotificationCallbackButton } from "@/components/resolve-notification-callback-button";
 import { LogOfferForm } from "@/components/log-offer-form";
@@ -93,77 +94,155 @@ const SELECTION_CATEGORY_LABELS: Record<string, string> = {
 };
 
 /**
- * Priority styling carries the meaning, not decoration. A must_have is the
- * thing an agent holds out for in a real negotiation, so it is the only
- * one that gets a badge; like_to_have reads as ordinary text and open_to
- * is deliberately muted. Scanning the list should make the hard
- * constraints obvious without reading every row.
+ * Package context and the unconfirmed-price state, shared by the ranked and
+ * feature renderers below. Unchanged from the priority-era display: an
+ * unconfirmed price is still said out loud rather than rendered blank or as
+ * $0, because putting a number in an agent's mouth that nobody researched
+ * is the failure this guards against.
  */
-const SELECTION_PRIORITY_STYLES: Record<string, { label: string; className: string }> = {
-  must_have: {
-    label: "MUST HAVE",
-    className: "rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-emerald-300",
-  },
-  like_to_have: { label: "would like", className: "text-zinc-400" },
-  open_to: { label: "open to it", className: "text-zinc-500" },
-};
+function PackageNote({ sel }: { sel: OutreachSelection }) {
+  if (sel.packageName) {
+    return (
+      <p className="mt-0.5 text-xs text-zinc-500">
+        Only in the <span className="text-zinc-400">{sel.packageName}</span>
+        {" — "}
+        {sel.priceUnknown || sel.packagePriceCents == null ? (
+          <span className="text-amber-400">price not confirmed</span>
+        ) : (
+          <span className="text-zinc-400">${(sel.packagePriceCents / 100).toLocaleString()}</span>
+        )}
+        {sel.packageContents && sel.packageContents.length > 0 && (
+          <> — includes {sel.packageContents.join(", ")}</>
+        )}
+      </p>
+    );
+  }
+  if (sel.priceUnknown) {
+    return <p className="mt-0.5 text-xs text-amber-400">price not confirmed</p>;
+  }
+  return null;
+}
 
 /**
- * A customer's configurator answers, read-only (step 8 of 9).
+ * An explicit refusal. Deliberately loud and deliberately NOT just an
+ * absence from the ranked list.
  *
- * Renders nothing at all when there are none, which is the case for every
- * make without configurator data and every search finalized before step 7
- * -- `Colors:` above stays the authoritative line in that case, and this
- * section simply does not appear rather than showing an empty shell.
+ * "Not open to black" is an INSTRUCTION -- an agent who offers it has done
+ * the one thing the customer asked them not to. An option the customer
+ * simply did not rank carries no such weight; it is merely unremarkable.
+ * Rendering an exclusion by omission would flatten those two into the same
+ * thing, so exclusions get their own block with their own marker.
  */
-function ConfiguratorSelections({ selections }: { selections: OutreachSelection[] }) {
-  if (selections.length === 0) return null;
+function ExcludedBlock({ items }: { items: { id: string; label: string }[] }) {
+  if (items.length === 0) return null;
+  return (
+    <p className="mt-1 text-xs text-amber-300">
+      <span className="font-semibold">✕ Not open to:</span>{" "}
+      <span className="text-amber-200/80">{items.map((i) => i.label).join(", ")}</span>
+    </p>
+  );
+}
+
+/**
+ * A customer's configurator answers, read-only.
+ *
+ * Ranked categories render as a numbered list in the customer's own order,
+ * because the order IS the answer -- #1 is what to chase first, and an
+ * agent scanning the card needs that without reading prose. Features stay a
+ * plain list: they are independent yes/no adds with no ordering between
+ * them.
+ *
+ * Renders nothing at all when there are no answers, which is the case for
+ * every make without configurator data -- `Colors:` above stays the
+ * authoritative line there, and this section simply does not appear rather
+ * than showing an empty shell.
+ */
+function ConfiguratorSelections({
+  selections,
+  trimPreferences,
+}: {
+  selections: OutreachSelection[];
+  trimPreferences: OutreachTrimPreference[];
+}) {
+  if (selections.length === 0 && trimPreferences.length === 0) return null;
+
+  const rankedCategories = ["exterior_color", "interior", "seating"];
+  const features = selections.filter((s) => s.questionKind === "feature");
+
+  const trimLabel = (t: OutreachTrimPreference) =>
+    t.modelYear != null ? `${t.trim} ${t.modelYear}` : t.trim;
+
+  const rankedTrims = trimPreferences.filter((t) => !t.excluded);
+  const excludedTrims = trimPreferences.filter((t) => t.excluded);
 
   return (
     <div className="mt-4">
-      <h3 className="text-sm font-semibold text-zinc-300">
-        Customer&apos;s build preferences ({selections.length})
-      </h3>
-      <ul className="mt-2 space-y-2 text-sm text-zinc-400">
-        {selections.map((sel) => {
-          const priority = sel.priority ? SELECTION_PRIORITY_STYLES[sel.priority] : null;
-          return (
-            <li key={sel.id}>
-              <span className="text-zinc-500">
-                {SELECTION_CATEGORY_LABELS[sel.category] ?? sel.category}:
-              </span>{" "}
-              <span className="text-zinc-200">{sel.selection}</span>
-              {priority && (
-                <span className={`ml-2 text-xs font-semibold ${priority.className}`}>
-                  {priority.label}
-                </span>
-              )}
-              {sel.packageName && (
-                <p className="mt-0.5 text-xs text-zinc-500">
-                  Only in the <span className="text-zinc-400">{sel.packageName}</span>
-                  {" — "}
-                  {/* An unconfirmed price is said out loud. Rendering a
-                      blank or a $0 here would put a number in an agent's
-                      mouth that nobody ever researched. */}
-                  {sel.priceUnknown || sel.packagePriceCents == null ? (
-                    <span className="text-amber-400">price not confirmed</span>
-                  ) : (
-                    <span className="text-zinc-400">
-                      ${(sel.packagePriceCents / 100).toLocaleString()}
-                    </span>
-                  )}
-                  {sel.packageContents && sel.packageContents.length > 0 && (
-                    <> — includes {sel.packageContents.join(", ")}</>
-                  )}
-                </p>
-              )}
-              {!sel.packageName && sel.priceUnknown && (
-                <p className="mt-0.5 text-xs text-amber-400">price not confirmed</p>
-              )}
-            </li>
-          );
-        })}
-      </ul>
+      <h3 className="text-sm font-semibold text-zinc-300">Customer&apos;s build preferences</h3>
+
+      {trimPreferences.length > 0 && (
+        <div className="mt-2">
+          {/* Labelled as a search ORDER, not a preference list: this is
+              literally the sequence to work down when the top choice is not
+              in inventory. */}
+          <p className="text-xs font-semibold text-zinc-400 uppercase">Trim — search in this order</p>
+          <ol className="mt-1 space-y-0.5 text-sm text-zinc-400">
+            {rankedTrims.map((t) => (
+              <li key={t.id}>
+                <span className="text-zinc-500">{t.rankPosition}.</span>{" "}
+                <span className="text-zinc-200">{trimLabel(t)}</span>
+                {/* Whether the colour/feature answers below actually
+                    describe this trim. Only the #1 trim drives those
+                    questions, and only when it resolved to exactly one
+                    researched build. */}
+                {t.configuratorTrimId ? (
+                  <span className="ml-2 text-xs text-emerald-400/80">researched build</span>
+                ) : (
+                  <span className="ml-2 text-xs text-zinc-600">inventory only</span>
+                )}
+              </li>
+            ))}
+          </ol>
+          <ExcludedBlock items={excludedTrims.map((t) => ({ id: t.id, label: trimLabel(t) }))} />
+        </div>
+      )}
+
+      {rankedCategories.map((category) => {
+        const inCategory = selections.filter((s) => s.category === category);
+        if (inCategory.length === 0) return null;
+        const ranked = inCategory.filter((s) => !s.excluded);
+        const excluded = inCategory.filter((s) => s.excluded);
+        return (
+          <div key={category} className="mt-3">
+            <p className="text-xs font-semibold text-zinc-400 uppercase">
+              {SELECTION_CATEGORY_LABELS[category] ?? category}
+            </p>
+            <ol className="mt-1 space-y-1 text-sm text-zinc-400">
+              {ranked.map((sel) => (
+                <li key={sel.id}>
+                  <span className="text-zinc-500">{sel.rankPosition}.</span>{" "}
+                  <span className="text-zinc-200">{sel.selection}</span>
+                  <PackageNote sel={sel} />
+                </li>
+              ))}
+            </ol>
+            <ExcludedBlock items={excluded.map((s) => ({ id: s.id, label: s.selection }))} />
+          </div>
+        );
+      })}
+
+      {features.length > 0 && (
+        <div className="mt-3">
+          <p className="text-xs font-semibold text-zinc-400 uppercase">Features</p>
+          <ul className="mt-1 space-y-1 text-sm text-zinc-400">
+            {features.map((sel) => (
+              <li key={sel.id}>
+                <span className="text-zinc-200">{sel.selection}</span>
+                <PackageNote sel={sel} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
@@ -483,7 +562,10 @@ export default async function OutreachQueuePage() {
                   {/* Sits above the dealer list on purpose: it describes
                       WHAT to look for, which an agent needs before working
                       through who might have it. */}
-                  <ConfiguratorSelections selections={search.selections} />
+                  <ConfiguratorSelections
+                    selections={search.selections}
+                    trimPreferences={search.trimPreferences}
+                  />
 
                   <div className="mt-4">
                     <h3 className="text-sm font-semibold text-zinc-300">

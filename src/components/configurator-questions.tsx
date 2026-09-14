@@ -1,18 +1,20 @@
 "use client";
 
 import {
-  PRIORITY_LABELS,
   type ConfiguratorChoice,
   type ConfiguratorSelection,
-  type SelectionPriority,
 } from "@/lib/configurator-matching";
 
 // The rich configurator question UI (step 7 of 9), shown only for a trim
 // that resolved to exactly one researched build. Every other trim -- and
 // every one of the 34 makes with no configurator data -- keeps the generic
 // colour/options steps unchanged.
-
-const PRIORITIES: SelectionPriority[] = ["must_have", "like_to_have", "open_to"];
+//
+// RANKING REPLACED THE THREE-WAY PRIORITY SCALE (2026-09-14). The controls
+// here are the interim shape: rank-by-click-order plus an explicit "not
+// open to it". Step 6 of the redesign replaces the interaction with a pool
+// and drag-to-reorder; the DATA shape these emit is already final, which is
+// why the write path can be built and verified against it now.
 
 function formatCents(cents: number): string {
   return `$${Math.round(cents / 100).toLocaleString()}`;
@@ -72,16 +74,16 @@ function PackageNote({ choice }: { choice: ConfiguratorChoice }) {
 }
 
 /**
- * A colour / interior / seating question: pick a value AND say how
- * strongly you want it.
+ * A colour / interior / seating question: build an ordered list of what
+ * you want, and separately name anything you refuse outright.
  *
- * The three priority buttons ARE the selection control -- there is no
- * separate "select this" step that then needs a strength defaulted in
- * afterwards. That is deliberate: a default would record intent the
- * customer never expressed, and an agent reading must_have will hold out
- * for it in a real negotiation.
+ * THREE STATES, NOT A SCALE. Ranked (the order to try), excluded (never
+ * offer this), and untouched -- which is the default and stores nothing at
+ * all. That last one is why there is no "no preference" button: silence
+ * already means no opinion, and an option the customer ignored must never
+ * become an answer an agent negotiates against.
  */
-export function PreferenceQuestion({
+export function RankedQuestion({
   title,
   subtitle,
   choices,
@@ -96,37 +98,71 @@ export function PreferenceQuestion({
   selections: ConfiguratorSelection[];
   onChange: (next: ConfiguratorSelection[]) => void;
 }) {
-  const priorityFor = (name: string): SelectionPriority | null =>
-    selections.find((s) => s.category === category && s.selection === name)?.priority ?? null;
+  const mine = selections.filter((s) => s.category === category);
+  const entryFor = (name: string) => mine.find((s) => s.selection === name) ?? null;
 
-  function set(choice: ConfiguratorChoice, priority: SelectionPriority) {
-    const others = selections.filter(
-      (s) => !(s.category === category && s.selection === choice.name),
-    );
-    // Clicking the priority a choice already has clears it -- the same
-    // button both selects and deselects, so there is no way to end up with
-    // a selection whose strength was never chosen.
-    if (priorityFor(choice.name) === priority) {
-      onChange(others);
+  /**
+   * Rewrites this category's entries, renumbering the ranked ones densely.
+   *
+   * The server renumbers too, and that is not redundant -- it is the one
+   * that guarantees the partial unique index holds. This one exists so the
+   * customer sees 1, 2, 3 rather than 1, 3, 4 the instant they unrank
+   * something in the middle.
+   */
+  function commit(next: ConfiguratorSelection[]) {
+    const others = selections.filter((s) => s.category !== category);
+    const ranked = next
+      .filter((s) => !s.excluded)
+      .map((s, i) => ({ ...s, rankPosition: i + 1, excluded: false }));
+    const excluded = next
+      .filter((s) => s.excluded)
+      .map((s) => ({ ...s, rankPosition: null, excluded: true }));
+    onChange([...others, ...ranked, ...excluded]);
+  }
+
+  function entryFrom(choice: ConfiguratorChoice, excluded: boolean): ConfiguratorSelection {
+    return {
+      category,
+      questionKind: "ranked",
+      selection: choice.name,
+      rankPosition: null,
+      excluded,
+      packageName: choice.packageName,
+      packagePriceCents: choice.packagePriceCents,
+      packageContents: choice.packageContents,
+      priceUnknown:
+        choice.availability === "package_only"
+          ? choice.packagePriceCents == null
+          : choice.priceCents == null,
+    };
+  }
+
+  // Ranking appends to the end of the list -- the customer builds their
+  // order by picking in order. Clicking a ranked item again unranks it.
+  function toggleRank(choice: ConfiguratorChoice) {
+    const existing = entryFor(choice.name);
+    const rest = mine.filter((s) => s.selection !== choice.name);
+    if (existing && !existing.excluded) {
+      commit(rest);
       return;
     }
-    onChange([
-      ...others,
-      {
-        category,
-        questionKind: "preference",
-        selection: choice.name,
-        priority,
-        packageName: choice.packageName,
-        packagePriceCents: choice.packagePriceCents,
-        packageContents: choice.packageContents,
-        priceUnknown:
-          choice.availability === "package_only"
-            ? choice.packagePriceCents == null
-            : choice.priceCents == null,
-      },
-    ]);
+    commit([...rest.filter((s) => !s.excluded), entryFrom(choice, false), ...rest.filter((s) => s.excluded)]);
   }
+
+  // Excluding is a separate statement, not the bottom of the ranking: an
+  // unranked option means no opinion, an excluded one means "never offer
+  // me this". Conflating them would lose the difference entirely.
+  function toggleExclude(choice: ConfiguratorChoice) {
+    const existing = entryFor(choice.name);
+    const rest = mine.filter((s) => s.selection !== choice.name);
+    if (existing?.excluded) {
+      commit(rest);
+      return;
+    }
+    commit([...rest, entryFrom(choice, true)]);
+  }
+
+  const rankedCount = mine.filter((s) => !s.excluded).length;
 
   return (
     <div className="mt-6">
@@ -134,37 +170,55 @@ export function PreferenceQuestion({
       <p className="mt-2 text-sm text-zinc-400">{subtitle}</p>
       <div className="mt-5 space-y-2">
         {choices.map((choice) => {
-          const active = priorityFor(choice.name);
+          const entry = entryFor(choice.name);
+          const ranked = entry && !entry.excluded;
+          const excluded = entry?.excluded ?? false;
           return (
             <div
               key={choice.name}
               className={`rounded-xl border p-3.5 transition-colors ${
-                active
+                ranked
                   ? "border-emerald-500/60 bg-emerald-500/[0.07]"
-                  : "border-white/10 bg-white/[0.02]"
+                  : excluded
+                    ? "border-amber-500/40 bg-amber-500/[0.05]"
+                    : "border-white/10 bg-white/[0.02]"
               }`}
             >
               <div className="flex items-baseline justify-between gap-3">
-                <span className="min-w-0 text-sm font-medium text-white">{choice.name}</span>
+                <span className="min-w-0 text-sm font-medium text-white">
+                  {ranked ? (
+                    <span className="mr-1.5 text-emerald-400">{entry!.rankPosition}.</span>
+                  ) : null}
+                  {choice.name}
+                </span>
                 <PriceTag choice={choice} />
               </div>
               <PackageNote choice={choice} />
               <div className="mt-2.5 flex flex-wrap gap-1.5">
-                {PRIORITIES.map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => set(choice, p)}
-                    aria-pressed={active === p}
-                    className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
-                      active === p
-                        ? "border-emerald-500 bg-emerald-500 text-zinc-950"
-                        : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/25 hover:text-zinc-200"
-                    }`}
-                  >
-                    {PRIORITY_LABELS[p]}
-                  </button>
-                ))}
+                <button
+                  type="button"
+                  onClick={() => toggleRank(choice)}
+                  aria-pressed={!!ranked}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                    ranked
+                      ? "border-emerald-500 bg-emerald-500 text-zinc-950"
+                      : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/25 hover:text-zinc-200"
+                  }`}
+                >
+                  {ranked ? `Ranked #${entry!.rankPosition}` : `Rank it #${rankedCount + 1}`}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleExclude(choice)}
+                  aria-pressed={excluded}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                    excluded
+                      ? "border-amber-500 bg-amber-500 text-zinc-950"
+                      : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-white/25 hover:text-zinc-200"
+                  }`}
+                >
+                  Not open to it
+                </button>
               </div>
             </div>
           );
@@ -208,7 +262,11 @@ export function FeatureQuestion({
         category: "feature",
         questionKind: "feature",
         selection: choice.name,
-        priority: null,
+        // Features are never ranked and never excluded -- they are
+        // independent adds, not competing choices, so there is no order to
+        // express between "heated wheel" and "moonroof".
+        rankPosition: null,
+        excluded: false,
         packageName: choice.packageName,
         packagePriceCents: choice.packagePriceCents,
         packageContents: choice.packageContents,
@@ -268,16 +326,26 @@ export function SelectionSummary({ selections }: { selections: ConfiguratorSelec
       {byCategory.map(([category, label]) => {
         const rows = selections.filter((s) => s.category === category);
         if (rows.length === 0) return null;
+        // Reads back as the ordered list the customer actually built, with
+        // refusals called out separately rather than folded in at the end
+        // -- "not open to black" and "black last" are different answers.
+        const ranked = rows
+          .filter((r) => !r.excluded && r.rankPosition != null)
+          .sort((a, b) => (a.rankPosition ?? 0) - (b.rankPosition ?? 0));
+        const excluded = rows.filter((r) => r.excluded);
+        const unordered = rows.filter((r) => !r.excluded && r.rankPosition == null);
         return (
           <p key={category} className="mt-1">
             <span className="text-zinc-500">{label}:</span>{" "}
-            {rows
-              .map((r) =>
-                r.priority
-                  ? `${r.selection} (${PRIORITY_LABELS[r.priority].toLowerCase()})`
-                  : r.selection,
-              )
-              .join(", ")}
+            {ranked.length > 0
+              ? ranked.map((r, i) => `${i + 1}. ${r.selection}`).join(", ")
+              : unordered.map((r) => r.selection).join(", ")}
+            {excluded.length > 0 ? (
+              <span className="text-amber-400">
+                {ranked.length > 0 || unordered.length > 0 ? " — " : ""}
+                not open to: {excluded.map((r) => r.selection).join(", ")}
+              </span>
+            ) : null}
           </p>
         );
       })}

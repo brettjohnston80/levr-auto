@@ -7,10 +7,11 @@ import type { TrimOption } from "@/lib/finalize-trims";
 import type {
   ConfiguratorQuestions,
   ConfiguratorSelection,
+  TrimPreference,
 } from "@/lib/configurator-matching";
 import {
   FeatureQuestion,
-  PreferenceQuestion,
+  RankedQuestion,
   SelectionSummary,
 } from "@/components/configurator-questions";
 
@@ -114,33 +115,67 @@ export function FinalizeSelfService({
   /**
    * Changing trim discards configurator answers, and that is correct
    * rather than unfortunate: a colour or package belongs to one specific
-   * build, so carrying "Wind Chill Pearl, must have" across to a trim that
+   * build, so carrying "Wind Chill Pearl, ranked #1" across to a trim that
    * cannot be built in it would produce an answer the customer never gave.
    * The generic colours/options are free-text preferences about the model,
    * not one build, so they legitimately survive.
+   *
+   * THE RESET IS KEYED TO THE RESOLVED BUILD, NOT THE SELECTED OPTION, and
+   * that distinction starts mattering now that trim is itself a ranked
+   * list. Two trim options can resolve to the same researched build, and
+   * reordering the list is going to change the selected option constantly
+   * once step 6 lands -- wiping answers on every such change would make
+   * the ranking UI feel like it silently eats work. Answers are only
+   * invalidated when the build they describe genuinely changes.
    */
   function chooseTrim(nextTrim: string, nextTrimId: string | null) {
-    if (nextTrimId !== selectedTrimId) setSelections([]);
+    const nextBuild = (nextTrimId && configuratorQuestions[nextTrimId]?.configuratorTrimId) || null;
+    const currentBuild = questions?.configuratorTrimId ?? null;
+    if (nextBuild !== currentBuild) setSelections([]);
     setTrim(nextTrim);
     setSelectedTrimId(nextTrimId);
+  }
+
+  /**
+   * The customer's trim ranking, as the write path wants it.
+   *
+   * STEP 6 REPLACES THIS WITH A REAL MULTI-ITEM RANKING. Until then the
+   * picker still yields a single trim, so this produces the degenerate
+   * one-item list -- which is a genuine ranked list, not a placeholder:
+   * rank 1 is exactly what a single pick means, and it is what decides the
+   * legacy `trim` column and which build the answers validate against. A
+   * typed custom trim or "no preference" ranks nothing, because neither
+   * names a real inventory trim to search for in order.
+   */
+  function buildTrimPreferences(): TrimPreference[] {
+    if (!effectiveTrim || trim === "__custom__") return [];
+    const option = trimOptions.find((o) => o.id === selectedTrimId);
+    return [
+      {
+        trim: effectiveTrim,
+        modelYear: option?.year ?? null,
+        rankPosition: 1,
+        excluded: false,
+        configuratorTrimId: questions?.configuratorTrimId ?? null,
+      },
+    ];
   }
 
   async function handleConfirm() {
     setSaving(true);
     setError(null);
-    // The legacy columns keep being written from whichever path ran, so
-    // every existing reader -- /account, both agent forms, the outreach
-    // queue -- carries on working with no awareness of configurator data.
-    const richColors = selections
-      .filter((s) => s.category === "exterior_color")
-      .map((s) => s.selection);
-    const richOptions = selections.filter((s) => s.category === "feature").map((s) => s.selection);
+    // The legacy columns are now DERIVED SERVER-SIDE from the rows that
+    // actually get stored (see writeConfiguratorSelections), so the rich
+    // path no longer computes a parallel colours list here that could
+    // drift out of rank order or quietly include an excluded colour. The
+    // generic path still sends its own, because it has no ranked rows to
+    // derive anything from.
     const result = await finalizeSelfService(searchId, {
       trim: effectiveTrim,
-      colors: questions ? richColors : colors,
-      requiredOptions: questions ? richOptions : options,
-      configuratorTrimId: questions?.configuratorTrimId ?? null,
+      colors,
+      requiredOptions: options,
       selections,
+      trimPreferences: buildTrimPreferences(),
     });
     setSaving(false);
     if (!result.ok) {
@@ -270,9 +305,9 @@ export function FinalizeSelfService({
       )}
 
       {step === "exteriorColor" && questions && (
-        <PreferenceQuestion
+        <RankedQuestion
           title="What color?"
-          subtitle={`These are the colors a ${trim} can actually be built in. Tell us how much each one matters — your agent negotiates accordingly.`}
+          subtitle={`These are the colors a ${trim} can actually be built in. Rank the ones you'd like, or let us know if there's one you're not open to.`}
           choices={questions.exteriorColor}
           category="exterior_color"
           selections={selections}
@@ -281,9 +316,9 @@ export function FinalizeSelfService({
       )}
 
       {step === "interior" && questions && (
-        <PreferenceQuestion
+        <RankedQuestion
           title="Interior?"
-          subtitle="Pick any you'd be happy with, and how strongly you feel about them."
+          subtitle={"Rank the ones you'd like, or let us know if there's one you're not open to."}
           choices={questions.interior}
           category="interior"
           selections={selections}
@@ -292,7 +327,7 @@ export function FinalizeSelfService({
       )}
 
       {step === "seating" && questions && (
-        <PreferenceQuestion
+        <RankedQuestion
           title="Seating layout?"
           subtitle="This trim offers more than one configuration."
           choices={questions.seating}

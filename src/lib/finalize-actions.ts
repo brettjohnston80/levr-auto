@@ -3,7 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { ConfiguratorSelection } from "@/lib/configurator-matching";
+import type { ConfiguratorSelection, TrimPreference } from "@/lib/configurator-matching";
+import { normalizeRanked, statesAnOpinion } from "@/lib/ranked-list";
+import { getIntakeMakeModelOptions } from "@/lib/intake-vehicle-options";
+import { syncListingsForMakeModel } from "@/lib/marketcheck-sync";
 
 export type FinalizeResult = { ok: true } | { ok: false; error: string };
 
@@ -19,7 +22,7 @@ async function getOwnedAwaitingFinalizationSearch(searchId: string) {
 
   const { data: search, error } = await supabase
     .from("customer_searches")
-    .select("id, search_status")
+    .select("id, search_status, make, model")
     .eq("id", searchId)
     .eq("customer_id", user.id)
     .maybeSingle();
@@ -31,7 +34,11 @@ async function getOwnedAwaitingFinalizationSearch(searchId: string) {
     return { ok: false as const, error: "This search has already been finalized." };
   }
 
-  return { ok: true as const };
+  return {
+    ok: true as const,
+    make: (search.make as string | null) ?? null,
+    model: (search.model as string | null) ?? null,
+  };
 }
 
 /**
@@ -62,22 +69,173 @@ export async function requestFinalizationCall(searchId: string): Promise<Finaliz
   return { ok: true };
 }
 
+/**
+ * The two states in which the customer's vehicle can still be corrected
+ * for free: paid but not yet finalized (/finalize), and finalized but
+ * still inside the 24h refinement window (/account).
+ *
+ * What actually unites them is not the status names -- it is that
+ * solidified_at is still unset, i.e. THE SEARCH HAS NOT STARTED. No agent
+ * has made a call, no dealer has been contacted, nothing has been
+ * negotiated. Both conditions are always checked together; the status list
+ * alone would be a weaker rule that happens to be equivalent today.
+ */
+const VEHICLE_EDITABLE_STATUSES = ["awaiting_finalization", "pending_refinement"] as const;
+
+/** Same wording whether the read guard or the write-race guard rejects. */
+const SEARCH_ALREADY_STARTED =
+  "Your search has already started, so the vehicle can\u2019t be changed here. Use \u201cSwitch it myself\u201d from your account instead.";
+
+/**
+ * Corrects the make/model on a search that has not started yet, in place
+ * and free of charge. Shared by /finalize and /account's 24h edit form --
+ * one implementation, so the two surfaces cannot drift on what is allowed.
+ *
+ * THIS IS NOT A SWITCH, AND THE DISTINCTION IS THE WHOLE DESIGN. A switch
+ * changes the vehicle on a search that is already RUNNING -- solidified,
+ * with agents doing real dealer outreach against it -- so it costs $100,
+ * supersedes the old row, resets the guarantee clocks and consumes the one
+ * free-switch allowance. None of that has happened here: nothing has been
+ * searched for, and no agent has spent a minute on the old vehicle.
+ * Charging for a correction at that point would be charging for nothing.
+ *
+ * SO THIS DELIBERATELY TOUCHES NONE OF THE SWITCH MACHINERY. It does not
+ * call switch_customer_search, does not create a superseding row, does not
+ * write superseded_by_id / pending_switch_make / pending_switch_model /
+ * switch_requested_at, and above all NEVER writes
+ * customers.free_switch_used_at -- a customer who corrects a typo here
+ * must still have their real free switch available later, when it
+ * actually costs the business something.
+ *
+ * ONCE SOLIDIFIED, THE ONLY ROUTE TO A DIFFERENT VEHICLE IS THE PAID
+ * SWITCH FLOW. That boundary is enforced here rather than by the calling
+ * page, because both surfaces are reachable from a tab left open while the
+ * hourly solidify cron runs underneath them.
+ */
+export async function updateSearchVehicle(
+  searchId: string,
+  make: string,
+  model: string,
+): Promise<FinalizeResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not signed in." };
+
+  const { data: search, error: fetchError } = await supabase
+    .from("customer_searches")
+    .select("id, search_status, solidified_at, paid_at")
+    .eq("id", searchId)
+    .eq("customer_id", user.id)
+    .maybeSingle();
+
+  if (fetchError || !search) {
+    return { ok: false, error: "That search doesn't exist." };
+  }
+  if (!search.paid_at) {
+    return { ok: false, error: "This search hasn't been paid for yet." };
+  }
+  const editable = (VEHICLE_EDITABLE_STATUSES as readonly string[]).includes(
+    search.search_status as string,
+  );
+  if (!editable || search.solidified_at) {
+    // Deliberately names the real route rather than failing blankly --
+    // this is reachable from a tab left open while the solidify cron ran.
+    return { ok: false, error: SEARCH_ALREADY_STARTED };
+  }
+
+  const options = await getIntakeMakeModelOptions();
+  if (!options[make]?.includes(model)) {
+    return { ok: false, error: "Pick a make and model from the list." };
+  }
+
+  const admin = createAdminClient();
+
+  // Everything downstream of make/model describes the OLD vehicle, so it
+  // all goes. A trim, a colour ranking, or a researched build carried
+  // across to a different car would be an answer the customer never gave
+  // -- the same reasoning that clears configurator answers when trim
+  // changes, one level up.
+  for (const table of ["search_option_selections", "search_trim_preferences"]) {
+    const { error } = await admin.from(table).delete().eq("search_id", searchId);
+    if (error) return { ok: false, error: `Failed to clear old selections: ${error.message}` };
+  }
+
+  // The status/solidified guards are repeated as WRITE conditions, not
+  // just read checks. The gap between the read above and this update is
+  // exactly where the hourly solidify cron could land, and losing that
+  // race must mean "no rows updated", never "vehicle changed on a search
+  // that has already started".
+  const { data: updated, error } = await admin
+    .from("customer_searches")
+    .update({
+      make,
+      model,
+      trim: null,
+      colors: [],
+      required_options: [],
+      // Carried over from Matchmaker, and they described the old vehicle.
+      matchmaker_price_cents: null,
+      matchmaker_model_year: null,
+    })
+    .eq("id", searchId)
+    .in("search_status", VEHICLE_EDITABLE_STATUSES)
+    .is("solidified_at", null)
+    .select("id");
+
+  if (error) {
+    return { ok: false, error: `Failed to update the vehicle: ${error.message}` };
+  }
+  if (!updated || updated.length === 0) {
+    return { ok: false, error: SEARCH_ALREADY_STARTED };
+  }
+
+  // Real inventory for the new make/model, so the trim picker is not empty
+  // when the page re-renders. Same call the Stripe webhook makes at
+  // payment time, and non-fatal for the same reason: the vehicle change
+  // has already succeeded, and MarketCheck being slow or down must not
+  // undo it. An empty trim list degrades to a plain text field.
+  try {
+    await syncListingsForMakeModel(make, model);
+  } catch (syncError) {
+    console.error(
+      `updateSearchVehicle: on-demand MarketCheck sync failed for ${make} ${model}:`,
+      syncError instanceof Error ? syncError.message : syncError,
+    );
+  }
+
+  revalidatePath(`/finalize/${searchId}`);
+  revalidatePath("/account");
+  return { ok: true };
+}
+
 export type FinalizeDetails = {
   trim: string;
   colors: string[];
   requiredOptions: string[];
-  /** The matched configurator build, when the rich flow ran. */
-  configuratorTrimId?: string | null;
   selections?: ConfiguratorSelection[];
+  /**
+   * The customer's ranked trim list. When present it is authoritative:
+   * the legacy `trim` column and the configurator build whose options get
+   * validated are both derived from its #1 entry, server-side. There is
+   * deliberately no separate configuratorTrimId field -- see
+   * writeTrimPreferences.
+   */
+  trimPreferences?: TrimPreference[];
 };
+
+/** A browser can post anything; this cap keeps one request from being pathological. */
+const MAX_RANKED_ITEMS = 60;
 
 /**
  * Persists the customer's configurator answers to search_option_selections.
  *
  * DELIBERATELY IGNORES the package name, price and contents the client
- * sent. Only the category, the option name and the chosen priority are
- * taken from the browser; everything an agent will act on is re-read from
- * configurator_options here. That closes the obvious hole -- a crafted
+ * sent. Only the category, the option name and the customer's ordering
+ * (rank, or an exclusion) are taken from the browser; everything an agent
+ * will act on is re-read from configurator_options here. That closes the
+ * obvious hole -- a crafted
  * request claiming a $0 price on a $1,850 package would otherwise send an
  * agent into a real negotiation holding a number nobody ever researched.
  * A selection that does not correspond to a real, obtainable option on
@@ -93,7 +251,9 @@ async function writeConfiguratorSelections(
   searchId: string,
   configuratorTrimId: string | null | undefined,
   selections: ConfiguratorSelection[] | undefined,
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<
+  { ok: true; colors: string[]; requiredOptions: string[] } | { ok: false; error: string }
+> {
   const { error: clearError } = await admin
     .from("search_option_selections")
     .delete()
@@ -102,7 +262,7 @@ async function writeConfiguratorSelections(
     return { ok: false, error: clearError.message };
   }
   if (!configuratorTrimId || !selections || selections.length === 0) {
-    return { ok: true };
+    return { ok: true, colors: [], requiredOptions: [] };
   }
 
   // Authoritative option data for this trim, paginated -- PostgREST caps a
@@ -134,8 +294,8 @@ async function writeConfiguratorSelections(
 
   const byKey = new Map(options.map((o) => [`${o.category}::${o.name}`, o]));
   const seen = new Set<string>();
-  const rows = [];
-  for (const s of selections) {
+  const kept: { s: ConfiguratorSelection; option: (typeof options)[number] }[] = [];
+  for (const s of selections.slice(0, MAX_RANKED_ITEMS)) {
     const key = `${s.category}::${s.selection}`;
     // The table is unique on (search_id, category, selection); a repeated
     // answer is the same answer, not a second one.
@@ -147,30 +307,225 @@ async function writeConfiguratorSelections(
     // A feature the trim already includes is not a question, so a "yes"
     // against it is not an answer worth sending to an agent.
     if (isFeature && option.availability === "standard") continue;
-    // A preference records WHICH value and HOW STRONGLY; without a
-    // strength there is no answer to store, and inventing one would tell
-    // an agent something the customer never said.
-    if (!isFeature && !s.priority) continue;
+    // Features are a yes/no checklist -- deliberately never ranked and
+    // never excluded, matching the shape constraint. A ranked entry that
+    // is neither ranked nor excluded says nothing and is dropped rather
+    // than stored as a half-populated row.
+    if (isFeature && (s.rankPosition != null || s.excluded)) continue;
+    if (!isFeature && !statesAnOpinion(s)) continue;
 
     seen.add(key);
-    const inPackage = option.availability === "package_only" && option.package_name != null;
-    rows.push({
-      search_id: searchId,
-      category: s.category,
-      question_kind: isFeature ? "feature" : "preference",
-      selection: option.name,
-      priority: isFeature ? null : s.priority,
-      package_name: inPackage ? option.package_name : null,
-      package_price_cents: inPackage ? option.package_price_cents : null,
-      package_contents: inPackage ? option.package_contents : null,
-      price_unknown: inPackage ? option.package_price_cents == null : option.price_cents == null,
-    });
+    kept.push({ s, option });
   }
 
-  if (rows.length === 0) return { ok: true };
-  const { error } = await admin.from("search_option_selections").insert(rows);
+  // Renumber per category -- the unique index is on (search_id, category,
+  // rank_position), so each category is its own independent list.
+  const rows: Record<string, unknown>[] = [];
+  const rankedColors: { name: string; rankPosition: number }[] = [];
+  const features: string[] = [];
+  const categories = [...new Set(kept.map((k) => k.s.category))];
+
+  for (const category of categories) {
+    const inCategory = kept.filter((k) => k.s.category === category);
+    if (category === "feature") {
+      for (const { option } of inCategory) {
+        features.push(option.name);
+        rows.push(buildSelectionRow(searchId, "feature", "feature", option, null, false));
+      }
+      continue;
+    }
+    const { ranked, excluded } = normalizeRanked(inCategory, (k) => k.s);
+    for (const { item, rankPosition } of ranked) {
+      if (category === "exterior_color") {
+        rankedColors.push({ name: item.option.name, rankPosition });
+      }
+      rows.push(
+        buildSelectionRow(searchId, category, "ranked", item.option, rankPosition, false),
+      );
+    }
+    for (const { item } of excluded) {
+      rows.push(buildSelectionRow(searchId, category, "ranked", item.option, null, true));
+    }
+  }
+
+  if (rows.length > 0) {
+    const { error } = await admin.from("search_option_selections").insert(rows);
+    if (error) return { ok: false, error: error.message };
+  }
+
+  // The legacy columns are derived from what was ACTUALLY stored, not from
+  // a parallel list the client computed. That is what makes "colours in
+  // rank order, exclusions omitted" true by construction rather than by
+  // two code paths happening to agree -- an excluded colour reaching
+  // `colors` would read to every existing agent surface as a colour the
+  // customer wants, the exact inversion of what they said.
+  return {
+    ok: true,
+    colors: rankedColors.sort((a, b) => a.rankPosition - b.rankPosition).map((c) => c.name),
+    requiredOptions: features,
+  };
+}
+
+/**
+ * One search_option_selections row with EVERY column present.
+ *
+ * The full key set is not tidiness. PostgREST unions the keys across a bulk
+ * insert and sends an explicit NULL for any key a row omits, which defeats
+ * the column default -- a row leaving out price_unknown fails the NOT NULL
+ * constraint and takes the whole insert down with it. Found the hard way
+ * while verifying step 3 (2026-09-14). Ranked rows and feature rows have
+ * genuinely different populated fields, so they are exactly the mixed-shape
+ * case that triggers it.
+ */
+function buildSelectionRow(
+  searchId: string,
+  category: string,
+  questionKind: "ranked" | "feature",
+  option: {
+    availability: string;
+    name: string;
+    price_cents: number | null;
+    package_name: string | null;
+    package_price_cents: number | null;
+    package_contents: string[] | null;
+  },
+  rankPosition: number | null,
+  excluded: boolean,
+): Record<string, unknown> {
+  const inPackage = option.availability === "package_only" && option.package_name != null;
+  return {
+    search_id: searchId,
+    category,
+    question_kind: questionKind,
+    selection: option.name,
+    rank_position: rankPosition,
+    excluded,
+    package_name: inPackage ? option.package_name : null,
+    package_price_cents: inPackage ? option.package_price_cents : null,
+    package_contents: inPackage ? option.package_contents : null,
+    price_unknown: inPackage ? option.package_price_cents == null : option.price_cents == null,
+  };
+}
+
+/**
+ * Persists the customer's ranked trim list, and resolves which researched
+ * build (if any) their #1 choice corresponds to.
+ *
+ * RETURNING the #1's configurator trim id is the point, not a convenience.
+ * The caller feeds it straight into writeConfiguratorSelections, so the
+ * options a customer's colour/feature answers get validated against are
+ * ALWAYS the options of the trim they ranked first -- there is no separate
+ * client-supplied field that could point somewhere else. A crafted request
+ * cannot rank one trim and have its answers validated against a different
+ * build's cheaper packages.
+ *
+ * configuratorTrimId is re-checked rather than trusted: the claimed build
+ * must really exist, be part of the live batch, and belong to this search's
+ * make and model. It is deliberately NOT required to match the trim string,
+ * because a legitimate match routinely disagrees there -- MarketCheck
+ * truncates "XLE Premium" to "XLE", which is exactly the case the matcher
+ * exists to bridge. A failed check degrades to null (the agent view then
+ * reads "inventory only"), never to a rejected save.
+ */
+async function writeTrimPreferences(
+  admin: ReturnType<typeof createAdminClient>,
+  searchId: string,
+  make: string | null,
+  model: string | null,
+  preferences: TrimPreference[] | undefined,
+): Promise<
+  { ok: true; topTrim: string | null; topConfiguratorTrimId: string | null } | { ok: false; error: string }
+> {
+  const { error: clearError } = await admin
+    .from("search_trim_preferences")
+    .delete()
+    .eq("search_id", searchId);
+  if (clearError) return { ok: false, error: clearError.message };
+
+  if (!preferences || preferences.length === 0) {
+    return { ok: true, topTrim: null, topConfiguratorTrimId: null };
+  }
+
+  const seen = new Set<string>();
+  const cleaned: TrimPreference[] = [];
+  for (const p of preferences.slice(0, MAX_RANKED_ITEMS)) {
+    const trim = (p.trim ?? "").trim();
+    if (!trim) continue;
+    // Unique on (search_id, trim, model_year_key), where the key column is
+    // coalesce(model_year, -1) -- so an unknown year is one identity, not
+    // a NULL that silently dedupes against nothing.
+    const key = `${trim.toLowerCase()}::${p.modelYear ?? -1}`;
+    if (seen.has(key)) continue;
+    if (!statesAnOpinion(p)) continue;
+    seen.add(key);
+    cleaned.push({ ...p, trim });
+  }
+  if (cleaned.length === 0) {
+    return { ok: true, topTrim: null, topConfiguratorTrimId: null };
+  }
+
+  const validIds = await resolveValidConfiguratorTrimIds(admin, cleaned, make, model);
+  const { ranked, excluded } = normalizeRanked(cleaned, (p) => p);
+
+  const rows = [...ranked, ...excluded].map(({ item, rankPosition }) => ({
+    search_id: searchId,
+    trim: item.trim,
+    model_year: item.modelYear,
+    rank_position: rankPosition,
+    excluded: rankPosition == null,
+    configurator_trim_id:
+      item.configuratorTrimId && validIds.has(item.configuratorTrimId)
+        ? item.configuratorTrimId
+        : null,
+  }));
+
+  const { error } = await admin.from("search_trim_preferences").insert(rows);
   if (error) return { ok: false, error: error.message };
-  return { ok: true };
+
+  const top = ranked.find((r) => r.rankPosition === 1);
+  return {
+    ok: true,
+    topTrim: top?.item.trim ?? null,
+    topConfiguratorTrimId:
+      top?.item.configuratorTrimId && validIds.has(top.item.configuratorTrimId)
+        ? top.item.configuratorTrimId
+        : null,
+  };
+}
+
+/** Which of the claimed configurator builds are real, live, and this vehicle. */
+async function resolveValidConfiguratorTrimIds(
+  admin: ReturnType<typeof createAdminClient>,
+  preferences: TrimPreference[],
+  make: string | null,
+  model: string | null,
+): Promise<Set<string>> {
+  const claimed = [...new Set(preferences.map((p) => p.configuratorTrimId).filter(Boolean))] as string[];
+  if (claimed.length === 0 || !make || !model) return new Set();
+
+  const { data: batch } = await admin
+    .from("configurator_batches")
+    .select("id")
+    .eq("is_live", true)
+    .maybeSingle();
+  if (!batch) return new Set();
+
+  const { data, error } = await admin
+    .from("configurator_trims")
+    .select("id, make, model")
+    .eq("batch_id", batch.id)
+    .in("id", claimed);
+  if (error || !data) return new Set();
+
+  return new Set(
+    data
+      .filter(
+        (t) =>
+          String(t.make).toLowerCase() === make.toLowerCase() &&
+          String(t.model).toLowerCase() === model.toLowerCase(),
+      )
+      .map((t) => t.id as string),
+  );
 }
 
 /**
@@ -194,10 +549,24 @@ export async function finalizeSelfService(
   // Configurator answers land first, deliberately. They are written while
   // the search is still awaiting finalization, so a failure here aborts
   // before anything irreversible and the customer can simply retry.
+  //
+  // Trim preferences go FIRST of all, because their #1 entry decides which
+  // build the colour/feature answers are validated against.
+  const trims = await writeTrimPreferences(
+    admin,
+    searchId,
+    check.make,
+    check.model,
+    details.trimPreferences,
+  );
+  if (!trims.ok) {
+    return { ok: false, error: `Failed to save your trim choices: ${trims.error}` };
+  }
+
   const stored = await writeConfiguratorSelections(
     admin,
     searchId,
-    details.configuratorTrimId,
+    trims.topConfiguratorTrimId,
     details.selections,
   );
   if (!stored.ok) {
@@ -207,9 +576,11 @@ export async function finalizeSelfService(
   const { error } = await admin
     .from("customer_searches")
     .update({
-      trim: details.trim || null,
-      colors: details.colors,
-      required_options: details.requiredOptions,
+      trim: trims.topTrim ?? details.trim ?? null,
+      colors: trims.topConfiguratorTrimId ? stored.colors : details.colors,
+      required_options: trims.topConfiguratorTrimId
+        ? stored.requiredOptions
+        : details.requiredOptions,
       finalized_at: new Date().toISOString(),
       search_status: "pending_refinement",
     })
@@ -256,7 +627,7 @@ export async function updateFinalizedSearch(
 
   const { data: search, error: fetchError } = await supabase
     .from("customer_searches")
-    .select("id, search_status")
+    .select("id, search_status, make, model")
     .eq("id", searchId)
     .eq("customer_id", user.id)
     .maybeSingle();
@@ -277,10 +648,26 @@ export async function updateFinalizedSearch(
   // rich answers they are replacing must go with them. Leaving both would
   // hand an agent two contradictory statements of intent with nothing to
   // say which one is current.
+  //
+  // The ranked TRIM list is cleared by the same reasoning and in the same
+  // breath: this form writes a single free-text trim, so leaving a ranked
+  // list behind would tell an agent to search trims 2..n in an order the
+  // customer has just superseded.
+  const trims = await writeTrimPreferences(
+    admin,
+    searchId,
+    (search.make as string | null) ?? null,
+    (search.model as string | null) ?? null,
+    details.trimPreferences,
+  );
+  if (!trims.ok) {
+    return { ok: false, error: `Failed to save your trim choices: ${trims.error}` };
+  }
+
   const stored = await writeConfiguratorSelections(
     admin,
     searchId,
-    details.configuratorTrimId,
+    trims.topConfiguratorTrimId,
     details.selections,
   );
   if (!stored.ok) {
@@ -290,9 +677,11 @@ export async function updateFinalizedSearch(
   const { error } = await admin
     .from("customer_searches")
     .update({
-      trim: details.trim || null,
-      colors: details.colors,
-      required_options: details.requiredOptions,
+      trim: trims.topTrim ?? details.trim ?? null,
+      colors: trims.topConfiguratorTrimId ? stored.colors : details.colors,
+      required_options: trims.topConfiguratorTrimId
+        ? stored.requiredOptions
+        : details.requiredOptions,
     })
     .eq("id", searchId)
     .eq("search_status", "pending_refinement");

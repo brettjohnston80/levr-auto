@@ -5,6 +5,8 @@ import { requestFinalizationCall } from "@/lib/finalize-actions";
 import { FinalizeSelfService } from "@/components/finalize-self-service";
 import type { TrimOption } from "@/lib/finalize-trims";
 import type { ConfiguratorQuestions } from "@/lib/configurator-matching";
+import type { MakeModelOptions } from "@/lib/intake-vehicle-options";
+import { VehicleEditControl } from "@/components/vehicle-edit-control";
 
 type Mode = "choice" | "self-service" | "call-requested";
 
@@ -15,6 +17,7 @@ export function FinalizeChoice({
   callAlreadyRequested,
   trimOptions,
   configuratorQuestions,
+  makeModelOptions,
 }: {
   searchId: string;
   make: string;
@@ -27,6 +30,8 @@ export function FinalizeChoice({
    * until step 9 promotes a batch.
    */
   configuratorQuestions: Record<string, ConfiguratorQuestions>;
+  /** Empty for an undecided search, which has no vehicle to correct yet. */
+  makeModelOptions: MakeModelOptions;
 }) {
   const [mode, setMode] = useState<Mode>(callAlreadyRequested ? "call-requested" : "choice");
   const [requesting, setRequesting] = useState(false);
@@ -115,6 +120,15 @@ export function FinalizeChoice({
         <p className="mt-6 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
           {error}
         </p>
+      )}
+
+      {Object.keys(makeModelOptions).length > 0 && (
+        <VehicleEditControl
+          searchId={searchId}
+          make={make}
+          model={model}
+          makeModelOptions={makeModelOptions}
+        />
       )}
 
       <p className="mt-8 text-xs text-zinc-500">

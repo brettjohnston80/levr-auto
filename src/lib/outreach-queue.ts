@@ -47,15 +47,45 @@ export interface OutreachAddon {
 export interface OutreachSelection {
   id: string;
   category: string;
-  questionKind: "preference" | "feature";
+  questionKind: "ranked" | "feature";
   selection: string;
-  /** must_have/like_to_have/open_to for preferences; null for features. */
-  priority: string | null;
+  /** 1-based position in the ranked list; null when excluded. */
+  rankPosition: number | null;
+  /**
+   * The customer explicitly refused this option. NOT the same as an option
+   * they simply did not rank: an exclusion is an instruction ("never offer
+   * this"), while an unranked option is merely unremarkable. The agent view
+   * must keep the two visibly apart.
+   */
+  excluded: boolean;
   packageName: string | null;
   packagePriceCents: number | null;
   packageContents: string[] | null;
   /** Price could not be parsed. Must never render as a blank or as $0. */
   priceUnknown: boolean;
+}
+
+/**
+ * A ranked trim preference (search_trim_preferences).
+ *
+ * Separate from OutreachSelection because a trim is identified by trim AND
+ * model year, and because it is not a configurator_options row. For the
+ * agent this list is a SEARCH ORDER: work down it until something is
+ * actually in inventory.
+ */
+export interface OutreachTrimPreference {
+  id: string;
+  trim: string;
+  modelYear: number | null;
+  rankPosition: number | null;
+  excluded: boolean;
+  /**
+   * Non-null when this trim resolved to exactly one researched configurator
+   * build. Null is the common case -- 34 of 36 makes have no configurator
+   * data at all. Surfaced because it tells the agent whether the colour and
+   * feature answers below actually describe this trim.
+   */
+  configuratorTrimId: string | null;
 }
 
 /** Reading order: what the car looks like, then what is added to it. */
@@ -69,18 +99,32 @@ const SELECTION_CATEGORY_ORDER = [
   "feature",
 ];
 
-/** Strongest constraint first -- that is what an agent holds out for. */
-const SELECTION_PRIORITY_ORDER = ["must_have", "like_to_have", "open_to"];
-
+/**
+ * Category first, then rank order within it, with excluded items last.
+ *
+ * Excluded rows sort to the end of their category rather than being
+ * interleaved, because the renderer groups them into their own block --
+ * sorting them together here keeps that grouping stable without a second
+ * pass.
+ */
 function compareSelections(a: OutreachSelection, b: OutreachSelection): number {
   const cat =
     SELECTION_CATEGORY_ORDER.indexOf(a.category) - SELECTION_CATEGORY_ORDER.indexOf(b.category);
   if (cat !== 0) return cat;
-  const pri =
-    SELECTION_PRIORITY_ORDER.indexOf(a.priority ?? "") -
-    SELECTION_PRIORITY_ORDER.indexOf(b.priority ?? "");
-  if (pri !== 0) return pri;
+  if (a.excluded !== b.excluded) return a.excluded ? 1 : -1;
+  if (a.rankPosition != null && b.rankPosition != null) {
+    return a.rankPosition - b.rankPosition;
+  }
   return a.selection.localeCompare(b.selection);
+}
+
+/** Ranked first in order, then exclusions. */
+function compareTrimPreferences(a: OutreachTrimPreference, b: OutreachTrimPreference): number {
+  if (a.excluded !== b.excluded) return a.excluded ? 1 : -1;
+  if (a.rankPosition != null && b.rankPosition != null) {
+    return a.rankPosition - b.rankPosition;
+  }
+  return a.trim.localeCompare(b.trim);
 }
 
 export interface OutreachDealProgress {
@@ -131,6 +175,11 @@ export interface OutreachSearch {
    * fields in that case.
    */
   selections: OutreachSelection[];
+  /**
+   * Empty until the customer ranks trims. A single-trim search (today's
+   * behaviour) produces one rank-1 row, not zero.
+   */
+  trimPreferences: OutreachTrimPreference[];
 }
 
 /**
@@ -297,7 +346,7 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
     const { data, error } = await supabase
       .from("search_option_selections")
       .select(
-        "id, search_id, category, question_kind, selection, priority, package_name, package_price_cents, package_contents, price_unknown",
+        "id, search_id, category, question_kind, selection, rank_position, excluded, package_name, package_price_cents, package_contents, price_unknown",
       )
       .in("search_id", searchIds)
       .order("id")
@@ -310,9 +359,10 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
       list.push({
         id: row.id as string,
         category: row.category as string,
-        questionKind: row.question_kind as "preference" | "feature",
+        questionKind: row.question_kind as "ranked" | "feature",
         selection: row.selection as string,
-        priority: (row.priority as string | null) ?? null,
+        rankPosition: (row.rank_position as number | null) ?? null,
+        excluded: row.excluded === true,
         packageName: (row.package_name as string | null) ?? null,
         packagePriceCents: (row.package_price_cents as number | null) ?? null,
         packageContents: (row.package_contents as string[] | null) ?? null,
@@ -324,6 +374,39 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
   }
   for (const list of selectionsBySearchId.values()) {
     list.sort(compareSelections);
+  }
+
+  // Ranked trim preferences. Paginated for the same reason as above: a busy
+  // queue can exceed PostgREST's silent 1,000-row cap, and a truncated
+  // search order would send an agent down a list that is quietly missing
+  // entries.
+  const trimPrefsBySearchId = new Map<string, OutreachTrimPreference[]>();
+  for (let from = 0; ; from += SELECTION_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("search_trim_preferences")
+      .select("id, search_id, trim, model_year, rank_position, excluded, configurator_trim_id")
+      .in("search_id", searchIds)
+      .order("id")
+      .range(from, from + SELECTION_PAGE_SIZE - 1);
+    if (error) {
+      throw new Error(`Failed to load trim preferences: ${error.message}`);
+    }
+    for (const row of data ?? []) {
+      const list = trimPrefsBySearchId.get(row.search_id as string) ?? [];
+      list.push({
+        id: row.id as string,
+        trim: row.trim as string,
+        modelYear: (row.model_year as number | null) ?? null,
+        rankPosition: (row.rank_position as number | null) ?? null,
+        excluded: row.excluded === true,
+        configuratorTrimId: (row.configurator_trim_id as string | null) ?? null,
+      });
+      trimPrefsBySearchId.set(row.search_id as string, list);
+    }
+    if (!data || data.length < SELECTION_PAGE_SIZE) break;
+  }
+  for (const list of trimPrefsBySearchId.values()) {
+    list.sort(compareTrimPreferences);
   }
 
   const customerEmailById = new Map((customers ?? []).map((c) => [c.id, c.email as string]));
@@ -396,6 +479,7 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
       })),
       offers: offersBySearchId.get(search.id) ?? [],
       selections: selectionsBySearchId.get(search.id) ?? [],
+      trimPreferences: trimPrefsBySearchId.get(search.id) ?? [],
     };
   });
 }

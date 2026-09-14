@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { COLORS, OPTIONS } from "@/lib/vehicle-data";
 import { updateFinalizedSearch } from "@/lib/finalize-actions";
+import { VehicleEditControl } from "@/components/vehicle-edit-control";
+import type { MakeModelOptions } from "@/lib/intake-vehicle-options";
 
 function toggleInArray(list: string[], value: string): string[] {
   return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
@@ -30,12 +32,22 @@ export function FinalizeEditForm({
   initialTrim,
   initialColors,
   initialRequiredOptions,
+  make,
+  model,
+  makeModelOptions,
+  solidifiedAt,
 }: {
   searchId: string;
   finalizedAt: string;
   initialTrim: string | null;
   initialColors: string[];
   initialRequiredOptions: string[];
+  make: string | null;
+  model: string | null;
+  /** Empty for an undecided search, which has no vehicle to correct yet. */
+  makeModelOptions: MakeModelOptions;
+  /** Non-null means the search has started -- vehicle changes go paid. */
+  solidifiedAt: string | null;
 }) {
   const deadline = new Date(finalizedAt).getTime() + 24 * 60 * 60 * 1000;
   // Lazy initializer (not a synchronous setState-in-effect) -- this still
@@ -112,6 +124,29 @@ export function FinalizeEditForm({
             >
               Edit
             </button>
+          )}
+          {/*
+            Make/model correction, same control and same server action as
+            /finalize -- one implementation across both surfaces.
+
+            GATED ON solidified_at, NOT ON THE COUNTDOWN ABOVE, and the
+            difference is real rather than pedantic. Solidification is an
+            HOURLY cron, so for up to an hour after finalized_at + 24h the
+            countdown reads "Window closed" while solidified_at is still
+            null -- and updateSearchVehicle would happily accept the change
+            throughout, because the search genuinely has not started. Gating
+            on the countdown would hide a control the server still honours,
+            and would leave that hour with the free control gone and the
+            paid switch box not yet shown. This condition is the exact
+            complement of canSwitch's on /account.
+          */}
+          {!solidifiedAt && make && model && Object.keys(makeModelOptions).length > 0 && (
+            <VehicleEditControl
+              searchId={searchId}
+              make={make}
+              model={model}
+              makeModelOptions={makeModelOptions}
+            />
           )}
         </div>
       ) : (
