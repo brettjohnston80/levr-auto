@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { MAKES_AND_MODELS as FALLBACK_MAKES_AND_MODELS, FLAT_PRICE, withCurrent } from "@/lib/vehicle-data";
-import type { MakeModelOptions } from "@/lib/intake-vehicle-options";
+import type { MakeModelOptions, ModelYearOptions } from "@/lib/intake-vehicle-options";
 import { countNearbyInventory } from "@/lib/inventory-count";
 import { INVENTORY_RADIUS_MILES } from "@/lib/inventory-radius";
 import { createClient } from "@/lib/supabase/client";
@@ -23,10 +23,17 @@ import { AuthGateModal } from "@/components/auth-gate-modal";
 type Vehicle = {
   make: string;
   model: string;
+  /**
+   * The committed model year, as the select's string value ("" = not
+   * chosen). Required to continue since 2026-09-14. Travels inside the
+   * levr_pending_intake stash with make/model, so a customer who picks a
+   * year while signed out still has it after signing in.
+   */
+  modelYear: string;
 };
 
 function emptyVehicle(): Vehicle {
-  return { make: "", model: "" };
+  return { make: "", model: "", modelYear: "" };
 }
 
 const PENDING_INTAKE_KEY = "levr_pending_intake";
@@ -229,7 +236,13 @@ function MatchCounter({
   );
 }
 
-export function IntakeFilter({ makeModelOptions }: { makeModelOptions?: MakeModelOptions }) {
+export function IntakeFilter({
+  makeModelOptions,
+  modelYearOptions,
+}: {
+  makeModelOptions?: MakeModelOptions;
+  modelYearOptions?: ModelYearOptions;
+}) {
   // Live make/model options, fetched server-side from the promoted vehicle
   // dataset and passed down ("choose this car" step 1). Falls back to the
   // old hardcoded list only if the query returned nothing at all -- i.e. no
@@ -238,6 +251,19 @@ export function IntakeFilter({ makeModelOptions }: { makeModelOptions?: MakeMode
     makeModelOptions && Object.keys(makeModelOptions).length > 0
       ? makeModelOptions
       : FALLBACK_MAKES_AND_MODELS;
+  // Years come from the same live dataset. The static fallback has no
+  // years at all, so with no promoted batch nothing can be committed --
+  // correct, since the server would refuse an unvalidatable year anyway.
+  const yearsFor = (make: string, model: string): string[] =>
+    (modelYearOptions?.[make]?.[model] ?? []).map(String);
+  // A make/model offered in exactly one year pre-selects it: the select is
+  // still visible and shows the year being committed to, there is simply
+  // nothing to choose between. Two or more years always start blank, so a
+  // real choice is always made by the customer.
+  const soleYear = (make: string, model: string): string => {
+    const years = yearsFor(make, model);
+    return years.length === 1 ? years[0] : "";
+  };
   const [vehicle, setVehicle] = useState<Vehicle>(emptyVehicle());
   const [zip, setZip] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -259,7 +285,7 @@ export function IntakeFilter({ makeModelOptions }: { makeModelOptions?: MakeMode
 
   const zipTouched = zip.length > 0;
   const zipValid = /^\d{5}$/.test(zip);
-  const vehicleComplete = Boolean(vehicle.make && vehicle.model);
+  const vehicleComplete = Boolean(vehicle.make && vehicle.model && vehicle.modelYear);
   const canSubmit = vehicleComplete && zipValid;
 
   const [matchCount, setMatchCount] = useState<number | null>(null);
@@ -306,7 +332,15 @@ export function IntakeFilter({ makeModelOptions }: { makeModelOptions?: MakeMode
     setSaving(true);
     setSaveError(null);
 
-    const result = await saveIntakeSearch(vehicleToSave, zipToSave, matchmakerToSave);
+    const result = await saveIntakeSearch(
+      {
+        make: vehicleToSave.make,
+        model: vehicleToSave.model,
+        modelYear: vehicleToSave.modelYear ? Number(vehicleToSave.modelYear) : null,
+      },
+      zipToSave,
+      matchmakerToSave
+    );
 
     setSaving(false);
 
@@ -396,12 +430,27 @@ export function IntakeFilter({ makeModelOptions }: { makeModelOptions?: MakeMode
     const prefill = readMatchmakerPrefill();
     if (!prefill) return;
 
-    setVehicle({ make: prefill.make, model: prefill.model });
+    // The card's year PRE-SELECTS the now-required year field; it never
+    // commits it. The select stays visible and editable, and nothing here
+    // saves -- the customer still has to press Continue, and performSave
+    // only ever receives the year through the visible form state. A year
+    // the live dataset no longer offers for this make/model is dropped
+    // rather than carried, leaving a real choice to make.
+    const years = yearsFor(prefill.make, prefill.model);
+    const carriedYear =
+      prefill.matchmakerModelYear != null && years.includes(String(prefill.matchmakerModelYear))
+        ? String(prefill.matchmakerModelYear)
+        : soleYear(prefill.make, prefill.model);
+    setVehicle({ make: prefill.make, model: prefill.model, modelYear: carriedYear });
     setMatchmakerContext({
       priceCents: prefill.matchmakerPriceCents,
       modelYear: prefill.matchmakerModelYear,
     });
     clearMatchmakerPrefill();
+    // Mount-only by design (prefillChecked guards it too): the pre-fill is
+    // read once and cleared. yearsFor/soleYear close over server-rendered
+    // props that do not change for the life of the page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Resume-after-email-confirmation: if a pending intake (vehicle-based or
@@ -424,9 +473,19 @@ export function IntakeFilter({ makeModelOptions }: { makeModelOptions?: MakeMode
         return;
       }
       if (pending) {
-        setVehicle(pending.vehicle);
+        // Normalised, not a behaviour change: a stash written before the
+        // year field existed (TTL 1 hour) has no modelYear, which would
+        // otherwise leave the select uncontrolled. Such a resume reaches
+        // saveIntakeSearch with no year and is refused with a visible
+        // error, the form restored -- it never commits a year on its own.
+        const resumed: Vehicle = {
+          make: pending.vehicle.make,
+          model: pending.vehicle.model,
+          modelYear: pending.vehicle.modelYear ?? "",
+        };
+        setVehicle(resumed);
         setZip(pending.zip);
-        performSave(pending.vehicle, pending.zip);
+        performSave(resumed, pending.zip);
       }
     });
   }, []);
@@ -476,7 +535,7 @@ export function IntakeFilter({ makeModelOptions }: { makeModelOptions?: MakeMode
             </h2>
             <div className="mt-6 rounded-xl border border-white/10 bg-white/[0.04] p-4 text-left text-sm text-zinc-300">
               <span className="font-semibold text-white">
-                {vehicle.make} {vehicle.model}
+                {vehicle.modelYear} {vehicle.make} {vehicle.model}
               </span>
             </div>
             <p className="mt-6 text-lg font-semibold text-white">
@@ -566,18 +625,20 @@ export function IntakeFilter({ makeModelOptions }: { makeModelOptions?: MakeMode
                 localStorage key after signing in, or simply still on screen
                 when a new batch is promoted -- and silently dropping it
                 would blank their selection without explanation. */}
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <div className="mt-6 grid gap-4 sm:grid-cols-3">
               <SelectField
                 label="Make"
                 value={vehicle.make}
-                onChange={(value) => updateVehicle({ make: value, model: "" })}
+                onChange={(value) => updateVehicle({ make: value, model: "", modelYear: "" })}
                 options={withCurrent(Object.keys(baseOptions), vehicle.make)}
                 placeholder="Select make"
               />
               <SelectField
                 label="Model"
                 value={vehicle.model}
-                onChange={(value) => updateVehicle({ model: value })}
+                onChange={(value) =>
+                  updateVehicle({ model: value, modelYear: soleYear(vehicle.make, value) })
+                }
                 options={
                   vehicle.make
                     ? withCurrent(baseOptions[vehicle.make] ?? [], vehicle.model)
@@ -585,6 +646,18 @@ export function IntakeFilter({ makeModelOptions }: { makeModelOptions?: MakeMode
                 }
                 placeholder={vehicle.make ? "Select model" : "Choose a make first"}
                 disabled={!vehicle.make}
+              />
+              <SelectField
+                label="Model year"
+                value={vehicle.modelYear}
+                onChange={(value) => updateVehicle({ modelYear: value })}
+                options={
+                  vehicle.model
+                    ? withCurrent(yearsFor(vehicle.make, vehicle.model), vehicle.modelYear)
+                    : []
+                }
+                placeholder={vehicle.model ? "Select year" : "Choose a model first"}
+                disabled={!vehicle.model}
               />
             </div>
 
@@ -648,7 +721,7 @@ export function IntakeFilter({ makeModelOptions }: { makeModelOptions?: MakeMode
           </div>
           {!canSubmit && (
             <p className="mt-3 text-right text-xs text-zinc-500">
-              Select a make and model and enter a valid zip code to continue.
+              Select a make, model, and model year and enter a valid zip code to continue.
             </p>
           )}
           {saveError && (

@@ -6,7 +6,7 @@ import { Guarantee } from "@/components/guarantee";
 import { Hero } from "@/components/hero";
 import { HowItWorks } from "@/components/how-it-works";
 import { IntakeFilter } from "@/components/intake-filter";
-import { getIntakeMakeModelOptions } from "@/lib/intake-vehicle-options";
+import { getIntakeMakeModelOptions, getIntakeModelYearOptions } from "@/lib/intake-vehicle-options";
 import { PreLaunchBanner } from "@/components/pre-launch-banner";
 import { WhyLevr } from "@/components/why-levr";
 
@@ -14,13 +14,17 @@ import { WhyLevr } from "@/components/why-levr";
 // vehicle dataset server-side, then passed down -- same server-fetch-then-
 // props shape /matchmaker/page.tsx already uses for the same data source.
 export default async function Home() {
-  const makeModelOptions = await getIntakeMakeModelOptions();
+  // Both read the same cached scan of the live batch -- one query, not two.
+  const [makeModelOptions, modelYearOptions] = await Promise.all([
+    getIntakeMakeModelOptions(),
+    getIntakeModelYearOptions(),
+  ]);
   return (
     <>
       <PreLaunchBanner />
       <Hero />
       <HowItWorks />
-      <IntakeFilter makeModelOptions={makeModelOptions} />
+      <IntakeFilter makeModelOptions={makeModelOptions} modelYearOptions={modelYearOptions} />
       <Guarantee />
       <WhyLevr />
       <ComparisonTable />

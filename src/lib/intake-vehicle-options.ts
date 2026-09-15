@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -23,9 +24,33 @@ import { createAdminClient } from "@/lib/supabase/admin";
  */
 export type MakeModelOptions = Record<string, string[]>;
 
+/**
+ * make -> model -> the model years the live dataset offers, ascending.
+ *
+ * A SEPARATE shape rather than widening MakeModelOptions, on purpose:
+ * MakeModelOptions is consumed by six components and two server files
+ * (intake, both finalize surfaces, /account, the agent forms), none of
+ * which need years yet. Reshaping it would ripple through every one of
+ * them for a feature that today only intake uses.
+ *
+ * The researched dataset, not synced inventory, is the source -- the same
+ * answer at every touchpoint. Inventory only exists for make/models
+ * someone has already paid for, so an inventory-driven picker would offer
+ * nothing for ~98% of models at intake.
+ */
+export type ModelYearOptions = Record<string, Record<string, number[]>>;
+
 const PAGE_SIZE = 1000;
 
-export async function getIntakeMakeModelOptions(): Promise<MakeModelOptions> {
+type LiveRow = { make: string; model: string; model_year: number | null };
+
+/**
+ * The one scan both lookups share. React cache(), so a request that needs
+ * make/models AND years (the intake page) or re-validates a year (the save
+ * action) reads the live batch once, not once per lookup. No arguments by
+ * design -- cache() memoises on argument identity.
+ */
+const loadLiveVehicleRows = cache(async (): Promise<LiveRow[]> => {
   const admin = createAdminClient();
 
   const { data: liveBatch, error: batchError } = await admin
@@ -33,12 +58,12 @@ export async function getIntakeMakeModelOptions(): Promise<MakeModelOptions> {
     .select("id")
     .eq("is_live", true)
     .maybeSingle();
-  if (batchError) throw new Error(`getIntakeMakeModelOptions: ${batchError.message}`);
+  if (batchError) throw new Error(`loadLiveVehicleRows: ${batchError.message}`);
   // No promoted batch is a real, if unusual, state (nothing imported yet).
   // Callers fall back to the static list rather than rendering empty selects.
-  if (!liveBatch) return {};
+  if (!liveBatch) return [];
 
-  const pairs: { make: string; model: string }[] = [];
+  const rows: LiveRow[] = [];
   let from = 0;
   while (true) {
     // .order("id") for the same reason getVehiclesForBatch needs it:
@@ -47,22 +72,27 @@ export async function getIntakeMakeModelOptions(): Promise<MakeModelOptions> {
     // consecutive pages could otherwise overlap or leave gaps.
     const { data, error } = await admin
       .from("vehicles")
-      .select("make, model")
+      .select("make, model, model_year")
       .eq("dataset_batch_id", liveBatch.id)
       .order("id")
       .range(from, from + PAGE_SIZE - 1);
-    if (error) throw new Error(`getIntakeMakeModelOptions: ${error.message}`);
+    if (error) throw new Error(`loadLiveVehicleRows: ${error.message}`);
     if (!data || data.length === 0) break;
-    pairs.push(...(data as { make: string; model: string }[]));
+    rows.push(...(data as LiveRow[]));
     if (data.length < PAGE_SIZE) break;
     from += PAGE_SIZE;
   }
+  return rows;
+});
+
+export async function getIntakeMakeModelOptions(): Promise<MakeModelOptions> {
+  const rows = await loadLiveVehicleRows();
 
   // The vehicles table is one row per make/model/trim/model_year, so the
   // same make/model repeats many times over -- dedupe to the distinct
   // pairs the selects actually need.
   const byMake = new Map<string, Set<string>>();
-  for (const { make, model } of pairs) {
+  for (const { make, model } of rows) {
     if (!make || !model) continue;
     const models = byMake.get(make) ?? new Set<string>();
     models.add(model);
@@ -74,4 +104,43 @@ export async function getIntakeMakeModelOptions(): Promise<MakeModelOptions> {
     options[make] = [...byMake.get(make)!].sort((a, b) => a.localeCompare(b));
   }
   return options;
+}
+
+export async function getIntakeModelYearOptions(): Promise<ModelYearOptions> {
+  const rows = await loadLiveVehicleRows();
+
+  const years = new Map<string, Map<string, Set<number>>>();
+  for (const { make, model, model_year } of rows) {
+    if (!make || !model || model_year == null) continue;
+    const models = years.get(make) ?? new Map<string, Set<number>>();
+    const set = models.get(model) ?? new Set<number>();
+    set.add(model_year);
+    models.set(model, set);
+    years.set(make, models);
+  }
+
+  const options: ModelYearOptions = {};
+  for (const [make, models] of years) {
+    options[make] = {};
+    for (const [model, set] of models) {
+      options[make][model] = [...set].sort((a, b) => a - b);
+    }
+  }
+  return options;
+}
+
+/**
+ * Whether the live dataset genuinely offers this make/model in this year.
+ *
+ * The server-side gate for a committed year. The intake select only ever
+ * offers real years, but a stale tab or a crafted request can send
+ * anything, and this value decides which car an agent negotiates for.
+ */
+export async function isOfferedModelYear(
+  make: string,
+  model: string,
+  modelYear: number,
+): Promise<boolean> {
+  const options = await getIntakeModelYearOptions();
+  return options[make]?.[model]?.includes(modelYear) ?? false;
 }

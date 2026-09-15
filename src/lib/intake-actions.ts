@@ -1,10 +1,18 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { isOfferedModelYear } from "@/lib/intake-vehicle-options";
 
 export type IntakeVehicle = {
   make: string;
   model: string;
+  /**
+   * The model year the customer commits to (customer_searches.model_year).
+   * Typed nullable only so a missing year reaches the validation below and
+   * gets a clear error, rather than being unrepresentable: a resumed
+   * pre-sign-in stash written before this field existed carries none.
+   */
+  modelYear: number | null;
 };
 
 export type SaveIntakeResult =
@@ -51,12 +59,27 @@ export async function saveIntakeSearch(
     return { ok: false, error: "Not signed in.", requiresAuth: true };
   }
 
+  // Model year is a hard commitment from this point on (2026-09-14), so it
+  // is re-checked here against the live dataset rather than trusted from
+  // the select: this value decides which car an agent negotiates for.
+  // Checked AFTER auth on purpose -- a signed-out customer must still be
+  // routed to the auth gate with their form intact, not shown an error.
+  const modelYear = vehicle.modelYear;
+  if (
+    modelYear == null ||
+    !Number.isInteger(modelYear) ||
+    !(await isOfferedModelYear(vehicle.make, vehicle.model, modelYear))
+  ) {
+    return { ok: false, error: "Choose a model year for this vehicle." };
+  }
+
   const { data, error } = await supabase
     .from("customer_searches")
     .insert({
       customer_id: user.id,
       make: vehicle.make,
       model: vehicle.model,
+      model_year: modelYear,
       zip: zip || null,
       // Explicit nulls rather than omitted keys, so a search that did not
       // come from a Matchmaker card is recorded as definitively having no
