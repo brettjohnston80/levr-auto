@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { getAuthorizedAgent } from "./agent-auth";
 import { createAdminClient } from "./supabase/admin";
+import { isOfferedModelYear } from "./intake-vehicle-options";
+import { syncListingsForMakeModel } from "./marketcheck-sync";
 
 export interface SwitchSearchResult {
   ok: boolean;
@@ -39,6 +41,11 @@ export interface SwitchSearchResult {
  * (defense in depth) — the RPC inserts the agent_bypass_log row in the same
  * transaction as the switch, so a failed audit write rolls back the switch
  * too rather than succeeding unlogged.
+ *
+ * Model year required and the vehicle dataset-validated (2026-09-14). The
+ * form used to post free-text make/model that nothing checked, so an agent
+ * typo became a search for a car that does not exist; and it created every
+ * new row with no committed year.
  */
 export async function switchCustomerSearch(formData: FormData): Promise<SwitchSearchResult> {
   const agent = await getAuthorizedAgent();
@@ -49,11 +56,19 @@ export async function switchCustomerSearch(formData: FormData): Promise<SwitchSe
   const oldSearchId = formData.get("old_search_id")?.toString();
   const newMake = formData.get("new_make")?.toString().trim();
   const newModel = formData.get("new_model")?.toString().trim();
+  const rawYear = formData.get("new_model_year")?.toString().trim();
+  const newModelYear = rawYear ? Number(rawYear) : null;
   const reasonCategory = formData.get("reason_category")?.toString();
   const notes = formData.get("notes")?.toString().trim() || null;
 
   if (!oldSearchId || !newMake || !newModel) {
     return { ok: false, error: "Make and model are required." };
+  }
+  if (newModelYear == null || !Number.isInteger(newModelYear)) {
+    return { ok: false, error: "Choose a model year for this vehicle." };
+  }
+  if (!(await isOfferedModelYear(newMake, newModel, newModelYear))) {
+    return { ok: false, error: "Pick a make, model, and model year from the list." };
   }
   if (!reasonCategory) {
     return { ok: false, error: "A reason is required." };
@@ -78,6 +93,7 @@ export async function switchCustomerSearch(formData: FormData): Promise<SwitchSe
     p_old_search_id: oldSearchId,
     p_new_make: newMake,
     p_new_model: newModel,
+    p_new_model_year: newModelYear,
     p_paid_at: new Date().toISOString(),
     p_agent_id: agent.id,
     p_reason_category: reasonCategory,
@@ -105,6 +121,18 @@ export async function switchCustomerSearch(formData: FormData): Promise<SwitchSe
     console.error(
       `switchCustomerSearch: switch succeeded but failed to set free_switch_used_at for customer ${oldSearch.customer_id}:`,
       freeSwitchError.message
+    );
+  }
+
+  // Real inventory for the new vehicle, same non-fatal pattern as the
+  // payment webhook -- otherwise the switched search's trim step reads a
+  // make/model we never fetched as having zero stock.
+  try {
+    await syncListingsForMakeModel(newMake, newModel);
+  } catch (syncError) {
+    console.error(
+      `switchCustomerSearch: on-demand MarketCheck sync failed for ${newMake} ${newModel}:`,
+      syncError instanceof Error ? syncError.message : syncError
     );
   }
 

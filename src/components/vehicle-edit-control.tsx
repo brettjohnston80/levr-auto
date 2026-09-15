@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { updateSearchVehicle } from "@/lib/finalize-actions";
 import type { MakeModelOptions, ModelYearOptions } from "@/lib/intake-vehicle-options";
+import { soleYearForModel, yearsForModel } from "@/lib/model-year-select";
 
 /**
  * "That's not the car I meant" -- correcting make/model/year on the
@@ -41,12 +42,8 @@ export function VehicleEditControl({
   makeModelOptions: MakeModelOptions;
   modelYearOptions: ModelYearOptions;
 }) {
-  const yearsFor = (mk: string, md: string): string[] =>
-    (modelYearOptions[mk]?.[md] ?? []).map(String);
-  const soleYear = (mk: string, md: string): string => {
-    const years = yearsFor(mk, md);
-    return years.length === 1 ? years[0] : "";
-  };
+  const yearsFor = (mk: string, md: string) => yearsForModel(modelYearOptions, mk, md);
+  const soleYear = (mk: string, md: string) => soleYearForModel(modelYearOptions, mk, md);
   const committedYear = modelYear != null ? String(modelYear) : "";
   const initialYear = committedYear || soleYear(make, model);
 

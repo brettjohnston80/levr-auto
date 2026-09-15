@@ -4,6 +4,8 @@ import { useState } from "react";
 import { COLORS, OPTIONS } from "@/lib/vehicle-data";
 import { finalizeSearchByAgent } from "@/lib/outreach-actions";
 import type { TrimOption } from "@/lib/finalize-trims";
+import type { ModelYearOptions } from "@/lib/intake-vehicle-options";
+import { soleYearForModel, yearsForModel } from "@/lib/model-year-select";
 
 function toggleInArray(list: string[], value: string): string[] {
   return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
@@ -26,6 +28,7 @@ export function AgentFinalizeSearchForm({
   model,
   trimOptions,
   modelYear,
+  modelYearOptions,
 }: {
   searchId: string;
   make: string;
@@ -36,7 +39,15 @@ export function AgentFinalizeSearchForm({
    * it when set (same shared filter as the customer's /finalize page).
    */
   modelYear: number | null;
+  /**
+   * Only used when modelYear is null -- a search predating the required
+   * year, which the agent must commit here before finalizing.
+   */
+  modelYearOptions: ModelYearOptions;
 }) {
+  const needsYear = modelYear == null;
+  const yearChoices = yearsForModel(modelYearOptions, make, model);
+  const [year, setYear] = useState(() => (needsYear ? soleYearForModel(modelYearOptions, make, model) : ""));
   const [trim, setTrim] = useState("");
   const [colors, setColors] = useState<string[]>([]);
   const [options, setOptions] = useState<string[]>([]);
@@ -47,7 +58,12 @@ export function AgentFinalizeSearchForm({
   async function handleSubmit() {
     setSaving(true);
     setError(null);
-    const result = await finalizeSearchByAgent(searchId, { trim, colors, requiredOptions: options });
+    const result = await finalizeSearchByAgent(searchId, {
+      trim,
+      colors,
+      requiredOptions: options,
+      modelYear: needsYear && year ? Number(year) : null,
+    });
     setSaving(false);
     if (!result.ok) {
       setError(result.error ?? "Failed to finalize.");
@@ -66,6 +82,28 @@ export function AgentFinalizeSearchForm({
 
   return (
     <div className="mt-3 space-y-3 rounded-xl border border-white/10 bg-black/20 p-4">
+      {needsYear && (
+        // Only for a search created before year was required. One that
+        // already has a year keeps it -- finalizing never changes the car.
+        <div>
+          <label className="text-xs font-semibold text-zinc-400 uppercase">Model year</label>
+          <select
+            value={year}
+            onChange={(e) => setYear(e.target.value)}
+            className="mt-1.5 w-full rounded-lg border border-white/10 bg-zinc-900/80 px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none"
+          >
+            <option value="">Select year</option>
+            {yearChoices.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-amber-400">
+            This search has no committed model year yet — confirm it with the customer before finalizing.
+          </p>
+        </div>
+      )}
       <div>
         <label className="text-xs font-semibold text-zinc-400 uppercase">Trim</label>
         <select

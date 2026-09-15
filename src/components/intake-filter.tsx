@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MAKES_AND_MODELS as FALLBACK_MAKES_AND_MODELS, FLAT_PRICE, withCurrent } from "@/lib/vehicle-data";
 import type { MakeModelOptions, ModelYearOptions } from "@/lib/intake-vehicle-options";
+import { soleYearForModel, yearsForModel } from "@/lib/model-year-select";
 import { countNearbyInventory } from "@/lib/inventory-count";
 import { INVENTORY_RADIUS_MILES } from "@/lib/inventory-radius";
 import { createClient } from "@/lib/supabase/client";
@@ -254,16 +255,9 @@ export function IntakeFilter({
   // Years come from the same live dataset. The static fallback has no
   // years at all, so with no promoted batch nothing can be committed --
   // correct, since the server would refuse an unvalidatable year anyway.
-  const yearsFor = (make: string, model: string): string[] =>
-    (modelYearOptions?.[make]?.[model] ?? []).map(String);
-  // A make/model offered in exactly one year pre-selects it: the select is
-  // still visible and shows the year being committed to, there is simply
-  // nothing to choose between. Two or more years always start blank, so a
-  // real choice is always made by the customer.
-  const soleYear = (make: string, model: string): string => {
-    const years = yearsFor(make, model);
-    return years.length === 1 ? years[0] : "";
-  };
+  // Selection rules (incl. single-year pre-select) live in model-year-select.
+  const yearsFor = (make: string, model: string) => yearsForModel(modelYearOptions, make, model);
+  const soleYear = (make: string, model: string) => soleYearForModel(modelYearOptions, make, model);
   const [vehicle, setVehicle] = useState<Vehicle>(emptyVehicle());
   const [zip, setZip] = useState("");
   const [submitted, setSubmitted] = useState(false);

@@ -6,6 +6,7 @@ import { getAuthorizedAgent } from "./agent-auth";
 import { createAdminClient } from "./supabase/admin";
 import { getDocumentStatus } from "./pandadoc/client";
 import { syncListingsForMakeModel } from "./marketcheck-sync";
+import { isOfferedModelYear } from "./intake-vehicle-options";
 import { logNotificationEvent } from "./notifications";
 
 export interface LogOfferResult {
@@ -638,7 +639,18 @@ export interface FinalizeByAgentResult {
  */
 export async function finalizeSearchByAgent(
   searchId: string,
-  details: { trim: string; colors: string[]; requiredOptions: string[] }
+  details: {
+    trim: string;
+    colors: string[];
+    requiredOptions: string[];
+    /**
+     * Only read when the search has NO committed year yet (a row predating
+     * 2026-09-14). A search that already has one keeps it -- finalizing is
+     * not a vehicle change, and this action must not become a back door
+     * around the customer's own commitment.
+     */
+    modelYear?: number | null;
+  }
 ): Promise<FinalizeByAgentResult> {
   const agent = await getAuthorizedAgent();
   if (!agent) {
@@ -646,6 +658,34 @@ export async function finalizeSearchByAgent(
   }
 
   const admin = createAdminClient();
+
+  const { data: search, error: fetchError } = await admin
+    .from("customer_searches")
+    .select("make, model, model_year, search_status")
+    .eq("id", searchId)
+    .maybeSingle();
+  if (fetchError || !search) {
+    return { ok: false, error: "That search no longer exists." };
+  }
+  if (search.search_status !== "awaiting_finalization") {
+    return { ok: false, error: "This search is no longer awaiting finalization." };
+  }
+
+  // Year is required from 2026-09-14. A search that predates that has none,
+  // and an agent finalizing it is the last chance to commit one before the
+  // search runs -- so the agent must pick it here, validated against the
+  // live dataset exactly as every customer surface is.
+  let yearToWrite: number | null = null;
+  if (search.model_year == null) {
+    const year = details.modelYear;
+    if (year == null || !Number.isInteger(year)) {
+      return { ok: false, error: "Choose a model year for this vehicle." };
+    }
+    if (!search.make || !search.model || !(await isOfferedModelYear(search.make, search.model, year))) {
+      return { ok: false, error: "Pick a make, model, and model year from the list." };
+    }
+    yearToWrite = year;
+  }
 
   const { data: updated, error } = await admin
     .from("customer_searches")
@@ -655,6 +695,7 @@ export async function finalizeSearchByAgent(
       required_options: details.requiredOptions,
       finalized_at: new Date().toISOString(),
       search_status: "pending_refinement",
+      ...(yearToWrite != null ? { model_year: yearToWrite } : {}),
     })
     .eq("id", searchId)
     .eq("search_status", "awaiting_finalization")
@@ -693,6 +734,7 @@ export async function finalizeUndecidedSearch(
   input: {
     make: string;
     model: string;
+    modelYear: number | null;
     trim: string;
     colors: string[];
     requiredOptions: string[];
@@ -703,13 +745,31 @@ export async function finalizeUndecidedSearch(
     return { ok: false, error: "Not authorized." };
   }
 
+  // Make, model AND year validated together against the live dataset
+  // (2026-09-14). Before this the server accepted whatever strings the form
+  // posted -- the dropdowns only constrained the browser, so a stale or
+  // crafted request could create a search for a vehicle that does not
+  // exist -- and nothing ever set a year.
+  const make = input.make?.trim() ?? "";
+  const model = input.model?.trim() ?? "";
+  if (!make || !model) {
+    return { ok: false, error: "Make and model are both required." };
+  }
+  if (input.modelYear == null || !Number.isInteger(input.modelYear)) {
+    return { ok: false, error: "Choose a model year for this vehicle." };
+  }
+  if (!(await isOfferedModelYear(make, model, input.modelYear))) {
+    return { ok: false, error: "Pick a make, model, and model year from the list." };
+  }
+
   const admin = createAdminClient();
 
-  const { error } = await admin
+  const { data: updated, error } = await admin
     .from("customer_searches")
     .update({
-      make: input.make,
-      model: input.model,
+      make,
+      model,
+      model_year: input.modelYear,
       trim: input.trim,
       colors: input.colors,
       required_options: input.requiredOptions,
@@ -717,19 +777,29 @@ export async function finalizeUndecidedSearch(
       search_status: "pending_refinement",
     })
     .eq("id", searchId)
-    .is("make", null); // guard: only ever applies to a genuinely undecided row
+    .is("make", null) // guard: only ever applies to a genuinely undecided row
+    .select("id");
 
   if (error) {
     return { ok: false, error: `Failed to save: ${error.message}` };
+  }
+  // The guard above makes a stale form a SILENT no-op: zero rows match, no
+  // error is raised, and this used to report success anyway -- telling an
+  // agent a vehicle was saved when nothing changed. Checked explicitly now.
+  if (!updated || updated.length === 0) {
+    return {
+      ok: false,
+      error: "Nothing was saved — this search already has a vehicle or no longer exists. Refresh the queue.",
+    };
   }
 
   // Same on-demand sync the webhook normally does at payment time for a
   // known make/model -- this is the first point real inventory data is
   // possible for this search.
   try {
-    await syncListingsForMakeModel(input.make, input.model);
+    await syncListingsForMakeModel(make, model);
   } catch (syncError) {
-    console.error(`finalizeUndecidedSearch: sync failed for ${input.make} ${input.model}:`, syncError);
+    console.error(`finalizeUndecidedSearch: sync failed for ${make} ${model}:`, syncError);
   }
 
   revalidatePath("/internal/outreach");

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getIntakeModelYearOptions } from "@/lib/intake-vehicle-options";
 import { TEST_EMAIL_SUFFIX, isTestEmail } from "@/lib/test-accounts";
 
 // Durable seeding for the external tester program.
@@ -157,15 +158,19 @@ async function seedState(
   customerId: string,
   state: State,
   make: string,
-  model: string
+  model: string,
+  modelYear: number
 ): Promise<Record<string, unknown>> {
-  const base = { customer_id: customerId, make, model, zip: DEFAULT_ZIP };
+  // model_year on every seeded search (2026-09-14): a year is required for
+  // real customers, so a tester seeded without one would be testing a state
+  // no real customer can reach.
+  const base = { customer_id: customerId, make, model, model_year: modelYear, zip: DEFAULT_ZIP };
 
   const insertSearch = async (extra: Record<string, unknown>) => {
     const { data, error } = await admin
       .from("customer_searches")
       .insert({ ...base, ...extra })
-      .select("id, search_status, paid_at, finalized_at, solidified_at, paused_at, purchased_at")
+      .select("id, make, model, model_year, search_status, paid_at, finalized_at, solidified_at, paused_at, purchased_at")
       .single();
     if (error) throw new Error(`customer_searches insert failed: ${error.message}`);
     return data;
@@ -343,6 +348,7 @@ export async function POST(req: NextRequest) {
     state?: string;
     make?: string;
     model?: string;
+    model_year?: number;
     reset?: boolean;
   };
   const email = (body.email ?? "").trim();
@@ -378,6 +384,39 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "resolved account is not a test account" }, { status: 400 });
   }
 
+  // Resolve the vehicle BEFORE resetting: a bad make/model/year must be
+  // refused without wiping whatever state the tester account is in now.
+  // Same live dataset every real surface validates against. Never guesses a
+  // year for a two-year model -- the caller says which one.
+  const make = body.make ?? DEFAULT_MAKE;
+  const model = body.model ?? DEFAULT_MODEL;
+  let modelYear: number | null = null;
+  if (!(body.reset && !body.state)) {
+    const offered = (await getIntakeModelYearOptions())[make]?.[model] ?? [];
+    if (offered.length === 0) {
+      return NextResponse.json(
+        { error: `${make} ${model} is not in the live vehicle dataset` },
+        { status: 400 }
+      );
+    }
+    if (body.model_year != null) {
+      if (!offered.includes(body.model_year)) {
+        return NextResponse.json(
+          { error: `model_year ${body.model_year} is not offered for ${make} ${model}`, offered },
+          { status: 400 }
+        );
+      }
+      modelYear = body.model_year;
+    } else if (offered.length === 1) {
+      modelYear = offered[0];
+    } else {
+      return NextResponse.json(
+        { error: `${make} ${model} is offered in more than one model year -- pass model_year`, offered },
+        { status: 400 }
+      );
+    }
+  }
+
   const resetErrors = await resetAccount(admin, customer.id as string);
   if (resetErrors.length > 0) {
     return NextResponse.json({ error: "reset failed", details: resetErrors }, { status: 500 });
@@ -401,8 +440,9 @@ export async function POST(req: NextRequest) {
       admin,
       customer.id as string,
       state,
-      body.make ?? DEFAULT_MAKE,
-      body.model ?? DEFAULT_MODEL
+      make,
+      model,
+      modelYear as number
     );
     return NextResponse.json({ ok: true, email, state, created });
   } catch (e) {

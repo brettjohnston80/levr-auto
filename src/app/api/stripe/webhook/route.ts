@@ -162,6 +162,19 @@ async function handleSwitchFeePayment(session: Stripe.Checkout.Session): Promise
   const oldSearchId = session.metadata?.old_search_id;
   const newMake = session.metadata?.new_make;
   const newModel = session.metadata?.new_model;
+  // Model year rides in metadata from 2026-09-14 (validated before checkout,
+  // see createSwitchFeeCheckoutSession). A session created BEFORE that
+  // carries none -- and payment has already been taken, so this must not
+  // refuse. Such a switch completes with a null year, and the customer
+  // commits one on /finalize through the free vehicle-correction control.
+  const rawModelYear = session.metadata?.new_model_year;
+  const parsedModelYear = rawModelYear ? Number(rawModelYear) : NaN;
+  const newModelYear = Number.isInteger(parsedModelYear) ? parsedModelYear : null;
+  if (newModelYear == null) {
+    console.warn(
+      `Stripe webhook: switch_fee session ${session.id} has no usable new_model_year -- switching with a null year (pre-2026-09-14 session)`
+    );
+  }
 
   if (!oldSearchId || !newMake || !newModel) {
     console.error(
@@ -180,6 +193,7 @@ async function handleSwitchFeePayment(session: Stripe.Checkout.Session): Promise
     p_old_search_id: oldSearchId,
     p_new_make: newMake,
     p_new_model: newModel,
+    p_new_model_year: newModelYear,
     p_paid_at: new Date().toISOString(),
   });
 
@@ -215,10 +229,20 @@ async function handleSwitchFeePayment(session: Stripe.Checkout.Session): Promise
     }
   }
 
-  // No on-demand MarketCheck sync here yet, unlike the search_payment branch
-  // above -- deliberately deferred, see CLAUDE.md "Pricing Pivot Tracking",
-  // Step 3b: a freshly-switched search hits /finalize's existing empty-
-  // listings fallback until this is built.
+  // On-demand MarketCheck sync for the switched-to vehicle, same awaited,
+  // non-fatal pattern as the search_payment branch above. Previously
+  // deferred (CLAUDE.md "Pricing Pivot Tracking", Step 3b); built 2026-09-14
+  // because the zero-inventory block would otherwise read a make/model we
+  // never fetched as genuinely having no stock. Only reached on a fresh
+  // switch -- an idempotent redelivery returned above.
+  try {
+    await syncListingsForMakeModel(newMake, newModel);
+  } catch (syncError) {
+    console.error(
+      `Stripe webhook: on-demand MarketCheck sync failed for switch to ${newMake} ${newModel}:`,
+      syncError instanceof Error ? syncError.message : syncError
+    );
+  }
 
   return NextResponse.json({ received: true });
 }

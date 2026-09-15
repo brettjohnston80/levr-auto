@@ -7,7 +7,8 @@ import {
   OPTIONS,
   withCurrent,
 } from "@/lib/vehicle-data";
-import type { MakeModelOptions } from "@/lib/intake-vehicle-options";
+import type { MakeModelOptions, ModelYearOptions } from "@/lib/intake-vehicle-options";
+import { soleYearForModel, yearsForModel } from "@/lib/model-year-select";
 import { finalizeUndecidedSearch } from "@/lib/outreach-actions";
 
 function toggleInArray(list: string[], value: string): string[] {
@@ -24,9 +25,16 @@ function toggleInArray(list: string[], value: string): string[] {
 export function AgentUndecidedFinalizeForm({
   searchId,
   makeModelOptions,
+  modelYearOptions,
 }: {
   searchId: string;
   makeModelOptions?: MakeModelOptions;
+  /**
+   * Model year is required alongside make/model (2026-09-14), with the
+   * same selection rules as every customer surface. The server validates
+   * all three together against the live dataset.
+   */
+  modelYearOptions?: ModelYearOptions;
 }) {
   // Same live make/model source intake uses (2026-09-08), replacing the
   // static MAKES_AND_MODELS shortlist. Without this the agent picking a
@@ -40,6 +48,7 @@ export function AgentUndecidedFinalizeForm({
       : FALLBACK_MAKES_AND_MODELS;
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
+  const [modelYear, setModelYear] = useState("");
   const [trim, setTrim] = useState("");
   const [colors, setColors] = useState<string[]>([]);
   const [options, setOptions] = useState<string[]>([]);
@@ -52,9 +61,20 @@ export function AgentUndecidedFinalizeForm({
       setError("Make and model are both required.");
       return;
     }
+    if (!modelYear) {
+      setError("Choose a model year for this vehicle.");
+      return;
+    }
     setSaving(true);
     setError(null);
-    const result = await finalizeUndecidedSearch(searchId, { make, model, trim, colors, requiredOptions: options });
+    const result = await finalizeUndecidedSearch(searchId, {
+      make,
+      model,
+      modelYear: Number(modelYear),
+      trim,
+      colors,
+      requiredOptions: options,
+    });
     setSaving(false);
     if (!result.ok) {
       setError(result.error ?? "Failed to finalize.");
@@ -66,14 +86,14 @@ export function AgentUndecidedFinalizeForm({
   if (done) {
     return (
       <p className="mt-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-400">
-        Finalized — {make} {model} saved, and the customer&apos;s 24h edit window is now open.
+        Finalized — {modelYear} {make} {model} saved, and the customer&apos;s 24h edit window is now open.
       </p>
     );
   }
 
   return (
     <div className="mt-3 space-y-3 rounded-xl border border-white/10 bg-black/20 p-4">
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-3">
         <div>
           <label className="text-xs font-semibold text-zinc-400 uppercase">Make</label>
           <select
@@ -81,6 +101,7 @@ export function AgentUndecidedFinalizeForm({
             onChange={(e) => {
               setMake(e.target.value);
               setModel("");
+              setModelYear("");
             }}
             className="mt-1.5 w-full rounded-lg border border-white/10 bg-zinc-900/80 px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none"
           >
@@ -96,7 +117,10 @@ export function AgentUndecidedFinalizeForm({
           <label className="text-xs font-semibold text-zinc-400 uppercase">Model</label>
           <select
             value={model}
-            onChange={(e) => setModel(e.target.value)}
+            onChange={(e) => {
+              setModel(e.target.value);
+              setModelYear(soleYearForModel(modelYearOptions, make, e.target.value));
+            }}
             disabled={!make}
             className="mt-1.5 w-full rounded-lg border border-white/10 bg-zinc-900/80 px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
           >
@@ -104,6 +128,22 @@ export function AgentUndecidedFinalizeForm({
             {(make ? withCurrent(baseOptions[make] ?? [], model) : []).map((m) => (
               <option key={m} value={m}>
                 {m}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-zinc-400 uppercase">Model year</label>
+          <select
+            value={modelYear}
+            onChange={(e) => setModelYear(e.target.value)}
+            disabled={!model}
+            className="mt-1.5 w-full rounded-lg border border-white/10 bg-zinc-900/80 px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <option value="">{model ? "Select year" : "Choose a model first"}</option>
+            {yearsForModel(modelYearOptions, make, model).map((y) => (
+              <option key={y} value={y}>
+                {y}
               </option>
             ))}
           </select>

@@ -262,9 +262,14 @@ export default async function AccountPage() {
   // search can use it.
   // Years ride on the same cached scan as make/models, so needing both
   // still costs one read -- and still only when a search can use it.
+  // Widened 2026-09-14: the switch form now offers real dataset dropdowns
+  // too, so a switchable search needs the options just as an editable one
+  // does. Still skipped entirely when no search can use them.
   const [makeModelOptions, modelYearOptions]: [MakeModelOptions, ModelYearOptions] =
     searches.some(
-      (s) => s.searchStatus === "pending_refinement" && s.finalizedAt && s.make && s.model,
+      (s) =>
+        (s.searchStatus === "pending_refinement" && s.finalizedAt && s.make && s.model) ||
+        canSwitch(s),
     )
       ? await Promise.all([getIntakeMakeModelOptions(), getIntakeModelYearOptions()])
       : [{}, {}];
@@ -433,6 +438,8 @@ function SearchCard({
             make={search.make}
             model={search.model}
             switchCallAlreadyRequested={!!search.switchCallRequestedAt}
+            makeModelOptions={makeModelOptions}
+            modelYearOptions={modelYearOptions}
           />
         </div>
       )}

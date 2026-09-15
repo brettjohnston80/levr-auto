@@ -3,15 +3,38 @@
 import { useState, type FormEvent } from "react";
 import { switchCustomerSearch } from "@/lib/switch-actions";
 import { BYPASS_REASON_CATEGORIES } from "@/lib/agent-bypass-reasons";
+import type { MakeModelOptions, ModelYearOptions } from "@/lib/intake-vehicle-options";
+import { soleYearForModel, yearsForModel } from "@/lib/model-year-select";
 
-export function AgentSwitchSearchForm({ searchId }: { searchId: string }) {
+const selectClass =
+  "mt-1 w-full rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-40";
+
+export function AgentSwitchSearchForm({
+  searchId,
+  makeModelOptions,
+  modelYearOptions,
+}: {
+  searchId: string;
+  /**
+   * Same live dataset intake reads. Replaces two free-text boxes that
+   * nothing validated -- an agent typo used to become a search for a car
+   * that does not exist. The server re-checks make, model and year.
+   */
+  makeModelOptions: MakeModelOptions;
+  modelYearOptions: ModelYearOptions;
+}) {
   const [expanded, setExpanded] = useState(false);
   const [newMake, setNewMake] = useState("");
   const [newModel, setNewModel] = useState("");
+  const [newYear, setNewYear] = useState("");
   const [reasonCategory, setReasonCategory] = useState("");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const makes = Object.keys(makeModelOptions).sort((a, b) => a.localeCompare(b));
+  const models = makeModelOptions[newMake] ?? [];
+  const years = yearsForModel(modelYearOptions, newMake, newModel);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -22,6 +45,7 @@ export function AgentSwitchSearchForm({ searchId }: { searchId: string }) {
     formData.set("old_search_id", searchId);
     formData.set("new_make", newMake);
     formData.set("new_model", newModel);
+    formData.set("new_model_year", newYear);
     formData.set("reason_category", reasonCategory);
     formData.set("notes", notes);
 
@@ -37,6 +61,7 @@ export function AgentSwitchSearchForm({ searchId }: { searchId: string }) {
     setExpanded(false);
     setNewMake("");
     setNewModel("");
+    setNewYear("");
     setReasonCategory("");
     setNotes("");
   }
@@ -59,24 +84,63 @@ export function AgentSwitchSearchForm({ searchId }: { searchId: string }) {
         Use this after the customer requests a change (phone/email). This starts a new search and closes
         out the current one.
       </p>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid gap-3 sm:grid-cols-3">
         <div>
           <label className="block text-xs text-zinc-400">New make *</label>
-          <input
+          <select
             required
             value={newMake}
-            onChange={(e) => setNewMake(e.target.value)}
-            className="mt-1 w-full rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
-          />
+            onChange={(e) => {
+              setNewMake(e.target.value);
+              setNewModel("");
+              setNewYear("");
+            }}
+            className={selectClass}
+          >
+            <option value="">Select make</option>
+            {makes.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="block text-xs text-zinc-400">New model *</label>
-          <input
+          <select
             required
             value={newModel}
-            onChange={(e) => setNewModel(e.target.value)}
-            className="mt-1 w-full rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
-          />
+            disabled={!newMake}
+            onChange={(e) => {
+              setNewModel(e.target.value);
+              setNewYear(soleYearForModel(modelYearOptions, newMake, e.target.value));
+            }}
+            className={selectClass}
+          >
+            <option value="">{newMake ? "Select model" : "Choose a make first"}</option>
+            {models.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs text-zinc-400">New model year *</label>
+          <select
+            required
+            value={newYear}
+            disabled={!newModel}
+            onChange={(e) => setNewYear(e.target.value)}
+            className={selectClass}
+          >
+            <option value="">{newModel ? "Select year" : "Choose a model first"}</option>
+            {years.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 

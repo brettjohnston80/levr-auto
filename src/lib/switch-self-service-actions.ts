@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/stripe";
 import { EXTENSION_FEE } from "@/lib/vehicle-data";
+import { isOfferedModelYear } from "@/lib/intake-vehicle-options";
+import { syncListingsForMakeModel } from "@/lib/marketcheck-sync";
 
 export type SwitchActionResult = { ok: true } | { ok: false; error: string };
 
@@ -36,6 +38,37 @@ async function getOwnedSwitchableSearch(searchId: string) {
   }
 
   return { ok: true as const, userId: user.id, userEmail: user.email ?? null };
+}
+
+/**
+ * The switched-to vehicle, validated against the live dataset (2026-09-14).
+ *
+ * Before this, both switch actions accepted FREE TEXT -- make and model
+ * were only trimmed, never checked -- so a switch could create a search
+ * for a vehicle that does not exist ("Hondaa Civc"). The same gate intake
+ * and the free correction use now covers all three fields at once: a year
+ * is only ever offered for a make/model that exists. Returns the same
+ * approved wording those surfaces use.
+ */
+async function validateSwitchTarget(
+  newMake: string,
+  newModel: string,
+  newModelYear: number | null,
+): Promise<
+  { ok: true; make: string; model: string; modelYear: number } | { ok: false; error: string }
+> {
+  const make = newMake.trim();
+  const model = newModel.trim();
+  if (!make || !model) {
+    return { ok: false, error: "Make and model are required." };
+  }
+  if (newModelYear == null || !Number.isInteger(newModelYear)) {
+    return { ok: false, error: "Choose a model year for this vehicle." };
+  }
+  if (!(await isOfferedModelYear(make, model, newModelYear))) {
+    return { ok: false, error: "Pick a make, model, and model year from the list." };
+  }
+  return { ok: true, make, model, modelYear: newModelYear };
 }
 
 /**
@@ -113,16 +146,14 @@ export type ExecuteFreeSwitchResult = { ok: true; newSearchId: string } | { ok: 
 export async function executeFreeSwitch(
   searchId: string,
   newMake: string,
-  newModel: string
+  newModel: string,
+  newModelYear: number | null
 ): Promise<ExecuteFreeSwitchResult> {
   const check = await getOwnedSwitchableSearch(searchId);
   if (!check.ok) return check;
 
-  const trimmedMake = newMake.trim();
-  const trimmedModel = newModel.trim();
-  if (!trimmedMake || !trimmedModel) {
-    return { ok: false, error: "Make and model are required." };
-  }
+  const target = await validateSwitchTarget(newMake, newModel, newModelYear);
+  if (!target.ok) return target;
 
   const eligibility = await checkSwitchEligibility(searchId);
   if (!eligibility.ok) return eligibility;
@@ -134,8 +165,9 @@ export async function executeFreeSwitch(
 
   const { data: newSearch, error: rpcError } = await admin.rpc("switch_customer_search", {
     p_old_search_id: searchId,
-    p_new_make: trimmedMake,
-    p_new_model: trimmedModel,
+    p_new_make: target.make,
+    p_new_model: target.model,
+    p_new_model_year: target.modelYear,
     p_paid_at: new Date().toISOString(),
   });
 
@@ -148,6 +180,20 @@ export async function executeFreeSwitch(
     .update({ free_switch_used_at: new Date().toISOString() })
     .eq("id", check.userId)
     .is("free_switch_used_at", null);
+
+  // Real inventory for the new vehicle before the customer lands on
+  // /finalize -- the same call the $699 payment webhook makes. Without it a
+  // switched search reaches the trim step with no listings because none
+  // were ever fetched, which the zero-inventory block would misread as the
+  // model genuinely having no stock. Non-fatal: the switch has succeeded.
+  try {
+    await syncListingsForMakeModel(target.make, target.model);
+  } catch (syncError) {
+    console.error(
+      `executeFreeSwitch: on-demand MarketCheck sync failed for ${target.make} ${target.model}:`,
+      syncError instanceof Error ? syncError.message : syncError
+    );
+  }
 
   revalidatePath("/account");
   return { ok: true, newSearchId: newSearch.id };
@@ -171,25 +217,28 @@ export type CreateSwitchFeeCheckoutResult = { ok: true; url: string } | { ok: fa
  * concurrent tab already burned it), this rejects rather than charging
  * $100 for something that should be free.
  *
+ * The vehicle is validated HERE, before any money moves: once the webhook
+ * runs, payment has been taken and refusing is no longer an option.
+ *
  * metadata must exactly match what handleSwitchFeePayment (the Stripe
- * webhook) reads: type, old_search_id, new_make, new_model. customer_id is
- * an extra field the webhook itself doesn't read (it gets that from the
- * RPC's own return value) but /switch/success needs it for its own
- * ownership check, same pattern as payment-actions.ts's success page.
+ * webhook) reads: type, old_search_id, new_make, new_model, and
+ * new_model_year (added 2026-09-14; Stripe metadata values are strings).
+ * customer_id is an extra field the webhook itself doesn't read (it gets
+ * that from the RPC's own return value) but /switch/success needs it for
+ * its own ownership check, same pattern as payment-actions.ts's success
+ * page.
  */
 export async function createSwitchFeeCheckoutSession(
   searchId: string,
   newMake: string,
-  newModel: string
+  newModel: string,
+  newModelYear: number | null
 ): Promise<CreateSwitchFeeCheckoutResult> {
   const check = await getOwnedSwitchableSearch(searchId);
   if (!check.ok) return check;
 
-  const trimmedMake = newMake.trim();
-  const trimmedModel = newModel.trim();
-  if (!trimmedMake || !trimmedModel) {
-    return { ok: false, error: "Make and model are required." };
-  }
+  const target = await validateSwitchTarget(newMake, newModel, newModelYear);
+  if (!target.ok) return target;
 
   const eligibility = await checkSwitchEligibility(searchId);
   if (!eligibility.ok) return eligibility;
@@ -209,7 +258,7 @@ export async function createSwitchFeeCheckoutSession(
           unit_amount: EXTENSION_FEE * 100,
           product_data: {
             name: "LEVR Auto — Switch Fee",
-            description: `${trimmedMake} ${trimmedModel}`,
+            description: `${target.modelYear} ${target.make} ${target.model}`,
           },
         },
         quantity: 1,
@@ -219,8 +268,9 @@ export async function createSwitchFeeCheckoutSession(
       type: "switch_fee",
       customer_id: check.userId,
       old_search_id: searchId,
-      new_make: trimmedMake,
-      new_model: trimmedModel,
+      new_make: target.make,
+      new_model: target.model,
+      new_model_year: String(target.modelYear),
     },
     success_url: `${siteUrl}/switch/success?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${siteUrl}/account`,

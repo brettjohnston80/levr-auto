@@ -28,7 +28,7 @@ import { AgentCancellationResolutionForm } from "@/components/agent-cancellation
 import { AgentCancellationLookup } from "@/components/agent-cancellation-lookup";
 import { AgentRevertPurchasedLookup } from "@/components/agent-revert-purchased-lookup";
 import { AgentUndecidedFinalizeForm } from "@/components/agent-undecided-finalize-form";
-import { getIntakeMakeModelOptions } from "@/lib/intake-vehicle-options";
+import { getIntakeMakeModelOptions, getIntakeModelYearOptions } from "@/lib/intake-vehicle-options";
 
 export const metadata: Metadata = {
   title: "Outreach Queue — LEVR Auto Internal",
@@ -275,7 +275,12 @@ const NOTIFICATION_EVENT_LABELS: Record<string, string> = {
 export default async function OutreachQueuePage() {
   // Live make/model options for AgentUndecidedFinalizeForm, from the same
   // promoted vehicle dataset intake reads.
-  const makeModelOptions = await getIntakeMakeModelOptions();
+  // Years too (2026-09-14), for the switch and undecided-finalize forms --
+  // same cached scan, one read.
+  const [makeModelOptions, modelYearOptions] = await Promise.all([
+    getIntakeMakeModelOptions(),
+    getIntakeModelYearOptions(),
+  ]);
   const agent = await requireAgent();
   const [
     queue,
@@ -327,7 +332,11 @@ export default async function OutreachQueuePage() {
                     <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}<TestBadge isTest={search.isTest} /></span>
                   </div>
                   <p className="mt-1 text-xs text-zinc-500">Paid {formatDate(search.paidAt)}</p>
-                  <AgentUndecidedFinalizeForm searchId={search.id} makeModelOptions={makeModelOptions} />
+                  <AgentUndecidedFinalizeForm
+                    searchId={search.id}
+                    makeModelOptions={makeModelOptions}
+                    modelYearOptions={modelYearOptions}
+                  />
                 </div>
               ))}
             </div>
@@ -392,6 +401,7 @@ export default async function OutreachQueuePage() {
                     model={search.model}
                     trimOptions={search.trimOptions}
                     modelYear={search.modelYear}
+                    modelYearOptions={modelYearOptions}
                   />
                 </div>
               ))}
@@ -418,7 +428,11 @@ export default async function OutreachQueuePage() {
                   <p className="mt-1 text-xs text-zinc-500">
                     Requested {formatDate(search.switchCallRequestedAt)}
                   </p>
-                  <AgentSwitchSearchForm searchId={search.id} />
+                  <AgentSwitchSearchForm
+                    searchId={search.id}
+                    makeModelOptions={makeModelOptions}
+                    modelYearOptions={modelYearOptions}
+                  />
                 </div>
               ))}
             </div>
@@ -734,7 +748,11 @@ export default async function OutreachQueuePage() {
                   )}
 
                   <LogOfferForm searchId={search.id} listings={search.listings} />
-                  <AgentSwitchSearchForm searchId={search.id} />
+                  <AgentSwitchSearchForm
+                    searchId={search.id}
+                    makeModelOptions={makeModelOptions}
+                    modelYearOptions={modelYearOptions}
+                  />
                 </div>
               ))}
             </div>
