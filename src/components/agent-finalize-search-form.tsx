@@ -25,11 +25,17 @@ export function AgentFinalizeSearchForm({
   make,
   model,
   trimOptions,
+  modelYear,
 }: {
   searchId: string;
   make: string;
   model: string;
   trimOptions: TrimOption[];
+  /**
+   * The search's committed model year; trimOptions are already filtered to
+   * it when set (same shared filter as the customer's /finalize page).
+   */
+  modelYear: number | null;
 }) {
   const [trim, setTrim] = useState("");
   const [colors, setColors] = useState<string[]>([]);
@@ -70,12 +76,15 @@ export function AgentFinalizeSearchForm({
           <option value="">No preference — any trim</option>
           {trimOptions.map((opt) => (
             // A native <select> can only carry the trim string as its value,
-            // and that is what must be saved. Where a trim spans two model
-            // years the year is shown in the label so the agent can tell the
-            // two entries apart; both submit the same trim string, which is
-            // correct -- customer_searches stores trim, not year.
+            // and that is what must be saved. With a committed model year
+            // every option is that year, so the suffix is redundant and
+            // dropped -- the same rule the customer's trim list follows.
+            // Without one (a search predating the required year), a trim
+            // spanning two model years shows its year so the agent can tell
+            // the two entries apart; both submit the same trim string, which
+            // is correct -- customer_searches stores trim, not year.
             <option key={opt.id} value={opt.trim}>
-              {opt.trim}{opt.year != null ? ` ${opt.year}` : ""} ({formatCents(opt.minPriceCents)}
+              {opt.trim}{modelYear == null && opt.year != null ? ` ${opt.year}` : ""} ({formatCents(opt.minPriceCents)}
               {opt.maxPriceCents && opt.maxPriceCents !== opt.minPriceCents
                 ? `–${formatCents(opt.maxPriceCents)}`
                 : ""}

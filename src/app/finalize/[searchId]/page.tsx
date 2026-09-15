@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { buildTrimOptions } from "@/lib/finalize-trims";
+import { buildTrimOptions, filterListingsToCommittedYear } from "@/lib/finalize-trims";
 import { getConfiguratorQuestionsForTrims } from "@/lib/configurator-questions";
 import { hasAnyQuestion, type ConfiguratorQuestions } from "@/lib/configurator-matching";
 import { FinalizeChoice } from "@/components/finalize-choice";
@@ -103,7 +103,12 @@ export default async function FinalizePage({
     }
   }
 
-  const trimOptions = buildTrimOptions(listingsForModel);
+  // Scoped to the committed model year before anything is derived from it,
+  // so the trim list AND the configurator gate below both only ever see
+  // that year's inventory. Same shared filter the agent queue uses.
+  const committedYear = (search.model_year as number | null) ?? null;
+  const listingsForYear = filterListingsToCommittedYear(listingsForModel, committedYear);
+  const trimOptions = buildTrimOptions(listingsForYear);
 
   // Rich configurator questions, where this exact trim resolves to one
   // researched build. A miss -- no live batch, no configurator data for
@@ -124,7 +129,7 @@ export default async function FinalizePage({
     search.make,
     search.model,
     trimOptions,
-    listingsForModel,
+    listingsForYear,
   );
   const configuratorQuestions: Record<string, ConfiguratorQuestions> = {};
   for (const [optionId, result] of gating) {

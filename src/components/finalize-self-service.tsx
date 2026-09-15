@@ -68,12 +68,19 @@ export function FinalizeSelfService({
   model,
   trimOptions,
   configuratorQuestions,
+  modelYear,
 }: {
   searchId: string;
   make: string;
   model: string;
   trimOptions: TrimOption[];
   configuratorQuestions: Record<string, ConfiguratorQuestions>;
+  /**
+   * The search's committed model year. When set, trimOptions have already
+   * been filtered to it server-side, so every option shares this year.
+   * Null on searches predating the required year.
+   */
+  modelYear: number | null;
 }) {
   const [step, setStep] = useState<Step>("trim");
   // Trim is RANKED now, like every other category. Ids are TrimOption.id
@@ -242,9 +249,12 @@ export function FinalizeSelfService({
               items={trimOptions.map((opt) => ({
                 id: opt.id,
                 label: opt.trim,
-                // Year is shown only when known. Without it a trim spanning
-                // two model years renders as two identical-looking rows.
-                sublabel: opt.year != null ? String(opt.year) : null,
+                // Year is shown only when it distinguishes something. With a
+                // committed year every option is that year, so the suffix is
+                // redundant and dropped. Without one (a search predating the
+                // required year) a trim spanning two model years would
+                // otherwise render as two identical-looking rows.
+                sublabel: modelYear == null && opt.year != null ? String(opt.year) : null,
                 detail: (
                   <span className="mt-0.5 block text-xs text-zinc-500">
                     {formatCents(opt.minPriceCents)}

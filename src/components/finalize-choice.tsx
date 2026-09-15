@@ -62,6 +62,7 @@ export function FinalizeChoice({
         model={model}
         trimOptions={trimOptions}
         configuratorQuestions={configuratorQuestions}
+        modelYear={modelYear}
       />
     );
   }

@@ -68,3 +68,29 @@ export function buildTrimOptions(
     (a, b) => (a.minPriceCents ?? 0) - (b.minPriceCents ?? 0) || (a.year ?? 0) - (b.year ?? 0),
   );
 }
+
+/**
+ * Narrows listings to the model year the search committed to (2026-09-14).
+ *
+ * ⚠ THE ONE PLACE THIS FILTER LIVES, and both finalize surfaces must call
+ * it: the customer's /finalize page and the agent-facing finalization
+ * queue (outreach-queue.ts -> AgentFinalizeSearchForm). Filtering only one
+ * would make the two disagree about which trims the same search can have
+ * -- the exact hazard 5d195da closed when year was first threaded through.
+ *
+ * Applied to LISTINGS, before buildTrimOptions, which stays byte-for-byte
+ * unchanged. That is what preserves 5d195da's equivalence guarantee: for a
+ * committed year the output is exactly buildTrimOptions's own options for
+ * that year, in the same order, and for a make/model whose inventory is
+ * all one year it is identical to the unfiltered output.
+ *
+ * A null committed year -- undecided searches, and rows predating the
+ * required year -- returns the listings untouched, i.e. today's behaviour.
+ */
+export function filterListingsToCommittedYear<T extends { year?: number | null }>(
+  listings: T[],
+  committedYear: number | null,
+): T[] {
+  if (committedYear == null) return listings;
+  return listings.filter((l) => l.year === committedYear);
+}

@@ -391,6 +391,7 @@ export default async function OutreachQueuePage() {
                     make={search.make}
                     model={search.model}
                     trimOptions={search.trimOptions}
+                    modelYear={search.modelYear}
                   />
                 </div>
               ))}

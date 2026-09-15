@@ -1,6 +1,6 @@
 import "server-only";
 import { createAdminClient } from "./supabase/admin";
-import { buildTrimOptions, type TrimOption } from "./finalize-trims";
+import { buildTrimOptions, filterListingsToCommittedYear, type TrimOption } from "./finalize-trims";
 import { RESUME_WINDOW_DAYS } from "./vehicle-data";
 import { isTestEmail } from "./test-accounts";
 
@@ -492,6 +492,8 @@ export interface FinalizationQueueSearch {
   /** Tester-program row -- flagged, never hidden. See isTest note below. */
   isTest: boolean;
   callRequestedAt: string;
+  /** Committed model year; trimOptions are already filtered to it when set. */
+  modelYear: number | null;
   trimOptions: TrimOption[];
 }
 
@@ -508,7 +510,7 @@ export async function getFinalizationQueue(): Promise<FinalizationQueueSearch[]>
 
   const { data: searches, error: searchesError } = await supabase
     .from("customer_searches")
-    .select("id, make, model, customer_id, call_requested_at")
+    .select("id, make, model, model_year, customer_id, call_requested_at")
     .eq("search_status", "awaiting_finalization")
     .not("call_requested_at", "is", null)
     .order("call_requested_at", { ascending: true });
@@ -542,19 +544,29 @@ export async function getFinalizationQueue(): Promise<FinalizationQueueSearch[]>
   ]);
 
   const customerEmailById = new Map((customers ?? []).map((c) => [c.id, c.email as string]));
-  const trimOptionsByMakeModel = new Map(
-    listingsByPair.map(({ make, model, listings }) => [`${make}::${model}`, buildTrimOptions(listings)])
+  // Listings are still fetched once per make/model, but trim options are
+  // now built PER SEARCH: two searches for the same model can commit to
+  // different years, so a make/model-level list would hand one of them the
+  // other's trims. Filtered by the same shared function /finalize uses, so
+  // the agent and the customer always see the same options for one search.
+  const listingsByMakeModel = new Map(
+    listingsByPair.map(({ make, model, listings }) => [`${make}::${model}`, listings])
   );
 
-  return searches.map((search) => ({
-    id: search.id,
-    make: search.make,
-    model: search.model,
-    customerEmail: customerEmailById.get(search.customer_id) ?? null,
-    isTest: isTestEmail(customerEmailById.get(search.customer_id) ?? null),
-    callRequestedAt: search.call_requested_at as string,
-    trimOptions: trimOptionsByMakeModel.get(`${search.make}::${search.model}`) ?? [],
-  }));
+  return searches.map((search) => {
+    const modelYear = (search.model_year as number | null) ?? null;
+    const listings = listingsByMakeModel.get(`${search.make}::${search.model}`) ?? [];
+    return {
+      id: search.id,
+      make: search.make,
+      model: search.model,
+      customerEmail: customerEmailById.get(search.customer_id) ?? null,
+      isTest: isTestEmail(customerEmailById.get(search.customer_id) ?? null),
+      callRequestedAt: search.call_requested_at as string,
+      modelYear,
+      trimOptions: buildTrimOptions(filterListingsToCommittedYear(listings, modelYear)),
+    };
+  });
 }
 
 export interface SwitchCallQueueSearch {
