@@ -9,6 +9,7 @@ import {
   getCancellationCallQueue,
   getVehicleConsultationQueue,
   getNotificationCallbackQueue,
+  getInventoryBlockedQueue,
   type OutreachSelection,
   type OutreachTrimPreference,
 } from "@/lib/outreach-queue";
@@ -29,6 +30,8 @@ import { AgentCancellationLookup } from "@/components/agent-cancellation-lookup"
 import { AgentRevertPurchasedLookup } from "@/components/agent-revert-purchased-lookup";
 import { AgentUndecidedFinalizeForm } from "@/components/agent-undecided-finalize-form";
 import { getIntakeMakeModelOptions, getIntakeModelYearOptions } from "@/lib/intake-vehicle-options";
+import { MODEL_YEAR_INVENTORY_BLOCK_ENABLED } from "@/lib/inventory-block";
+import { AGENT_INVENTORY_BLOCK_DESCRIPTION, AGENT_INVENTORY_BLOCK_HEADING } from "@/lib/inventory-block-copy";
 
 export const metadata: Metadata = {
   title: "Outreach Queue — LEVR Auto Internal",
@@ -291,6 +294,7 @@ export default async function OutreachQueuePage() {
     cancellationCallQueue,
     vehicleConsultationQueue,
     notificationCallbackQueue,
+    inventoryBlockedQueue,
   ] = await Promise.all([
     getOutreachQueue(),
     getFinalizationQueue(),
@@ -300,6 +304,7 @@ export default async function OutreachQueuePage() {
     getCancellationCallQueue(),
     getVehicleConsultationQueue(),
     getNotificationCallbackQueue(),
+    getInventoryBlockedQueue(),
   ]);
 
   const callbackRequests = notificationCallbackQueue.filter((e) => e.reason === "callback_requested");
@@ -342,6 +347,42 @@ export default async function OutreachQueuePage() {
             </div>
           )}
         </div>
+
+        {/* Zero-inventory block (Step 5). Not rendered at all while the
+            switch is off, so the page is exactly as it was before Step 5. */}
+        {MODEL_YEAR_INVENTORY_BLOCK_ENABLED && (
+          <div className="mt-10">
+            <h2 className="text-lg font-semibold text-white">
+              {AGENT_INVENTORY_BLOCK_HEADING} ({inventoryBlockedQueue.length})
+            </h2>
+            <p className="mt-1 text-sm text-zinc-400">{AGENT_INVENTORY_BLOCK_DESCRIPTION}</p>
+            {inventoryBlockedQueue.length === 0 ? (
+              <p className="mt-3 text-sm text-zinc-400">No paid searches are blocked on inventory.</p>
+            ) : (
+              <div className="mt-4 space-y-4">
+                {inventoryBlockedQueue.map((search) => (
+                  <div key={search.id} className="rounded-2xl border border-amber-500/30 bg-amber-500/[0.05] p-6">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <h3 className="text-base font-semibold text-white">
+                        {search.modelYear ?? "Year not set"} {search.make} {search.model}
+                      </h3>
+                      <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}<TestBadge isTest={search.isTest} /></span>
+                    </div>
+                    <p className="mt-1 text-sm text-amber-300">
+                      {search.block.kind === "year"
+                        ? `No ${search.block.committedYear} listings synced — inventory exists for ${search.block.otherYears.join(" and ")}`
+                        : "No listings synced for this model in any year"}
+                    </p>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      Paid {formatDate(search.paidAt)}
+                      {search.callRequestedAt ? ` · call requested ${formatDate(search.callRequestedAt)}` : ""}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="mt-10">
           <h2 className="text-lg font-semibold text-white">Grant extension bypass</h2>

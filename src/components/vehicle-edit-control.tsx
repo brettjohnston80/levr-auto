@@ -34,6 +34,7 @@ export function VehicleEditControl({
   modelYear,
   makeModelOptions,
   modelYearOptions,
+  defaultOpen = false,
 }: {
   searchId: string;
   make: string;
@@ -41,13 +42,19 @@ export function VehicleEditControl({
   modelYear: number | null;
   makeModelOptions: MakeModelOptions;
   modelYearOptions: ModelYearOptions;
+  /**
+   * Open on arrival rather than collapsed behind a link. Used by the
+   * zero-inventory block, where changing the vehicle is the ONLY way
+   * forward, so hiding it behind a link would read as a dead end.
+   */
+  defaultOpen?: boolean;
 }) {
   const yearsFor = (mk: string, md: string) => yearsForModel(modelYearOptions, mk, md);
   const soleYear = (mk: string, md: string) => soleYearForModel(modelYearOptions, mk, md);
   const committedYear = modelYear != null ? String(modelYear) : "";
   const initialYear = committedYear || soleYear(make, model);
 
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [nextMake, setNextMake] = useState(make);
   const [nextModel, setNextModel] = useState(model);
   const [nextYear, setNextYear] = useState(initialYear);

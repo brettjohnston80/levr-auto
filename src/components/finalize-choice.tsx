@@ -7,6 +7,8 @@ import type { TrimOption } from "@/lib/finalize-trims";
 import type { ConfiguratorQuestions } from "@/lib/configurator-matching";
 import type { MakeModelOptions, ModelYearOptions } from "@/lib/intake-vehicle-options";
 import { VehicleEditControl } from "@/components/vehicle-edit-control";
+import type { InventoryBlock } from "@/lib/inventory-block";
+import { inventoryBlockCopy } from "@/lib/inventory-block-copy";
 
 type Mode = "choice" | "self-service" | "call-requested";
 
@@ -20,6 +22,7 @@ export function FinalizeChoice({
   makeModelOptions,
   modelYear,
   modelYearOptions,
+  inventoryBlock,
 }: {
   searchId: string;
   make: string;
@@ -37,6 +40,12 @@ export function FinalizeChoice({
   /** customer_searches.model_year; null only on searches predating 2026-09-14. */
   modelYear: number | null;
   modelYearOptions: ModelYearOptions;
+  /**
+   * Non-null when the committed vehicle has nothing to search for (see
+   * inventory-block.ts). Always null while MODEL_YEAR_INVENTORY_BLOCK_ENABLED
+   * is false, which leaves this component exactly as it was.
+   */
+  inventoryBlock: InventoryBlock | null;
 }) {
   const [mode, setMode] = useState<Mode>(callAlreadyRequested ? "call-requested" : "choice");
   const [requesting, setRequesting] = useState(false);
@@ -52,6 +61,36 @@ export function FinalizeChoice({
       return;
     }
     setMode("call-requested");
+  }
+
+  // THE BLOCKED STATE REPLACES THE WHOLE SCREEN, and is checked before any
+  // mode. Neither choice card renders -- not "Finalize it myself" (there is
+  // nothing to finalize) and not "Schedule a call" (an agent cannot
+  // finalize a blocked search either, so a call would be a dead end). Not
+  // hidden with CSS: the elements are simply never rendered. This also
+  // overrides a call already requested before the block applied. The only
+  // control is the vehicle change, opened by default.
+  if (inventoryBlock) {
+    const copy = inventoryBlockCopy(inventoryBlock, make, model);
+    return (
+      <div>
+        <div className="text-center">
+          <h1 className="text-3xl font-semibold tracking-tight text-white">{copy.heading}</h1>
+          <p className="mt-4 text-zinc-400">{copy.body}</p>
+        </div>
+        {Object.keys(makeModelOptions).length > 0 && (
+          <VehicleEditControl
+            searchId={searchId}
+            make={make}
+            model={model}
+            modelYear={modelYear}
+            makeModelOptions={makeModelOptions}
+            modelYearOptions={modelYearOptions}
+            defaultOpen
+          />
+        )}
+      </div>
+    );
   }
 
   if (mode === "self-service") {

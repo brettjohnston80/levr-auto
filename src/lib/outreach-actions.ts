@@ -7,6 +7,8 @@ import { createAdminClient } from "./supabase/admin";
 import { getDocumentStatus } from "./pandadoc/client";
 import { syncListingsForMakeModel } from "./marketcheck-sync";
 import { isOfferedModelYear } from "./intake-vehicle-options";
+import { MODEL_YEAR_INVENTORY_BLOCK_ENABLED, loadInventoryBlock } from "./inventory-block";
+import { AGENT_INVENTORY_BLOCK_REFUSAL } from "./inventory-block-copy";
 import { logNotificationEvent } from "./notifications";
 
 export interface LogOfferResult {
@@ -687,6 +689,14 @@ export async function finalizeSearchByAgent(
     yearToWrite = year;
   }
 
+  // Zero-inventory block -- NO AGENT EXEMPTION (Brett, 2026-09-14). An
+  // agent is held to exactly the same rule as the customer. Null while the
+  // switch is off.
+  const block = await loadInventoryBlock(search.make, search.model, yearToWrite ?? search.model_year);
+  if (block) {
+    return { ok: false, error: AGENT_INVENTORY_BLOCK_REFUSAL };
+  }
+
   const { data: updated, error } = await admin
     .from("customer_searches")
     .update({
@@ -762,6 +772,22 @@ export async function finalizeUndecidedSearch(
     return { ok: false, error: "Pick a make, model, and model year from the list." };
   }
 
+  // Zero-inventory block, no agent exemption. An undecided search has no
+  // inventory fetched for the chosen vehicle yet, so with the block on the
+  // sync runs FIRST -- otherwise every never-synced model would read as
+  // empty. Off: the sync stays after the save, exactly as before.
+  if (MODEL_YEAR_INVENTORY_BLOCK_ENABLED) {
+    try {
+      await syncListingsForMakeModel(make, model);
+    } catch (syncError) {
+      console.error(`finalizeUndecidedSearch: pre-check sync failed for ${make} ${model}:`, syncError);
+    }
+    const block = await loadInventoryBlock(make, model, input.modelYear);
+    if (block) {
+      return { ok: false, error: AGENT_INVENTORY_BLOCK_REFUSAL };
+    }
+  }
+
   const admin = createAdminClient();
 
   const { data: updated, error } = await admin
@@ -796,10 +822,12 @@ export async function finalizeUndecidedSearch(
   // Same on-demand sync the webhook normally does at payment time for a
   // known make/model -- this is the first point real inventory data is
   // possible for this search.
-  try {
-    await syncListingsForMakeModel(make, model);
-  } catch (syncError) {
-    console.error(`finalizeUndecidedSearch: sync failed for ${make} ${model}:`, syncError);
+  if (!MODEL_YEAR_INVENTORY_BLOCK_ENABLED) {
+    try {
+      await syncListingsForMakeModel(make, model);
+    } catch (syncError) {
+      console.error(`finalizeUndecidedSearch: sync failed for ${make} ${model}:`, syncError);
+    }
   }
 
   revalidatePath("/internal/outreach");

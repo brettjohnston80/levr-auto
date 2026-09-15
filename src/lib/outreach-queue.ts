@@ -1,6 +1,12 @@
 import "server-only";
 import { createAdminClient } from "./supabase/admin";
 import { buildTrimOptions, filterListingsToCommittedYear, type TrimOption } from "./finalize-trims";
+import {
+  MODEL_YEAR_INVENTORY_BLOCK_ENABLED,
+  computeInventoryBlock,
+  loadListingYears,
+  type InventoryBlock,
+} from "./inventory-block";
 import { RESUME_WINDOW_DAYS } from "./vehicle-data";
 import { isTestEmail } from "./test-accounts";
 
@@ -854,6 +860,82 @@ export async function getVehicleConsultationQueue(): Promise<VehicleConsultation
     isTest: isTestEmail(customerEmailById.get(search.customer_id) ?? null),
     paidAt: search.paid_at as string,
   }));
+}
+
+export interface InventoryBlockedQueueSearch {
+  id: string;
+  make: string;
+  model: string;
+  modelYear: number | null;
+  customerEmail: string | null;
+  /** Tester-program row -- flagged, never hidden. See isTest note below. */
+  isTest: boolean;
+  paidAt: string;
+  callRequestedAt: string | null;
+  block: InventoryBlock;
+}
+
+/**
+ * Paid searches stuck on the zero-inventory block (Step 5): committed to a
+ * vehicle with nothing to search for, so neither the customer nor an agent
+ * can finalize them. Derived at read time from the same listings rule
+ * /finalize uses -- no stored flag to drift out of date, and a row drops
+ * off the moment inventory lands or the customer changes their vehicle.
+ *
+ * Empty whenever MODEL_YEAR_INVENTORY_BLOCK_ENABLED is false, so the
+ * section it feeds does not exist while the block is off.
+ */
+export async function getInventoryBlockedQueue(): Promise<InventoryBlockedQueueSearch[]> {
+  if (!MODEL_YEAR_INVENTORY_BLOCK_ENABLED) return [];
+
+  const supabase = createAdminClient();
+  const { data: searches, error } = await supabase
+    .from("customer_searches")
+    .select("id, customer_id, make, model, model_year, paid_at, call_requested_at")
+    .eq("search_status", "awaiting_finalization")
+    .not("paid_at", "is", null)
+    .not("make", "is", null)
+    .order("paid_at", { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to load inventory-blocked queue: ${error.message}`);
+  }
+  if (!searches || searches.length === 0) {
+    return [];
+  }
+
+  // One listings read per distinct make/model, however many searches share it.
+  const pairs = [
+    ...new Map(searches.map((s) => [`${s.make}::${s.model}`, { make: s.make as string, model: s.model as string }])).values(),
+  ];
+  const yearsByPair = new Map(
+    await Promise.all(
+      pairs.map(async ({ make, model }) => [`${make}::${model}`, await loadListingYears(make, model)] as const),
+    ),
+  );
+
+  const customerIds = [...new Set(searches.map((s) => s.customer_id))];
+  const { data: customers } = await supabase.from("customers").select("id, email").in("id", customerIds);
+  const customerEmailById = new Map((customers ?? []).map((c) => [c.id, c.email as string]));
+
+  return searches.flatMap((search) => {
+    const modelYear = (search.model_year as number | null) ?? null;
+    const block = computeInventoryBlock(yearsByPair.get(`${search.make}::${search.model}`) ?? [], modelYear);
+    if (!block) return [];
+    return [
+      {
+        id: search.id,
+        make: search.make as string,
+        model: search.model as string,
+        modelYear,
+        customerEmail: customerEmailById.get(search.customer_id) ?? null,
+        isTest: isTestEmail(customerEmailById.get(search.customer_id) ?? null),
+        paidAt: search.paid_at as string,
+        callRequestedAt: (search.call_requested_at as string | null) ?? null,
+        block,
+      },
+    ];
+  });
 }
 
 export interface NotificationCallbackQueueItem {

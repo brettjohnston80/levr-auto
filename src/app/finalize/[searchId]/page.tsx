@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildTrimOptions, filterListingsToCommittedYear } from "@/lib/finalize-trims";
+import { MODEL_YEAR_INVENTORY_BLOCK_ENABLED, computeInventoryBlock } from "@/lib/inventory-block";
 import { getConfiguratorQuestionsForTrims } from "@/lib/configurator-questions";
 import { hasAnyQuestion, type ConfiguratorQuestions } from "@/lib/configurator-matching";
 import { FinalizeChoice } from "@/components/finalize-choice";
@@ -110,6 +111,17 @@ export default async function FinalizePage({
   const listingsForYear = filterListingsToCommittedYear(listingsForModel, committedYear);
   const trimOptions = buildTrimOptions(listingsForYear);
 
+  // Zero-inventory block (Step 5). Decided from the SAME listings the trim
+  // list above is built from, so the block and the list cannot disagree.
+  // Null whenever the switch is off -- today's behaviour, unchanged.
+  const inventoryBlock =
+    MODEL_YEAR_INVENTORY_BLOCK_ENABLED && search.make && search.model
+      ? computeInventoryBlock(
+          listingsForModel.map((l) => l.year),
+          committedYear,
+        )
+      : null;
+
   // Rich configurator questions, where this exact trim resolves to one
   // researched build. A miss -- no live batch, no configurator data for
   // this make, or an ambiguous trim -- yields nothing here and the flow
@@ -151,6 +163,7 @@ export default async function FinalizePage({
           makeModelOptions={makeModelOptions}
           modelYear={(search.model_year as number | null) ?? null}
           modelYearOptions={modelYearOptions}
+          inventoryBlock={inventoryBlock}
         />
       </div>
     </section>

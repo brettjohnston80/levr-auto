@@ -6,6 +6,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { ConfiguratorSelection, TrimPreference } from "@/lib/configurator-matching";
 import { normalizeRanked, statesAnOpinion } from "@/lib/ranked-list";
 import { isOfferedModelYear } from "@/lib/intake-vehicle-options";
+import { loadInventoryBlock } from "@/lib/inventory-block";
+import { inventoryBlockCopy } from "@/lib/inventory-block-copy";
 import { syncListingsForMakeModel } from "@/lib/marketcheck-sync";
 
 export type FinalizeResult = { ok: true } | { ok: false; error: string };
@@ -22,7 +24,7 @@ async function getOwnedAwaitingFinalizationSearch(searchId: string) {
 
   const { data: search, error } = await supabase
     .from("customer_searches")
-    .select("id, search_status, make, model")
+    .select("id, search_status, make, model, model_year")
     .eq("id", searchId)
     .eq("customer_id", user.id)
     .maybeSingle();
@@ -38,7 +40,24 @@ async function getOwnedAwaitingFinalizationSearch(searchId: string) {
     ok: true as const,
     make: (search.make as string | null) ?? null,
     model: (search.model as string | null) ?? null,
+    modelYear: (search.model_year as number | null) ?? null,
   };
+}
+
+/**
+ * Server-side half of the zero-inventory block for the customer's own
+ * actions. The /finalize screen never offers either action while blocked,
+ * so this is only reached from a tab left open while inventory changed
+ * underneath it -- which is exactly why a UI-only block is not enough.
+ * Null (no refusal) whenever the switch is off.
+ */
+async function customerInventoryRefusal(check: {
+  make: string | null;
+  model: string | null;
+  modelYear: number | null;
+}): Promise<string | null> {
+  const block = await loadInventoryBlock(check.make, check.model, check.modelYear);
+  return block ? inventoryBlockCopy(block, check.make ?? "", check.model ?? "").heading : null;
 }
 
 /**
@@ -51,6 +70,11 @@ async function getOwnedAwaitingFinalizationSearch(searchId: string) {
 export async function requestFinalizationCall(searchId: string): Promise<FinalizeResult> {
   const check = await getOwnedAwaitingFinalizationSearch(searchId);
   if (!check.ok) return check;
+
+  // A blocked search is not offered a call (an agent cannot finalize it
+  // either), and a stale tab must not be able to request one anyway.
+  const refusal = await customerInventoryRefusal(check);
+  if (refusal) return { ok: false, error: refusal };
 
   const admin = createAdminClient();
   const { error } = await admin
@@ -565,6 +589,12 @@ export async function finalizeSelfService(
 ): Promise<FinalizeResult> {
   const check = await getOwnedAwaitingFinalizationSearch(searchId);
   if (!check.ok) return check;
+
+  // Zero-inventory block, re-checked HERE before anything is written.
+  // Finalizing a blocked search would start the 24h window and, through
+  // solidification, the Day-30 clock against a vehicle nobody can source.
+  const refusal = await customerInventoryRefusal(check);
+  if (refusal) return { ok: false, error: refusal };
 
   const admin = createAdminClient();
 
