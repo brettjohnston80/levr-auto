@@ -44,6 +44,8 @@ export interface DashboardSearch {
   // yet. Always set together once an agent runs finalizeUndecidedSearch.
   make: string | null;
   model: string | null;
+  /** Committed model year; null on undecided searches and rows predating 2026-09-14. */
+  modelYear: number | null;
   trim: string | null;
   colors: string[];
   requiredOptions: string[];
@@ -88,7 +90,7 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
   const { data: searches, error: searchesError } = await supabase
     .from("customer_searches")
     .select(
-      "id, make, model, trim, colors, required_options, search_status, guarantee_status, paid_at, finalized_at, solidified_at, call_requested_at, switch_call_requested_at, paused_at, search_deadline_at, auto_renew_enabled, cancellation_call_requested_at, purchased_at"
+      "id, make, model, model_year, trim, colors, required_options, search_status, guarantee_status, paid_at, finalized_at, solidified_at, call_requested_at, switch_call_requested_at, paused_at, search_deadline_at, auto_renew_enabled, cancellation_call_requested_at, purchased_at"
     )
     .eq("customer_id", customerId)
     .order("created_at", { ascending: true });
@@ -268,6 +270,7 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
     id: search.id,
     make: search.make,
     model: search.model,
+    modelYear: search.model_year,
     trim: search.trim,
     colors: search.colors,
     requiredOptions: search.required_options,

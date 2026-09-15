@@ -6,7 +6,12 @@ import { buildTrimOptions } from "@/lib/finalize-trims";
 import { getConfiguratorQuestionsForTrims } from "@/lib/configurator-questions";
 import { hasAnyQuestion, type ConfiguratorQuestions } from "@/lib/configurator-matching";
 import { FinalizeChoice } from "@/components/finalize-choice";
-import { getIntakeMakeModelOptions } from "@/lib/intake-vehicle-options";
+import {
+  getIntakeMakeModelOptions,
+  getIntakeModelYearOptions,
+  type MakeModelOptions,
+  type ModelYearOptions,
+} from "@/lib/intake-vehicle-options";
 
 export const metadata: Metadata = {
   title: "Finalize Your Search — LEVR Auto",
@@ -31,7 +36,7 @@ export default async function FinalizePage({
 
   const { data: search } = await supabase
     .from("customer_searches")
-    .select("id, make, model, search_status, call_requested_at, paid_at")
+    .select("id, make, model, model_year, search_status, call_requested_at, paid_at")
     .eq("id", searchId)
     .eq("customer_id", user.id)
     .maybeSingle();
@@ -109,7 +114,11 @@ export default async function FinalizePage({
   // different vehicles. An undecided search (no make/model yet) is handled
   // by the agent consultation queue, not here, so the edit control is only
   // rendered once there is actually a vehicle to correct.
-  const makeModelOptions = search.make && search.model ? await getIntakeMakeModelOptions() : {};
+  // Years ride on the same cached scan as make/models -- one read.
+  const [makeModelOptions, modelYearOptions]: [MakeModelOptions, ModelYearOptions] =
+    search.make && search.model
+      ? await Promise.all([getIntakeMakeModelOptions(), getIntakeModelYearOptions()])
+      : [{}, {}];
 
   const gating = await getConfiguratorQuestionsForTrims(
     search.make,
@@ -135,6 +144,8 @@ export default async function FinalizePage({
           trimOptions={trimOptions}
           configuratorQuestions={configuratorQuestions}
           makeModelOptions={makeModelOptions}
+          modelYear={(search.model_year as number | null) ?? null}
+          modelYearOptions={modelYearOptions}
         />
       </div>
     </section>

@@ -5,7 +5,7 @@ import { requestFinalizationCall } from "@/lib/finalize-actions";
 import { FinalizeSelfService } from "@/components/finalize-self-service";
 import type { TrimOption } from "@/lib/finalize-trims";
 import type { ConfiguratorQuestions } from "@/lib/configurator-matching";
-import type { MakeModelOptions } from "@/lib/intake-vehicle-options";
+import type { MakeModelOptions, ModelYearOptions } from "@/lib/intake-vehicle-options";
 import { VehicleEditControl } from "@/components/vehicle-edit-control";
 
 type Mode = "choice" | "self-service" | "call-requested";
@@ -18,6 +18,8 @@ export function FinalizeChoice({
   trimOptions,
   configuratorQuestions,
   makeModelOptions,
+  modelYear,
+  modelYearOptions,
 }: {
   searchId: string;
   make: string;
@@ -32,6 +34,9 @@ export function FinalizeChoice({
   configuratorQuestions: Record<string, ConfiguratorQuestions>;
   /** Empty for an undecided search, which has no vehicle to correct yet. */
   makeModelOptions: MakeModelOptions;
+  /** customer_searches.model_year; null only on searches predating 2026-09-14. */
+  modelYear: number | null;
+  modelYearOptions: ModelYearOptions;
 }) {
   const [mode, setMode] = useState<Mode>(callAlreadyRequested ? "call-requested" : "choice");
   const [requesting, setRequesting] = useState(false);
@@ -127,7 +132,9 @@ export function FinalizeChoice({
           searchId={searchId}
           make={make}
           model={model}
+          modelYear={modelYear}
           makeModelOptions={makeModelOptions}
+          modelYearOptions={modelYearOptions}
         />
       )}
 

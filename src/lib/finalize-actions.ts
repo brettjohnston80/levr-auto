@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ConfiguratorSelection, TrimPreference } from "@/lib/configurator-matching";
 import { normalizeRanked, statesAnOpinion } from "@/lib/ranked-list";
-import { getIntakeMakeModelOptions } from "@/lib/intake-vehicle-options";
+import { isOfferedModelYear } from "@/lib/intake-vehicle-options";
 import { syncListingsForMakeModel } from "@/lib/marketcheck-sync";
 
 export type FinalizeResult = { ok: true } | { ok: false; error: string };
@@ -112,10 +112,20 @@ const SEARCH_ALREADY_STARTED =
  * page, because both surfaces are reachable from a tab left open while the
  * hourly solidify cron runs underneath them.
  */
+/**
+ * MODEL YEAR IS THE THIRD FIELD, NOT A SEPARATE ACTION (2026-09-14). A
+ * different year is a different car -- different trims, different
+ * inventory, different packages -- so a year-only change invalidates
+ * exactly what a make/model change does, and runs through exactly the same
+ * guards. A second action would have duplicated the solidified_at
+ * write-race guard, which is the part most likely to drift. Same boundary
+ * too: free before solidification, the paid switch after.
+ */
 export async function updateSearchVehicle(
   searchId: string,
   make: string,
   model: string,
+  modelYear: number | null,
 ): Promise<FinalizeResult> {
   const supabase = await createClient();
   const {
@@ -145,9 +155,14 @@ export async function updateSearchVehicle(
     return { ok: false, error: SEARCH_ALREADY_STARTED };
   }
 
-  const options = await getIntakeMakeModelOptions();
-  if (!options[make]?.includes(model)) {
-    return { ok: false, error: "Pick a make and model from the list." };
+  // One check covers all three fields: a year is only ever offered for a
+  // make/model that exists in the live dataset. Same gate intake uses, so
+  // the two surfaces can never disagree about which cars are committable.
+  if (modelYear == null || !Number.isInteger(modelYear)) {
+    return { ok: false, error: "Choose a model year for this vehicle." };
+  }
+  if (!(await isOfferedModelYear(make, model, modelYear))) {
+    return { ok: false, error: "Pick a make, model, and model year from the list." };
   }
 
   const admin = createAdminClient();
@@ -172,6 +187,7 @@ export async function updateSearchVehicle(
     .update({
       make,
       model,
+      model_year: modelYear,
       trim: null,
       colors: [],
       required_options: [],

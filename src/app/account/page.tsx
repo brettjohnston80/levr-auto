@@ -20,7 +20,12 @@ import { CancellationChoice } from "@/components/cancellation-choice";
 import { PurchasedCelebration } from "@/components/purchased-celebration";
 import { PostDealSurveyPrompt } from "@/components/post-deal-survey-prompt";
 import { RESUME_WINDOW_DAYS } from "@/lib/vehicle-data";
-import { getIntakeMakeModelOptions, type MakeModelOptions } from "@/lib/intake-vehicle-options";
+import {
+  getIntakeMakeModelOptions,
+  getIntakeModelYearOptions,
+  type MakeModelOptions,
+  type ModelYearOptions,
+} from "@/lib/intake-vehicle-options";
 import { effectiveDeadline, REMINDER_WINDOW_DAYS } from "@/lib/day60-extension";
 
 export const metadata: Metadata = {
@@ -182,7 +187,7 @@ function canSwitch(search: DashboardSearch): boolean {
     // paid box is the more prominent of the two. While solidified_at is
     // null the vehicle is corrected in place by updateSearchVehicle: on
     // /finalize via the choice screen, and on /account via the edit form's
-    // own "Change make or model" control, which is gated on exactly the
+    // own "Change make, model, or year" control, which is gated on exactly the
     // negation of this. An awaiting_finalization search shows no switch box
     // and no inline control here either -- its free route is the "Finalize
     // this search" link straight to /finalize.
@@ -255,11 +260,14 @@ export default async function AccountPage() {
   // paginates the whole live vehicle dataset, and /account is force-dynamic,
   // so every dashboard load would otherwise pay for it whether or not any
   // search can use it.
-  const makeModelOptions: MakeModelOptions = searches.some(
-    (s) => s.searchStatus === "pending_refinement" && s.finalizedAt && s.make && s.model,
-  )
-    ? await getIntakeMakeModelOptions()
-    : {};
+  // Years ride on the same cached scan as make/models, so needing both
+  // still costs one read -- and still only when a search can use it.
+  const [makeModelOptions, modelYearOptions]: [MakeModelOptions, ModelYearOptions] =
+    searches.some(
+      (s) => s.searchStatus === "pending_refinement" && s.finalizedAt && s.make && s.model,
+    )
+      ? await Promise.all([getIntakeMakeModelOptions(), getIntakeModelYearOptions()])
+      : [{}, {}];
 
   return (
     <section className="bg-zinc-950 py-24">
@@ -293,7 +301,12 @@ export default async function AccountPage() {
         ) : (
           <div className="mt-10 space-y-6">
             {searches.map((search) => (
-              <SearchCard key={search.id} search={search} makeModelOptions={makeModelOptions} />
+              <SearchCard
+                key={search.id}
+                search={search}
+                makeModelOptions={makeModelOptions}
+                modelYearOptions={modelYearOptions}
+              />
             ))}
           </div>
         )}
@@ -316,9 +329,11 @@ export default async function AccountPage() {
 function SearchCard({
   search,
   makeModelOptions,
+  modelYearOptions,
 }: {
   search: DashboardSearch;
   makeModelOptions: MakeModelOptions;
+  modelYearOptions: ModelYearOptions;
 }) {
   const reminderBannerCopy = getReminderBannerCopy(search);
   const pausedInfo = search.searchStatus === "paused" ? getPausedResumeInfo(search.pausedAt) : null;
@@ -405,6 +420,8 @@ function SearchCard({
           make={search.make}
           model={search.model}
           makeModelOptions={makeModelOptions}
+          modelYear={search.modelYear}
+          modelYearOptions={modelYearOptions}
           solidifiedAt={search.solidifiedAt}
         />
       )}

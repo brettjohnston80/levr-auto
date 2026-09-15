@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { COLORS, OPTIONS } from "@/lib/vehicle-data";
 import { updateFinalizedSearch } from "@/lib/finalize-actions";
 import { VehicleEditControl } from "@/components/vehicle-edit-control";
-import type { MakeModelOptions } from "@/lib/intake-vehicle-options";
+import type { MakeModelOptions, ModelYearOptions } from "@/lib/intake-vehicle-options";
 
 function toggleInArray(list: string[], value: string): string[] {
   return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
@@ -35,6 +35,8 @@ export function FinalizeEditForm({
   make,
   model,
   makeModelOptions,
+  modelYear,
+  modelYearOptions,
   solidifiedAt,
 }: {
   searchId: string;
@@ -46,6 +48,9 @@ export function FinalizeEditForm({
   model: string | null;
   /** Empty for an undecided search, which has no vehicle to correct yet. */
   makeModelOptions: MakeModelOptions;
+  /** customer_searches.model_year; null only on searches predating 2026-09-14. */
+  modelYear: number | null;
+  modelYearOptions: ModelYearOptions;
   /** Non-null means the search has started -- vehicle changes go paid. */
   solidifiedAt: string | null;
 }) {
@@ -145,7 +150,9 @@ export function FinalizeEditForm({
               searchId={searchId}
               make={make}
               model={model}
+              modelYear={modelYear}
               makeModelOptions={makeModelOptions}
+              modelYearOptions={modelYearOptions}
             />
           )}
         </div>
