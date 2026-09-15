@@ -254,12 +254,15 @@ export function FeatureQuestion({
                     : "border-white/10 bg-white/[0.02]"
               }`}
             >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="min-w-0 text-sm font-medium text-white">{choice.name}</span>
-                  <PriceTag choice={choice} />
+              <div className="flex min-w-0 flex-1 items-start gap-3">
+                <FeatureThumb url={choice.imageUrl ?? null} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="min-w-0 text-sm font-medium text-white">{choice.name}</span>
+                    <PriceTag choice={choice} />
+                  </div>
+                  <PackageNote choice={choice} />
                 </div>
-                <PackageNote choice={choice} />
               </div>
               <div className="flex shrink-0 items-center gap-1.5 sm:justify-end">
                 <button
@@ -292,6 +295,30 @@ export function FeatureQuestion({
         })}
       </div>
     </div>
+  );
+}
+
+/**
+ * A feature photo when one exists, and NOTHING otherwise -- same rules as
+ * the ranking pool's thumbnail: no placeholder box, and a file that fails
+ * to load removes itself rather than showing a broken-image glyph.
+ */
+function FeatureThumb({ url }: { url: string | null }) {
+  if (!url) return null;
+  return (
+    // Arbitrary files dropped into public/, not a fixed set next/image can
+    // be configured against.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={url}
+      alt=""
+      aria-hidden="true"
+      loading="lazy"
+      className="h-10 w-14 shrink-0 rounded-md object-cover"
+      onError={(e) => {
+        e.currentTarget.style.display = "none";
+      }}
+    />
   );
 }
 

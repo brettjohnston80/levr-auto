@@ -1,5 +1,6 @@
 import "server-only";
 import { resolveColorImages } from "@/lib/vehicle-color-images";
+import { resolveFeatureImages } from "@/lib/vehicle-feature-images";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   configuratorFuelClass,
@@ -213,10 +214,17 @@ export async function getConfiguratorQuestionsForTrims(
         .filter((r) => r.category === category && allowed.has(r.availability))
         .map(toChoice)
         .sort(sortChoices);
-      // Photos are looked up only for the two categories that can have
-      // them; seating and features are layouts and equipment, not colours.
-      if (category !== "exterior_color" && category !== "interior") return choices;
-      const images = resolveColorImages(make, model, category, choices.map((c) => c.name));
+      // Photos come from two independent pipelines, each behind its own
+      // switch: colours (exterior, interior) and features. Seating is a
+      // layout with nothing worth photographing.
+      const names = choices.map((c) => c.name);
+      const images =
+        category === "exterior_color" || category === "interior"
+          ? resolveColorImages(make, model, category, names)
+          : category === "feature"
+            ? resolveFeatureImages(make, model, names)
+            : null;
+      if (!images) return choices;
       return choices.map((c) => ({ ...c, imageUrl: images[c.name] ?? null }));
     };
 
