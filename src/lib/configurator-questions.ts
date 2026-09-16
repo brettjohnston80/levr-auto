@@ -58,7 +58,11 @@ interface OptionRow {
  * of the question. 'unavailable' is excluded everywhere: never offer what
  * the car cannot be built with.
  */
-const CHOICE_AVAILABILITY = new Set(["standard", "standalone", "package_only"]);
+// Exported (2026-09-15): the write path (finalize-actions.ts) needs the
+// identical rule to decide whether exterior colour/interior/seating
+// required an answer, so the two can never disagree about which
+// categories genuinely offered a choice on a given trim.
+export const CHOICE_AVAILABILITY = new Set(["standard", "standalone", "package_only"]);
 
 /**
  * A FEATURE is different. 'standard' means it already comes with the car,
@@ -67,6 +71,22 @@ const CHOICE_AVAILABILITY = new Set(["standard", "standalone", "package_only"]);
  * something every build already has. Features are standard-excluded.
  */
 const FEATURE_AVAILABILITY = new Set(["standalone", "package_only"]);
+
+/**
+ * Whether a category counts as a real, offered choice on a trim -- more
+ * than one selectable option, same threshold `atLeastTwo` below applies
+ * when building the question itself. A category with 0 or 1 real option
+ * is never asked about (nothing to choose between), so nothing can be
+ * required of it either. Exported so finalize-actions.ts can enforce
+ * "at least one selection" against the exact same rule that decided
+ * whether the question was shown in the first place.
+ */
+export function categoryHasRealChoice(
+  rows: { category: string; availability: string }[],
+  category: string,
+): boolean {
+  return rows.filter((r) => r.category === category && CHOICE_AVAILABILITY.has(r.availability)).length > 1;
+}
 
 function toChoice(row: OptionRow): ConfiguratorChoice {
   return {

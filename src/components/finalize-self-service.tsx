@@ -125,6 +125,33 @@ export function FinalizeSelfService({
   const goBack = () => setStep(steps[Math.max(index - 1, 0)]);
 
   /**
+   * Minimum engagement, exterior colour / interior / seating only
+   * (2026-09-15). Leaving one of these three completely untouched -- no
+   * option ranked, none excluded -- is no longer a valid way to continue;
+   * trim and features are deliberately excluded (trim's "any trim is
+   * fine" and features' "none of these" are both real, meaningful
+   * answers on their own). A category is only ever a step in `steps` when
+   * it genuinely offered more than one real choice, so a suppressed
+   * category (e.g. seating on the 217 of 243 trims with only one layout)
+   * never reaches this check at all -- there is nothing here scoping it
+   * to "shown" separately from that.
+   *
+   * The predicate is deliberately simple: RankedQuestion only ever adds a
+   * row to `selections` for an option the customer ranked or excluded, so
+   * "any row in this category" and "engaged with this category" are the
+   * same fact by construction (see configurator-questions.tsx).
+   */
+  const REQUIRES_ENGAGEMENT: Partial<Record<Step, ConfiguratorSelection["category"]>> = {
+    exteriorColor: "exterior_color",
+    interior: "interior",
+    seating: "seating",
+  };
+  const requiredCategory = REQUIRES_ENGAGEMENT[step];
+  const categoryEngaged = requiredCategory
+    ? selections.some((s) => s.category === requiredCategory)
+    : true;
+
+  /**
    * Changing trim discards configurator answers, and that is correct
    * rather than unfortunate: a colour or package belongs to one specific
    * build, so carrying "Wind Chill Pearl, ranked #1" across to a trim that
@@ -407,21 +434,29 @@ export function FinalizeSelfService({
       )}
 
       {step !== "trim" && step !== "review" && (
-        <div className="mt-6 flex justify-between">
-          <button
-            type="button"
-            onClick={goBack}
-            className="text-sm font-semibold text-zinc-400 hover:text-white"
-          >
-            Back
-          </button>
-          <button
-            type="button"
-            onClick={goNext}
-            className="rounded-full bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-zinc-950 hover:bg-emerald-400"
-          >
-            {index === steps.length - 2 ? "Review" : "Next"}
-          </button>
+        <div className="mt-6">
+          {requiredCategory && !categoryEngaged && (
+            <p className="mb-3 text-xs text-amber-400">
+              Rank at least one, or exclude one, to continue.
+            </p>
+          )}
+          <div className="flex justify-between">
+            <button
+              type="button"
+              onClick={goBack}
+              className="text-sm font-semibold text-zinc-400 hover:text-white"
+            >
+              Back
+            </button>
+            <button
+              type="button"
+              onClick={goNext}
+              disabled={!categoryEngaged}
+              className="rounded-full bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-zinc-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400"
+            >
+              {index === steps.length - 2 ? "Review" : "Next"}
+            </button>
+          </div>
         </div>
       )}
 

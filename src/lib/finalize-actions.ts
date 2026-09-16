@@ -9,6 +9,7 @@ import { isOfferedModelYear } from "@/lib/intake-vehicle-options";
 import { loadInventoryBlock } from "@/lib/inventory-block";
 import { inventoryBlockCopy } from "@/lib/inventory-block-copy";
 import { syncListingsForMakeModel } from "@/lib/marketcheck-sync";
+import { categoryHasRealChoice } from "@/lib/configurator-questions";
 
 export type FinalizeResult = { ok: true } | { ok: false; error: string };
 
@@ -301,13 +302,20 @@ async function writeConfiguratorSelections(
   if (clearError) {
     return { ok: false, error: clearError.message };
   }
-  if (!configuratorTrimId || !selections || selections.length === 0) {
+  // No resolved build at all means the generic fallback flow rendered
+  // instead of any RankedQuestion step, so there is nothing here that
+  // could require an answer -- this is the only case that can still skip
+  // reading configurator_options.
+  if (!configuratorTrimId) {
     return { ok: true, colors: [], requiredOptions: [] };
   }
 
   // Authoritative option data for this trim, paginated -- PostgREST caps a
   // plain select at 1,000 rows and truncates silently, and a truncated read
-  // here would drop a legitimate answer as if it were fabricated.
+  // here would drop a legitimate answer as if it were fabricated. Loaded
+  // unconditionally now (2026-09-15), even for empty selections: it is
+  // also what decides whether exterior colour/interior/seating required an
+  // answer at all, which an empty submission might be illegally skipping.
   const PAGE_SIZE = 1000;
   const options: {
     category: string;
@@ -335,7 +343,7 @@ async function writeConfiguratorSelections(
   const byKey = new Map(options.map((o) => [`${o.category}::${o.name}`, o]));
   const seen = new Set<string>();
   const kept: { s: ConfiguratorSelection; option: (typeof options)[number] }[] = [];
-  for (const s of selections.slice(0, MAX_RANKED_ITEMS)) {
+  for (const s of (selections ?? []).slice(0, MAX_RANKED_ITEMS)) {
     const key = `${s.category}::${s.selection}`;
     // The table is unique on (search_id, category, selection); a repeated
     // answer is the same answer, not a second one.
@@ -358,6 +366,31 @@ async function writeConfiguratorSelections(
 
     seen.add(key);
     kept.push({ s, option });
+  }
+
+  // Minimum engagement, exterior colour / interior / seating only
+  // (2026-09-15) -- trim and features are exempt, both deliberately: trim's
+  // "any trim is fine" and features' "none of these" are real, complete
+  // answers on their own. Checked against categoryHasRealChoice, the exact
+  // rule that decided whether this category's question was ever shown
+  // (configurator-questions.ts) -- a category the customer never saw
+  // (0 or 1 real option) cannot be required, and this must never disagree
+  // with the UI about which categories that is. A crafted request is the
+  // only way to reach this: the real client disables Continue first.
+  const RANKED_CATEGORIES_REQUIRING_ENGAGEMENT = [
+    ["exterior_color", "an exterior color"],
+    ["interior", "an interior"],
+    ["seating", "a seating layout"],
+  ] as const;
+  for (const [category, label] of RANKED_CATEGORIES_REQUIRING_ENGAGEMENT) {
+    if (!categoryHasRealChoice(options, category)) continue;
+    const engaged = kept.some((k) => k.s.category === category);
+    if (!engaged) {
+      return {
+        ok: false,
+        error: `Rank at least ${label} option, or exclude one, before continuing.`,
+      };
+    }
   }
 
   // Renumber per category -- the unique index is on (search_id, category,
