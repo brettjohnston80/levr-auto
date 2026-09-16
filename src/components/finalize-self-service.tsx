@@ -15,6 +15,7 @@ import {
   SelectionSummary,
 } from "@/components/configurator-questions";
 import { RankingQuestion } from "@/components/ranking-question";
+import { hasAtLeastOneRanked } from "@/lib/ranked-list";
 
 type Step =
   | "trim"
@@ -126,20 +127,24 @@ export function FinalizeSelfService({
 
   /**
    * Minimum engagement, exterior colour / interior / seating only
-   * (2026-09-15). Leaving one of these three completely untouched -- no
-   * option ranked, none excluded -- is no longer a valid way to continue;
-   * trim and features are deliberately excluded (trim's "any trim is
-   * fine" and features' "none of these" are both real, meaningful
-   * answers on their own). A category is only ever a step in `steps` when
-   * it genuinely offered more than one real choice, so a suppressed
-   * category (e.g. seating on the 217 of 243 trims with only one layout)
-   * never reaches this check at all -- there is nothing here scoping it
-   * to "shown" separately from that.
+   * (2026-09-15, tightened 2026-09-16). Leaving one of these three
+   * completely unranked is no longer a valid way to continue -- trim and
+   * features are deliberately excluded (trim's "any trim is fine" and
+   * features' "none of these" are both real, meaningful answers on their
+   * own). A category is only ever a step in `steps` when it genuinely
+   * offered more than one real choice, so a suppressed category (e.g.
+   * seating on the 217 of 243 trims with only one layout) never reaches
+   * this check at all -- there is nothing here scoping it to "shown"
+   * separately from that.
    *
-   * The predicate is deliberately simple: RankedQuestion only ever adds a
-   * row to `selections` for an option the customer ranked or excluded, so
-   * "any row in this category" and "engaged with this category" are the
-   * same fact by construction (see configurator-questions.tsx).
+   * ⚠ EXCLUDING ITEMS ALONE NO LONGER SATISFIES THIS (2026-09-16). The
+   * original rule treated "any row in this category" (ranked OR excluded)
+   * as engagement; Brett's follow-up correction is that a customer who
+   * only excludes options -- saying what they don't want, never what they
+   * do -- hasn't actually answered the question. `hasAtLeastOneRanked`
+   * (ranked-list.ts) is the SAME shared predicate the server's
+   * writeConfiguratorSelections check uses, so client and server can't
+   * drift on what "ranked" means.
    */
   const REQUIRES_ENGAGEMENT: Partial<Record<Step, ConfiguratorSelection["category"]>> = {
     exteriorColor: "exterior_color",
@@ -148,7 +153,10 @@ export function FinalizeSelfService({
   };
   const requiredCategory = REQUIRES_ENGAGEMENT[step];
   const categoryEngaged = requiredCategory
-    ? selections.some((s) => s.category === requiredCategory)
+    ? hasAtLeastOneRanked(
+        selections.filter((s) => s.category === requiredCategory),
+        (s) => s,
+      )
     : true;
 
   /**
@@ -437,7 +445,8 @@ export function FinalizeSelfService({
         <div className="mt-6">
           {requiredCategory && !categoryEngaged && (
             <p className="mb-3 text-xs text-amber-400">
-              Rank at least one, or exclude one, to continue.
+              Rank at least one option you want to continue -- excluding others is fine, but
+              excluding alone isn&apos;t enough.
             </p>
           )}
           <div className="flex justify-between">

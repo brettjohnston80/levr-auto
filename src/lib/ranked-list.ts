@@ -70,3 +70,20 @@ export function normalizeRanked<T>(
 export function statesAnOpinion(shape: RankedShape): boolean {
   return shape.excluded || shape.rankPosition != null;
 }
+
+/**
+ * Whether at least one item is genuinely RANKED -- excluding some or all
+ * of the others is not enough on its own (2026-09-16). Shares RankedShape
+ * with statesAnOpinion/normalizeRanked so "ranked" can't be reinterpreted
+ * differently between the min-engagement gate and everything else that
+ * reads these same fields.
+ */
+export function hasAtLeastOneRanked<T>(
+  items: T[],
+  shapeOf: (item: T) => RankedShape,
+): boolean {
+  return items.some((i) => {
+    const s = shapeOf(i);
+    return !s.excluded && s.rankPosition != null;
+  });
+}

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ConfiguratorSelection, TrimPreference } from "@/lib/configurator-matching";
-import { normalizeRanked, statesAnOpinion } from "@/lib/ranked-list";
+import { hasAtLeastOneRanked, normalizeRanked, statesAnOpinion } from "@/lib/ranked-list";
 import { isOfferedModelYear } from "@/lib/intake-vehicle-options";
 import { loadInventoryBlock } from "@/lib/inventory-block";
 import { inventoryBlockCopy } from "@/lib/inventory-block-copy";
@@ -369,14 +369,24 @@ async function writeConfiguratorSelections(
   }
 
   // Minimum engagement, exterior colour / interior / seating only
-  // (2026-09-15) -- trim and features are exempt, both deliberately: trim's
-  // "any trim is fine" and features' "none of these" are real, complete
-  // answers on their own. Checked against categoryHasRealChoice, the exact
-  // rule that decided whether this category's question was ever shown
-  // (configurator-questions.ts) -- a category the customer never saw
-  // (0 or 1 real option) cannot be required, and this must never disagree
-  // with the UI about which categories that is. A crafted request is the
-  // only way to reach this: the real client disables Continue first.
+  // (2026-09-15, tightened 2026-09-16) -- trim and features are exempt,
+  // both deliberately: trim's "any trim is fine" and features' "none of
+  // these" are real, complete answers on their own. Checked against
+  // categoryHasRealChoice, the exact rule that decided whether this
+  // category's question was ever shown (configurator-questions.ts) -- a
+  // category the customer never saw (0 or 1 real option) cannot be
+  // required, and this must never disagree with the UI about which
+  // categories that is. A crafted request is the only way to reach this:
+  // the real client disables Continue first.
+  //
+  // ⚠ EXCLUDING ITEMS ALONE NO LONGER SATISFIES THIS (2026-09-16). The
+  // original rule accepted any row (ranked OR excluded) as engagement;
+  // Brett's follow-up correction is that only ranking something counts --
+  // a customer who exclusively excludes options has said what they don't
+  // want, never what they do, which isn't a real answer to "what do you
+  // want." `hasAtLeastOneRanked` is the SAME shared predicate the client's
+  // Continue-disabled gate uses (finalize-self-service.tsx), so the two
+  // can't drift on what "ranked" means.
   const RANKED_CATEGORIES_REQUIRING_ENGAGEMENT = [
     ["exterior_color", "an exterior color"],
     ["interior", "an interior"],
@@ -384,11 +394,12 @@ async function writeConfiguratorSelections(
   ] as const;
   for (const [category, label] of RANKED_CATEGORIES_REQUIRING_ENGAGEMENT) {
     if (!categoryHasRealChoice(options, category)) continue;
-    const engaged = kept.some((k) => k.s.category === category);
+    const inCategory = kept.filter((k) => k.s.category === category);
+    const engaged = hasAtLeastOneRanked(inCategory, (k) => k.s);
     if (!engaged) {
       return {
         ok: false,
-        error: `Rank at least ${label} option, or exclude one, before continuing.`,
+        error: `Rank at least ${label} option you want before continuing -- excluding others is fine, but excluding alone isn't enough.`,
       };
     }
   }
