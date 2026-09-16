@@ -221,7 +221,7 @@ export function RankingQuestion({
                     onClick={() => exclude(item.id)}
                     className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-zinc-400 transition-colors hover:border-amber-500/60 hover:text-amber-300"
                   >
-                    Not open to it
+                    Exclude
                   </button>
                 </div>
               </div>
@@ -234,7 +234,7 @@ export function RankingQuestion({
       {excludedItems.length > 0 && (
         <div className="mt-5">
           <p className="text-xs font-semibold uppercase tracking-wide text-amber-400/80">
-            Not open to ({excludedItems.length})
+            Excluded ({excludedItems.length})
           </p>
           <div className="mt-2 space-y-1.5">
             {excludedItems.map((item) => (

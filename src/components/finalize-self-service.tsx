@@ -245,7 +245,7 @@ export function FinalizeSelfService({
           {trimOptions.length > 0 ? (
             <RankingQuestion
               title={`Which ${make} ${model} trim?`}
-              subtitle="Rank them in the order you'd like us to search — we'll work down your list. Mark anything you're not open to, and leave the rest alone."
+              subtitle="Rank them in the order you'd like us to search — we'll work down your list. Mark anything you'd exclude, and leave the rest alone."
               items={trimOptions.map((opt) => ({
                 id: opt.id,
                 label: opt.trim,
@@ -314,7 +314,7 @@ export function FinalizeSelfService({
       {step === "exteriorColor" && questions && (
         <RankedQuestion
           title="What color?"
-          subtitle={`These are the colors a ${effectiveTrim} can actually be built in. Rank the ones you'd like, or let us know if there's one you're not open to.`}
+          subtitle={`These are the colors a ${effectiveTrim} can actually be built in. Rank the ones you'd like, or let us know if there's one you'd exclude.`}
           choices={questions.exteriorColor}
           category="exterior_color"
           selections={selections}
@@ -325,7 +325,7 @@ export function FinalizeSelfService({
       {step === "interior" && questions && (
         <RankedQuestion
           title="Interior?"
-          subtitle={"Rank the ones you'd like, or let us know if there's one you're not open to."}
+          subtitle={"Rank the ones you'd like, or let us know if there's one you'd exclude."}
           choices={questions.interior}
           category="interior"
           selections={selections}

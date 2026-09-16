@@ -287,7 +287,7 @@ export function FeatureQuestion({
                       : "border-white/10 bg-white/[0.02] text-zinc-400 hover:border-amber-500/60 hover:text-amber-300"
                   }`}
                 >
-                  Not open to it
+                  Exclude
                 </button>
               </div>
             </div>
@@ -338,7 +338,7 @@ export function SelectionSummary({ selections }: { selections: ConfiguratorSelec
         if (rows.length === 0) return null;
         // Reads back as the ordered list the customer actually built, with
         // refusals called out separately rather than folded in at the end
-        // -- "not open to black" and "black last" are different answers.
+        // -- "excluded: black" and "black last" are different answers.
         const ranked = rows
           .filter((r) => !r.excluded && r.rankPosition != null)
           .sort((a, b) => (a.rankPosition ?? 0) - (b.rankPosition ?? 0));
@@ -353,7 +353,7 @@ export function SelectionSummary({ selections }: { selections: ConfiguratorSelec
             {excluded.length > 0 ? (
               <span className="text-amber-400">
                 {ranked.length > 0 || unordered.length > 0 ? " — " : ""}
-                not open to: {excluded.map((r) => r.selection).join(", ")}
+                excluded: {excluded.map((r) => r.selection).join(", ")}
               </span>
             ) : null}
           </p>

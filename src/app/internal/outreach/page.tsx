@@ -130,7 +130,7 @@ function PackageNote({ sel }: { sel: OutreachSelection }) {
  * An explicit refusal. Deliberately loud and deliberately NOT just an
  * absence from the ranked list.
  *
- * "Not open to black" is an INSTRUCTION -- an agent who offers it has done
+ * "Excluded: black" is an INSTRUCTION -- an agent who offers it has done
  * the one thing the customer asked them not to. An option the customer
  * simply did not rank carries no such weight; it is merely unremarkable.
  * Rendering an exclusion by omission would flatten those two into the same
@@ -140,7 +140,7 @@ function ExcludedBlock({ items }: { items: { id: string; label: string }[] }) {
   if (items.length === 0) return null;
   return (
     <p className="mt-1 text-xs text-amber-300">
-      <span className="font-semibold">✕ Not open to:</span>{" "}
+      <span className="font-semibold">✕ Excluded:</span>{" "}
       <span className="text-amber-200/80">{items.map((i) => i.label).join(", ")}</span>
     </p>
   );
