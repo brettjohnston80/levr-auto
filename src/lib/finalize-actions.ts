@@ -3,13 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { ConfiguratorSelection, TrimPreference } from "@/lib/configurator-matching";
+import {
+  categoryHasRealChoiceAcrossTrims,
+  type ConfiguratorSelection,
+  type TrimPreference,
+} from "@/lib/configurator-matching";
 import { hasAtLeastOneRanked, normalizeRanked, statesAnOpinion } from "@/lib/ranked-list";
 import { isOfferedModelYear } from "@/lib/intake-vehicle-options";
 import { loadInventoryBlock } from "@/lib/inventory-block";
 import { inventoryBlockCopy } from "@/lib/inventory-block-copy";
 import { syncListingsForMakeModel } from "@/lib/marketcheck-sync";
-import { categoryHasRealChoice } from "@/lib/configurator-questions";
 
 export type FinalizeResult = { ok: true } | { ok: false; error: string };
 
@@ -290,7 +293,8 @@ const MAX_RANKED_ITEMS = 60;
 async function writeConfiguratorSelections(
   admin: ReturnType<typeof createAdminClient>,
   searchId: string,
-  configuratorTrimId: string | null | undefined,
+  rankedResolvedTrimIds: string[],
+  trimLabelsByConfiguratorId: Record<string, string>,
   selections: ConfiguratorSelection[] | undefined,
 ): Promise<
   { ok: true; colors: string[]; requiredOptions: string[] } | { ok: false; error: string }
@@ -306,18 +310,23 @@ async function writeConfiguratorSelections(
   // instead of any RankedQuestion step, so there is nothing here that
   // could require an answer -- this is the only case that can still skip
   // reading configurator_options.
-  if (!configuratorTrimId) {
+  if (rankedResolvedTrimIds.length === 0) {
     return { ok: true, colors: [], requiredOptions: [] };
   }
 
-  // Authoritative option data for this trim, paginated -- PostgREST caps a
-  // plain select at 1,000 rows and truncates silently, and a truncated read
-  // here would drop a legitimate answer as if it were fabricated. Loaded
-  // unconditionally now (2026-09-15), even for empty selections: it is
-  // also what decides whether exterior colour/interior/seating required an
-  // answer at all, which an empty submission might be illegally skipping.
+  // Authoritative option data across EVERY trim the customer ranked (that
+  // resolved to a real build) -- 2026-09-16, widened from a single trim.
+  // An answer is now valid if it's real on ANY of these, not just the #1 --
+  // see the structural-guarantee comment on writeTrimPreferences below for
+  // why this is still safe. Still paginated -- PostgREST caps a plain
+  // select at 1,000 rows and truncates silently, and a truncated read here
+  // would drop a legitimate answer as if it were fabricated. trim_id is now
+  // part of the select: with more than one trim in scope, a matched row's
+  // OWN trim is no longer implied by the query itself the way `.eq()` used
+  // to imply it.
   const PAGE_SIZE = 1000;
   const options: {
+    trim_id: string;
     category: string;
     name: string;
     availability: string;
@@ -330,9 +339,9 @@ async function writeConfiguratorSelections(
     const { data, error } = await admin
       .from("configurator_options")
       .select(
-        "id, category, name, availability, price_cents, package_name, package_price_cents, package_contents",
+        "id, trim_id, category, name, availability, price_cents, package_name, package_price_cents, package_contents",
       )
-      .eq("trim_id", configuratorTrimId)
+      .in("trim_id", rankedResolvedTrimIds)
       .order("id")
       .range(from, from + PAGE_SIZE - 1);
     if (error) return { ok: false, error: error.message };
@@ -340,21 +349,48 @@ async function writeConfiguratorSelections(
     if (!data || data.length < PAGE_SIZE) break;
   }
 
-  const byKey = new Map(options.map((o) => [`${o.category}::${o.name}`, o]));
+  // Rank order among the customer's ranked trims, for two purposes: (1)
+  // when the SAME option name is real on more than one ranked trim, which
+  // trim's copy of price/package data wins for display -- the
+  // highest-ranked one that actually offers it; (2) so `available_on_trims`
+  // lists trims in the customer's own priority order, not query order.
+  const trimRank = new Map(rankedResolvedTrimIds.map((id, i) => [id, i]));
+
+  const optionsByKey = new Map<string, typeof options>();
+  for (const o of options) {
+    const key = `${o.category}::${o.name}`;
+    const list = optionsByKey.get(key) ?? [];
+    list.push(o);
+    optionsByKey.set(key, list);
+  }
+
   const seen = new Set<string>();
-  const kept: { s: ConfiguratorSelection; option: (typeof options)[number] }[] = [];
+  const kept: {
+    s: ConfiguratorSelection;
+    option: (typeof options)[number];
+    availableOnTrims: string[];
+  }[] = [];
   for (const s of (selections ?? []).slice(0, MAX_RANKED_ITEMS)) {
     const key = `${s.category}::${s.selection}`;
     // The table is unique on (search_id, category, selection); a repeated
     // answer is the same answer, not a second one.
     if (seen.has(key)) continue;
-    const option = byKey.get(key);
-    if (!option || option.availability === "unavailable") continue;
+    const matches = (optionsByKey.get(key) ?? []).filter((o) => o.availability !== "unavailable");
+    if (matches.length === 0) continue;
+    // Highest-ranked ranked trim that offers it wins for display fields --
+    // deterministic, and matches the same "prefer #1" priority the rest of
+    // this flow already uses everywhere else.
+    const winner = [...matches].sort(
+      (a, b) => (trimRank.get(a.trim_id) ?? Infinity) - (trimRank.get(b.trim_id) ?? Infinity),
+    )[0];
 
     const isFeature = s.category === "feature";
     // A feature the trim already includes is not a question, so a "yes"
-    // against it is not an answer worth sending to an agent.
-    if (isFeature && option.availability === "standard") continue;
+    // against it is not an answer worth sending to an agent. Checked
+    // against the WINNING trim specifically -- the same feature could be
+    // 'standard' on one ranked trim and 'standalone' on another, and it's
+    // the winning trim's own availability that decides what this means.
+    if (isFeature && winner.availability === "standard") continue;
     // Features are NEVER ranked -- they are independent adds with no
     // meaningful ordering between them -- but since 2026-09-14 they CAN be
     // excluded: "explicitly does not want this" is a real instruction,
@@ -365,17 +401,22 @@ async function writeConfiguratorSelections(
     if (!isFeature && !statesAnOpinion(s)) continue;
 
     seen.add(key);
-    kept.push({ s, option });
+    const availableOnTrims = matches
+      .slice()
+      .sort((a, b) => (trimRank.get(a.trim_id) ?? Infinity) - (trimRank.get(b.trim_id) ?? Infinity))
+      .map((o) => trimLabelsByConfiguratorId[o.trim_id] ?? o.trim_id);
+    kept.push({ s, option: winner, availableOnTrims });
   }
 
   // Minimum engagement, exterior colour / interior / seating only
-  // (2026-09-15, tightened 2026-09-16) -- trim and features are exempt,
-  // both deliberately: trim's "any trim is fine" and features' "none of
-  // these" are real, complete answers on their own. Checked against
-  // categoryHasRealChoice, the exact rule that decided whether this
-  // category's question was ever shown (configurator-questions.ts) -- a
-  // category the customer never saw (0 or 1 real option) cannot be
-  // required, and this must never disagree with the UI about which
+  // (2026-09-15, tightened 2026-09-16, widened to the ranked-trim union
+  // 2026-09-16) -- trim and features are exempt, both deliberately: trim's
+  // "any trim is fine" and features' "none of these" are real, complete
+  // answers on their own. Checked against categoryHasRealChoiceAcrossTrims,
+  // the exact rule that decided whether this category's question was ever
+  // shown to this customer (finalize-self-service.tsx's step-visibility
+  // gate) -- a category never shown across their ranked trims cannot be
+  // required, and this must never disagree with the client about which
   // categories that is. A crafted request is the only way to reach this:
   // the real client disables Continue first.
   //
@@ -393,7 +434,7 @@ async function writeConfiguratorSelections(
     ["seating", "a seating layout"],
   ] as const;
   for (const [category, label] of RANKED_CATEGORIES_REQUIRING_ENGAGEMENT) {
-    if (!categoryHasRealChoice(options, category)) continue;
+    if (!categoryHasRealChoiceAcrossTrims(options.filter((o) => o.category === category))) continue;
     const inCategory = kept.filter((k) => k.s.category === category);
     const engaged = hasAtLeastOneRanked(inCategory, (k) => k.s);
     if (!engaged) {
@@ -414,13 +455,15 @@ async function writeConfiguratorSelections(
   for (const category of categories) {
     const inCategory = kept.filter((k) => k.s.category === category);
     if (category === "feature") {
-      for (const { s, option } of inCategory) {
+      for (const { s, option, availableOnTrims } of inCategory) {
         // required_options is a list of things to GET. A refused feature
         // reaching it would read to every legacy surface as something the
         // customer WANTS -- the exact inversion of what they said, and the
         // same trap excluded colours are already kept out of.
         if (!s.excluded) features.push(option.name);
-        rows.push(buildSelectionRow(searchId, "feature", "feature", option, null, s.excluded));
+        rows.push(
+          buildSelectionRow(searchId, "feature", "feature", option, null, s.excluded, availableOnTrims),
+        );
       }
       continue;
     }
@@ -430,11 +473,21 @@ async function writeConfiguratorSelections(
         rankedColors.push({ name: item.option.name, rankPosition });
       }
       rows.push(
-        buildSelectionRow(searchId, category, "ranked", item.option, rankPosition, false),
+        buildSelectionRow(
+          searchId,
+          category,
+          "ranked",
+          item.option,
+          rankPosition,
+          false,
+          item.availableOnTrims,
+        ),
       );
     }
     for (const { item } of excluded) {
-      rows.push(buildSelectionRow(searchId, category, "ranked", item.option, null, true));
+      rows.push(
+        buildSelectionRow(searchId, category, "ranked", item.option, null, true, item.availableOnTrims),
+      );
     }
   }
 
@@ -481,6 +534,13 @@ function buildSelectionRow(
   },
   rankPosition: number | null,
   excluded: boolean,
+  // Which of the customer's ranked trims (display label, e.g. "XSE 2026")
+  // genuinely offered this option, in rank order -- always at least one
+  // entry, since `kept` only ever holds selections that matched a real,
+  // non-'unavailable' row on at least one ranked trim. Denormalized at
+  // write time, never re-derived later -- see the column's own migration
+  // comment (20260916120000) for why.
+  availableOnTrims: string[],
 ): Record<string, unknown> {
   const inPackage = option.availability === "package_only" && option.package_name != null;
   return {
@@ -494,28 +554,43 @@ function buildSelectionRow(
     package_price_cents: inPackage ? option.package_price_cents : null,
     package_contents: inPackage ? option.package_contents : null,
     price_unknown: inPackage ? option.package_price_cents == null : option.price_cents == null,
+    available_on_trims: availableOnTrims,
   };
 }
 
 /**
  * Persists the customer's ranked trim list, and resolves which researched
- * build (if any) their #1 choice corresponds to.
+ * build(s) their ranked choices correspond to.
  *
- * RETURNING the #1's configurator trim id is the point, not a convenience.
- * The caller feeds it straight into writeConfiguratorSelections, so the
- * options a customer's colour/feature answers get validated against are
- * ALWAYS the options of the trim they ranked first -- there is no separate
+ * ⚠ THE STRUCTURAL GUARANTEE, WIDENED 2026-09-16 -- WAS A SCALAR, NOW A SET,
+ * SAME PROPERTY. Until this change, RETURNING only the #1's configurator
+ * trim id was the point: the caller fed it straight into
+ * writeConfiguratorSelections, so the options a customer's colour/feature
+ * answers validated against were ALWAYS the options of the trim they ranked
+ * first. The ranked-trim-union redesign deliberately widens this -- a
+ * colour is now a real answer if it's buildable on ANY trim the customer
+ * ranked, not only their #1 -- but the STRUCTURAL part of the guarantee is
+ * untouched: `rankedResolvedTrimIds` below is still the ONLY source of trim
+ * ids `writeConfiguratorSelections` ever sees, still derived here from the
+ * customer's own ranked-and-resolved preferences, still with no separate
  * client-supplied field that could point somewhere else. A crafted request
- * cannot rank one trim and have its answers validated against a different
- * build's cheaper packages.
+ * still cannot get its answers validated against a trim it never ranked --
+ * it can now reach a WIDER set of legitimately-ranked trims, never an
+ * unranked one.
  *
- * configuratorTrimId is re-checked rather than trusted: the claimed build
- * must really exist, be part of the live batch, and belong to this search's
- * make and model. It is deliberately NOT required to match the trim string,
- * because a legitimate match routinely disagrees there -- MarketCheck
- * truncates "XLE Premium" to "XLE", which is exactly the case the matcher
- * exists to bridge. A failed check degrades to null (the agent view then
- * reads "inventory only"), never to a rejected save.
+ * `topTrim`/`topConfiguratorTrimId` are kept alongside, unchanged in
+ * meaning -- the legacy `trim` column and the review-step wording still
+ * care specifically about #1.
+ *
+ * configuratorTrimId is re-checked rather than trusted, for every ranked
+ * entry, not just #1: the claimed build must really exist, be part of the
+ * live batch, and belong to this search's make and model. It is
+ * deliberately NOT required to match the trim string, because a legitimate
+ * match routinely disagrees there -- MarketCheck truncates "XLE Premium" to
+ * "XLE", which is exactly the case the matcher exists to bridge. A failed
+ * check degrades that one entry to null (excluded from the resolved set,
+ * the agent view then reads "inventory only" for it), never to a rejected
+ * save.
  */
 async function writeTrimPreferences(
   admin: ReturnType<typeof createAdminClient>,
@@ -524,7 +599,14 @@ async function writeTrimPreferences(
   model: string | null,
   preferences: TrimPreference[] | undefined,
 ): Promise<
-  { ok: true; topTrim: string | null; topConfiguratorTrimId: string | null } | { ok: false; error: string }
+  | {
+      ok: true;
+      topTrim: string | null;
+      topConfiguratorTrimId: string | null;
+      rankedResolvedTrimIds: string[];
+      trimLabelsByConfiguratorId: Record<string, string>;
+    }
+  | { ok: false; error: string }
 > {
   const { error: clearError } = await admin
     .from("search_trim_preferences")
@@ -532,8 +614,16 @@ async function writeTrimPreferences(
     .eq("search_id", searchId);
   if (clearError) return { ok: false, error: clearError.message };
 
+  const empty = {
+    ok: true as const,
+    topTrim: null,
+    topConfiguratorTrimId: null,
+    rankedResolvedTrimIds: [],
+    trimLabelsByConfiguratorId: {},
+  };
+
   if (!preferences || preferences.length === 0) {
-    return { ok: true, topTrim: null, topConfiguratorTrimId: null };
+    return empty;
   }
 
   const seen = new Set<string>();
@@ -551,7 +641,7 @@ async function writeTrimPreferences(
     cleaned.push({ ...p, trim });
   }
   if (cleaned.length === 0) {
-    return { ok: true, topTrim: null, topConfiguratorTrimId: null };
+    return empty;
   }
 
   const validIds = await resolveValidConfiguratorTrimIds(admin, cleaned, make, model);
@@ -573,6 +663,26 @@ async function writeTrimPreferences(
   if (error) return { ok: false, error: error.message };
 
   const top = ranked.find((r) => r.rankPosition === 1);
+
+  // Every RANKED (never excluded) trim that resolved to a real build, in
+  // rank order -- excluded trim preferences never contribute, matching
+  // "an excluded trim is a real statement of what the customer doesn't
+  // want" already established elsewhere in this file. First-wins on a
+  // duplicate configuratorTrimId (two ranked trim strings resolving to the
+  // exact same researched build, e.g. a reconciliation edge case) so the
+  // label always reflects the customer's highest-ranked name for it.
+  const rankedResolvedTrimIds: string[] = [];
+  const trimLabelsByConfiguratorId: Record<string, string> = {};
+  for (const { item } of ranked) {
+    const id = item.configuratorTrimId;
+    if (!id || !validIds.has(id)) continue;
+    rankedResolvedTrimIds.push(id);
+    if (!(id in trimLabelsByConfiguratorId)) {
+      trimLabelsByConfiguratorId[id] =
+        item.modelYear != null ? `${item.trim} ${item.modelYear}` : item.trim;
+    }
+  }
+
   return {
     ok: true,
     topTrim: top?.item.trim ?? null,
@@ -580,6 +690,8 @@ async function writeTrimPreferences(
       top?.item.configuratorTrimId && validIds.has(top.item.configuratorTrimId)
         ? top.item.configuratorTrimId
         : null,
+    rankedResolvedTrimIds,
+    trimLabelsByConfiguratorId,
   };
 }
 
@@ -662,7 +774,8 @@ export async function finalizeSelfService(
   const stored = await writeConfiguratorSelections(
     admin,
     searchId,
-    trims.topConfiguratorTrimId,
+    trims.rankedResolvedTrimIds,
+    trims.trimLabelsByConfiguratorId,
     details.selections,
   );
   if (!stored.ok) {
@@ -767,7 +880,8 @@ export async function updateFinalizedSearch(
   const stored = await writeConfiguratorSelections(
     admin,
     searchId,
-    trims.topConfiguratorTrimId,
+    trims.rankedResolvedTrimIds,
+    trims.trimLabelsByConfiguratorId,
     details.selections,
   );
   if (!stored.ok) {

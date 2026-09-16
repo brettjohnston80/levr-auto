@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  type AutoExcludedChoice,
   type ConfiguratorChoice,
   type ConfiguratorSelection,
 } from "@/lib/configurator-matching";
@@ -84,23 +85,37 @@ function PackageNote({ choice }: { choice: ConfiguratorChoice }) {
  * all. That last one is why there is no "no preference" button: silence
  * already means no opinion, and an option the customer ignored must never
  * become an answer an agent negotiates against.
+ *
+ * `rankable`/`autoExcluded` replace the old single `choices` prop
+ * (2026-09-16, full-transparency redesign) -- both are already computed by
+ * the caller (finalize-self-service.tsx's `computeCategoryAvailability`)
+ * from the union across every trim the customer has ranked, not just their
+ * #1. `autoExcluded` items are a live-computed FACT about trim
+ * availability, never something this component can rank or exclude --
+ * they're handed straight through to RankingQuestion's own auto-excluded
+ * block, which renders them non-interactive.
  */
 export function RankedQuestion({
   title,
   subtitle,
-  choices,
+  rankable,
+  autoExcluded,
   category,
   selections,
   onChange,
 }: {
   title: string;
   subtitle: string;
-  choices: ConfiguratorChoice[];
+  rankable: ConfiguratorChoice[];
+  autoExcluded: AutoExcludedChoice[];
   category: ConfiguratorSelection["category"];
   selections: ConfiguratorSelection[];
   onChange: (next: ConfiguratorSelection[]) => void;
 }) {
-  const byName = new Map(choices.map((c) => [c.name, c]));
+  // NOT built from `rankable` for handleChange purposes -- see below,
+  // deliberately excludes recovered items so a stray Rank click on one
+  // can't smuggle an actually-unavailable option into a save.
+  const byName = new Map(rankable.map((c) => [c.name, c]));
   const mine = selections.filter((s) => s.category === category);
 
   // Option NAME is the id here: search_option_selections is unique on
@@ -111,20 +126,46 @@ export function RankedQuestion({
     .sort((a, b) => (a.rankPosition ?? 0) - (b.rankPosition ?? 0))
     .map((s) => s.selection);
   const excluded = mine.filter((s) => s.excluded).map((s) => s.selection);
+  const excludedNames = new Set(excluded);
 
-  const items: RankableItem[] = choices.map((c) => ({
+  const toDetail = (c: ConfiguratorChoice) => (
+    <>
+      <span className="mt-0.5 block">
+        <PriceTag choice={c} />
+      </span>
+      <PackageNote choice={c} />
+    </>
+  );
+  const toItem = (c: ConfiguratorChoice): RankableItem => ({
     id: c.name,
     label: c.name,
     imageUrl: c.imageUrl ?? null,
     swatch: c.swatch ?? null,
-    detail: (
-      <>
-        <span className="mt-0.5 block">
-          <PriceTag choice={c} />
-        </span>
-        <PackageNote choice={c} />
-      </>
-    ),
+    detail: toDetail(c),
+  });
+
+  // ⚠ A GENUINE CUSTOMER EXCLUSION MUST NEVER GO INVISIBLE, EVEN IF ITS
+  // ONLY OFFERING TRIM GETS REMOVED FROM THE RANKING (2026-09-16). Section
+  // 2 ("Excluded") is unchanged-from-today and unconditional on trim
+  // availability -- excluding something is a statement independent of
+  // whether it's currently buildable. But `rankable` is now scoped to the
+  // ranked-trim union, so an excluded name that falls out of it would
+  // otherwise vanish from `items` entirely (RankingQuestion's own
+  // `excludedItems` lookup silently drops any id `byId` can't resolve).
+  // Recovered here from `autoExcluded`'s own choice data -- and then
+  // filtered OUT of the auto-excluded block below, so it renders exactly
+  // once, in Excluded, same as it always has.
+  const recoveredExcluded = autoExcluded.filter(({ choice }) => excludedNames.has(choice.name));
+  const visibleAutoExcluded = autoExcluded.filter(({ choice }) => !excludedNames.has(choice.name));
+
+  const items: RankableItem[] = [
+    ...rankable.map(toItem),
+    ...recoveredExcluded.map(({ choice }) => toItem(choice)),
+  ];
+
+  const autoExcludedItems = visibleAutoExcluded.map(({ choice, note }) => ({
+    item: toItem(choice),
+    note,
   }));
 
   function handleChange(nextRanked: string[], nextExcluded: string[]) {
@@ -159,6 +200,7 @@ export function RankedQuestion({
       items={items}
       ranked={ranked}
       excluded={excluded}
+      autoExcluded={autoExcludedItems}
       onChange={handleChange}
     />
   );
@@ -174,11 +216,13 @@ export function RankedQuestion({
  * same thing.
  */
 export function FeatureQuestion({
-  choices,
+  rankable,
+  autoExcluded,
   selections,
   onChange,
 }: {
-  choices: ConfiguratorChoice[];
+  rankable: ConfiguratorChoice[];
+  autoExcluded: AutoExcludedChoice[];
   selections: ConfiguratorSelection[];
   onChange: (next: ConfiguratorSelection[]) => void;
 }) {
@@ -237,7 +281,7 @@ export function FeatureQuestion({
         you&apos;d rather not have. Skipping one is fine.
       </p>
       <div className="mt-5 space-y-2">
-        {choices.map((choice) => {
+        {rankable.map((choice) => {
           const entry = entryFor(choice.name);
           const wanted = entry !== null && !entry.excluded;
           const refused = entry?.excluded ?? false;
@@ -295,6 +339,38 @@ export function FeatureQuestion({
           );
         })}
       </div>
+
+      {/* Auto-excluded (2026-09-16): a feature no CURRENTLY RANKED trim
+          offers -- a live-computed fact, never something the customer can
+          want/exclude, so no buttons here, just the note. Own block below
+          the interactive list, matching the ranked-category convention
+          (RankingQuestion's own auto-excluded block) as closely as this
+          component's flat-list shape allows -- features has no separate
+          "customer excluded" section to sit alongside, so this is the one
+          new grouping in this component. */}
+      {autoExcluded.length > 0 && (
+        <div className="mt-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            Not offered on your selected trims
+          </p>
+          <div className="mt-2 space-y-1.5">
+            {autoExcluded.map(({ choice, note }) => (
+              <div
+                key={choice.name}
+                className="flex flex-col gap-2.5 rounded-xl border border-white/10 bg-white/[0.02] p-3.5 opacity-60 sm:flex-row sm:items-start sm:gap-3"
+              >
+                <div className="flex min-w-0 flex-1 items-start gap-3">
+                  <FeatureThumb url={choice.imageUrl ?? null} />
+                  <div className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium text-zinc-300">{choice.name}</span>
+                    <p className="mt-1 text-xs leading-relaxed text-zinc-500">{note}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

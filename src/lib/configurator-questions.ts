@@ -4,9 +4,11 @@ import { resolveFeatureImages } from "@/lib/vehicle-feature-images";
 import { resolveColorSwatches } from "@/lib/vehicle-color-swatches";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
+  CHOICE_AVAILABILITY,
   configuratorFuelClass,
   listingPowertrainClass,
   matchConfiguratorTrim,
+  sortChoices,
   type ConfiguratorChoice,
   type ConfiguratorQuestions,
   type ConfiguratorTrimCandidate,
@@ -52,18 +54,14 @@ interface OptionRow {
   package_contents: string[] | null;
 }
 
-/**
- * A colour, interior or seating layout is a CHOICE even when it costs
- * nothing -- a car has exactly one exterior colour, and the free ones are
- * the most common answer. Excluding 'standard' there would throw away most
- * of the question. 'unavailable' is excluded everywhere: never offer what
- * the car cannot be built with.
- */
-// Exported (2026-09-15): the write path (finalize-actions.ts) needs the
-// identical rule to decide whether exterior colour/interior/seating
-// required an answer, so the two can never disagree about which
-// categories genuinely offered a choice on a given trim.
-export const CHOICE_AVAILABILITY = new Set(["standard", "standalone", "package_only"]);
+// CHOICE_AVAILABILITY now lives in configurator-matching.ts (2026-09-16) --
+// see its own comment there for why: the ranked-trim-union redesign needs
+// the identical rule shared with a client component, which cannot import
+// this file at all (`server-only` above). The single-trim
+// `categoryHasRealChoice` this file used to export is gone with it --
+// finalize-actions.ts's write-time engagement gate now uses
+// `categoryHasRealChoiceAcrossTrims` instead, fed the union of rows across
+// every trim the customer ranked, not just one.
 
 /**
  * A FEATURE is different. 'standard' means it already comes with the car,
@@ -72,22 +70,6 @@ export const CHOICE_AVAILABILITY = new Set(["standard", "standalone", "package_o
  * something every build already has. Features are standard-excluded.
  */
 const FEATURE_AVAILABILITY = new Set(["standalone", "package_only"]);
-
-/**
- * Whether a category counts as a real, offered choice on a trim -- more
- * than one selectable option, same threshold `atLeastTwo` below applies
- * when building the question itself. A category with 0 or 1 real option
- * is never asked about (nothing to choose between), so nothing can be
- * required of it either. Exported so finalize-actions.ts can enforce
- * "at least one selection" against the exact same rule that decided
- * whether the question was shown in the first place.
- */
-export function categoryHasRealChoice(
-  rows: { category: string; availability: string }[],
-  category: string,
-): boolean {
-  return rows.filter((r) => r.category === category && CHOICE_AVAILABILITY.has(r.availability)).length > 1;
-}
 
 function toChoice(row: OptionRow): ConfiguratorChoice {
   return {
@@ -101,15 +83,10 @@ function toChoice(row: OptionRow): ConfiguratorChoice {
   };
 }
 
-/** Free/standard first, then cheapest first, then alphabetical. */
-function sortChoices(a: ConfiguratorChoice, b: ConfiguratorChoice): number {
-  const rank = (c: ConfiguratorChoice) => (c.availability === "standard" ? 0 : 1);
-  if (rank(a) !== rank(b)) return rank(a) - rank(b);
-  const price = (c: ConfiguratorChoice) =>
-    c.packagePriceCents ?? c.priceCents ?? Number.MAX_SAFE_INTEGER;
-  if (price(a) !== price(b)) return price(a) - price(b);
-  return a.name.localeCompare(b.name);
-}
+// sortChoices now lives in configurator-matching.ts (2026-09-16) -- the
+// model-wide union display (finalize-self-service.tsx) needs the identical
+// ordering rule for its rankable/auto-excluded lists, and that's a client
+// component this `server-only` file can never be imported from.
 
 /** Result for one inventory trim option -- questions, or why not. */
 export interface TrimGatingResult {
@@ -262,12 +239,33 @@ export async function getConfiguratorQuestionsForTrims(
     // needs only one obtainable item to be worth asking about.
     const atLeastTwo = (list: ConfiguratorChoice[]) => (list.length > 1 ? list : []);
 
+    // RAW computed first, gated derived from it (2026-09-16) -- this trim's
+    // own real availability data must not be thrown away just because THIS
+    // trim alone doesn't clear the atLeastTwo bar. A trim with exactly one
+    // real interior colour (Nightshade: "Black SofTex/fabric mixed media
+    // trim") genuinely offers that colour -- atLeastTwo correctly keeps it
+    // out of ITS OWN customer-facing question, but the ranked-trim-union
+    // redesign (2026-09-16) needs to know it's available on Nightshade
+    // regardless, once Nightshade is ranked alongside another trim whose
+    // own count clears the bar. The gated fields below are exactly what
+    // atLeastTwo(raw) already computed before this change -- unchanged,
+    // still what a single resolved trim's own question set shows.
+    const exteriorColorRaw = pick("exterior_color", CHOICE_AVAILABILITY);
+    const interiorRaw = pick("interior", CHOICE_AVAILABILITY);
+    const seatingRaw = pick("seating", CHOICE_AVAILABILITY);
+
     return {
       configuratorTrimId: trimId,
-      exteriorColor: atLeastTwo(pick("exterior_color", CHOICE_AVAILABILITY)),
-      interior: atLeastTwo(pick("interior", CHOICE_AVAILABILITY)),
-      seating: atLeastTwo(pick("seating", CHOICE_AVAILABILITY)),
+      exteriorColor: atLeastTwo(exteriorColorRaw),
+      interior: atLeastTwo(interiorRaw),
+      seating: atLeastTwo(seatingRaw),
+      // Features never had an atLeastTwo gate -- pick("feature", ...) was
+      // already this trim's raw, ungated list, so exposing it a second
+      // time under a Raw name would only invite the two to drift apart.
       features: pick("feature", FEATURE_AVAILABILITY),
+      exteriorColorRaw,
+      interiorRaw,
+      seatingRaw,
     };
   };
 

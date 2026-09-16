@@ -48,6 +48,7 @@ export function RankingQuestion({
   items,
   ranked,
   excluded,
+  autoExcluded,
   onChange,
 }: {
   title: string;
@@ -57,6 +58,14 @@ export function RankingQuestion({
   ranked: string[];
   /** Item ids the customer refused. */
   excluded: string[];
+  /**
+   * Items no CURRENTLY RANKED trim offers (2026-09-16) -- a live-computed
+   * fact about trim availability, never a customer statement, so these
+   * never appear in `items`/`ranked`/`excluded` at all. Rendered in their
+   * own block below "Excluded", same visual shell, but with no Undo
+   * control (there's nothing to undo) and a note in its place.
+   */
+  autoExcluded?: { item: RankableItem; note: string }[];
   onChange: (ranked: string[], excluded: string[]) => void;
 }) {
   const byId = new Map(items.map((i) => [i.id, i]));
@@ -270,6 +279,38 @@ export function RankingQuestion({
                 >
                   Undo
                 </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ---- Auto-excluded (2026-09-16) ---- Same shell as Excluded, but
+          there is nothing to Undo: this is a live fact about which of the
+          customer's CURRENTLY RANKED trims offer this, not something they
+          said. The note explains why, and names a real trim to add
+          instead of a button. */}
+      {autoExcluded && autoExcluded.length > 0 && (
+        <div className="mt-5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            Not offered on your selected trims ({autoExcluded.length})
+          </p>
+          <div className="mt-2 space-y-1.5">
+            {autoExcluded.map(({ item, note }) => (
+              <div
+                key={item.id}
+                className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3 opacity-60"
+              >
+                <span className="shrink-0 pt-0.5 text-zinc-500">–</span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-zinc-300">
+                    {item.label}
+                    {item.sublabel ? (
+                      <span className="ml-1.5 font-normal text-zinc-500">{item.sublabel}</span>
+                    ) : null}
+                  </p>
+                  <p className="mt-1 text-xs leading-relaxed text-zinc-500">{note}</p>
+                </div>
               </div>
             ))}
           </div>

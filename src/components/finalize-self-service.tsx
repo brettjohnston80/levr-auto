@@ -4,10 +4,13 @@ import { useState } from "react";
 import { COLORS, OPTIONS } from "@/lib/vehicle-data";
 import { finalizeSelfService } from "@/lib/finalize-actions";
 import type { TrimOption } from "@/lib/finalize-trims";
-import type {
-  ConfiguratorQuestions,
-  ConfiguratorSelection,
-  TrimPreference,
+import {
+  categoryHasRealChoiceAcrossTrims,
+  computeCategoryAvailability,
+  type ConfiguratorChoice,
+  type ConfiguratorQuestions,
+  type ConfiguratorSelection,
+  type TrimPreference,
 } from "@/lib/configurator-matching";
 import {
   FeatureQuestion,
@@ -100,26 +103,178 @@ export function FinalizeSelfService({
   const topTrimId = rankedTrimIds[0] ?? null;
   const effectiveTrim = (topTrimId && trimById.get(topTrimId)?.trim) || "";
 
-  // ⚠ ONLY THE #1 RANKED TRIM DRIVES THE QUESTIONS, and that is the whole
-  // reason ranking trim is safe. The rest of the list is the agent's
-  // fallback SEARCH ORDER, not a second set of answers -- a colour only
-  // means something against one specific build, so asking about several at
-  // once would produce answers no single car could satisfy. An empty list
-  // or a typed custom trim resolves to null: neither identifies one
-  // researched build.
+  // ⚠ #1 STILL DECIDES WHETHER THE RICH FLOW RENDERS AT ALL -- that part is
+  // deliberately UNCHANGED by the ranked-trim-union redesign. If the
+  // customer's top choice doesn't resolve to a researched build (an
+  // unmatched trim, or nothing ranked), the whole flow still falls back to
+  // the generic colour/options steps below, even if a LOWER-ranked trim
+  // would have resolved. Known, narrow scope boundary, not an oversight --
+  // the redesign widens WHICH TRIMS' options count once the rich flow is
+  // already showing, not whether it shows in the first place.
   const questions: ConfiguratorQuestions | null =
     (topTrimId && configuratorQuestions[topTrimId]) || null;
 
+  // Every ranked trim that resolved to a real build (2026-09-16) -- the
+  // per-CATEGORY step-visibility decision below is evaluated across all of
+  // these, not just #1, using the exact same `categoryHasRealChoiceAcrossTrims`
+  // the server's min-one-ranked engagement gate uses (finalize-actions.ts),
+  // imported from the same shared file, so the two can't drift on which
+  // categories are "worth asking" for this customer's current ranking.
+  const rankedResolvedQuestions = rankedTrimIds
+    .map((id) => configuratorQuestions[id])
+    .filter((q): q is ConfiguratorQuestions => !!q);
+
   const steps: Step[] = ["trim"];
   if (questions) {
-    if (questions.exteriorColor.length > 0) steps.push("exteriorColor");
-    if (questions.interior.length > 0) steps.push("interior");
-    if (questions.seating.length > 0) steps.push("seating");
-    if (questions.features.length > 0) steps.push("features");
+    if (categoryHasRealChoiceAcrossTrims(rankedResolvedQuestions.flatMap((q) => q.exteriorColorRaw)))
+      steps.push("exteriorColor");
+    if (categoryHasRealChoiceAcrossTrims(rankedResolvedQuestions.flatMap((q) => q.interiorRaw)))
+      steps.push("interior");
+    if (categoryHasRealChoiceAcrossTrims(rankedResolvedQuestions.flatMap((q) => q.seatingRaw)))
+      steps.push("seating");
+    // Features has no ">1" threshold -- any real obtainable feature
+    // anywhere in the ranked union is worth asking about, matching the
+    // single-trim behaviour this replaces (features was never
+    // atLeastTwo-gated either).
+    if (rankedResolvedQuestions.some((q) => q.features.length > 0)) steps.push("features");
   } else {
     steps.push("color", "options");
   }
   steps.push("review");
+
+  // Model-wide union + ranked-trim-union exclusion test (2026-09-16,
+  // full-transparency redesign). "The model" is every trim already in
+  // `configuratorQuestions` -- every real inventory-backed trim that
+  // resolved to a researched build, whether ranked or not -- so a colour
+  // exclusive to a trim the customer hasn't ranked yet still shows up,
+  // auto-excluded, with a note naming the trim to add. Computed fresh on
+  // every render from data already in props/state -- no new fetch, see
+  // computeCategoryAvailability's own comment for why this is cheap.
+  const matchedTrimIds = trimOptions.map((o) => o.id).filter((id) => configuratorQuestions[id]);
+  const trimDisplayNameById: Record<string, string> = Object.fromEntries(
+    trimOptions.map((o) => [o.id, o.trim]),
+  );
+
+  // Name -> rank position, per category, for every RANKED (non-excluded)
+  // answer currently held -- feeds computeCategoryAvailability's
+  // "Previously ranked #N" note (2026-09-16, surgical re-validation). Only
+  // cosmetic to which bucket a name lands in; see that function's own
+  // comment.
+  const rankedNamesFor = (category: ConfiguratorSelection["category"]): Map<string, number> => {
+    const map = new Map<string, number>();
+    for (const s of selections) {
+      if (s.category === category && !s.excluded && s.rankPosition != null) {
+        map.set(s.selection, s.rankPosition);
+      }
+    }
+    return map;
+  };
+
+  const exteriorColorAvailability = computeCategoryAvailability(
+    matchedTrimIds,
+    rankedTrimIds,
+    configuratorQuestions,
+    (q) => q.exteriorColorRaw,
+    trimDisplayNameById,
+    rankedNamesFor("exterior_color"),
+  );
+  const interiorAvailability = computeCategoryAvailability(
+    matchedTrimIds,
+    rankedTrimIds,
+    configuratorQuestions,
+    (q) => q.interiorRaw,
+    trimDisplayNameById,
+    rankedNamesFor("interior"),
+  );
+  const seatingAvailability = computeCategoryAvailability(
+    matchedTrimIds,
+    rankedTrimIds,
+    configuratorQuestions,
+    (q) => q.seatingRaw,
+    trimDisplayNameById,
+    rankedNamesFor("seating"),
+  );
+  const featuresAvailability = computeCategoryAvailability(
+    matchedTrimIds,
+    rankedTrimIds,
+    configuratorQuestions,
+    (q) => q.features,
+    trimDisplayNameById,
+    rankedNamesFor("feature"),
+  );
+
+  /**
+   * The real conflict the ranked-trim-union redesign makes possible
+   * (2026-09-16): a customer's #1-ranked answer isn't necessarily
+   * buildable on their #1-ranked TRIM specifically anymore -- it only
+   * has to be buildable on SOME ranked trim. Non-blocking (their ranked
+   * trim list is already a fallback search order), but surfaced loudly on
+   * Review so it's never a silent surprise. Computed live from
+   * client-held state -- no round trip needed, matches what gets saved.
+   */
+  const CONFLICT_LABEL: Record<ConfiguratorSelection["category"], string> = {
+    exterior_color: "color",
+    interior: "interior",
+    seating: "seating layout",
+    feature: "feature",
+  };
+  function computeTopRankConflicts(): {
+    category: ConfiguratorSelection["category"];
+    name: string;
+    offeringTrimLabel: string;
+    offeringRank: number;
+  }[] {
+    if (!topTrimId) return [];
+    const topQuestions = configuratorQuestions[topTrimId];
+    const conflicts: {
+      category: ConfiguratorSelection["category"];
+      name: string;
+      offeringTrimLabel: string;
+      offeringRank: number;
+    }[] = [];
+
+    const findOfferingRank = (
+      name: string,
+      rawChoicesFor: (q: ConfiguratorQuestions) => ConfiguratorChoice[],
+    ): { offeringTrimLabel: string; offeringRank: number } | null => {
+      // Starts at rank 2 -- rank 1 (index 0) is the trim we already know
+      // doesn't offer it, or this wouldn't be a conflict.
+      for (let i = 1; i < rankedTrimIds.length; i++) {
+        const trimId = rankedTrimIds[i];
+        const q = configuratorQuestions[trimId];
+        if (q && rawChoicesFor(q).some((c) => c.name === name)) {
+          return { offeringTrimLabel: trimDisplayNameById[trimId] ?? trimId, offeringRank: i + 1 };
+        }
+      }
+      return null;
+    };
+
+    const RANKED_CHECKS: [ConfiguratorSelection["category"], (q: ConfiguratorQuestions) => ConfiguratorChoice[]][] = [
+      ["exterior_color", (q) => q.exteriorColorRaw],
+      ["interior", (q) => q.interiorRaw],
+      ["seating", (q) => q.seatingRaw],
+    ];
+    for (const [category, rawChoicesFor] of RANKED_CHECKS) {
+      const top = selections.find((s) => s.category === category && !s.excluded && s.rankPosition === 1);
+      if (!top) continue;
+      const offeredByTop = topQuestions ? rawChoicesFor(topQuestions).some((c) => c.name === top.selection) : false;
+      if (offeredByTop) continue;
+      const offering = findOfferingRank(top.selection, rawChoicesFor);
+      if (offering) conflicts.push({ category, name: top.selection, ...offering });
+    }
+
+    // Features aren't ranked, so "wanted" (not excluded) stands in for
+    // "#1" -- the same underlying conflict, just without an ordinal.
+    for (const f of selections.filter((s) => s.category === "feature" && !s.excluded)) {
+      const offeredByTop = topQuestions ? topQuestions.features.some((c) => c.name === f.selection) : false;
+      if (offeredByTop) continue;
+      const offering = findOfferingRank(f.selection, (q) => q.features);
+      if (offering) conflicts.push({ category: "feature", name: f.selection, ...offering });
+    }
+
+    return conflicts;
+  }
+  const topRankConflicts = step === "review" ? computeTopRankConflicts() : [];
 
   const index = Math.max(0, steps.indexOf(step));
   const goNext = () => setStep(steps[Math.min(index + 1, steps.length - 1)]);
@@ -160,32 +315,24 @@ export function FinalizeSelfService({
     : true;
 
   /**
-   * Changing trim discards configurator answers, and that is correct
-   * rather than unfortunate: a colour or package belongs to one specific
-   * build, so carrying "Wind Chill Pearl, ranked #1" across to a trim that
-   * cannot be built in it would produce an answer the customer never gave.
-   * The generic colours/options are free-text preferences about the model,
-   * not one build, so they legitimately survive.
-   *
-   * THE RESET IS KEYED TO THE RESOLVED BUILD, NOT THE SELECTED OPTION, and
-   * that distinction starts mattering now that trim is itself a ranked
-   * list. Two trim options can resolve to the same researched build, and
-   * reordering the list is going to change the selected option constantly
-   * once step 6 lands -- wiping answers on every such change would make
-   * the ranking UI feel like it silently eats work. Answers are only
-   * invalidated when the build they describe genuinely changes.
+   * ⚠ NOTHING IS WIPED HERE ANYMORE (2026-09-16, surgical re-validation).
+   * Before the ranked-trim-union redesign, changing the #1 trim's resolved
+   * build cleared every colour/interior/feature answer outright -- correct
+   * under the OLD rule, where an answer meant one specific car and a
+   * changed #1 could make that string mean nothing at all. That rule no
+   * longer holds: every trim the customer can ever rank belongs to the
+   * SAME make/model, so a colour NAME never means a different thing just
+   * because the ranked set changed -- it either stays validly rankable
+   * (still offered by some ranked trim) or becomes auto-excluded, and
+   * `computeCategoryAvailability` already handles that surgically, per
+   * item, with a "previously ranked" note when it applies (see its own
+   * comment). Deleting the underlying `ConfiguratorSelection` row here
+   * would be exactly the silent data loss this whole redesign exists to
+   * avoid -- and would break the "re-add the trim, it snaps right back"
+   * guarantee: the stored rank position is ALL that lets a demoted item
+   * reappear in "Your order" with zero re-entry once its trim returns.
    */
   function handleTrimRanking(nextRanked: string[], nextExcluded: string[]) {
-    // THE RESET IS KEYED TO THE RESOLVED BUILD OF #1, NOT TO THE LIST.
-    // Reordering ranks 2+, excluding a trim, or undoing an exclusion all
-    // leave the #1 build untouched and must NOT discard colour answers --
-    // that is most of what this screen's dragging does, and wiping on
-    // every change would make the UI feel like it eats work. Only a
-    // genuine change of the build those answers describe invalidates them.
-    const nextBuild =
-      (nextRanked[0] && configuratorQuestions[nextRanked[0]]?.configuratorTrimId) || null;
-    const currentBuild = questions?.configuratorTrimId ?? null;
-    if (nextBuild !== currentBuild) setSelections([]);
     setRankedTrimIds(nextRanked);
     setExcludedTrimIds(nextExcluded);
   }
@@ -349,8 +496,9 @@ export function FinalizeSelfService({
       {step === "exteriorColor" && questions && (
         <RankedQuestion
           title="What color?"
-          subtitle={`These are the colors a ${effectiveTrim} can actually be built in. Rank the ones you'd like, or let us know if there's one you'd exclude.`}
-          choices={questions.exteriorColor}
+          subtitle="These are the colors your ranked trims can be built in -- some may only come on a specific trim. Rank the ones you'd like, or let us know if there's one you'd exclude."
+          rankable={exteriorColorAvailability.rankable}
+          autoExcluded={exteriorColorAvailability.autoExcluded}
           category="exterior_color"
           selections={selections}
           onChange={setSelections}
@@ -361,7 +509,8 @@ export function FinalizeSelfService({
         <RankedQuestion
           title="Interior?"
           subtitle={"Rank the ones you'd like, or let us know if there's one you'd exclude."}
-          choices={questions.interior}
+          rankable={interiorAvailability.rankable}
+          autoExcluded={interiorAvailability.autoExcluded}
           category="interior"
           selections={selections}
           onChange={setSelections}
@@ -371,8 +520,9 @@ export function FinalizeSelfService({
       {step === "seating" && questions && (
         <RankedQuestion
           title="Seating layout?"
-          subtitle="This trim offers more than one configuration."
-          choices={questions.seating}
+          subtitle="Your ranked trims offer more than one configuration."
+          rankable={seatingAvailability.rankable}
+          autoExcluded={seatingAvailability.autoExcluded}
           category="seating"
           selections={selections}
           onChange={setSelections}
@@ -381,7 +531,8 @@ export function FinalizeSelfService({
 
       {step === "features" && questions && (
         <FeatureQuestion
-          choices={questions.features}
+          rankable={featuresAvailability.rankable}
+          autoExcluded={featuresAvailability.autoExcluded}
           selections={selections}
           onChange={setSelections}
         />
@@ -498,6 +649,16 @@ export function FinalizeSelfService({
               </>
             )}
           </div>
+          {topRankConflicts.map((c) => (
+            <p
+              key={`${c.category}::${c.name}`}
+              className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-400"
+            >
+              Your #1 ranked {CONFLICT_LABEL[c.category]}, {c.name}, isn&apos;t offered on your #1
+              ranked trim, {effectiveTrim} — it&apos;s available on {c.offeringTrimLabel}, your #
+              {c.offeringRank}.
+            </p>
+          ))}
           <p className="mt-4 text-xs text-zinc-500">
             You&apos;ll have 24 hours after confirming to change any of this from your account —
             after that, we lock it in and start reaching out to dealers.

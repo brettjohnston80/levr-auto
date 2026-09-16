@@ -127,6 +127,30 @@ function PackageNote({ sel }: { sel: OutreachSelection }) {
 }
 
 /**
+ * The real conflict the ranked-trim-union redesign makes possible
+ * (2026-09-16): an answer can now be valid without being buildable on the
+ * customer's #1-ranked TRIM specifically -- it only has to be buildable on
+ * SOME ranked trim. An agent working the #1 trim first (the normal case)
+ * needs to know when THIS answer isn't actually one of them, or they'll
+ * search for a combination that doesn't exist. Same amber tone as the
+ * existing "price not confirmed" convention, computed from
+ * `availableOnTrims` (written at save time, see that column's own
+ * migration comment) against the #1 ranked trim's own label -- never
+ * re-derived live, so this can't disagree with what the customer actually
+ * saw on Review.
+ */
+function TopRankConflictNote({ sel, topTrimLabel }: { sel: OutreachSelection; topTrimLabel: string | null }) {
+  if (!topTrimLabel || sel.excluded) return null;
+  if (!sel.availableOnTrims || sel.availableOnTrims.length === 0) return null;
+  if (sel.availableOnTrims.includes(topTrimLabel)) return null;
+  return (
+    <p className="mt-0.5 text-xs text-amber-400">
+      ⚠ not available on {topTrimLabel} (top trim) — available on {sel.availableOnTrims.join(", ")}
+    </p>
+  );
+}
+
+/**
  * An explicit refusal. Deliberately loud and deliberately NOT just an
  * absence from the ranked list.
  *
@@ -181,6 +205,8 @@ function ConfiguratorSelections({
 
   const rankedTrims = trimPreferences.filter((t) => !t.excluded);
   const excludedTrims = trimPreferences.filter((t) => t.excluded);
+  const topTrim = rankedTrims.find((t) => t.rankPosition === 1);
+  const topTrimLabel = topTrim ? trimLabel(topTrim) : null;
 
   return (
     <div className="mt-4">
@@ -229,6 +255,7 @@ function ConfiguratorSelections({
                   <span className="text-zinc-500">{sel.rankPosition}.</span>{" "}
                   <span className="text-zinc-200">{sel.selection}</span>
                   <PackageNote sel={sel} />
+                  <TopRankConflictNote sel={sel} topTrimLabel={topTrimLabel} />
                 </li>
               ))}
             </ol>
@@ -255,6 +282,7 @@ function ConfiguratorSelections({
                 <li key={sel.id}>
                   <span className="text-zinc-200">{sel.selection}</span>
                   <PackageNote sel={sel} />
+                  <TopRankConflictNote sel={sel} topTrimLabel={topTrimLabel} />
                 </li>
               ))}
             </ul>

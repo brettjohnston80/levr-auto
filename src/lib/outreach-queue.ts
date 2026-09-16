@@ -69,6 +69,15 @@ export interface OutreachSelection {
   packageContents: string[] | null;
   /** Price could not be parsed. Must never render as a blank or as $0. */
   priceUnknown: boolean;
+  /**
+   * Which of the customer's ranked trims (display label, e.g. "XSE 2026")
+   * genuinely offered this option at save time (2026-09-16, ranked-trim-
+   * union redesign) -- null for a row written before this column existed.
+   * An agent working a specific ranked trim needs to know whether THIS
+   * answer is actually buildable on it, not just on the search's ranked
+   * list in general -- see the top-rank-conflict flag this powers.
+   */
+  availableOnTrims: string[] | null;
 }
 
 /**
@@ -352,7 +361,7 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
     const { data, error } = await supabase
       .from("search_option_selections")
       .select(
-        "id, search_id, category, question_kind, selection, rank_position, excluded, package_name, package_price_cents, package_contents, price_unknown",
+        "id, search_id, category, question_kind, selection, rank_position, excluded, package_name, package_price_cents, package_contents, price_unknown, available_on_trims",
       )
       .in("search_id", searchIds)
       .order("id")
@@ -373,6 +382,7 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
         packagePriceCents: (row.package_price_cents as number | null) ?? null,
         packageContents: (row.package_contents as string[] | null) ?? null,
         priceUnknown: row.price_unknown === true,
+        availableOnTrims: (row.available_on_trims as string[] | null) ?? null,
       });
       selectionsBySearchId.set(row.search_id as string, list);
     }

@@ -182,6 +182,50 @@ export function matchConfiguratorTrim(
 
 export type OptionAvailability = "standard" | "standalone" | "package_only";
 
+/**
+ * A colour, interior or seating layout is a CHOICE even when it costs
+ * nothing -- a car has exactly one exterior colour, and the free ones are
+ * the most common answer. Excluding 'standard' there would throw away most
+ * of the question. 'unavailable' is excluded everywhere: never offer what
+ * the car cannot be built with.
+ *
+ * Lives here, not in the server-only configurator-questions.ts, because the
+ * ranked-trim-union redesign (2026-09-16) needs the identical rule
+ * evaluated BOTH client-side (finalize-self-service.tsx's step-visibility
+ * decision) and server-side (finalize-actions.ts's min-one-ranked
+ * engagement gate) -- a client component cannot import a `server-only`
+ * file at all, so this is what makes sharing one definition possible
+ * instead of risking two independently-written copies drifting apart.
+ */
+export const CHOICE_AVAILABILITY = new Set(["standard", "standalone", "package_only"]);
+
+/**
+ * Whether a category counts as a real, offered choice ACROSS a set of
+ * trims -- more than one DISTINCT real option somewhere in the set, not
+ * more than one ROW. That distinction only starts mattering once rows from
+ * more than one trim are merged: the same option name can legitimately
+ * exist on several trims (a shared cloth interior, say), and counting rows
+ * instead of distinct names would silently inflate the count -- a single
+ * real option could misreport as ">1" the instant a second ranked trim
+ * happens to offer the exact same name. (The single-trim predicate this
+ * replaced never had to guard against this, because one trim's own option
+ * rows never repeat a name.)
+ *
+ * Used identically by the server's min-one-ranked engagement gate
+ * (finalize-actions.ts) and the client's step-visibility decision
+ * (finalize-self-service.tsx), both fed the union of rows across the
+ * customer's currently-ranked, resolved trims -- same function, same
+ * import, so the two cannot drift on what "worth asking" means.
+ */
+export function categoryHasRealChoiceAcrossTrims(
+  rows: { availability: string; name: string }[],
+): boolean {
+  const names = new Set(
+    rows.filter((r) => CHOICE_AVAILABILITY.has(r.availability)).map((r) => r.name),
+  );
+  return names.size > 1;
+}
+
 /** One selectable answer, carrying everything the agent will need. */
 export interface ConfiguratorChoice {
   name: string;
@@ -217,8 +261,37 @@ export interface ConfiguratorChoice {
 }
 
 /**
+ * Free/standard first, then cheapest first, then alphabetical.
+ *
+ * Lives here, not in the server-only configurator-questions.ts, because the
+ * model-wide union display (finalize-self-service.tsx) needs the identical
+ * ordering for its rankable/auto-excluded lists -- same sharing reason as
+ * CHOICE_AVAILABILITY above.
+ */
+export function sortChoices(a: ConfiguratorChoice, b: ConfiguratorChoice): number {
+  const rank = (c: ConfiguratorChoice) => (c.availability === "standard" ? 0 : 1);
+  if (rank(a) !== rank(b)) return rank(a) - rank(b);
+  const price = (c: ConfiguratorChoice) =>
+    c.packagePriceCents ?? c.priceCents ?? Number.MAX_SAFE_INTEGER;
+  if (price(a) !== price(b)) return price(a) - price(b);
+  return a.name.localeCompare(b.name);
+}
+
+/**
  * The questions one matched trim earns. An empty array means the question
  * is not asked at all rather than rendered empty.
+ *
+ * The three `*Raw` fields (2026-09-16) are this SAME trim's real
+ * availability data before the "is this worth asking about, for this trim
+ * ALONE" atLeastTwo gate is applied -- exteriorColor/interior/seating are
+ * exactly atLeastTwo(exteriorColorRaw/interiorRaw/seatingRaw), never a
+ * separately-fetched or separately-computed list. The ranked-trim-union
+ * redesign needs a trim's real availability regardless of whether that one
+ * trim alone clears the bar (Nightshade's single real interior colour is
+ * a genuine fact about Nightshade even though asking about it in isolation
+ * would be a statement, not a question) -- these fields exist so that fact
+ * is no longer thrown away. Features has no Raw counterpart: `features`
+ * was never atLeastTwo-gated, so it already IS this trim's raw list.
  */
 export interface ConfiguratorQuestions {
   configuratorTrimId: string;
@@ -226,6 +299,9 @@ export interface ConfiguratorQuestions {
   interior: ConfiguratorChoice[];
   seating: ConfiguratorChoice[];
   features: ConfiguratorChoice[];
+  exteriorColorRaw: ConfiguratorChoice[];
+  interiorRaw: ConfiguratorChoice[];
+  seatingRaw: ConfiguratorChoice[];
 }
 
 export function hasAnyQuestion(q: ConfiguratorQuestions): boolean {
@@ -235,6 +311,112 @@ export function hasAnyQuestion(q: ConfiguratorQuestions): boolean {
     q.seating.length > 0 ||
     q.features.length > 0
   );
+}
+
+/** An option the customer never touched, that no ranked trim offers. */
+export interface AutoExcludedChoice {
+  choice: ConfiguratorChoice;
+  note: string;
+}
+
+/**
+ * Partitions every real option across "the model" -- every trim already
+ * resolved to a real researched build via real inventory, whether ranked
+ * or not -- into what's rankable given the customer's CURRENTLY RANKED
+ * trims, and what isn't (2026-09-16 full-transparency redesign). "The
+ * model" is deliberately scoped to matchedTrimIds (real inventory-backed
+ * trims), never the wider researched dataset independent of live
+ * inventory -- a trim with no real listings can't be added to the ranking
+ * anyway, so surfacing it here would be a dead end with nothing to add.
+ *
+ * Deduped by NAME across trims (the same colour can legitimately exist on
+ * several trims), tie-broken deterministically for which trim's copy of
+ * price/package fields is shown: the customer's highest-ranked trim that
+ * offers it, else the first trim encountered in `matchedTrimIds` order.
+ *
+ * "Rankable" = offered by at least one of the customer's CURRENTLY RANKED
+ * trims. Everything else is "auto-excluded" -- a live-computed fact, never
+ * a persisted row (search_option_selections' own contract is that silence
+ * means no opinion; this is neither an opinion nor silence, it's a fact
+ * about trim availability, and belongs nowhere near that table). Each
+ * auto-excluded item's note names which OTHER real trim(s) -- from the
+ * full matched set, not just ranked -- do offer it (Case A). Case B (no
+ * trim offers it at all) is a defensive fallback that should be
+ * structurally UNREACHABLE through this function alone: a name can only
+ * ever enter `byName` below because some matched trim's raw choices
+ * contained it, so "offered nowhere" can only apply to something outside
+ * this function's own input -- e.g. a customer's already-answered
+ * selection whose name no longer matches any current trim's data, a
+ * different (Step 6) concern this function doesn't try to solve.
+ */
+export function computeCategoryAvailability(
+  matchedTrimIds: string[],
+  rankedTrimIds: string[],
+  configuratorQuestions: Record<string, ConfiguratorQuestions>,
+  rawChoicesFor: (q: ConfiguratorQuestions) => ConfiguratorChoice[],
+  trimDisplayNameById: Record<string, string>,
+  /**
+   * Name -> the rank position the customer HAD it at, for names that are
+   * currently a genuine RANKED (non-excluded) answer (2026-09-16, surgical
+   * re-validation). Purely cosmetic to this function -- it never changes
+   * which bucket a name lands in, only which note an auto-excluded entry
+   * gets: a name the customer had actually ranked reads "Previously
+   * ranked #N", everything else reads the plain "not offered" note. The
+   * caller (RankedQuestion) is what actually keeps a demoted item's
+   * underlying answer intact -- see its own comment for why nothing here
+   * ever deletes anything.
+   */
+  currentlyRankedPositions: Map<string, number> = new Map(),
+): { rankable: ConfiguratorChoice[]; autoExcluded: AutoExcludedChoice[] } {
+  const rankedSet = new Set(rankedTrimIds);
+  const trimRank = new Map(rankedTrimIds.map((id, i) => [id, i]));
+
+  const byName = new Map<string, { fallback: ConfiguratorChoice; trimIds: string[] }>();
+  for (const trimId of matchedTrimIds) {
+    const q = configuratorQuestions[trimId];
+    if (!q) continue;
+    for (const choice of rawChoicesFor(q)) {
+      const entry = byName.get(choice.name);
+      if (!entry) {
+        byName.set(choice.name, { fallback: choice, trimIds: [trimId] });
+      } else {
+        entry.trimIds.push(trimId);
+      }
+    }
+  }
+
+  const rankable: ConfiguratorChoice[] = [];
+  const autoExcluded: AutoExcludedChoice[] = [];
+
+  for (const entry of byName.values()) {
+    const rankedOfferingIds = entry.trimIds.filter((id) => rankedSet.has(id));
+    if (rankedOfferingIds.length > 0) {
+      const winnerId = [...rankedOfferingIds].sort(
+        (a, b) => (trimRank.get(a) ?? Infinity) - (trimRank.get(b) ?? Infinity),
+      )[0];
+      const winnerChoice =
+        rawChoicesFor(configuratorQuestions[winnerId]).find((c) => c.name === entry.fallback.name) ??
+        entry.fallback;
+      rankable.push(winnerChoice);
+    } else {
+      const offeringNames = entry.trimIds.map((id) => trimDisplayNameById[id] ?? id);
+      const previousRank = currentlyRankedPositions.get(entry.fallback.name);
+      const note =
+        previousRank != null
+          ? offeringNames.length > 0
+            ? `Previously ranked #${previousRank} — not offered on your currently-selected trims. Available on ${offeringNames.join(", ")}.`
+            : `Previously ranked #${previousRank} — not offered on any trim currently available for this model.`
+          : offeringNames.length > 0
+            ? `Not offered on any of your selected trims — available on ${offeringNames.join(", ")}. Add it to your ranking to select this.`
+            : "Not offered on any trim currently available for this model.";
+      autoExcluded.push({ choice: entry.fallback, note });
+    }
+  }
+
+  rankable.sort(sortChoices);
+  autoExcluded.sort((a, b) => sortChoices(a.choice, b.choice));
+
+  return { rankable, autoExcluded };
 }
 
 /**
