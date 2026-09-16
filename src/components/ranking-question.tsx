@@ -1,6 +1,8 @@
 "use client";
 
+import { useId } from "react";
 import { useDragReorder } from "@/lib/use-drag-reorder";
+import type { ColorSwatchValue } from "@/lib/vehicle-color-swatches";
 
 /**
  * The ranked-preference interaction (step 6 of the redesign), replacing the
@@ -30,6 +32,12 @@ export interface RankableItem {
   sublabel?: string | null;
   /** Real photo, when we have one. Null is the normal case. */
   imageUrl?: string | null;
+  /**
+   * Small colour-code swatch, ALONGSIDE the photo, never instead of it.
+   * Null for trim/seating items and for any colour with no hand-checked
+   * code. See vehicle-color-swatches.ts.
+   */
+  swatch?: ColorSwatchValue | null;
   /** Package context and price notes, rendered under the label. */
   detail?: React.ReactNode;
 }
@@ -132,7 +140,10 @@ export function RankingQuestion({
                   <span className="w-5 shrink-0 text-sm font-semibold text-emerald-400">
                     {index + 1}.
                   </span>
-                  <Thumb item={item} />
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    <Thumb item={item} />
+                    <ColorDot item={item} />
+                  </span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm font-medium text-white">
                       {item.label}
@@ -197,7 +208,10 @@ export function RankingQuestion({
                 className="flex flex-col gap-2.5 rounded-xl border border-white/10 bg-white/[0.02] p-3 sm:flex-row sm:items-center sm:gap-3"
               >
                 <div className="flex min-w-0 flex-1 items-center gap-3">
-                  <Thumb item={item} />
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    <Thumb item={item} />
+                    <ColorDot item={item} />
+                  </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-white">
                       {item.label}
@@ -291,6 +305,52 @@ function Thumb({ item }: { item: RankableItem }) {
         e.currentTarget.style.display = "none";
       }}
     />
+  );
+}
+
+/**
+ * A small colour-code circle, next to the real photo -- never instead of
+ * it. Solid colours are a plain filled circle; two-tone colours split
+ * diagonally, body colour on one half and the second colour on the other,
+ * via an oversized rotated rect clipped by the circle (a fixed 45° split
+ * regardless of where the two source rects start, so it can't render
+ * off-centre from rounding).
+ *
+ * 42px (2026-09-16, doubled again from 21px per Brett's request -- up from
+ * an initial 14px). ⚠ This is now LARGER than the 40px-tall photo
+ * thumbnail it sits beside, a deliberate reversal of the original "smaller
+ * than the photo, not competing for attention" sizing rule -- flagged
+ * explicitly since a future pass might otherwise assume that comment is
+ * still the live constraint.
+ */
+function ColorDot({ item }: { item: RankableItem }) {
+  const clipId = useId();
+  if (!item.swatch) return null;
+  if (item.swatch.kind === "solid") {
+    return (
+      <span
+        className="h-[42px] w-[42px] shrink-0 rounded-full ring-1 ring-inset ring-white/20"
+        style={{ backgroundColor: item.swatch.hex }}
+        aria-hidden="true"
+      />
+    );
+  }
+  return (
+    <svg width="42" height="42" viewBox="0 0 20 20" aria-hidden="true" className="shrink-0">
+      <defs>
+        <clipPath id={clipId}>
+          <circle cx="10" cy="10" r="9" />
+        </clipPath>
+      </defs>
+      <g clipPath={`url(#${clipId})`}>
+        <rect x="0" y="0" width="20" height="20" fill={item.swatch.bodyHex} />
+        {/* Oversized rect covering the half-plane x>=10, rotated 45° about
+            the circle's own centre -- guarantees a clean diagonal bisection
+            regardless of the circle's exact radius, with no edge gaps. */}
+        <rect x="10" y="-15" width="30" height="50" fill={item.swatch.secondHex} transform="rotate(45 10 10)" />
+      </g>
+      <circle cx="10" cy="10" r="9" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
+    </svg>
   );
 }
 

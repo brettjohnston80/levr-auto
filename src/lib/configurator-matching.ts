@@ -8,6 +8,8 @@
 // importing a server-only module from a "use client" component drags that
 // import into the client bundle and breaks the build.
 //
+import type { ColorSwatchValue } from "@/lib/vehicle-color-swatches";
+
 // WHAT THIS SOLVES. Inventory is the source of truth for what a customer
 // can actually buy (buildTrimOptions, derived from real synced listings),
 // and the configurator dataset is a separate research artifact. The two
@@ -198,6 +200,20 @@ export interface ConfiguratorChoice {
    * own switch.
    */
   imageUrl?: string | null;
+  /**
+   * A small colour-code swatch, ALONGSIDE imageUrl -- never a replacement
+   * for the real photo. Only ever set for exterior_color/interior; null
+   * for trim, seating and feature choices, and for any colour we don't
+   * have a hand-checked code for. See vehicle-color-swatches.ts.
+   *
+   * Type-only import: vehicle-color-swatches.ts pulls in the server-only
+   * vehicle-color-images.ts (fs access) for its toggle constant, and this
+   * file is shared with client components (see the file header). A
+   * type-only import is erased entirely at build time -- same proven
+   * pattern as ModelYearOptions in model-year-select.ts -- so this cannot
+   * drag fs into the client bundle the way a value import would.
+   */
+  swatch?: ColorSwatchValue | null;
 }
 
 /**

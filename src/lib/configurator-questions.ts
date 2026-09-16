@@ -1,6 +1,7 @@
 import "server-only";
 import { resolveColorImages } from "@/lib/vehicle-color-images";
 import { resolveFeatureImages } from "@/lib/vehicle-feature-images";
+import { resolveColorSwatches } from "@/lib/vehicle-color-swatches";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   configuratorFuelClass,
@@ -238,14 +239,22 @@ export async function getConfiguratorQuestionsForTrims(
       // switch: colours (exterior, interior) and features. Seating is a
       // layout with nothing worth photographing.
       const names = choices.map((c) => c.name);
-      const images =
-        category === "exterior_color" || category === "interior"
-          ? resolveColorImages(make, model, category, names)
-          : category === "feature"
-            ? resolveFeatureImages(make, model, names)
-            : null;
-      if (!images) return choices;
-      return choices.map((c) => ({ ...c, imageUrl: images[c.name] ?? null }));
+      const isColorCategory = category === "exterior_color" || category === "interior";
+      const images = isColorCategory
+        ? resolveColorImages(make, model, category, names)
+        : category === "feature"
+          ? resolveFeatureImages(make, model, names)
+          : null;
+      // Swatches ride on the SAME switch as the colour photos (no separate
+      // toggle) and are additive alongside them, never a replacement --
+      // only ever populated for the same two categories the photos cover.
+      const swatches = isColorCategory ? resolveColorSwatches(make, model, category, names) : null;
+      if (!images && !swatches) return choices;
+      return choices.map((c) => ({
+        ...c,
+        imageUrl: images ? (images[c.name] ?? null) : c.imageUrl,
+        swatch: swatches ? (swatches[c.name] ?? null) : c.swatch,
+      }));
     };
 
     // A colour/interior/seating question needs a real CHOICE -- offering a

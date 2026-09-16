@@ -116,6 +116,7 @@ export function RankedQuestion({
     id: c.name,
     label: c.name,
     imageUrl: c.imageUrl ?? null,
+    swatch: c.swatch ?? null,
     detail: (
       <>
         <span className="mt-0.5 block">
