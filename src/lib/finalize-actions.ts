@@ -4,7 +4,12 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
+  CHOICE_AVAILABILITY,
   categoryHasRealChoiceAcrossTrims,
+  computeRealCombinations,
+  type CombinationPreference,
+  type ConfiguratorChoice,
+  type ConfiguratorQuestions,
   type ConfiguratorSelection,
   type TrimPreference,
 } from "@/lib/configurator-matching";
@@ -267,6 +272,15 @@ export type FinalizeDetails = {
    * writeTrimPreferences.
    */
   trimPreferences?: TrimPreference[];
+  /**
+   * The customer's ranked/excluded combination preferences
+   * (combination-preferences Phase 3, 2026-09-19). Undefined on the
+   * generic /account edit path (no combinations step exists there) --
+   * writeCombinationPreferences still clears any existing rows in that
+   * case, same "the rich answers it's replacing go with it" reasoning
+   * already applied to trimPreferences/selections on that path.
+   */
+  combinationPreferences?: CombinationPreference[];
 };
 
 /** A browser can post anything; this cap keeps one request from being pathological. */
@@ -290,6 +304,60 @@ const MAX_RANKED_ITEMS = 60;
  * still awaiting finalization with rows the next attempt overwrites,
  * never a finalized search carrying half its answers.
  */
+/** One configurator_options row, unfiltered by category or availability. */
+interface RawConfiguratorOptionRow {
+  trim_id: string;
+  category: string;
+  name: string;
+  availability: string;
+  price_cents: number | null;
+  package_name: string | null;
+  package_price_cents: number | null;
+  package_contents: string[] | null;
+}
+
+/**
+ * Every configurator_options row for a set of resolved trims, unfiltered
+ * by category or availability -- shared by writeConfiguratorSelections
+ * (which needs every category, filtered per-selection) and
+ * writeCombinationPreferences (which needs only exterior_color/interior/
+ * seating, CHOICE_AVAILABILITY-filtered) so the latter can reuse the SAME
+ * fetch already done for the former rather than re-querying. Paginated --
+ * PostgREST caps a plain select at 1,000 rows and truncates silently, and
+ * a truncated read here would drop a legitimate answer as if it were
+ * fabricated.
+ */
+async function fetchConfiguratorOptionsForTrims(
+  admin: ReturnType<typeof createAdminClient>,
+  trimIds: string[],
+): Promise<{ ok: true; rows: RawConfiguratorOptionRow[] } | { ok: false; error: string }> {
+  const PAGE_SIZE = 1000;
+  const rows: RawConfiguratorOptionRow[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await admin
+      .from("configurator_options")
+      .select(
+        "id, trim_id, category, name, availability, price_cents, package_name, package_price_cents, package_contents",
+      )
+      .in("trim_id", trimIds)
+      .order("id")
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) return { ok: false, error: error.message };
+    rows.push(...((data ?? []) as unknown as RawConfiguratorOptionRow[]));
+    if (!data || data.length < PAGE_SIZE) break;
+  }
+  return { ok: true, rows };
+}
+
+/** Ranked (non-excluded) name -> rank position, per ranked category --
+ *  feeds computeRealCombinations the same positions the customer's own
+ *  saved answers just established. */
+interface RankedPositionsByCategory {
+  exterior_color: Map<string, number>;
+  interior: Map<string, number>;
+  seating: Map<string, number>;
+}
+
 async function writeConfiguratorSelections(
   admin: ReturnType<typeof createAdminClient>,
   searchId: string,
@@ -297,7 +365,14 @@ async function writeConfiguratorSelections(
   trimLabelsByConfiguratorId: Record<string, string>,
   selections: ConfiguratorSelection[] | undefined,
 ): Promise<
-  { ok: true; colors: string[]; requiredOptions: string[] } | { ok: false; error: string }
+  | {
+      ok: true;
+      colors: string[];
+      requiredOptions: string[];
+      rawOptions: RawConfiguratorOptionRow[];
+      rankedPositionsByCategory: RankedPositionsByCategory;
+    }
+  | { ok: false; error: string }
 > {
   const { error: clearError } = await admin
     .from("search_option_selections")
@@ -311,43 +386,25 @@ async function writeConfiguratorSelections(
   // could require an answer -- this is the only case that can still skip
   // reading configurator_options.
   if (rankedResolvedTrimIds.length === 0) {
-    return { ok: true, colors: [], requiredOptions: [] };
+    return {
+      ok: true,
+      colors: [],
+      requiredOptions: [],
+      rawOptions: [],
+      rankedPositionsByCategory: { exterior_color: new Map(), interior: new Map(), seating: new Map() },
+    };
   }
 
   // Authoritative option data across EVERY trim the customer ranked (that
   // resolved to a real build) -- 2026-09-16, widened from a single trim.
   // An answer is now valid if it's real on ANY of these, not just the #1 --
   // see the structural-guarantee comment on writeTrimPreferences below for
-  // why this is still safe. Still paginated -- PostgREST caps a plain
-  // select at 1,000 rows and truncates silently, and a truncated read here
-  // would drop a legitimate answer as if it were fabricated. trim_id is now
-  // part of the select: with more than one trim in scope, a matched row's
-  // OWN trim is no longer implied by the query itself the way `.eq()` used
-  // to imply it.
-  const PAGE_SIZE = 1000;
-  const options: {
-    trim_id: string;
-    category: string;
-    name: string;
-    availability: string;
-    price_cents: number | null;
-    package_name: string | null;
-    package_price_cents: number | null;
-    package_contents: string[] | null;
-  }[] = [];
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await admin
-      .from("configurator_options")
-      .select(
-        "id, trim_id, category, name, availability, price_cents, package_name, package_price_cents, package_contents",
-      )
-      .in("trim_id", rankedResolvedTrimIds)
-      .order("id")
-      .range(from, from + PAGE_SIZE - 1);
-    if (error) return { ok: false, error: error.message };
-    options.push(...((data ?? []) as unknown as typeof options));
-    if (!data || data.length < PAGE_SIZE) break;
-  }
+  // why this is still safe. trim_id is part of the select: with more than
+  // one trim in scope, a matched row's OWN trim is no longer implied by
+  // the query itself the way `.eq()` used to imply it.
+  const fetched = await fetchConfiguratorOptionsForTrims(admin, rankedResolvedTrimIds);
+  if (!fetched.ok) return { ok: false, error: fetched.error };
+  const options = fetched.rows;
 
   // Rank order among the customer's ranked trims, for two purposes: (1)
   // when the SAME option name is real on more than one ranked trim, which
@@ -451,6 +508,15 @@ async function writeConfiguratorSelections(
   const rankedColors: { name: string; rankPosition: number }[] = [];
   const features: string[] = [];
   const categories = [...new Set(kept.map((k) => k.s.category))];
+  // Ranked (non-excluded) name -> rank position, ranked categories only --
+  // feeds writeCombinationPreferences below, the SAME positions
+  // computeRealCombinations needs to reproduce this exact save's real
+  // combination set (combination-preferences Phase 3, 2026-09-19).
+  const rankedPositionsByCategory: RankedPositionsByCategory = {
+    exterior_color: new Map(),
+    interior: new Map(),
+    seating: new Map(),
+  };
 
   for (const category of categories) {
     const inCategory = kept.filter((k) => k.s.category === category);
@@ -471,6 +537,9 @@ async function writeConfiguratorSelections(
     for (const { item, rankPosition } of ranked) {
       if (category === "exterior_color") {
         rankedColors.push({ name: item.option.name, rankPosition });
+      }
+      if (category === "exterior_color" || category === "interior" || category === "seating") {
+        rankedPositionsByCategory[category].set(item.option.name, rankPosition);
       }
       rows.push(
         buildSelectionRow(
@@ -506,6 +575,8 @@ async function writeConfiguratorSelections(
     ok: true,
     colors: rankedColors.sort((a, b) => a.rankPosition - b.rankPosition).map((c) => c.name),
     requiredOptions: features,
+    rawOptions: options,
+    rankedPositionsByCategory,
   };
 }
 
@@ -605,6 +676,12 @@ async function writeTrimPreferences(
       topConfiguratorTrimId: string | null;
       rankedResolvedTrimIds: string[];
       trimLabelsByConfiguratorId: Record<string, string>;
+      /** Raw trim name + model year, keyed the same way -- what
+       *  writeCombinationPreferences actually stores in
+       *  search_combination_preferences' separate trim/model_year
+       *  columns, since trimLabelsByConfiguratorId's combined "XSE 2026"
+       *  string is display-only. */
+      trimDetailsByConfiguratorId: Record<string, { trim: string; modelYear: number | null }>;
     }
   | { ok: false; error: string }
 > {
@@ -620,6 +697,7 @@ async function writeTrimPreferences(
     topConfiguratorTrimId: null,
     rankedResolvedTrimIds: [],
     trimLabelsByConfiguratorId: {},
+    trimDetailsByConfiguratorId: {},
   };
 
   if (!preferences || preferences.length === 0) {
@@ -673,6 +751,7 @@ async function writeTrimPreferences(
   // label always reflects the customer's highest-ranked name for it.
   const rankedResolvedTrimIds: string[] = [];
   const trimLabelsByConfiguratorId: Record<string, string> = {};
+  const trimDetailsByConfiguratorId: Record<string, { trim: string; modelYear: number | null }> = {};
   for (const { item } of ranked) {
     const id = item.configuratorTrimId;
     if (!id || !validIds.has(id)) continue;
@@ -680,6 +759,7 @@ async function writeTrimPreferences(
     if (!(id in trimLabelsByConfiguratorId)) {
       trimLabelsByConfiguratorId[id] =
         item.modelYear != null ? `${item.trim} ${item.modelYear}` : item.trim;
+      trimDetailsByConfiguratorId[id] = { trim: item.trim, modelYear: item.modelYear };
     }
   }
 
@@ -692,6 +772,7 @@ async function writeTrimPreferences(
         : null,
     rankedResolvedTrimIds,
     trimLabelsByConfiguratorId,
+    trimDetailsByConfiguratorId,
   };
 }
 
@@ -728,6 +809,168 @@ async function resolveValidConfiguratorTrimIds(
       )
       .map((t) => t.id as string),
   );
+}
+
+/**
+ * Persists the customer's combination preferences
+ * (combination-preferences Phase 3, 2026-09-19) -- ranked/excluded
+ * statements over specific real (trim, exterior colour, interior,
+ * seating) tuples, the final refinement pass once per-category rankings
+ * alone no longer pin down one exact car (see
+ * search_combination_preferences's own migration comment).
+ *
+ * SAME NO-CLIENT-TRUST DISCIPLINE AS writeConfiguratorSelections. The
+ * client's claimed tuples are never stored as sent -- this function
+ * recomputes the authoritative real combination set itself, via
+ * computeRealCombinations, from data ALREADY WRITTEN to
+ * search_trim_preferences/search_option_selections earlier in this same
+ * save (rankedResolvedTrimIds, rankedPositionsByCategory) plus the raw
+ * option rows writeConfiguratorSelections already fetched -- never from
+ * anything this function's own `preferences` parameter supplies beyond an
+ * identity to check. A claimed tuple that doesn't match a real,
+ * currently-buildable combination -- stale from before the customer
+ * changed their trim ranking, or outright fabricated -- is silently
+ * dropped, exactly like an unreal search_option_selections answer.
+ *
+ * DELIBERATELY NO MINIMUM-ENGAGEMENT REQUIREMENT, matching trim ranking's
+ * own "don't rank any, and we'll treat every trim as fine" precedent, not
+ * exterior colour/interior/seating's. Those three each represent the
+ * customer's ONLY statement about that dimension -- skipping one entirely
+ * would mean no preference of any kind, which is why they're gated on
+ * hasAtLeastOneRanked above. Combinations are a secondary refinement
+ * layered on top of answers already given elsewhere in this same save;
+ * "I didn't narrow further" is a complete, valid outcome on its own, and
+ * zero rows here must never be treated as an incomplete save or block
+ * finalizing.
+ */
+async function writeCombinationPreferences(
+  admin: ReturnType<typeof createAdminClient>,
+  searchId: string,
+  rankedResolvedTrimIds: string[],
+  trimDetailsByConfiguratorId: Record<string, { trim: string; modelYear: number | null }>,
+  rawOptions: RawConfiguratorOptionRow[],
+  rankedPositionsByCategory: RankedPositionsByCategory,
+  preferences: CombinationPreference[] | undefined,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error: clearError } = await admin
+    .from("search_combination_preferences")
+    .delete()
+    .eq("search_id", searchId);
+  if (clearError) return { ok: false, error: clearError.message };
+
+  if (rankedResolvedTrimIds.length === 0 || !preferences || preferences.length === 0) {
+    return { ok: true };
+  }
+
+  const rankedTrimIdSet = new Set(rankedResolvedTrimIds);
+  const byTrim = new Map<string, RawConfiguratorOptionRow[]>();
+  for (const row of rawOptions) {
+    if (!rankedTrimIdSet.has(row.trim_id)) continue;
+    const list = byTrim.get(row.trim_id) ?? [];
+    list.push(row);
+    byTrim.set(row.trim_id, list);
+  }
+
+  // Minimal ConfiguratorChoice reconstruction -- computeRealCombinations
+  // only ever reads `.name` off these, so price/package fields are
+  // intentionally not carried through (this function never stores or
+  // acts on them; writeConfiguratorSelections already owns that).
+  const toChoices = (trimId: string, category: string): ConfiguratorChoice[] =>
+    (byTrim.get(trimId) ?? [])
+      .filter((r) => r.category === category && CHOICE_AVAILABILITY.has(r.availability))
+      .map((r) => ({
+        name: r.name,
+        availability: r.availability as ConfiguratorChoice["availability"],
+        priceCents: null,
+        priceIsIncluded: false,
+        packageName: null,
+        packagePriceCents: null,
+        packageContents: null,
+      }));
+
+  const configuratorQuestionsByTrimId: Record<string, ConfiguratorQuestions> = {};
+  for (const trimId of rankedResolvedTrimIds) {
+    configuratorQuestionsByTrimId[trimId] = {
+      configuratorTrimId: trimId,
+      exteriorColor: [],
+      interior: [],
+      seating: [],
+      features: [],
+      exteriorColorRaw: toChoices(trimId, "exterior_color"),
+      interiorRaw: toChoices(trimId, "interior"),
+      seatingRaw: toChoices(trimId, "seating"),
+      featuresStandard: [],
+    };
+  }
+
+  const trimDisplayNameById = Object.fromEntries(
+    Object.entries(trimDetailsByConfiguratorId).map(([id, d]) => [id, d.trim]),
+  );
+
+  const realCombinations = computeRealCombinations(
+    rankedResolvedTrimIds,
+    configuratorQuestionsByTrimId,
+    trimDisplayNameById,
+    rankedPositionsByCategory.exterior_color,
+    rankedPositionsByCategory.interior,
+    rankedPositionsByCategory.seating,
+  );
+
+  // Real-combination identity, keyed the same way on both sides -- the
+  // configuratorTrimId, never the stored (trim, model_year) label, which
+  // more than one configuratorTrimId could theoretically share (see the
+  // storage-identity dedupe below for why that distinction matters).
+  const realKey = (
+    trimId: string,
+    color: string | null,
+    interior: string | null,
+    seating: string | null,
+  ) => `${trimId}::${color ?? ""}::${interior ?? ""}::${seating ?? ""}`;
+  const realKeySet = new Set(
+    realCombinations.map((c) => realKey(c.trimId, c.exteriorColor, c.interior, c.seating)),
+  );
+
+  // Storage identity -- what the DB's own unique constraint actually
+  // enforces (trim NAME + model year, not the internal configuratorTrimId
+  // used above). Two different real, ranked trims can share the same
+  // display trim string and year (e.g. a sedan/hatchback pair) while
+  // resolving to different configuratorTrimIds -- deduping on the raw id
+  // alone would let both through here and the insert would then fail on
+  // the real DB constraint. First-arrival wins, same tie-break philosophy
+  // as normalizeRanked's own stable sort.
+  const seenStorageKeys = new Set<string>();
+  const kept: CombinationPreference[] = [];
+  for (const p of preferences.slice(0, MAX_RANKED_ITEMS)) {
+    if (!rankedTrimIdSet.has(p.configuratorTrimId)) continue;
+    if (!statesAnOpinion(p)) continue;
+    if (!realKeySet.has(realKey(p.configuratorTrimId, p.exteriorColor, p.interior, p.seating))) continue;
+    const details = trimDetailsByConfiguratorId[p.configuratorTrimId];
+    if (!details) continue;
+    const storageKey = `${details.trim.toLowerCase()}::${details.modelYear ?? -1}::${p.exteriorColor ?? ""}::${p.interior ?? ""}::${p.seating ?? ""}`;
+    if (seenStorageKeys.has(storageKey)) continue;
+    seenStorageKeys.add(storageKey);
+    kept.push(p);
+  }
+  if (kept.length === 0) return { ok: true };
+
+  const { ranked, excluded } = normalizeRanked(kept, (p) => p);
+  const rows = [...ranked, ...excluded].map(({ item, rankPosition }) => {
+    const details = trimDetailsByConfiguratorId[item.configuratorTrimId];
+    return {
+      search_id: searchId,
+      trim: details.trim,
+      model_year: details.modelYear,
+      exterior_color: item.exteriorColor,
+      interior: item.interior,
+      seating: item.seating,
+      rank_position: rankPosition,
+      excluded: rankPosition == null,
+    };
+  });
+
+  const { error } = await admin.from("search_combination_preferences").insert(rows);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
 }
 
 /**
@@ -780,6 +1023,19 @@ export async function finalizeSelfService(
   );
   if (!stored.ok) {
     return { ok: false, error: `Failed to save your selections: ${stored.error}` };
+  }
+
+  const combos = await writeCombinationPreferences(
+    admin,
+    searchId,
+    trims.rankedResolvedTrimIds,
+    trims.trimDetailsByConfiguratorId,
+    stored.rawOptions,
+    stored.rankedPositionsByCategory,
+    details.combinationPreferences,
+  );
+  if (!combos.ok) {
+    return { ok: false, error: `Failed to save your combination preferences: ${combos.error}` };
   }
 
   const { error } = await admin
@@ -886,6 +1142,25 @@ export async function updateFinalizedSearch(
   );
   if (!stored.ok) {
     return { ok: false, error: `Failed to save your selections: ${stored.error}` };
+  }
+
+  // Same reasoning as trim/selections just above: the generic form has no
+  // combinations step, so a customer editing here has implicitly
+  // abandoned whatever combination refinement the rich flow captured.
+  // details.combinationPreferences is always undefined on this path,
+  // which writeCombinationPreferences already treats as "clear and store
+  // nothing" -- no special-casing needed here.
+  const combos = await writeCombinationPreferences(
+    admin,
+    searchId,
+    trims.rankedResolvedTrimIds,
+    trims.trimDetailsByConfiguratorId,
+    stored.rawOptions,
+    stored.rankedPositionsByCategory,
+    details.combinationPreferences,
+  );
+  if (!combos.ok) {
+    return { ok: false, error: `Failed to save your combination preferences: ${combos.error}` };
   }
 
   const { error } = await admin

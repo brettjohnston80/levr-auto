@@ -253,6 +253,16 @@ export async function getConfiguratorQuestionsForTrims(
     const exteriorColorRaw = pick("exterior_color", CHOICE_AVAILABILITY);
     const interiorRaw = pick("interior", CHOICE_AVAILABILITY);
     const seatingRaw = pick("seating", CHOICE_AVAILABILITY);
+    // Names only -- combination preferences (2026-09-17) needs to know
+    // which features this trim already includes by default, to tell that
+    // apart from genuinely unbuildable. rows here never went through
+    // FEATURE_AVAILABILITY, so this is a separate pick() call, not a slice
+    // of `features` below.
+    const featuresStandard = [
+      ...new Set(
+        rows.filter((r) => r.category === "feature" && r.availability === "standard").map((r) => r.name),
+      ),
+    ];
 
     return {
       configuratorTrimId: trimId,
@@ -266,6 +276,7 @@ export async function getConfiguratorQuestionsForTrims(
       exteriorColorRaw,
       interiorRaw,
       seatingRaw,
+      featuresStandard,
     };
   };
 

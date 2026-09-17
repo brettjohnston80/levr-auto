@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  comparePriceDescending,
+  matchesNaturalPriceOrder,
   type AutoExcludedChoice,
   type ConfiguratorChoice,
   type ConfiguratorSelection,
@@ -103,6 +105,8 @@ export function RankedQuestion({
   category,
   selections,
   onChange,
+  trimDisplayNameById,
+  onAddTrim,
 }: {
   title: string;
   subtitle: string;
@@ -111,6 +115,12 @@ export function RankedQuestion({
   category: ConfiguratorSelection["category"];
   selections: ConfiguratorSelection[];
   onChange: (next: ConfiguratorSelection[]) => void;
+  /** Trim id -> display label, for the "Add it" quick-link's button text. */
+  trimDisplayNameById: Record<string, string>;
+  /** Jumps to the trim step with this trim added, remembering to return
+   *  here (2026-09-17) -- see handleAddTrimFromAutoExcluded in
+   *  finalize-self-service.tsx, the only real implementation. */
+  onAddTrim: (trimId: string) => void;
 }) {
   // NOT built from `rankable` for handleChange purposes -- see below,
   // deliberately excludes recovered items so a stray Rank click on one
@@ -163,31 +173,126 @@ export function RankedQuestion({
     ...recoveredExcluded.map(({ choice }) => toItem(choice)),
   ];
 
-  const autoExcludedItems = visibleAutoExcluded.map(({ choice, note }) => ({
+  // "Add it" quick-link (2026-09-17): the plain note text stays exactly as
+  // computeCategoryAvailability built it (still the right words whether or
+  // not there's a real trim to offer clicking on), with one clickable
+  // "Add {trim}" button appended per real offering trim -- plural when
+  // more than one trim offers it, so the customer picks specifically
+  // rather than the link guessing for them.
+  const autoExcludedItems = visibleAutoExcluded.map(({ choice, note, offeringTrimIds }) => ({
     item: toItem(choice),
-    note,
+    note:
+      offeringTrimIds.length === 0 ? (
+        note
+      ) : (
+        <>
+          {note}{" "}
+          {offeringTrimIds.map((trimId, i) => (
+            <span key={trimId}>
+              {i > 0 && ", "}
+              <button
+                type="button"
+                onClick={() => onAddTrim(trimId)}
+                className="font-semibold text-emerald-400 underline underline-offset-2 hover:text-emerald-300"
+              >
+                Add {trimDisplayNameById[trimId] ?? "trim"}
+              </button>
+            </span>
+          ))}
+        </>
+      ),
   }));
 
   function handleChange(nextRanked: string[], nextExcluded: string[]) {
     const others = selections.filter((s) => s.category !== category);
+    // Looked up by name so a DEMOTED item (still legitimately "ranked" in
+    // `selections`, just not offered by any currently-ranked trim right
+    // now -- see computeCategoryAvailability) can be preserved verbatim
+    // below rather than silently dropped the next time this category
+    // changes for any reason.
+    const mineByName = new Map(mine.map((s) => [s.selection, s]));
     const build = (name: string, rankPosition: number | null, isExcluded: boolean) => {
       const c = byName.get(name);
-      if (!c) return null;
-      return {
-        category,
-        questionKind: "ranked" as const,
-        selection: name,
-        rankPosition,
-        excluded: isExcluded,
-        packageName: c.packageName,
-        packagePriceCents: c.packagePriceCents,
-        packageContents: c.packageContents,
-        priceUnknown:
-          c.availability === "package_only" ? c.packagePriceCents == null : c.priceCents == null,
-      };
+      if (c) {
+        return {
+          category,
+          questionKind: "ranked" as const,
+          selection: name,
+          rankPosition,
+          excluded: isExcluded,
+          packageName: c.packageName,
+          packagePriceCents: c.packagePriceCents,
+          packageContents: c.packageContents,
+          priceUnknown:
+            c.availability === "package_only" ? c.packagePriceCents == null : c.priceCents == null,
+        };
+      }
+      // ⚠ Not in the currently-rankable set -- almost always a demoted
+      // item. Preserving its existing stored row (just updated
+      // rankPosition/excluded) is what makes "re-add the trim, it snaps
+      // back with zero re-entry" hold true regardless of what OTHER
+      // action the customer takes in this category while it's demoted.
+      // Rebuilding it from `byName` isn't possible (it has no current
+      // price/package data to rebuild from) and dropping it would be
+      // exactly the silent data loss this whole redesign exists to avoid.
+      const existing = mineByName.get(name);
+      return existing ? { ...existing, rankPosition, excluded: isExcluded } : null;
     };
+
+    // Auto-select-all redesign (2026-09-16): stays price-descending until
+    // the customer manually reorders -- but "manually reorders" has to be
+    // detected precisely, or this stomps the very reorder it's supposed to
+    // respect. ⚠ A REAL BUG CAUGHT DURING VERIFICATION: an earlier version
+    // of this checked only whether the PRE-change order was still natural,
+    // and re-sorted whenever it was -- which included pure reorder actions
+    // (Move Up/Down, drag) themselves, since a customer's FIRST reorder
+    // attempt necessarily starts from a still-natural state. That silently
+    // undid the very click that was supposed to break natural order,
+    // making it structurally impossible to ever leave auto-sort mode.
+    //
+    // The fix: compare the RANKED SET (ignoring order) before and after.
+    // Unchanged set -- a pure reorder, nothing added or removed -- is NEVER
+    // touched, full stop, regardless of whether the old order was natural.
+    // Only when the set itself changes (something added via Undo/auto-
+    // promote, or removed via exclude) does the "was it still natural"
+    // check apply, and even then only to decide HOW to place the new
+    // arrivals: fresh full re-sort if untouched, append-only if the
+    // customer already customized their order.
+    const oldRankedSet = new Set(ranked);
+    const newRankedSet = new Set(nextRanked);
+    const setUnchanged =
+      oldRankedSet.size === newRankedSet.size && ranked.every((id) => newRankedSet.has(id));
+
+    let finalRanked: string[];
+    if (setUnchanged) {
+      finalRanked = nextRanked;
+    } else {
+      const wasNatural = matchesNaturalPriceOrder(
+        ranked.filter((name) => byName.has(name)),
+        byName,
+      );
+      if (wasNatural) {
+        finalRanked = [...nextRanked].sort((a, b) => {
+          const inA = byName.has(a);
+          const inB = byName.has(b);
+          if (inA && inB) return comparePriceDescending(byName.get(a)!, byName.get(b)!);
+          if (inA !== inB) return inA ? -1 : 1;
+          return 0;
+        });
+      } else {
+        // Customized order: preserve the surviving old items' relative
+        // order exactly, append whatever's newly arrived (sorted among
+        // themselves) at the end.
+        const survivingOld = ranked.filter((id) => newRankedSet.has(id));
+        const newlyAdded = nextRanked
+          .filter((id) => !oldRankedSet.has(id))
+          .sort((a, b) => comparePriceDescending(byName.get(a)!, byName.get(b)!));
+        finalRanked = [...survivingOld, ...newlyAdded];
+      }
+    }
+
     const rows = [
-      ...nextRanked.map((name, i) => build(name, i + 1, false)),
+      ...finalRanked.map((name, i) => build(name, i + 1, false)),
       ...nextExcluded.map((name) => build(name, null, true)),
     ].filter(Boolean) as ConfiguratorSelection[];
     onChange([...others, ...rows]);
@@ -201,6 +306,13 @@ export function RankedQuestion({
       ranked={ranked}
       excluded={excluded}
       autoExcluded={autoExcludedItems}
+      // Always true here (2026-09-16, auto-select-all redesign): RankedQuestion
+      // is only ever used for exterior_color/interior/seating, all three of
+      // which now start fully ranked -- there's no neutral "no opinion" pool
+      // state left to return to, so removing an item from "Your order" means
+      // excluding it. Trim keeps the old behaviour via RankingQuestion's own
+      // default (it's used directly there, not through this adapter).
+      removeMeansExclude
       onChange={handleChange}
     />
   );

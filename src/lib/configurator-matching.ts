@@ -278,6 +278,63 @@ export function sortChoices(a: ConfiguratorChoice, b: ConfiguratorChoice): numbe
 }
 
 /**
+ * Effective price for the auto-select-all default order, cents.
+ * package_only uses the package price; everything else uses priceCents,
+ * with priceIsIncluded read as 0. Null means genuinely unconfirmed --
+ * never treat it as $0, same rule the rest of this project follows.
+ */
+function effectivePriceCentsForSort(c: ConfiguratorChoice): number | null {
+  if (c.availability === "package_only") return c.packagePriceCents;
+  if (c.priceIsIncluded) return 0;
+  return c.priceCents;
+}
+
+/**
+ * Price descending -- the default population order for the auto-select-all
+ * redesign (2026-09-16): exterior colour / interior / seating now start
+ * fully ranked rather than built up from an empty pool, highest price
+ * first. Deliberately NOT the same ordering as sortChoices above (free-
+ * first/cheapest-first/alpha), which still drives the underlying item
+ * list construction -- this is specifically the "Your order" starting
+ * order, live until the customer manually reorders (see
+ * matchesNaturalPriceOrder below).
+ *
+ * Unconfirmed prices sort LAST OF ALL, after even free/included items --
+ * never conflated with $0. Exact ties fall back to alphabetical, same
+ * final tie-break as sortChoices.
+ */
+export function comparePriceDescending(a: ConfiguratorChoice, b: ConfiguratorChoice): number {
+  const pa = effectivePriceCentsForSort(a);
+  const pb = effectivePriceCentsForSort(b);
+  if (pa == null && pb == null) return a.name.localeCompare(b.name);
+  if (pa == null) return 1;
+  if (pb == null) return -1;
+  if (pa !== pb) return pb - pa;
+  return a.name.localeCompare(b.name);
+}
+
+/**
+ * Whether a customer's current ranked order for a category still matches
+ * what fresh auto-population would produce -- i.e. they haven't manually
+ * reordered anything yet. Decides whether a newly-promoted item (a trim
+ * was just added) or an undone exclusion gets inserted at its correct
+ * price-sorted slot (order still untouched) or appended at the end (order
+ * has been customized, so re-sorting the whole thing would silently
+ * discard the customer's own reordering work). Trivially "natural" at 0
+ * or 1 items -- nothing to be out of order yet.
+ */
+export function matchesNaturalPriceOrder(
+  names: string[],
+  choicesByName: Map<string, ConfiguratorChoice>,
+): boolean {
+  if (names.length <= 1) return true;
+  const sorted = [...names].sort((a, b) =>
+    comparePriceDescending(choicesByName.get(a)!, choicesByName.get(b)!),
+  );
+  return names.every((name, i) => name === sorted[i]);
+}
+
+/**
  * The questions one matched trim earns. An empty array means the question
  * is not asked at all rather than rendered empty.
  *
@@ -302,6 +359,18 @@ export interface ConfiguratorQuestions {
   exteriorColorRaw: ConfiguratorChoice[];
   interiorRaw: ConfiguratorChoice[];
   seatingRaw: ConfiguratorChoice[];
+  /**
+   * Names only (2026-09-17, combination preferences UI) -- feature names
+   * that are `standard` on THIS trim, i.e. already included and never
+   * offered as a customer choice, so they never appear in `features`
+   * itself (see FEATURE_AVAILABILITY in configurator-questions.ts). The
+   * combinations step needs this to tell "doesn't include" (a wanted
+   * feature that is neither standard nor obtainable here) apart from
+   * "already comes with it" (standard -- nothing to flag), and to flag an
+   * excluded feature the trim forces on the customer regardless
+   * ("can't be removed on this trim").
+   */
+  featuresStandard: string[];
 }
 
 export function hasAnyQuestion(q: ConfiguratorQuestions): boolean {
@@ -317,6 +386,13 @@ export function hasAnyQuestion(q: ConfiguratorQuestions): boolean {
 export interface AutoExcludedChoice {
   choice: ConfiguratorChoice;
   note: string;
+  /**
+   * Real trim ids that DO offer this (2026-09-17) -- empty for Case B
+   * (genuinely offered nowhere in the model). Powers the "Add it"
+   * quick-link; the note text alone only has display NAMES, not ids to
+   * navigate with.
+   */
+  offeringTrimIds: string[];
 }
 
 /**
@@ -409,7 +485,7 @@ export function computeCategoryAvailability(
           : offeringNames.length > 0
             ? `Not offered on any of your selected trims — available on ${offeringNames.join(", ")}. Add it to your ranking to select this.`
             : "Not offered on any trim currently available for this model.";
-      autoExcluded.push({ choice: entry.fallback, note });
+      autoExcluded.push({ choice: entry.fallback, note, offeringTrimIds: entry.trimIds });
     }
   }
 
@@ -417,6 +493,187 @@ export function computeCategoryAvailability(
   autoExcluded.sort((a, b) => sortChoices(a.choice, b.choice));
 
   return { rankable, autoExcluded };
+}
+
+// ---------------------------------------------------------------------------
+// Combination preferences (2026-09-17) -- once colour/interior/feature
+// answers validate against the RANKED-TRIM UNION rather than one trim, a
+// customer's separate per-category rankings no longer pin down one exact
+// car: "LE #1, Ocean Gem #1, Cockpit Red leather #1" can describe a
+// combination that exists on no single real trim (Ocean Gem only on LE,
+// Cockpit Red leather only on XSE). computeRealCombinations enumerates
+// every REAL (trim, colour, interior, seating) tuple the customer's
+// current rankings actually produce, so they can refine among real cars
+// rather than an impossible composite.
+// ---------------------------------------------------------------------------
+
+/** One real, buildable (trim, exterior colour, interior, seating) tuple. */
+export interface RealCombination {
+  trimId: string;
+  /** Display label, e.g. "XSE" -- from trimDisplayNameById. */
+  trim: string;
+  /** Null means this axis was never a real question across the ranked
+   *  union (categoryHasRealChoiceAcrossTrims false) -- a "no preference"
+   *  placeholder, not "the customer chose nothing". */
+  exteriorColor: string | null;
+  interior: string | null;
+  seating: string | null;
+  /**
+   * Sum of rank positions across trim + colour + interior + seating (a
+   * "no preference" axis counts as 1) -- lower is more preferred. Purely
+   * a display-ordering heuristic (see prioritizeCombinations), never
+   * persisted.
+   */
+  rankSum: number;
+}
+
+function categoryEverRealAcrossTrims(
+  rankedTrimIds: string[],
+  configuratorQuestions: Record<string, ConfiguratorQuestions>,
+  rawChoicesFor: (q: ConfiguratorQuestions) => ConfiguratorChoice[],
+): boolean {
+  const names = new Set<string>();
+  for (const id of rankedTrimIds) {
+    const q = configuratorQuestions[id];
+    if (!q) continue;
+    for (const c of rawChoicesFor(q)) names.add(c.name);
+  }
+  return names.size > 1;
+}
+
+/**
+ * Enumerates every real combination across the customer's currently
+ * ranked trims, scoped to the categories/options they've already ranked
+ * (never the model's full universe -- a customer who ranked 3 colours
+ * gets combinations built from those 3, not every real colour on the
+ * trim). Per-trim cross product, summed across ranked trims -- NEVER a
+ * union-wide cross product, which would invent combinations no real car
+ * offers.
+ *
+ * Per-category, per-trim axis resolution (must match
+ * categoryHasRealChoiceAcrossTrims's own ">1 distinct name" rule exactly,
+ * not "does this trim have >=1 row" -- a category where every trim has
+ * exactly one real option, or shares the identical option, was never a
+ * real question and must not incorrectly zero out every trim):
+ *   1. Category never a real question across the ranked union (e.g.
+ *      seating, almost always) -> one implicit "no preference" value,
+ *      contributing once to every trim's cross product.
+ *   2. Category WAS a real question -> filter the customer's ranked names
+ *      down to ones real on THIS trim. Non-empty -> cross-product with
+ *      them. Empty (trim has real options here, but none the customer
+ *      ranked) -> this trim contributes ZERO combinations, full stop --
+ *      not a bug, a real signal that none of what the customer asked for
+ *      exists on this specific trim.
+ */
+export function computeRealCombinations(
+  rankedTrimIds: string[],
+  configuratorQuestions: Record<string, ConfiguratorQuestions>,
+  trimDisplayNameById: Record<string, string>,
+  rankedColorPositions: Map<string, number>,
+  rankedInteriorPositions: Map<string, number>,
+  rankedSeatingPositions: Map<string, number>,
+): RealCombination[] {
+  const colorEverReal = categoryEverRealAcrossTrims(rankedTrimIds, configuratorQuestions, (q) => q.exteriorColorRaw);
+  const interiorEverReal = categoryEverRealAcrossTrims(rankedTrimIds, configuratorQuestions, (q) => q.interiorRaw);
+  const seatingEverReal = categoryEverRealAcrossTrims(rankedTrimIds, configuratorQuestions, (q) => q.seatingRaw);
+
+  const axisEntries = (
+    q: ConfiguratorQuestions,
+    everReal: boolean,
+    rawChoicesFor: (qq: ConfiguratorQuestions) => ConfiguratorChoice[],
+    positions: Map<string, number>,
+  ): { name: string | null; position: number }[] | null => {
+    if (!everReal) return [{ name: null, position: 1 }];
+    const realOnTrim = new Set(rawChoicesFor(q).map((c) => c.name));
+    const matched = [...positions.keys()].filter((n) => realOnTrim.has(n));
+    if (matched.length === 0) return null;
+    return matched.map((name) => ({ name, position: positions.get(name)! }));
+  };
+
+  const combos: RealCombination[] = [];
+  rankedTrimIds.forEach((trimId, index) => {
+    const q = configuratorQuestions[trimId];
+    if (!q) return;
+    const trimRank = index + 1;
+    const trim = trimDisplayNameById[trimId] ?? trimId;
+
+    const colorAxis = axisEntries(q, colorEverReal, (qq) => qq.exteriorColorRaw, rankedColorPositions);
+    const interiorAxis = axisEntries(q, interiorEverReal, (qq) => qq.interiorRaw, rankedInteriorPositions);
+    const seatingAxis = axisEntries(q, seatingEverReal, (qq) => qq.seatingRaw, rankedSeatingPositions);
+    if (!colorAxis || !interiorAxis || !seatingAxis) return;
+
+    for (const c of colorAxis) {
+      for (const i of interiorAxis) {
+        for (const s of seatingAxis) {
+          combos.push({
+            trimId,
+            trim,
+            exteriorColor: c.name,
+            interior: i.name,
+            seating: s.name,
+            rankSum: trimRank + c.position + i.position + s.position,
+          });
+        }
+      }
+    }
+  });
+
+  return combos;
+}
+
+function compareCombinations(a: RealCombination, b: RealCombination): number {
+  if (a.rankSum !== b.rankSum) return a.rankSum - b.rankSum;
+  if (a.trim !== b.trim) return a.trim.localeCompare(b.trim);
+  const colorCmp = (a.exteriorColor ?? "").localeCompare(b.exteriorColor ?? "");
+  if (colorCmp !== 0) return colorCmp;
+  const interiorCmp = (a.interior ?? "").localeCompare(b.interior ?? "");
+  if (interiorCmp !== 0) return interiorCmp;
+  return (a.seating ?? "").localeCompare(b.seating ?? "");
+}
+
+/**
+ * Stable identity for one real combination -- not carried on
+ * RealCombination itself (a pure display/ordering value), so this is the
+ * one place it's derived, shared between the client component (React key,
+ * and mapping ranked/excluded id arrays back to full combos) and the save
+ * payload builder (finalize-self-service.tsx). Each combo is already a
+ * unique cross-product entry per ranked trim within one render, so this
+ * can't collide there -- it is NOT used for anything server-side, which
+ * re-derives identity from configuratorTrimId + colour/interior/seating
+ * fields directly rather than trusting this opaque client-built string.
+ */
+export function combinationId(c: RealCombination): string {
+  return [c.trimId, c.exteriorColor ?? " ", c.interior ?? " ", c.seating ?? " "].join("::");
+}
+
+/** Initial visible rows before a "show more" reveal. */
+export const COMBINATION_INITIAL_COUNT = 5;
+/** Absolute ceiling -- same "cap, don't paginate everything" precedent as
+ *  Matchmaker's PRIMARY_MAX_COUNT. Anything beyond this is never shown. */
+export const COMBINATION_MAX_COUNT = 10;
+
+export interface PrioritizedCombinations {
+  /** Up to COMBINATION_MAX_COUNT, best (lowest rankSum) first. */
+  visible: RealCombination[];
+  initialCount: number;
+  /** Real combination count before capping -- for an honest "showing your
+   *  top N of TOTAL" when TOTAL exceeds what's ever displayed. */
+  totalReal: number;
+}
+
+/**
+ * Orders and caps the full real combination set for display. Deliberately
+ * NOT applied inside computeRealCombinations itself -- that function's
+ * whole job is producing the correct, uncapped, real set; this is purely
+ * a display concern layered on top.
+ */
+export function prioritizeCombinations(combinations: RealCombination[]): PrioritizedCombinations {
+  const sorted = [...combinations].sort(compareCombinations);
+  return {
+    visible: sorted.slice(0, COMBINATION_MAX_COUNT),
+    initialCount: COMBINATION_INITIAL_COUNT,
+    totalReal: combinations.length,
+  };
 }
 
 /**
@@ -468,4 +725,31 @@ export interface TrimPreference {
    * Re-validated server-side before storage; never trusted as sent.
    */
   configuratorTrimId: string | null;
+}
+
+/**
+ * One combination preference, as the form holds it before saving
+ * (combination-preferences Phase 3, 2026-09-19). Same ranked/excluded
+ * shape as TrimPreference/ConfiguratorSelection.
+ *
+ * `configuratorTrimId` is the real, resolved configurator build --
+ * NEVER the client-side TrimOption id (RealCombination.trimId) that
+ * identifies a combination in the browser. The save payload builder
+ * (finalize-self-service.tsx) translates one to the other via
+ * `configuratorQuestions[combo.trimId]?.configuratorTrimId`, the exact
+ * same translation buildTrimPreferences() already does for trim ranking
+ * -- so this carries the same structural guarantee: the server re-checks
+ * this id is a member of the customer's OWN ranked-and-resolved trim set
+ * (writeTrimPreferences's rankedResolvedTrimIds) before trusting it at
+ * all, and the full (trim, colour, interior, seating) tuple must ALSO
+ * match a combination computeRealCombinations itself derives server-side
+ * -- see writeCombinationPreferences in finalize-actions.ts.
+ */
+export interface CombinationPreference {
+  configuratorTrimId: string;
+  exteriorColor: string | null;
+  interior: string | null;
+  seating: string | null;
+  rankPosition: number | null;
+  excluded: boolean;
 }

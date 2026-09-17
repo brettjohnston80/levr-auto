@@ -49,6 +49,7 @@ export function RankingQuestion({
   ranked,
   excluded,
   autoExcluded,
+  removeMeansExclude,
   onChange,
 }: {
   title: string;
@@ -65,7 +66,17 @@ export function RankingQuestion({
    * own block below "Excluded", same visual shell, but with no Undo
    * control (there's nothing to undo) and a note in its place.
    */
-  autoExcluded?: { item: RankableItem; note: string }[];
+  autoExcluded?: { item: RankableItem; note: React.ReactNode }[];
+  /**
+   * Whether the ✕ on a ranked row means "exclude this" rather than "no
+   * opinion, back to the pool" (2026-09-16, auto-select-all redesign).
+   * Trim keeps the old pool-return behaviour (default, prop omitted) --
+   * "I have no opinion on this trim" is still a real, meaningful state
+   * there. Exterior colour/interior/seating pass true: those categories
+   * start fully ranked now, so there is no neutral state left to return
+   * to -- removing something IS refusing it.
+   */
+  removeMeansExclude?: boolean;
   onChange: (ranked: string[], excluded: string[]) => void;
 }) {
   const byId = new Map(items.map((i) => [i.id, i]));
@@ -81,7 +92,17 @@ export function RankingQuestion({
   const rank = (id: string) => onChange([...ranked, id], excluded.filter((e) => e !== id));
   const unrank = (id: string) => onChange(ranked.filter((r) => r !== id), excluded);
   const exclude = (id: string) => onChange(ranked.filter((r) => r !== id), [...excluded, id]);
-  const unexclude = (id: string) => onChange(ranked, excluded.filter((e) => e !== id));
+  // Plain unexclude releases back to the neutral pool (trim's behaviour,
+  // unchanged). When removeMeansExclude is set there IS no neutral pool
+  // for these categories, so Undo goes straight back into "Your order" --
+  // appended here, then re-sorted into its actual price-sorted slot one
+  // layer up (RankedQuestion's handleChange normalizes on every onChange
+  // uniformly, so this doesn't need to know where "the right slot" is).
+  const unexclude = (id: string) =>
+    removeMeansExclude
+      ? onChange([...ranked, id], excluded.filter((e) => e !== id))
+      : onChange(ranked, excluded.filter((e) => e !== id));
+  const removeFromOrder = removeMeansExclude ? exclude : unrank;
 
   return (
     <div className="mt-6">
@@ -95,7 +116,12 @@ export function RankingQuestion({
         </p>
         {rankedItems.length === 0 ? (
           <p className="mt-2 rounded-xl border border-dashed border-white/15 bg-white/[0.02] px-4 py-5 text-center text-sm text-zinc-500">
-            Nothing ranked yet — tap an option below to start your list.
+            {removeMeansExclude
+              ? // Categories that start fully ranked have no pool to "tap
+                // below" -- reaching zero here only happens by excluding
+                // everything, and the only way back is Undo in Excluded.
+                "Everything's been excluded — use Undo below to bring something back."
+              : "Nothing ranked yet — tap an option below to start your list."}
           </p>
         ) : (
           <ol className="mt-2 space-y-1">
@@ -190,7 +216,7 @@ export function RankingQuestion({
                   >
                     ↓
                   </MiniButton>
-                  <MiniButton label={`Remove ${item.label}`} onClick={() => unrank(item.id)}>
+                  <MiniButton label={`Remove ${item.label}`} onClick={() => removeFromOrder(item.id)}>
                     ✕
                   </MiniButton>
                 </span>
@@ -327,8 +353,13 @@ export function RankingQuestion({
  * an image-shaped grey square with an icon in it reads to a customer as
  * something being broken. Almost every vehicle has no photos, so the
  * absent case is the normal one and has to look deliberate.
+ *
+ * Exported (2026-09-17) so combinations-question.tsx can render a SECOND
+ * swatch/photo pair (the interior, alongside this row's own exterior
+ * colour one) with the identical rendering rules -- never a reimplemented
+ * copy that could drift on the no-placeholder behaviour above.
  */
-function Thumb({ item }: { item: RankableItem }) {
+export function Thumb({ item }: { item: RankableItem }) {
   if (!item.imageUrl) return null;
   return (
     // eslint-disable-next-line @next/next/no-img-element -- these are
@@ -364,7 +395,7 @@ function Thumb({ item }: { item: RankableItem }) {
  * explicitly since a future pass might otherwise assume that comment is
  * still the live constraint.
  */
-function ColorDot({ item }: { item: RankableItem }) {
+export function ColorDot({ item }: { item: RankableItem }) {
   const clipId = useId();
   if (!item.swatch) return null;
   if (item.swatch.kind === "solid") {

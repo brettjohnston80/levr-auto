@@ -6,7 +6,13 @@ import { finalizeSelfService } from "@/lib/finalize-actions";
 import type { TrimOption } from "@/lib/finalize-trims";
 import {
   categoryHasRealChoiceAcrossTrims,
+  combinationId,
+  comparePriceDescending,
   computeCategoryAvailability,
+  computeRealCombinations,
+  matchesNaturalPriceOrder,
+  prioritizeCombinations,
+  type CombinationPreference,
   type ConfiguratorChoice,
   type ConfiguratorQuestions,
   type ConfiguratorSelection,
@@ -17,6 +23,7 @@ import {
   RankedQuestion,
   SelectionSummary,
 } from "@/components/configurator-questions";
+import { CombinationsQuestion } from "@/components/combinations-question";
 import { RankingQuestion } from "@/components/ranking-question";
 import { hasAtLeastOneRanked } from "@/lib/ranked-list";
 
@@ -28,6 +35,7 @@ type Step =
   | "interior"
   | "seating"
   | "features"
+  | "combinations"
   | "review";
 
 const STEP_LABELS: Record<Step, string> = {
@@ -38,6 +46,7 @@ const STEP_LABELS: Record<Step, string> = {
   interior: "interior",
   seating: "seating",
   features: "features",
+  combinations: "combinations",
   review: "review",
 };
 
@@ -98,6 +107,22 @@ export function FinalizeSelfService({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  // Where to jump BACK to once the trim step is left via the "Add it"
+  // quick-link (2026-09-17) -- null means "no detour in progress", so the
+  // trim step's own Next button falls through to its normal sequential
+  // behaviour. Set only by handleAddTrimFromAutoExcluded, cleared by
+  // either using it (jumping back) or navigating away some other way
+  // (breadcrumb click) -- a customer who explicitly picks a different step
+  // mid-detour has abandoned the detour, not asked to resume it later.
+  const [returnToStep, setReturnToStep] = useState<Step | null>(null);
+  // Combination-preferences step (2026-09-17, Phase 3) -- local UI state
+  // only for now. Persisting these (search_combination_preferences,
+  // migrated in Phase 1) is its own later Step-6-style interaction, not
+  // built here; this step is purely a customer-facing refinement surface
+  // on top of Phase 2's real, uncapped enumeration.
+  const [combinationRanked, setCombinationRanked] = useState<string[]>([]);
+  const [combinationExcluded, setCombinationExcluded] = useState<string[]>([]);
+  const [showAllCombinations, setShowAllCombinations] = useState(false);
 
   const trimById = new Map(trimOptions.map((o) => [o.id, o]));
   const topTrimId = rankedTrimIds[0] ?? null;
@@ -124,24 +149,6 @@ export function FinalizeSelfService({
     .map((id) => configuratorQuestions[id])
     .filter((q): q is ConfiguratorQuestions => !!q);
 
-  const steps: Step[] = ["trim"];
-  if (questions) {
-    if (categoryHasRealChoiceAcrossTrims(rankedResolvedQuestions.flatMap((q) => q.exteriorColorRaw)))
-      steps.push("exteriorColor");
-    if (categoryHasRealChoiceAcrossTrims(rankedResolvedQuestions.flatMap((q) => q.interiorRaw)))
-      steps.push("interior");
-    if (categoryHasRealChoiceAcrossTrims(rankedResolvedQuestions.flatMap((q) => q.seatingRaw)))
-      steps.push("seating");
-    // Features has no ">1" threshold -- any real obtainable feature
-    // anywhere in the ranked union is worth asking about, matching the
-    // single-trim behaviour this replaces (features was never
-    // atLeastTwo-gated either).
-    if (rankedResolvedQuestions.some((q) => q.features.length > 0)) steps.push("features");
-  } else {
-    steps.push("color", "options");
-  }
-  steps.push("review");
-
   // Model-wide union + ranked-trim-union exclusion test (2026-09-16,
   // full-transparency redesign). "The model" is every trim already in
   // `configuratorQuestions` -- every real inventory-backed trim that
@@ -150,6 +157,9 @@ export function FinalizeSelfService({
   // auto-excluded, with a note naming the trim to add. Computed fresh on
   // every render from data already in props/state -- no new fetch, see
   // computeCategoryAvailability's own comment for why this is cheap.
+  //
+  // Hoisted above `steps` (2026-09-17) -- the combinations step's own
+  // inclusion test needs trimDisplayNameById and rankedNamesFor too.
   const matchedTrimIds = trimOptions.map((o) => o.id).filter((id) => configuratorQuestions[id]);
   const trimDisplayNameById: Record<string, string> = Object.fromEntries(
     trimOptions.map((o) => [o.id, o.trim]),
@@ -169,6 +179,48 @@ export function FinalizeSelfService({
     }
     return map;
   };
+
+  // Combination preferences (2026-09-17, Phase 2/3) -- the real (trim,
+  // colour, interior, seating) tuples the customer's CURRENT rankings
+  // produce, scoped to categories/options they've already ranked (never
+  // the model's full universe -- see computeRealCombinations's own
+  // comment). Recomputed fresh every render, same as everything above;
+  // feeds both the "combinations" step's auto-skip test below and its own
+  // rendering.
+  const realCombinations = questions
+    ? computeRealCombinations(
+        rankedTrimIds,
+        configuratorQuestions,
+        trimDisplayNameById,
+        rankedNamesFor("exterior_color"),
+        rankedNamesFor("interior"),
+        rankedNamesFor("seating"),
+      )
+    : [];
+  const prioritizedCombinations = prioritizeCombinations(realCombinations);
+
+  const steps: Step[] = ["trim"];
+  if (questions) {
+    if (categoryHasRealChoiceAcrossTrims(rankedResolvedQuestions.flatMap((q) => q.exteriorColorRaw)))
+      steps.push("exteriorColor");
+    if (categoryHasRealChoiceAcrossTrims(rankedResolvedQuestions.flatMap((q) => q.interiorRaw)))
+      steps.push("interior");
+    if (categoryHasRealChoiceAcrossTrims(rankedResolvedQuestions.flatMap((q) => q.seatingRaw)))
+      steps.push("seating");
+    // Features has no ">1" threshold -- any real obtainable feature
+    // anywhere in the ranked union is worth asking about, matching the
+    // single-trim behaviour this replaces (features was never
+    // atLeastTwo-gated either).
+    if (rankedResolvedQuestions.some((q) => q.features.length > 0)) steps.push("features");
+    // Auto-skip (2026-09-17): a single real combination means the
+    // customer's own rankings already pin down one exact car -- there is
+    // nothing left to choose between, so asking would be a statement, not
+    // a question, same "atLeastTwo" spirit every other step here follows.
+    if (prioritizedCombinations.totalReal > 1) steps.push("combinations");
+  } else {
+    steps.push("color", "options");
+  }
+  steps.push("review");
 
   const exteriorColorAvailability = computeCategoryAvailability(
     matchedTrimIds,
@@ -277,8 +329,31 @@ export function FinalizeSelfService({
   const topRankConflicts = step === "review" ? computeTopRankConflicts() : [];
 
   const index = Math.max(0, steps.indexOf(step));
-  const goNext = () => setStep(steps[Math.min(index + 1, steps.length - 1)]);
-  const goBack = () => setStep(steps[Math.max(index - 1, 0)]);
+
+  // High-water mark, never decreases (2026-09-17) -- the breadcrumb's own
+  // "already visited" test needs this, not the CURRENT position. A real
+  // gap caught during verification: using the current index alone made a
+  // step's own breadcrumb entry go right back to unclickable the moment
+  // the customer navigated BACK to an earlier step (e.g. via "Add it"),
+  // even though they'd genuinely already been there seconds before and had
+  // real answers stored. Furthest-ever-reached is what "already visited"
+  // actually means here.
+  //
+  // Updated from EVENT HANDLERS via navigateToStep below, not an effect or
+  // a ref mutated during render -- both were tried and both are real
+  // anti-patterns this codebase's stricter hooks lint correctly rejects
+  // (setState-in-effect risks cascading renders; refs may not be read or
+  // written during the render body at all under this lint config). A plain
+  // setState call from a click handler is the idiomatic shape for "a user
+  // action changed some derived state."
+  const [maxIndexReached, setMaxIndexReached] = useState(0);
+  function navigateToStep(s: Step) {
+    const i = Math.max(0, steps.indexOf(s));
+    setMaxIndexReached((prev) => Math.max(prev, i));
+    setStep(s);
+  }
+  const goNext = () => navigateToStep(steps[Math.min(index + 1, steps.length - 1)]);
+  const goBack = () => navigateToStep(steps[Math.max(index - 1, 0)]);
 
   /**
    * Minimum engagement, exterior colour / interior / seating only
@@ -331,12 +406,140 @@ export function FinalizeSelfService({
    * avoid -- and would break the "re-add the trim, it snaps right back"
    * guarantee: the stored rank position is ALL that lets a demoted item
    * reappear in "Your order" with zero re-entry once its trim returns.
+   *
+   * ⚠ AUTO-PROMOTE, THE COMPLEMENT OF DEMOTION (2026-09-16, auto-select-all
+   * redesign). Exterior colour / interior / seating now start FULLY
+   * ranked -- every real option on the customer's ranked trims, price
+   * descending -- rather than built up from an empty pool. Demotion
+   * (above) was already display-only and needed no write; auto-promotion
+   * is the opposite direction and genuinely does: a newly-rankable item
+   * (a trim was just added) gets a REAL stored ConfiguratorSelection row,
+   * not a display illusion, because an auto-ranked list the customer
+   * never touches is a real, persisted preference, not a placeholder.
+   * Never promotes a name that already has ANY entry (ranked or
+   * excluded) -- an explicit exclusion must survive a trim being added
+   * that happens to also offer it, same "customer's stated answer wins"
+   * principle demotion already follows in the other direction.
    */
+  const AUTO_POPULATE_CHECKS: [
+    ConfiguratorSelection["category"],
+    (q: ConfiguratorQuestions) => ConfiguratorChoice[],
+  ][] = [
+    ["exterior_color", (q) => q.exteriorColorRaw],
+    ["interior", (q) => q.interiorRaw],
+    ["seating", (q) => q.seatingRaw],
+  ];
   function handleTrimRanking(nextRanked: string[], nextExcluded: string[]) {
     setRankedTrimIds(nextRanked);
     setExcludedTrimIds(nextExcluded);
+
+    setSelections((prev) => {
+      let next = prev;
+      for (const [category, rawChoicesFor] of AUTO_POPULATE_CHECKS) {
+        const availability = computeCategoryAvailability(
+          matchedTrimIds,
+          nextRanked,
+          configuratorQuestions,
+          rawChoicesFor,
+          trimDisplayNameById,
+        );
+        const rankableByName = new Map(availability.rankable.map((c) => [c.name, c]));
+
+        const inCategory = next.filter((s) => s.category === category);
+        const existingNames = new Set(inCategory.map((s) => s.selection));
+        const newlyRankableNames = [...rankableByName.keys()].filter((n) => !existingNames.has(n));
+        if (newlyRankableNames.length === 0) continue;
+
+        const excludedRows = inCategory.filter((s) => s.excluded);
+        const rankedRows = inCategory
+          .filter((s) => !s.excluded && s.rankPosition != null)
+          .sort((a, b) => (a.rankPosition ?? 0) - (b.rankPosition ?? 0));
+        const rankedRowsByName = new Map(rankedRows.map((s) => [s.selection, s]));
+
+        // Same "still matches fresh auto-population" test as RankedQuestion's
+        // own normalization (configurator-questions.tsx) -- only the names
+        // still resolvable in rankableByName participate; a demoted row
+        // (rankPosition set but no longer in `rankable`) has no price to
+        // compare and must never be asked to.
+        const wasNatural = matchesNaturalPriceOrder(
+          rankedRows.map((s) => s.selection).filter((name) => rankableByName.has(name)),
+          rankableByName,
+        );
+
+        const buildNew = (name: string): ConfiguratorSelection => {
+          const c = rankableByName.get(name)!;
+          return {
+            category,
+            questionKind: "ranked",
+            selection: name,
+            rankPosition: null,
+            excluded: false,
+            packageName: c.packageName,
+            packagePriceCents: c.packagePriceCents,
+            packageContents: c.packageContents,
+            priceUnknown:
+              c.availability === "package_only" ? c.packagePriceCents == null : c.priceCents == null,
+          };
+        };
+
+        let orderedNames: string[];
+        if (wasNatural) {
+          // Still untouched (or this is the very first population) --
+          // recompute the whole order fresh, price descending, existing
+          // names included. Demoted names (not in rankableByName) sort to
+          // the end, stable amongst themselves -- same rule as
+          // RankedQuestion's normalization.
+          orderedNames = [...rankedRows.map((s) => s.selection), ...newlyRankableNames].sort((a, b) => {
+            const inA = rankableByName.has(a);
+            const inB = rankableByName.has(b);
+            if (inA && inB) return comparePriceDescending(rankableByName.get(a)!, rankableByName.get(b)!);
+            if (inA !== inB) return inA ? -1 : 1;
+            return 0;
+          });
+        } else {
+          // Customer has already reordered -- preserve it exactly, only
+          // append the newly-rankable names (sorted among themselves) at
+          // the end.
+          const appended = [...newlyRankableNames].sort((a, b) =>
+            comparePriceDescending(rankableByName.get(a)!, rankableByName.get(b)!),
+          );
+          orderedNames = [...rankedRows.map((s) => s.selection), ...appended];
+        }
+
+        const rebuiltRanked = orderedNames.map((name, i) => {
+          const existing = rankedRowsByName.get(name);
+          return { ...(existing ?? buildNew(name)), rankPosition: i + 1, excluded: false };
+        });
+
+        const outsideCategory = next.filter((s) => s.category !== category);
+        next = [...outsideCategory, ...rebuiltRanked, ...excludedRows];
+      }
+      return next;
+    });
   }
 
+  /**
+   * "Available on {trim} — add it" (2026-09-17, combined breadcrumb + add-
+   * it navigation). Jumps to the trim step with `trimId` already added to
+   * the ranking, remembering where the customer came from so the trim
+   * step's own Next button can return them there instead of falling
+   * through to trim's normal next-in-sequence step. Reuses
+   * handleTrimRanking outright rather than duplicating its auto-promotion
+   * logic -- adding a trim from here is not a new kind of trim-ranking
+   * change, just one triggered from an unusual place. If the trim was
+   * previously excluded, un-excludes it: the customer explicitly asking to
+   * add it now is a real override of that earlier exclusion.
+   */
+  function handleAddTrimFromAutoExcluded(trimId: string, fromStep: Step) {
+    if (!rankedTrimIds.includes(trimId)) {
+      handleTrimRanking(
+        [...rankedTrimIds, trimId],
+        excludedTrimIds.filter((id) => id !== trimId),
+      );
+    }
+    setReturnToStep(fromStep);
+    navigateToStep("trim");
+  }
 
   /**
    * The customer's trim ranking, as the write path wants it.
@@ -365,6 +568,44 @@ export function FinalizeSelfService({
     ].filter(Boolean) as TrimPreference[];
   }
 
+  /**
+   * The customer's combination preferences, as the write path wants them
+   * (combination-preferences Phase 3, 2026-09-19) -- same ranked-then-
+   * excluded shape as buildTrimPreferences above.
+   *
+   * `combinationRanked`/`combinationExcluded` only ever hold ids of cards
+   * that were actually rendered, i.e. members of
+   * prioritizedCombinations.visible -- so `byId` never needs to fall back
+   * to anything else. `configuratorTrimId` is looked up fresh here (not
+   * carried on RealCombination itself), the exact same translation
+   * buildTrimPreferences already does -- if a combination's trim somehow
+   * no longer resolves (shouldn't happen within one render, but this
+   * mirrors buildTrimPreferences's own defensive `?? null` pattern rather
+   * than assuming it can't), that one entry is dropped rather than sent
+   * with a fabricated id.
+   */
+  function buildCombinationPreferences(): CombinationPreference[] {
+    const byId = new Map(prioritizedCombinations.visible.map((c) => [combinationId(c), c]));
+    const toPref = (id: string, rankPosition: number | null): CombinationPreference | null => {
+      const combo = byId.get(id);
+      if (!combo) return null;
+      const configuratorTrimId = configuratorQuestions[combo.trimId]?.configuratorTrimId;
+      if (!configuratorTrimId) return null;
+      return {
+        configuratorTrimId,
+        exteriorColor: combo.exteriorColor,
+        interior: combo.interior,
+        seating: combo.seating,
+        rankPosition,
+        excluded: rankPosition === null,
+      };
+    };
+    return [
+      ...combinationRanked.map((id, i) => toPref(id, i + 1)),
+      ...combinationExcluded.map((id) => toPref(id, null)),
+    ].filter(Boolean) as CombinationPreference[];
+  }
+
   async function handleConfirm() {
     setSaving(true);
     setError(null);
@@ -380,6 +621,7 @@ export function FinalizeSelfService({
       requiredOptions: options,
       selections,
       trimPreferences: buildTrimPreferences(),
+      combinationPreferences: buildCombinationPreferences(),
     });
     setSaving(false);
     if (!result.ok) {
@@ -414,12 +656,39 @@ export function FinalizeSelfService({
   return (
     <div className="rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-6 shadow-xl shadow-black/20 sm:p-8">
       <div className="flex flex-wrap items-center gap-2 text-xs font-semibold tracking-wide text-zinc-500 uppercase">
-        {steps.map((s, i) => (
-          <span key={s} className={`flex items-center gap-2 ${step === s ? "text-emerald-400" : ""}`}>
-            {i > 0 && <span className="text-zinc-700">→</span>}
-            {STEP_LABELS[s]}
-          </span>
-        ))}
+        {steps.map((s, i) => {
+          // Only ALREADY-VISITED steps (furthest ever reached, not just
+          // the current position -- see maxIndexReached above) are
+          // clickable. Jumping AHEAD of anywhere the customer has been
+          // would bypass the min-one-selection engagement gate a future
+          // step's own Next button normally enforces, since that check
+          // only runs when Next is clicked on the step it belongs to.
+          // Going back never has that risk: every category's own answers
+          // stay exactly as they are regardless of which step is showing.
+          const visited = i <= maxIndexReached;
+          return (
+            <span key={s} className="flex items-center gap-2">
+              {i > 0 && <span className="text-zinc-700">→</span>}
+              {visited ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    // An explicit jump elsewhere abandons any "Add it"
+                    // detour in progress -- the customer chose to go
+                    // somewhere specific, not to resume where they left off.
+                    setReturnToStep(null);
+                    navigateToStep(s);
+                  }}
+                  className={`hover:text-zinc-300 ${step === s ? "text-emerald-400" : ""}`}
+                >
+                  {STEP_LABELS[s]}
+                </button>
+              ) : (
+                <span>{STEP_LABELS[s]}</span>
+              )}
+            </span>
+          );
+        })}
       </div>
 
       {step === "trim" && (
@@ -484,10 +753,20 @@ export function FinalizeSelfService({
             </p>
             <button
               type="button"
-              onClick={goNext}
+              onClick={() => {
+                // A detour via "Add it" returns to exactly where the
+                // customer left off, instead of falling through to trim's
+                // normal next-in-sequence step (2026-09-17).
+                if (returnToStep) {
+                  navigateToStep(returnToStep);
+                  setReturnToStep(null);
+                } else {
+                  goNext();
+                }
+              }}
               className="shrink-0 rounded-full bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-zinc-950 hover:bg-emerald-400"
             >
-              Next
+              {returnToStep ? "Back to where I was" : "Next"}
             </button>
           </div>
         </div>
@@ -502,6 +781,8 @@ export function FinalizeSelfService({
           category="exterior_color"
           selections={selections}
           onChange={setSelections}
+          trimDisplayNameById={trimDisplayNameById}
+          onAddTrim={(trimId) => handleAddTrimFromAutoExcluded(trimId, "exteriorColor")}
         />
       )}
 
@@ -514,6 +795,8 @@ export function FinalizeSelfService({
           category="interior"
           selections={selections}
           onChange={setSelections}
+          trimDisplayNameById={trimDisplayNameById}
+          onAddTrim={(trimId) => handleAddTrimFromAutoExcluded(trimId, "interior")}
         />
       )}
 
@@ -526,6 +809,8 @@ export function FinalizeSelfService({
           category="seating"
           selections={selections}
           onChange={setSelections}
+          trimDisplayNameById={trimDisplayNameById}
+          onAddTrim={(trimId) => handleAddTrimFromAutoExcluded(trimId, "seating")}
         />
       )}
 
@@ -535,6 +820,22 @@ export function FinalizeSelfService({
           autoExcluded={featuresAvailability.autoExcluded}
           selections={selections}
           onChange={setSelections}
+        />
+      )}
+
+      {step === "combinations" && questions && (
+        <CombinationsQuestion
+          prioritized={prioritizedCombinations}
+          ranked={combinationRanked}
+          excluded={combinationExcluded}
+          onChange={(next, nextExcluded) => {
+            setCombinationRanked(next);
+            setCombinationExcluded(nextExcluded);
+          }}
+          configuratorQuestions={configuratorQuestions}
+          selections={selections}
+          showAll={showAllCombinations}
+          onShowMore={() => setShowAllCombinations(true)}
         />
       )}
 

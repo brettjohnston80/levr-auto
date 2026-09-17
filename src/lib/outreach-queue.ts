@@ -103,6 +103,38 @@ export interface OutreachTrimPreference {
   configuratorTrimId: string | null;
 }
 
+/**
+ * A ranked combination preference (search_combination_preferences,
+ * combination-preferences Phase 4, 2026-09-19).
+ *
+ * Mirrors OutreachTrimPreference's own shape and reasoning: once
+ * colour/interior/feature answers validate against the ranked-trim UNION
+ * rather than one trim, a customer's separate per-category rankings no
+ * longer pin down one exact car -- this table is their final refinement
+ * over specific real (trim, exterior colour, interior, seating) tuples,
+ * and for the agent it is a SEARCH ORDER exactly like the trim list above:
+ * work down it until something is actually in inventory, not a preference
+ * to weigh. Distinct from OutreachSelection because a combination's
+ * identity spans four fields at once, not one option in one category --
+ * and distinct from OutreachTrimPreference because it is scoped to a
+ * specific colour/interior/seating tuple ON that trim, not the trim alone.
+ *
+ * `seating` is null for the common case (a category that was never a real
+ * question across the customer's ranked trims -- Camry's seating is the
+ * same string everywhere, for instance) -- an implicit "no preference"
+ * placeholder, not something to render as a blank.
+ */
+export interface OutreachCombinationPreference {
+  id: string;
+  trim: string;
+  modelYear: number | null;
+  exteriorColor: string | null;
+  interior: string | null;
+  seating: string | null;
+  rankPosition: number | null;
+  excluded: boolean;
+}
+
 /** Reading order: what the car looks like, then what is added to it. */
 const SELECTION_CATEGORY_ORDER = [
   "exterior_color",
@@ -140,6 +172,34 @@ function compareTrimPreferences(a: OutreachTrimPreference, b: OutreachTrimPrefer
     return a.rankPosition - b.rankPosition;
   }
   return a.trim.localeCompare(b.trim);
+}
+
+/**
+ * Full display label for a combination preference, e.g. "XSE 2026 —
+ * Ocean Gem / Black leather trim" -- the same "{trim} — {color} /
+ * {interior}[ / {seating}]" shape the customer's own combinations step
+ * renders (combinations-question.tsx), so the agent view can never
+ * describe a saved combination differently from what the customer saw
+ * when they ranked it.
+ */
+export function combinationLabel(c: OutreachCombinationPreference): string {
+  const trimLabel = c.modelYear != null ? `${c.trim} ${c.modelYear}` : c.trim;
+  const colorLabel = c.exteriorColor ?? "No preference";
+  const interiorLabel = c.interior ?? "No preference";
+  return `${trimLabel} — ${colorLabel} / ${interiorLabel}${c.seating ? ` / ${c.seating}` : ""}`;
+}
+
+/** Ranked first in order, then exclusions -- same shape as
+ *  compareTrimPreferences. */
+function compareCombinationPreferences(
+  a: OutreachCombinationPreference,
+  b: OutreachCombinationPreference,
+): number {
+  if (a.excluded !== b.excluded) return a.excluded ? 1 : -1;
+  if (a.rankPosition != null && b.rankPosition != null) {
+    return a.rankPosition - b.rankPosition;
+  }
+  return combinationLabel(a).localeCompare(combinationLabel(b));
 }
 
 export interface OutreachDealProgress {
@@ -195,6 +255,16 @@ export interface OutreachSearch {
    * behaviour) produces one rank-1 row, not zero.
    */
   trimPreferences: OutreachTrimPreference[];
+  /**
+   * Empty whenever the customer left the combinations step untouched --
+   * always a valid outcome, not a partial save (see
+   * writeCombinationPreferences' own comment in finalize-actions.ts): the
+   * step itself is only ever shown once the customer's rankings produce
+   * more than one real combination, and even then ranking/excluding
+   * anything there is optional refinement on top of answers already given
+   * elsewhere.
+   */
+  combinationPreferences: OutreachCombinationPreference[];
 }
 
 /**
@@ -425,6 +495,39 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
     list.sort(compareTrimPreferences);
   }
 
+  // Combination preferences (2026-09-19, Phase 4) -- same pagination
+  // reasoning as trim preferences and selections above.
+  const combinationPrefsBySearchId = new Map<string, OutreachCombinationPreference[]>();
+  for (let from = 0; ; from += SELECTION_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("search_combination_preferences")
+      .select("id, search_id, trim, model_year, exterior_color, interior, seating, rank_position, excluded")
+      .in("search_id", searchIds)
+      .order("id")
+      .range(from, from + SELECTION_PAGE_SIZE - 1);
+    if (error) {
+      throw new Error(`Failed to load combination preferences: ${error.message}`);
+    }
+    for (const row of data ?? []) {
+      const list = combinationPrefsBySearchId.get(row.search_id as string) ?? [];
+      list.push({
+        id: row.id as string,
+        trim: row.trim as string,
+        modelYear: (row.model_year as number | null) ?? null,
+        exteriorColor: (row.exterior_color as string | null) ?? null,
+        interior: (row.interior as string | null) ?? null,
+        seating: (row.seating as string | null) ?? null,
+        rankPosition: (row.rank_position as number | null) ?? null,
+        excluded: row.excluded === true,
+      });
+      combinationPrefsBySearchId.set(row.search_id as string, list);
+    }
+    if (!data || data.length < SELECTION_PAGE_SIZE) break;
+  }
+  for (const list of combinationPrefsBySearchId.values()) {
+    list.sort(compareCombinationPreferences);
+  }
+
   const customerEmailById = new Map((customers ?? []).map((c) => [c.id, c.email as string]));
   const listingsByMakeModel = new Map(
     listingsByPair.map(({ make, model, listings }) => [`${make}::${model}`, listings])
@@ -496,6 +599,7 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
       offers: offersBySearchId.get(search.id) ?? [],
       selections: selectionsBySearchId.get(search.id) ?? [],
       trimPreferences: trimPrefsBySearchId.get(search.id) ?? [],
+      combinationPreferences: combinationPrefsBySearchId.get(search.id) ?? [],
     };
   });
 }

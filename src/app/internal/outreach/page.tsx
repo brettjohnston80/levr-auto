@@ -10,6 +10,8 @@ import {
   getVehicleConsultationQueue,
   getNotificationCallbackQueue,
   getInventoryBlockedQueue,
+  combinationLabel,
+  type OutreachCombinationPreference,
   type OutreachSelection,
   type OutreachTrimPreference,
 } from "@/lib/outreach-queue";
@@ -187,9 +189,11 @@ function ExcludedBlock({ items }: { items: { id: string; label: string }[] }) {
 function ConfiguratorSelections({
   selections,
   trimPreferences,
+  combinationPreferences,
 }: {
   selections: OutreachSelection[];
   trimPreferences: OutreachTrimPreference[];
+  combinationPreferences: OutreachCombinationPreference[];
 }) {
   if (selections.length === 0 && trimPreferences.length === 0) return null;
 
@@ -207,6 +211,9 @@ function ConfiguratorSelections({
   const excludedTrims = trimPreferences.filter((t) => t.excluded);
   const topTrim = rankedTrims.find((t) => t.rankPosition === 1);
   const topTrimLabel = topTrim ? trimLabel(topTrim) : null;
+
+  const rankedCombinations = combinationPreferences.filter((c) => !c.excluded);
+  const excludedCombinations = combinationPreferences.filter((c) => c.excluded);
 
   return (
     <div className="mt-4">
@@ -236,6 +243,37 @@ function ConfiguratorSelections({
             ))}
           </ol>
           <ExcludedBlock items={excludedTrims.map((t) => ({ id: t.id, label: trimLabel(t) }))} />
+        </div>
+      )}
+
+      {/* Combination preferences (2026-09-19, Phase 4) -- the customer's
+          FINAL refinement once per-category rankings alone no longer pin
+          down one exact car, so it renders above the per-category
+          breakdown below it: an agent working this card top-to-bottom sees
+          the most-refined, most-authoritative search order first, with the
+          per-category detail available underneath for anything this list
+          doesn't cover. Renders nothing at all -- not even this heading --
+          when the customer left the step untouched, exactly like the trim
+          block above and the per-category blocks below. */}
+      {combinationPreferences.length > 0 && (
+        <div className="mt-3">
+          {/* Same "search order" framing as Trim above: work down this
+              list until a real (trim, colour, interior, seating) tuple is
+              actually in inventory. */}
+          <p className="text-xs font-semibold text-zinc-400 uppercase">
+            Real combinations — search in this order
+          </p>
+          <ol className="mt-1 space-y-1 text-sm text-zinc-400">
+            {rankedCombinations.map((c) => (
+              <li key={c.id}>
+                <span className="text-zinc-500">{c.rankPosition}.</span>{" "}
+                <span className="text-zinc-200">{combinationLabel(c)}</span>
+              </li>
+            ))}
+          </ol>
+          <ExcludedBlock
+            items={excludedCombinations.map((c) => ({ id: c.id, label: combinationLabel(c) }))}
+          />
         </div>
       )}
 
@@ -667,6 +705,7 @@ export default async function OutreachQueuePage() {
                   <ConfiguratorSelections
                     selections={search.selections}
                     trimPreferences={search.trimPreferences}
+                    combinationPreferences={search.combinationPreferences}
                   />
 
                   <div className="mt-4">
