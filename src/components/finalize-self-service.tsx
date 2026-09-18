@@ -25,6 +25,8 @@ import {
 } from "@/components/configurator-questions";
 import { CombinationsQuestion } from "@/components/combinations-question";
 import { RankingQuestion } from "@/components/ranking-question";
+import { TrimComparisonModal } from "@/components/trim-comparison-modal";
+import { TrimDetailModal } from "@/components/trim-detail-modal";
 import { hasAtLeastOneRanked } from "@/lib/ranked-list";
 
 type Step =
@@ -115,14 +117,20 @@ export function FinalizeSelfService({
   // (breadcrumb click) -- a customer who explicitly picks a different step
   // mid-detour has abandoned the detour, not asked to resume it later.
   const [returnToStep, setReturnToStep] = useState<Step | null>(null);
-  // Combination-preferences step (2026-09-17, Phase 3) -- local UI state
-  // only for now. Persisting these (search_combination_preferences,
-  // migrated in Phase 1) is its own later Step-6-style interaction, not
-  // built here; this step is purely a customer-facing refinement surface
-  // on top of Phase 2's real, uncapped enumeration.
+  // Combination-preferences step (2026-09-17 Phase 3 UI, persisted via
+  // writeCombinationPreferences as of 2026-09-19) -- local UI state here,
+  // built from and saved back through buildCombinationPreferences() in
+  // handleConfirm below.
   const [combinationRanked, setCombinationRanked] = useState<string[]>([]);
   const [combinationExcluded, setCombinationExcluded] = useState<string[]>([]);
   const [showAllCombinations, setShowAllCombinations] = useState(false);
+  // Trim comparison view (2026-09-19) -- purely local UI state, same as
+  // every other modal-open flag in this component. `detailTrimId` doubles
+  // as "which trim the Details modal is open for" and "is it open at
+  // all" (null = closed), same convention combinationRanked/Excluded's
+  // sibling state already uses elsewhere in this file.
+  const [comparisonOpen, setComparisonOpen] = useState(false);
+  const [detailTrimId, setDetailTrimId] = useState<string | null>(null);
 
   const trimById = new Map(trimOptions.map((o) => [o.id, o]));
   const topTrimId = rankedTrimIds[0] ?? null;
@@ -694,33 +702,50 @@ export function FinalizeSelfService({
       {step === "trim" && (
         <div className="mt-6">
           {trimOptions.length > 0 ? (
-            <RankingQuestion
-              title={`Which ${make} ${model} trim?`}
-              subtitle="Rank them in the order you'd like us to search — we'll work down your list. Mark anything you'd exclude, and leave the rest alone."
-              items={trimOptions.map((opt) => ({
-                id: opt.id,
-                label: opt.trim,
-                // Year is shown only when it distinguishes something. With a
-                // committed year every option is that year, so the suffix is
-                // redundant and dropped. Without one (a search predating the
-                // required year) a trim spanning two model years would
-                // otherwise render as two identical-looking rows.
-                sublabel: modelYear == null && opt.year != null ? String(opt.year) : null,
-                detail: (
-                  <span className="mt-0.5 block text-xs text-zinc-500">
-                    {formatCents(opt.minPriceCents)}
-                    {opt.maxPriceCents && opt.maxPriceCents !== opt.minPriceCents
-                      ? `–${formatCents(opt.maxPriceCents)}`
-                      : ""}
-                    {" · "}
-                    {opt.count} available nationwide
-                  </span>
-                ),
-              }))}
-              ranked={rankedTrimIds}
-              excluded={excludedTrimIds}
-              onChange={handleTrimRanking}
-            />
+            <>
+              {/* Trim comparison view (2026-09-19) -- a decision aid for
+                  THIS step, not the combination-preferences step further
+                  along: helps decide what to rank, before anything is
+                  ranked, rather than refining an already-ranked list.
+                  Only worth offering once there's genuinely something to
+                  compare. */}
+              {trimOptions.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setComparisonOpen(true)}
+                  className="mb-4 text-sm font-semibold text-emerald-400 underline underline-offset-2 hover:text-emerald-300"
+                >
+                  Compare trims
+                </button>
+              )}
+              <RankingQuestion
+                title={`Which ${make} ${model} trim?`}
+                subtitle="Rank them in the order you'd like us to search — we'll work down your list. Mark anything you'd exclude, and leave the rest alone."
+                items={trimOptions.map((opt) => ({
+                  id: opt.id,
+                  label: opt.trim,
+                  // Year is shown only when it distinguishes something. With a
+                  // committed year every option is that year, so the suffix is
+                  // redundant and dropped. Without one (a search predating the
+                  // required year) a trim spanning two model years would
+                  // otherwise render as two identical-looking rows.
+                  sublabel: modelYear == null && opt.year != null ? String(opt.year) : null,
+                  detail: (
+                    <span className="mt-0.5 block text-xs text-zinc-500">
+                      {formatCents(opt.minPriceCents)}
+                      {opt.maxPriceCents && opt.maxPriceCents !== opt.minPriceCents
+                        ? `–${formatCents(opt.maxPriceCents)}`
+                        : ""}
+                      {" · "}
+                      {opt.count} available nationwide
+                    </span>
+                  ),
+                }))}
+                ranked={rankedTrimIds}
+                excluded={excludedTrimIds}
+                onChange={handleTrimRanking}
+              />
+            </>
           ) : (
             /*
               No synced inventory for this make/model yet. There is nothing
@@ -771,6 +796,66 @@ export function FinalizeSelfService({
           </div>
         </div>
       )}
+
+      {/* Trim comparison + single-trim detail modals (2026-09-19) --
+          portaled to document.body, so rendering them here (rather than
+          only while step === "trim") is fine either way; kept scoped to
+          the trim step's own block for readability since that's the only
+          place either can be opened from. Both share the exact same
+          rank/exclude write path as the plain list above (handleTrimRanking),
+          not a parallel one -- see each modal's own header comment for
+          why this is explicitly NOT read-only. */}
+      {comparisonOpen && (
+        <TrimComparisonModal
+          make={make}
+          model={model}
+          trimOptions={trimOptions}
+          configuratorQuestions={configuratorQuestions}
+          ranked={rankedTrimIds}
+          excluded={excludedTrimIds}
+          onChange={handleTrimRanking}
+          onOpenDetail={(trimId) => setDetailTrimId(trimId)}
+          onClose={() => setComparisonOpen(false)}
+        />
+      )}
+      {detailTrimId &&
+        trimById.get(detailTrimId) &&
+        (() => {
+          const opt = trimById.get(detailTrimId)!;
+          const isRanked = rankedTrimIds.includes(detailTrimId);
+          const isExcluded = excludedTrimIds.includes(detailTrimId);
+          const rankPosition = isRanked ? rankedTrimIds.indexOf(detailTrimId) + 1 : null;
+          return (
+            <TrimDetailModal
+              make={make}
+              model={model}
+              trim={opt}
+              questions={configuratorQuestions[detailTrimId] ?? null}
+              isRanked={isRanked}
+              isExcluded={isExcluded}
+              rankPosition={rankPosition}
+              onRank={() => {
+                handleTrimRanking([...rankedTrimIds, detailTrimId], excludedTrimIds.filter((id) => id !== detailTrimId));
+              }}
+              onExclude={() => {
+                handleTrimRanking(rankedTrimIds.filter((id) => id !== detailTrimId), [...excludedTrimIds, detailTrimId]);
+              }}
+              onUndo={() => {
+                // Mirrors RankingQuestion's own unrank/unexclude for trim
+                // (removeMeansExclude false there): a ranked trim goes back
+                // to the neutral pool, an excluded one does too -- same
+                // single "undo" action either way from this modal's own
+                // single button, since only one of the two states is ever
+                // true at once.
+                handleTrimRanking(
+                  rankedTrimIds.filter((id) => id !== detailTrimId),
+                  excludedTrimIds.filter((id) => id !== detailTrimId),
+                );
+              }}
+              onClose={() => setDetailTrimId(null)}
+            />
+          );
+        })()}
 
       {step === "exteriorColor" && questions && (
         <RankedQuestion

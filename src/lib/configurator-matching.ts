@@ -371,6 +371,55 @@ export interface ConfiguratorQuestions {
    * ("can't be removed on this trim").
    */
   featuresStandard: string[];
+  /**
+   * Wheels / roof / drivetrain (2026-09-19, trim comparison view) -- real
+   * researched categories that exist in `configurator_options` and were
+   * always imported, but never fetched into this type before now, because
+   * nothing customer-facing ever asked about them: there is no ranked
+   * question or feature checklist for wheels/roof/drivetrain, only the
+   * comparison table and the single-trim detail modal read these.
+   *
+   * CHOICE_AVAILABILITY-filtered (standard + standalone + package_only,
+   * `unavailable` excluded), same rule as exteriorColorRaw/interiorRaw/
+   * seatingRaw -- but deliberately NOT split into a gated vs. Raw pair,
+   * and NOT split into an obtainable-vs-`*Standard` pair the way features
+   * is: there is no atLeastTwo gate here (nothing asks a question), and no
+   * want/exclude distinction to make (nothing here is ever ranked or
+   * refused), so one plain list per category is the whole shape needed.
+   *
+   * ⚠ REAL DATA SHAPE, WORTH KNOWING BEFORE RENDERING THESE. Confirmed
+   * against real Camry/Civic/Accord/CR-V/RAV4 rows before this field
+   * existed:
+   *   - `wheels` is almost always exactly ONE `standard` row (a specific
+   *     real wheel spec, e.g. "17-Inch Silver-Painted Alloy Wheels") --
+   *     the spec itself is a genuine per-trim fact worth showing even
+   *     with no alternative, and a few trims (Civic LX, CR-V LX, RAV4
+   *     Limited) ALSO carry a real `standalone`/`package_only` upgrade.
+   *   - `roof` behaves closest to a real `feature` row -- `unavailable`,
+   *     `standard`, or a priced `standalone`/`package_only` moonroof --
+   *     but is NOT safe to silently merge into the `features` union: at
+   *     least one real model (RAV4) has the identical name ("Moonroof")
+   *     appear in BOTH `feature` and `roof` with different research
+   *     wording elsewhere (Camry: "moonroof" under `feature`, "Power
+   *     tilt/slide moonroof" under `roof`, same $870) -- a genuine
+   *     upstream research duplication across two categories, not a bug to
+   *     fix here. Rendered as its own separate row/section, never unioned
+   *     with `features`, so nothing is silently deduped or double-counted
+   *     on a guess.
+   *   - `drivetrain` is the least uniform: a trim can carry SEVERAL
+   *     simultaneous `standard` rows describing genuinely different real
+   *     facts at once (engine, transmission, drive layout -- RAV4 Woodland
+   *     has 6, describing both its real hybrid AND plug-in-hybrid builds
+   *     under the identical trim name), not a small closed set of named
+   *     alternatives to pick between. Only some trims (Honda CR-V is the
+   *     clean case) carry a genuine priced `standalone` alternative (FWD
+   *     standard, AWD +$1,500). See trim-comparison.ts's summarizers for
+   *     how this shape is compressed for a comparison cell vs. shown in
+   *     full in the detail modal.
+   */
+  wheels: ConfiguratorChoice[];
+  roof: ConfiguratorChoice[];
+  drivetrain: ConfiguratorChoice[];
 }
 
 export function hasAnyQuestion(q: ConfiguratorQuestions): boolean {

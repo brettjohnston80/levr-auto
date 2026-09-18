@@ -46,7 +46,11 @@ function priceLabel(choice: ConfiguratorChoice): { text: string; tone: "free" | 
   return { text: `+${formatCents(choice.priceCents)}`, tone: "cost" };
 }
 
-function PriceTag({ choice }: { choice: ConfiguratorChoice }) {
+// Exported (2026-09-19) so trim-detail-modal.tsx can reuse these verbatim
+// in read-only form for the wheels/roof/drivetrain sections -- same "one
+// implementation, can't drift" reasoning as Thumb/ColorDot's own export
+// from ranking-question.tsx for the combinations step.
+export function PriceTag({ choice }: { choice: ConfiguratorChoice }) {
   const { text, tone } = priceLabel(choice);
   const cls =
     tone === "free"
@@ -66,7 +70,7 @@ function PriceTag({ choice }: { choice: ConfiguratorChoice }) {
  * things and a price. The customer sees what they would actually be
  * buying before they ask for it.
  */
-function PackageNote({ choice }: { choice: ConfiguratorChoice }) {
+export function PackageNote({ choice }: { choice: ConfiguratorChoice }) {
   if (choice.availability !== "package_only" || !choice.packageName) return null;
   return (
     <p className="mt-1.5 text-xs leading-relaxed text-zinc-500">

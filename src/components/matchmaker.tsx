@@ -6,6 +6,7 @@ import { GetStartedButton } from "@/components/get-started-button";
 import { stashMatchmakerPrefill } from "@/lib/matchmaker-prefill";
 import { VehicleDetailModal } from "@/components/vehicle-detail-modal";
 import { PriceRangeSlider } from "@/components/price-range-slider";
+import { useIsNarrowViewport } from "@/lib/use-is-narrow-viewport";
 import {
   ALL_PRIORITIES,
   FAMILY_SIZES,
@@ -1410,40 +1411,12 @@ const FLAG_CAP = 5;
 // previously position 6 (or beyond) with zero extra bookkeeping -- the same
 // "recompute from the filtered source on every render" principle as the
 // per-trim headline recompute and the model-group backfill above it.
-// Matches Tailwind's `sm` breakpoint (640px) from JS. ComparisonModal
-// needs its label-column width as a NUMBER, not a class, because that one
-// value feeds both realColumnWidth's calc() and tableMinWidthPx -- see
-// LABEL_COLUMN_WIDTH_PX's own comment for why a CSS-only `sm:` variant
-// would desync them under table-layout: fixed. Starts false and corrects
-// on mount, which is safe here: the table only ever renders inside an
-// already-open modal, so there is no server-rendered flash.
-function useIsNarrowViewport(): boolean {
-  const [narrow, setNarrow] = useState(false);
-  useEffect(() => {
-    // A plain `resize` listener rather than matchMedia's `change` event.
-    // Both are correct in a real browser; this is the more conservative of
-    // the two, since it re-reads on any viewport change rather than only
-    // on a breakpoint crossing, and the handler is a single number compare
-    // (React bails out when the value is unchanged).
-    //
-    // Honest note on verification (2026-09-07): live switching could NOT
-    // be confirmed in this project's browser harness. The page is tested
-    // inside a same-origin iframe, and resizing that iframe from the
-    // parent updates its `innerWidth` while firing NEITHER `resize` NOR
-    // matchMedia `change` inside it (measured: 0 of each across repeated
-    // resizes). Both branches were instead verified by mounting fresh at
-    // each width. On a real device -- window resize, or a phone rotating
-    // -- these events fire normally.
-    //
-    // 640 matches Tailwind's `sm` breakpoint, keeping this in step with
-    // the responsive classes used elsewhere in this file.
-    const update = () => setNarrow(window.innerWidth < 640);
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, []);
-  return narrow;
-}
+// useIsNarrowViewport moved to lib/use-is-narrow-viewport.ts (2026-09-19) --
+// extracted verbatim so the trim-comparison view (finalize-self-service.tsx)
+// could reuse the identical, already-verified hook instead of re-deriving
+// it. ComparisonModal's own label-column width still needs this as a
+// NUMBER, not a class, for the same table-layout: fixed desync reason
+// documented at the hook's new definition.
 
 // One entry per model group in the primary list, in score order, tagging
 // whether it renders as a full card or a collapsed "Not interested" line.

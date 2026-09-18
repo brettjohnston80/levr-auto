@@ -263,6 +263,16 @@ export async function getConfiguratorQuestionsForTrims(
         rows.filter((r) => r.category === "feature" && r.availability === "standard").map((r) => r.name),
       ),
     ];
+    // wheels/roof/drivetrain (2026-09-19, trim comparison view) -- same
+    // CHOICE_AVAILABILITY filter as exteriorColorRaw/interiorRaw/
+    // seatingRaw, no atLeastTwo gate (nothing asks a question about
+    // these), no separate *Standard split (nothing here is ever ranked or
+    // refused, so there's no want/exclude distinction to preserve). See
+    // ConfiguratorQuestions' own comment on these three fields for the
+    // real per-category data shape this was built against.
+    const wheels = pick("wheels", CHOICE_AVAILABILITY);
+    const roof = pick("roof", CHOICE_AVAILABILITY);
+    const drivetrain = pick("drivetrain", CHOICE_AVAILABILITY);
 
     return {
       configuratorTrimId: trimId,
@@ -277,6 +287,9 @@ export async function getConfiguratorQuestionsForTrims(
       interiorRaw,
       seatingRaw,
       featuresStandard,
+      wheels,
+      roof,
+      drivetrain,
     };
   };
 

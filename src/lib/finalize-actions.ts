@@ -900,6 +900,11 @@ async function writeCombinationPreferences(
       interiorRaw: toChoices(trimId, "interior"),
       seatingRaw: toChoices(trimId, "seating"),
       featuresStandard: [],
+      // Unused by computeRealCombinations (only *Raw feeds it) -- present
+      // only to satisfy the type.
+      wheels: [],
+      roof: [],
+      drivetrain: [],
     };
   }
 
