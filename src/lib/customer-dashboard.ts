@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminClient } from "./supabase/admin";
+import type { ConfiguratorSelection } from "./configurator-matching";
 
 export interface DashboardAddon {
   id: string;
@@ -63,6 +64,16 @@ export interface DashboardSearch {
   purchasedAt: string | null;
   survey: { id: string; submittedAt: string | null } | null;
   offers: DashboardOffer[];
+  /**
+   * Real read-only view of what the customer actually selected on the rich
+   * Toyota/Honda configurator flow (colors/interior/seating/features) --
+   * empty for the 34 makes with no configurator data, or a search that
+   * hasn't been finalized yet. Feeds SelectionSummary (configurator-
+   * questions.tsx) directly on /account, the exact same component the
+   * Review step itself already uses -- one rendering, can't drift between
+   * what the customer saw at Review and what /account shows back later.
+   */
+  configuratorSelections: ConfiguratorSelection[];
 }
 
 /**
@@ -229,6 +240,39 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
     }
   }
 
+  // Not paginated, unlike getOutreachQueue's equivalent read -- that one
+  // spans every active search across every customer and can realistically
+  // near PostgREST's 1,000-row cap; this is scoped to one customer's own
+  // searches, which never approaches that.
+  const { data: configuratorSelectionRows, error: selectionsError } = await supabase
+    .from("search_option_selections")
+    .select(
+      "search_id, category, question_kind, selection, rank_position, excluded, package_name, package_price_cents, package_contents, price_unknown"
+    )
+    .in("search_id", searchIds)
+    .order("id");
+
+  if (selectionsError) {
+    throw new Error(`Failed to load configurator selections: ${selectionsError.message}`);
+  }
+
+  const configuratorSelectionsBySearchId = new Map<string, ConfiguratorSelection[]>();
+  for (const row of configuratorSelectionRows ?? []) {
+    const list = configuratorSelectionsBySearchId.get(row.search_id) ?? [];
+    list.push({
+      category: row.category as ConfiguratorSelection["category"],
+      questionKind: row.question_kind as ConfiguratorSelection["questionKind"],
+      selection: row.selection,
+      rankPosition: row.rank_position,
+      excluded: row.excluded,
+      packageName: row.package_name,
+      packagePriceCents: row.package_price_cents,
+      packageContents: row.package_contents,
+      priceUnknown: row.price_unknown,
+    });
+    configuratorSelectionsBySearchId.set(row.search_id, list);
+  }
+
   const undelivered = (offers ?? []).filter((o) => !o.delivered_at).map((o) => o.id);
   let deliveredAtNow: string | null = null;
 
@@ -291,5 +335,6 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
       return s ? { id: s.id, submittedAt: s.submitted_at } : null;
     })(),
     offers: offersBySearchId.get(search.id) ?? [],
+    configuratorSelections: configuratorSelectionsBySearchId.get(search.id) ?? [],
   }));
 }

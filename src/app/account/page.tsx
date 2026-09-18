@@ -13,6 +13,7 @@ import { FinalizeEditForm } from "@/components/finalize-edit-form";
 import { AccountFaqSection } from "@/components/account-faq-section";
 import { AccountSettingsForm } from "@/components/account-settings-form";
 import { ChangePasswordForm } from "@/components/change-password-form";
+import { SelectionSummary } from "@/components/configurator-questions";
 import { SwitchChoice } from "@/components/switch-choice";
 import { ExtendSearchButton } from "@/components/extend-search-button";
 import { AutoRenewToggle } from "@/components/auto-renew-toggle";
@@ -432,6 +433,29 @@ function SearchCard({
           modelYearOptions={modelYearOptions}
           solidifiedAt={search.solidifiedAt}
         />
+      )}
+
+      {/*
+        Real gap closed here (2026-09-18): once a search leaves
+        pending_refinement (the only status FinalizeEditForm above covers),
+        /account previously showed no summary of a Toyota/Honda customer's
+        actual rich selections at all -- not even a read-only one. This is
+        the exact same SelectionSummary the Review step itself renders at
+        initial finalize, reused unmodified, so what the customer sees back
+        here can never describe their answers differently than what they
+        saw when they submitted them. Read-only on purpose -- editing rich
+        selections after solidification isn't this piece's scope.
+      */}
+      {search.searchStatus !== "pending_refinement" && search.configuratorSelections.length > 0 && (
+        <div className="mt-4 border-t border-white/5 pt-4">
+          <p className="text-xs font-semibold text-zinc-400 uppercase">Your selections</p>
+          <div className="mt-2 text-sm text-zinc-300">
+            <p>
+              <span className="text-zinc-500">Trim:</span> {search.trim || "No preference"}
+            </p>
+            <SelectionSummary selections={search.configuratorSelections} />
+          </div>
+        </div>
       )}
 
       {canSwitch(search) && search.make && search.model && (
