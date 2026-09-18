@@ -278,63 +278,6 @@ export function sortChoices(a: ConfiguratorChoice, b: ConfiguratorChoice): numbe
 }
 
 /**
- * Effective price for the auto-select-all default order, cents.
- * package_only uses the package price; everything else uses priceCents,
- * with priceIsIncluded read as 0. Null means genuinely unconfirmed --
- * never treat it as $0, same rule the rest of this project follows.
- */
-function effectivePriceCentsForSort(c: ConfiguratorChoice): number | null {
-  if (c.availability === "package_only") return c.packagePriceCents;
-  if (c.priceIsIncluded) return 0;
-  return c.priceCents;
-}
-
-/**
- * Price descending -- the default population order for the auto-select-all
- * redesign (2026-09-16): exterior colour / interior / seating now start
- * fully ranked rather than built up from an empty pool, highest price
- * first. Deliberately NOT the same ordering as sortChoices above (free-
- * first/cheapest-first/alpha), which still drives the underlying item
- * list construction -- this is specifically the "Your order" starting
- * order, live until the customer manually reorders (see
- * matchesNaturalPriceOrder below).
- *
- * Unconfirmed prices sort LAST OF ALL, after even free/included items --
- * never conflated with $0. Exact ties fall back to alphabetical, same
- * final tie-break as sortChoices.
- */
-export function comparePriceDescending(a: ConfiguratorChoice, b: ConfiguratorChoice): number {
-  const pa = effectivePriceCentsForSort(a);
-  const pb = effectivePriceCentsForSort(b);
-  if (pa == null && pb == null) return a.name.localeCompare(b.name);
-  if (pa == null) return 1;
-  if (pb == null) return -1;
-  if (pa !== pb) return pb - pa;
-  return a.name.localeCompare(b.name);
-}
-
-/**
- * Whether a customer's current ranked order for a category still matches
- * what fresh auto-population would produce -- i.e. they haven't manually
- * reordered anything yet. Decides whether a newly-promoted item (a trim
- * was just added) or an undone exclusion gets inserted at its correct
- * price-sorted slot (order still untouched) or appended at the end (order
- * has been customized, so re-sorting the whole thing would silently
- * discard the customer's own reordering work). Trivially "natural" at 0
- * or 1 items -- nothing to be out of order yet.
- */
-export function matchesNaturalPriceOrder(
-  names: string[],
-  choicesByName: Map<string, ConfiguratorChoice>,
-): boolean {
-  if (names.length <= 1) return true;
-  const sorted = [...names].sort((a, b) =>
-    comparePriceDescending(choicesByName.get(a)!, choicesByName.get(b)!),
-  );
-  return names.every((name, i) => name === sorted[i]);
-}
-
-/**
  * The questions one matched trim earns. An empty array means the question
  * is not asked at all rather than rendered empty.
  *

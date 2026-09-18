@@ -183,11 +183,10 @@ export function TrimComparisonModal({
           </button>
         </div>
         {/* Not read-only, and said plainly: ranking or excluding from here
-            is the same real action as the plain list below, with the same
-            real write (auto-select-all population), not a preview. */}
+            is the same real action as the plain list below -- same
+            handleTrimRanking write, not a preview. */}
         <p className="text-xs text-zinc-500">
-          Ranking or excluding a trim here saves it immediately — colors, interior, and seating fill
-          in automatically, just like the list below.
+          Ranking or excluding a trim here saves it immediately — the same as using the list below.
         </p>
       </div>
 

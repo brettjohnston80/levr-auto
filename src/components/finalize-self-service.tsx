@@ -7,10 +7,8 @@ import type { TrimOption } from "@/lib/finalize-trims";
 import {
   categoryHasRealChoiceAcrossTrims,
   combinationId,
-  comparePriceDescending,
   computeCategoryAvailability,
   computeRealCombinations,
-  matchesNaturalPriceOrder,
   prioritizeCombinations,
   type CombinationPreference,
   type ConfiguratorChoice,
@@ -415,115 +413,20 @@ export function FinalizeSelfService({
    * guarantee: the stored rank position is ALL that lets a demoted item
    * reappear in "Your order" with zero re-entry once its trim returns.
    *
-   * ⚠ AUTO-PROMOTE, THE COMPLEMENT OF DEMOTION (2026-09-16, auto-select-all
-   * redesign). Exterior colour / interior / seating now start FULLY
-   * ranked -- every real option on the customer's ranked trims, price
-   * descending -- rather than built up from an empty pool. Demotion
-   * (above) was already display-only and needed no write; auto-promotion
-   * is the opposite direction and genuinely does: a newly-rankable item
-   * (a trim was just added) gets a REAL stored ConfiguratorSelection row,
-   * not a display illusion, because an auto-ranked list the customer
-   * never touches is a real, persisted preference, not a placeholder.
-   * Never promotes a name that already has ANY entry (ranked or
-   * excluded) -- an explicit exclusion must survive a trim being added
-   * that happens to also offer it, same "customer's stated answer wins"
-   * principle demotion already follows in the other direction.
+   * ⚠ NO AUTO-PROMOTE (2026-09-19, auto-select-all reverted). Exterior
+   * colour / interior / seating briefly auto-populated "Your order" in
+   * full, price descending, the moment a trim became rankable -- that is
+   * gone. A newly-rankable item now sits in the pool like everything else,
+   * genuinely untouched until the customer taps it. Demotion (above) still
+   * needs no write of its own -- an existing ranked row simply stops
+   * resolving in `rankable` and RankedQuestion's own recovery/preservation
+   * logic keeps its stored row intact for the "re-add the trim, it snaps
+   * back" guarantee -- but there is no longer a promotion direction to
+   * mirror it.
    */
-  const AUTO_POPULATE_CHECKS: [
-    ConfiguratorSelection["category"],
-    (q: ConfiguratorQuestions) => ConfiguratorChoice[],
-  ][] = [
-    ["exterior_color", (q) => q.exteriorColorRaw],
-    ["interior", (q) => q.interiorRaw],
-    ["seating", (q) => q.seatingRaw],
-  ];
   function handleTrimRanking(nextRanked: string[], nextExcluded: string[]) {
     setRankedTrimIds(nextRanked);
     setExcludedTrimIds(nextExcluded);
-
-    setSelections((prev) => {
-      let next = prev;
-      for (const [category, rawChoicesFor] of AUTO_POPULATE_CHECKS) {
-        const availability = computeCategoryAvailability(
-          matchedTrimIds,
-          nextRanked,
-          configuratorQuestions,
-          rawChoicesFor,
-          trimDisplayNameById,
-        );
-        const rankableByName = new Map(availability.rankable.map((c) => [c.name, c]));
-
-        const inCategory = next.filter((s) => s.category === category);
-        const existingNames = new Set(inCategory.map((s) => s.selection));
-        const newlyRankableNames = [...rankableByName.keys()].filter((n) => !existingNames.has(n));
-        if (newlyRankableNames.length === 0) continue;
-
-        const excludedRows = inCategory.filter((s) => s.excluded);
-        const rankedRows = inCategory
-          .filter((s) => !s.excluded && s.rankPosition != null)
-          .sort((a, b) => (a.rankPosition ?? 0) - (b.rankPosition ?? 0));
-        const rankedRowsByName = new Map(rankedRows.map((s) => [s.selection, s]));
-
-        // Same "still matches fresh auto-population" test as RankedQuestion's
-        // own normalization (configurator-questions.tsx) -- only the names
-        // still resolvable in rankableByName participate; a demoted row
-        // (rankPosition set but no longer in `rankable`) has no price to
-        // compare and must never be asked to.
-        const wasNatural = matchesNaturalPriceOrder(
-          rankedRows.map((s) => s.selection).filter((name) => rankableByName.has(name)),
-          rankableByName,
-        );
-
-        const buildNew = (name: string): ConfiguratorSelection => {
-          const c = rankableByName.get(name)!;
-          return {
-            category,
-            questionKind: "ranked",
-            selection: name,
-            rankPosition: null,
-            excluded: false,
-            packageName: c.packageName,
-            packagePriceCents: c.packagePriceCents,
-            packageContents: c.packageContents,
-            priceUnknown:
-              c.availability === "package_only" ? c.packagePriceCents == null : c.priceCents == null,
-          };
-        };
-
-        let orderedNames: string[];
-        if (wasNatural) {
-          // Still untouched (or this is the very first population) --
-          // recompute the whole order fresh, price descending, existing
-          // names included. Demoted names (not in rankableByName) sort to
-          // the end, stable amongst themselves -- same rule as
-          // RankedQuestion's normalization.
-          orderedNames = [...rankedRows.map((s) => s.selection), ...newlyRankableNames].sort((a, b) => {
-            const inA = rankableByName.has(a);
-            const inB = rankableByName.has(b);
-            if (inA && inB) return comparePriceDescending(rankableByName.get(a)!, rankableByName.get(b)!);
-            if (inA !== inB) return inA ? -1 : 1;
-            return 0;
-          });
-        } else {
-          // Customer has already reordered -- preserve it exactly, only
-          // append the newly-rankable names (sorted among themselves) at
-          // the end.
-          const appended = [...newlyRankableNames].sort((a, b) =>
-            comparePriceDescending(rankableByName.get(a)!, rankableByName.get(b)!),
-          );
-          orderedNames = [...rankedRows.map((s) => s.selection), ...appended];
-        }
-
-        const rebuiltRanked = orderedNames.map((name, i) => {
-          const existing = rankedRowsByName.get(name);
-          return { ...(existing ?? buildNew(name)), rankPosition: i + 1, excluded: false };
-        });
-
-        const outsideCategory = next.filter((s) => s.category !== category);
-        next = [...outsideCategory, ...rebuiltRanked, ...excludedRows];
-      }
-      return next;
-    });
   }
 
   /**

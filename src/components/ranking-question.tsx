@@ -69,12 +69,14 @@ export function RankingQuestion({
   autoExcluded?: { item: RankableItem; note: React.ReactNode }[];
   /**
    * Whether the ✕ on a ranked row means "exclude this" rather than "no
-   * opinion, back to the pool" (2026-09-16, auto-select-all redesign).
-   * Trim keeps the old pool-return behaviour (default, prop omitted) --
-   * "I have no opinion on this trim" is still a real, meaningful state
-   * there. Exterior colour/interior/seating pass true: those categories
-   * start fully ranked now, so there is no neutral state left to return
-   * to -- removing something IS refusing it.
+   * opinion, back to the pool". Every category -- trim, exterior colour,
+   * interior, seating -- defaults to the pool-return behaviour (prop
+   * omitted): "I have no opinion" is a real, meaningful state for all of
+   * them, and no current caller passes true. Kept as an opt-in for a
+   * category that might someday start fully ranked with no neutral state
+   * left to return to (exterior colour/interior/seating briefly worked
+   * this way, 2026-09-16 to 2026-09-19 -- see git history if that's ever
+   * revisited).
    */
   removeMeansExclude?: boolean;
   onChange: (ranked: string[], excluded: string[]) => void;

@@ -146,7 +146,7 @@ export function TrimDetailModal({
 
           {/* Not read-only -- ranking/excluding here is the exact same
               real action as the plain list and the comparison table,
-              with the same real write (auto-select-all population). */}
+              through the same handleTrimRanking write. */}
           <div className="mt-4 flex flex-wrap items-center gap-2">
             {isRanked ? (
               <>

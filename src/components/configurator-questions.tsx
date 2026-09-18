@@ -1,8 +1,6 @@
 "use client";
 
 import {
-  comparePriceDescending,
-  matchesNaturalPriceOrder,
   type AutoExcludedChoice,
   type ConfiguratorChoice,
   type ConfiguratorSelection,
@@ -243,60 +241,8 @@ export function RankedQuestion({
       return existing ? { ...existing, rankPosition, excluded: isExcluded } : null;
     };
 
-    // Auto-select-all redesign (2026-09-16): stays price-descending until
-    // the customer manually reorders -- but "manually reorders" has to be
-    // detected precisely, or this stomps the very reorder it's supposed to
-    // respect. ⚠ A REAL BUG CAUGHT DURING VERIFICATION: an earlier version
-    // of this checked only whether the PRE-change order was still natural,
-    // and re-sorted whenever it was -- which included pure reorder actions
-    // (Move Up/Down, drag) themselves, since a customer's FIRST reorder
-    // attempt necessarily starts from a still-natural state. That silently
-    // undid the very click that was supposed to break natural order,
-    // making it structurally impossible to ever leave auto-sort mode.
-    //
-    // The fix: compare the RANKED SET (ignoring order) before and after.
-    // Unchanged set -- a pure reorder, nothing added or removed -- is NEVER
-    // touched, full stop, regardless of whether the old order was natural.
-    // Only when the set itself changes (something added via Undo/auto-
-    // promote, or removed via exclude) does the "was it still natural"
-    // check apply, and even then only to decide HOW to place the new
-    // arrivals: fresh full re-sort if untouched, append-only if the
-    // customer already customized their order.
-    const oldRankedSet = new Set(ranked);
-    const newRankedSet = new Set(nextRanked);
-    const setUnchanged =
-      oldRankedSet.size === newRankedSet.size && ranked.every((id) => newRankedSet.has(id));
-
-    let finalRanked: string[];
-    if (setUnchanged) {
-      finalRanked = nextRanked;
-    } else {
-      const wasNatural = matchesNaturalPriceOrder(
-        ranked.filter((name) => byName.has(name)),
-        byName,
-      );
-      if (wasNatural) {
-        finalRanked = [...nextRanked].sort((a, b) => {
-          const inA = byName.has(a);
-          const inB = byName.has(b);
-          if (inA && inB) return comparePriceDescending(byName.get(a)!, byName.get(b)!);
-          if (inA !== inB) return inA ? -1 : 1;
-          return 0;
-        });
-      } else {
-        // Customized order: preserve the surviving old items' relative
-        // order exactly, append whatever's newly arrived (sorted among
-        // themselves) at the end.
-        const survivingOld = ranked.filter((id) => newRankedSet.has(id));
-        const newlyAdded = nextRanked
-          .filter((id) => !oldRankedSet.has(id))
-          .sort((a, b) => comparePriceDescending(byName.get(a)!, byName.get(b)!));
-        finalRanked = [...survivingOld, ...newlyAdded];
-      }
-    }
-
     const rows = [
-      ...finalRanked.map((name, i) => build(name, i + 1, false)),
+      ...nextRanked.map((name, i) => build(name, i + 1, false)),
       ...nextExcluded.map((name) => build(name, null, true)),
     ].filter(Boolean) as ConfiguratorSelection[];
     onChange([...others, ...rows]);
@@ -310,13 +256,11 @@ export function RankedQuestion({
       ranked={ranked}
       excluded={excluded}
       autoExcluded={autoExcludedItems}
-      // Always true here (2026-09-16, auto-select-all redesign): RankedQuestion
-      // is only ever used for exterior_color/interior/seating, all three of
-      // which now start fully ranked -- there's no neutral "no opinion" pool
-      // state left to return to, so removing an item from "Your order" means
-      // excluding it. Trim keeps the old behaviour via RankingQuestion's own
-      // default (it's used directly there, not through this adapter).
-      removeMeansExclude
+      // No removeMeansExclude here (2026-09-19, auto-select-all revert):
+      // exterior colour/interior/seating are back to a genuine neutral
+      // pool state -- "no opinion" is a real answer again -- so removing
+      // an item from "Your order" returns it to the pool, same as trim's
+      // own default behaviour via RankingQuestion.
       onChange={handleChange}
     />
   );
