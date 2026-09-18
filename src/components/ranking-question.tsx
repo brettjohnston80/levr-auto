@@ -195,7 +195,7 @@ export function RankingQuestion({
                 {/* Arrow buttons are not decoration: they are the only
                     reorder path for keyboard and assistive-tech users, and
                     a real fallback on a device where the drag misbehaves. */}
-                <span className="flex shrink-0 items-center gap-0.5 pr-1.5">
+                <span className="flex shrink-0 items-center gap-1 pr-1.5">
                   <MiniButton
                     label="Move up"
                     disabled={index === 0}
@@ -218,9 +218,23 @@ export function RankingQuestion({
                   >
                     ↓
                   </MiniButton>
-                  <MiniButton label={`Remove ${item.label}`} onClick={() => removeFromOrder(item.id)}>
-                    ✕
-                  </MiniButton>
+                  {/* Labeled text, not a bare icon (2026-09-19) -- and
+                      deliberately "Remove", not "Exclude": this button
+                      calls removeFromOrder, which for every category today
+                      returns the item to the neutral pool (or, only when
+                      removeMeansExclude is ever true again, straight back
+                      into "Your order" -- never to the Excluded list
+                      either way), so "Exclude" would describe an action
+                      this control doesn't perform. Confirmed with Brett via
+                      an explicit question before implementing. */}
+                  <button
+                    type="button"
+                    onClick={() => removeFromOrder(item.id)}
+                    aria-label={`Remove ${item.label}`}
+                    className="ml-1 shrink-0 rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-zinc-300 transition-colors hover:border-white/35"
+                  >
+                    Remove
+                  </button>
                 </span>
               </li>
             ))}
@@ -428,6 +442,10 @@ export function ColorDot({ item }: { item: RankableItem }) {
   );
 }
 
+// 56x56 (2026-09-19, explicit instruction: at least 2x the original 28x28)
+// -- only ever the Move up/Move down reorder arrows now; the third slot
+// this used to hold (a bare "X" remove icon) is a separate, differently
+// styled labeled button below, not a MiniButton variant.
 function MiniButton({
   children,
   label,
@@ -445,7 +463,7 @@ function MiniButton({
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
-      className="flex h-7 w-7 items-center justify-center rounded-md text-xs text-zinc-400 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-25"
+      className="flex h-14 w-14 items-center justify-center rounded-md text-2xl text-zinc-400 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-25"
     >
       {children}
     </button>
