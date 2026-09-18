@@ -2,6 +2,7 @@
 
 import {
   combinationId,
+  groupIntoPackages,
   type ConfiguratorQuestions,
   type ConfiguratorSelection,
   type PrioritizedCombinations,
@@ -30,10 +31,10 @@ interface FeaturePill {
 }
 
 /**
- * Cross-references the customer's global feature selections (wanted /
- * excluded, independent of any one combination) against THIS combination's
- * specific trim, to flag the three cases a customer needs to know before
- * ranking a combination:
+ * Cross-references the customer's global feature/package selections
+ * (wanted / excluded, independent of any one combination) against THIS
+ * combination's specific trim, to flag the three cases a customer needs to
+ * know before ranking a combination:
  *
  *   - wanted, but neither standard nor obtainable here -> amber, this
  *     trim genuinely cannot be built with it.
@@ -42,16 +43,27 @@ interface FeaturePill {
  *   - obtainable here, and the customer never said anything about it ->
  *     muted, purely informational.
  *
- * A wanted feature that IS obtainable here (standalone/package_only) gets
- * no pill at all -- it's a real, addressable option on this trim, not a
- * conflict worth flagging on the combination card itself.
+ * A wanted feature/package that IS obtainable here (standalone/
+ * package_only) gets no pill at all -- it's a real, addressable option on
+ * this trim, not a conflict worth flagging on the combination card itself.
+ *
+ * Package-label granularity (2026-09-18, features-become-ranked-packages)
+ * -- `selections` now carries package labels, not raw feature names, so
+ * `obtainableNames` is grouped the same way via groupIntoPackages. This is
+ * the ONLY change this function needed: `standardNames` (from
+ * `featuresStandard`, untouched by grouping) still works correctly
+ * unchanged, because a genuine multi-item package can never legitimately
+ * BE 'standard' -- package_only existing at all means it's not included by
+ * default, so the "excluded but standard" check only ever fires for a
+ * standalone single-item package, where the selection value already
+ * equals the raw feature name `standardNames` holds.
  */
 function featurePillsFor(
   q: ConfiguratorQuestions,
   selections: ConfiguratorSelection[],
 ): FeaturePill[] {
   const standardNames = new Set(q.featuresStandard);
-  const obtainableNames = new Set(q.features.map((c) => c.name));
+  const obtainableNames = new Set(groupIntoPackages(q.features).map((c) => c.name));
   const featureSelections = selections.filter((s) => s.category === "feature");
   const touchedNames = new Set(featureSelections.map((s) => s.selection));
 

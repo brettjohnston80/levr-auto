@@ -95,7 +95,7 @@ const SELECTION_CATEGORY_LABELS: Record<string, string> = {
   wheels: "Wheels",
   roof: "Roof",
   drivetrain: "Drivetrain",
-  feature: "Feature",
+  feature: "Features",
 };
 
 /**
@@ -177,9 +177,16 @@ function ExcludedBlock({ items }: { items: { id: string; label: string }[] }) {
  *
  * Ranked categories render as a numbered list in the customer's own order,
  * because the order IS the answer -- #1 is what to chase first, and an
- * agent scanning the card needs that without reading prose. Features stay a
- * plain list: they are independent yes/no adds with no ordering between
- * them.
+ * agent scanning the card needs that without reading prose. Features are
+ * one of these categories too (2026-09-18, features-become-ranked-packages)
+ * -- the rankable ITEM is the package label (e.g. "Cold Weather Package"),
+ * not an individual feature name, exactly like every other ranked
+ * category, so the generic block below renders it with zero special-casing.
+ * `questionKind` is retired for this purpose: every row is `'ranked'` now
+ * (see `search_option_selections_question_kind_check`), so the old
+ * `questionKind === "feature"` filter this replaced always matched zero
+ * rows post-redesign -- category is what actually distinguishes a feature
+ * row, same as it always has for every other category here.
  *
  * Renders nothing at all when there are no answers, which is the case for
  * every make without configurator data -- `Colors:` above stays the
@@ -197,12 +204,7 @@ function ConfiguratorSelections({
 }) {
   if (selections.length === 0 && trimPreferences.length === 0) return null;
 
-  const rankedCategories = ["exterior_color", "interior", "seating"];
-  const features = selections.filter((s) => s.questionKind === "feature");
-  // "Get me this" and "never offer me this" are different instructions and
-  // must never blur together in a list an agent works from.
-  const wantedFeatures = features.filter((s) => !s.excluded);
-  const refusedFeatures = features.filter((s) => s.excluded);
+  const rankedCategories = ["exterior_color", "interior", "seating", "feature"];
 
   const trimLabel = (t: OutreachTrimPreference) =>
     t.modelYear != null ? `${t.trim} ${t.modelYear}` : t.trim;
@@ -301,35 +303,6 @@ function ConfiguratorSelections({
           </div>
         );
       })}
-
-      {features.length > 0 && (
-        <div className="mt-3">
-          <p className="text-xs font-semibold text-zinc-400 uppercase">Features</p>
-          {/*
-            Wanted features keep their full package context -- that is what
-            an agent negotiates with. REFUSED ones deliberately show NO
-            price and NO package contents: an agent does not need to know
-            what a tow package costs in order to not ask for it, and
-            listing the price invites treating a refusal as a line item to
-            discuss. Same amber "never offer this" treatment the ranked
-            categories use, via the same component, so the two cannot drift.
-          */}
-          {wantedFeatures.length > 0 && (
-            <ul className="mt-1 space-y-1 text-sm text-zinc-400">
-              {wantedFeatures.map((sel) => (
-                <li key={sel.id}>
-                  <span className="text-zinc-200">{sel.selection}</span>
-                  <PackageNote sel={sel} />
-                  <TopRankConflictNote sel={sel} topTrimLabel={topTrimLabel} />
-                </li>
-              ))}
-            </ul>
-          )}
-          <ExcludedBlock
-            items={refusedFeatures.map((sel) => ({ id: sel.id, label: sel.selection }))}
-          />
-        </div>
-      )}
     </div>
   );
 }

@@ -388,6 +388,48 @@ export interface AutoExcludedChoice {
 }
 
 /**
+ * Collapses a trim's own feature rows into rankable PACKAGES rather than
+ * individual features (2026-09-18, features-become-ranked-packages). A
+ * package is identified by packageName ?? name -- a standalone feature
+ * (packageName null) is already its own single-item package, identified by
+ * its own name, and passes through unchanged.
+ *
+ * This is the ONLY change needed to make packages a real ranked category:
+ * fed into computeCategoryAvailability as
+ * `rawChoicesFor = (q) => groupIntoPackages(q.features)`, which already
+ * dedupes/tie-breaks by ConfiguratorChoice.name generically and needs no
+ * changes of its own -- this function's whole job is making `.name` mean
+ * "the package label" for this one category, before that shared machinery
+ * ever sees it.
+ *
+ * Price/package fields (packagePriceCents, packageContents, etc.) come
+ * straight from the first member encountered -- confirmed against real
+ * data (Camry LE's Cold Weather Package) that every feature row belonging
+ * to the same package on the same trim already carries an IDENTICAL copy
+ * of those fields, so there is no real choice being made here, only a
+ * representative picked from otherwise-duplicate data.
+ */
+export function groupIntoPackages(features: ConfiguratorChoice[]): ConfiguratorChoice[] {
+  const byPackage = new Map<string, ConfiguratorChoice[]>();
+  for (const f of features) {
+    const key = f.packageName ?? f.name;
+    const list = byPackage.get(key) ?? [];
+    list.push(f);
+    byPackage.set(key, list);
+  }
+  const result: ConfiguratorChoice[] = [];
+  for (const [key, members] of byPackage) {
+    const first = members[0];
+    // Standalone (packageName null) already has name === key -- nothing to
+    // rename, so pass it through as-is rather than manufacturing a new
+    // object for the common case (real data: standalone outnumbers
+    // package-grouped roughly 3:2 across live Toyota/Honda trims).
+    result.push(first.packageName == null ? first : { ...first, name: key });
+  }
+  return result;
+}
+
+/**
  * Partitions every real option across "the model" -- every trim already
  * resolved to a real researched build via real inventory, whether ranked
  * or not -- into what's rankable given the customer's CURRENTLY RANKED
@@ -556,6 +598,18 @@ function categoryEverRealAcrossTrims(
  *      ranked) -> this trim contributes ZERO combinations, full stop --
  *      not a bug, a real signal that none of what the customer asked for
  *      exists on this specific trim.
+ *
+ * `rankedPackageNames` (2026-09-18, features-become-ranked-packages) is a
+ * per-trim GATE, not a new combination axis -- combination identity stays
+ * (trim, colour, interior, seating) only, unchanged from Phase 1's own
+ * constraint; packages are display-only pills everywhere else in this
+ * file. Optional throughout, same as the ranking step itself: an empty
+ * array (nothing ranked) filters nothing, matching how a category that
+ * was never a real question contributes an implicit "no preference"
+ * rather than zeroing anything out. Non-empty -> the SAME "empty
+ * intersection drops the trim" rule every axis above already follows: a
+ * trim offering none of the customer's ranked packages (standalone or
+ * bundled) contributes zero combinations, full stop.
  */
 export function computeRealCombinations(
   rankedTrimIds: string[],
@@ -564,6 +618,7 @@ export function computeRealCombinations(
   rankedColorPositions: Map<string, number>,
   rankedInteriorPositions: Map<string, number>,
   rankedSeatingPositions: Map<string, number>,
+  rankedPackageNames: string[] = [],
 ): RealCombination[] {
   const colorEverReal = categoryEverRealAcrossTrims(rankedTrimIds, configuratorQuestions, (q) => q.exteriorColorRaw);
   const interiorEverReal = categoryEverRealAcrossTrims(rankedTrimIds, configuratorQuestions, (q) => q.interiorRaw);
@@ -593,6 +648,13 @@ export function computeRealCombinations(
     const interiorAxis = axisEntries(q, interiorEverReal, (qq) => qq.interiorRaw, rankedInteriorPositions);
     const seatingAxis = axisEntries(q, seatingEverReal, (qq) => qq.seatingRaw, rankedSeatingPositions);
     if (!colorAxis || !interiorAxis || !seatingAxis) return;
+
+    // Package gate (2026-09-18) -- see this function's own comment above.
+    if (rankedPackageNames.length > 0) {
+      const trimPackageNames = new Set(groupIntoPackages(q.features).map((c) => c.name));
+      const offersAnyRankedPackage = rankedPackageNames.some((name) => trimPackageNames.has(name));
+      if (!offersAnyRankedPackage) return;
+    }
 
     for (const c of colorAxis) {
       for (const i of interiorAxis) {

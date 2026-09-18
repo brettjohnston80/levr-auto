@@ -415,7 +415,14 @@ async function writeConfiguratorSelections(
 
   const optionsByKey = new Map<string, typeof options>();
   for (const o of options) {
-    const key = `${o.category}::${o.name}`;
+    // Packages, not raw feature rows (2026-09-18, features-become-ranked-
+    // packages) -- feature-category rows are keyed by PACKAGE identity
+    // (package_name ?? name), matching groupIntoPackages on the client
+    // exactly: the customer's own selection value IS the package label for
+    // this category, never a raw individual feature name. Every other
+    // category keys by its own raw name, unchanged.
+    const key =
+      o.category === "feature" ? `feature::${o.package_name ?? o.name}` : `${o.category}::${o.name}`;
     const list = optionsByKey.get(key) ?? [];
     list.push(o);
     optionsByKey.set(key, list);
@@ -434,34 +441,49 @@ async function writeConfiguratorSelections(
     if (seen.has(key)) continue;
     const matches = (optionsByKey.get(key) ?? []).filter((o) => o.availability !== "unavailable");
     if (matches.length === 0) continue;
+
     // Highest-ranked ranked trim that offers it wins for display fields --
-    // deterministic, and matches the same "prefer #1" priority the rest of
-    // this flow already uses everywhere else.
-    const winner = [...matches].sort(
-      (a, b) => (trimRank.get(a.trim_id) ?? Infinity) - (trimRank.get(b.trim_id) ?? Infinity),
+    // deterministic, matches the "prefer #1" priority this flow uses
+    // everywhere else. Grouped by TRIM first (2026-09-18): a package can
+    // have several raw member rows sharing one trim (one per feature
+    // inside it), so the winning trim is chosen before picking a single
+    // representative row. Every other category only ever has one match per
+    // trim already, so this is a no-op generalization for them, not a
+    // behaviour change.
+    const winningTrimId = [...new Set(matches.map((o) => o.trim_id))].sort(
+      (a, b) => (trimRank.get(a) ?? Infinity) - (trimRank.get(b) ?? Infinity),
     )[0];
+    // `name` is set to s.selection rather than trusted from the raw row --
+    // for every existing category this is already true by construction
+    // (the row was found BY matching o.name to s.selection), so this only
+    // has real effect for a package, where the raw member row's own name
+    // is one feature's name, not the package label the customer actually
+    // answered against.
+    const winner = { ...matches.find((o) => o.trim_id === winningTrimId)!, name: s.selection };
 
     const isFeature = s.category === "feature";
-    // A feature the trim already includes is not a question, so a "yes"
-    // against it is not an answer worth sending to an agent. Checked
-    // against the WINNING trim specifically -- the same feature could be
-    // 'standard' on one ranked trim and 'standalone' on another, and it's
-    // the winning trim's own availability that decides what this means.
+    // A feature/package the WINNING trim already includes standard is not
+    // a real question -- "yes" against it isn't an answer worth sending to
+    // an agent. Checked against the winning trim specifically, because it
+    // can differ from whatever trim the client's own UI used to decide
+    // what was rankable -- a real server-side guard even though
+    // FEATURE_AVAILABILITY already excludes 'standard' features from what
+    // the client ever offers to rank in the first place.
     if (isFeature && winner.availability === "standard") continue;
-    // Features are NEVER ranked -- they are independent adds with no
-    // meaningful ordering between them -- but since 2026-09-14 they CAN be
-    // excluded: "explicitly does not want this" is a real instruction,
-    // distinct from saying nothing. A rank on a feature is still nonsense
-    // and is dropped rather than stored as a half-populated row.
-    if (isFeature && s.rankPosition != null) continue;
-    // A ranked entry that is neither ranked nor excluded says nothing.
-    if (!isFeature && !statesAnOpinion(s)) continue;
+    // A ranked entry that is neither ranked nor excluded says nothing --
+    // applies uniformly now that features/packages are genuinely ranked
+    // too (2026-09-18), same rule every other category already followed.
+    // (Previously features could only ever be excluded, never ranked, and
+    // this check was correspondingly split in two -- see git history.)
+    if (!statesAnOpinion(s)) continue;
 
     seen.add(key);
-    const availableOnTrims = matches
-      .slice()
-      .sort((a, b) => (trimRank.get(a.trim_id) ?? Infinity) - (trimRank.get(b.trim_id) ?? Infinity))
-      .map((o) => trimLabelsByConfiguratorId[o.trim_id] ?? o.trim_id);
+    // Deduped by trim before mapping to labels (2026-09-18) -- a package's
+    // several member rows on one trim would otherwise list that trim
+    // multiple times.
+    const availableOnTrims = [...new Set(matches.map((o) => o.trim_id))]
+      .sort((a, b) => (trimRank.get(a) ?? Infinity) - (trimRank.get(b) ?? Infinity))
+      .map((trimId) => trimLabelsByConfiguratorId[trimId] ?? trimId);
     kept.push({ s, option: winner, availableOnTrims });
   }
 
@@ -520,19 +542,11 @@ async function writeConfiguratorSelections(
 
   for (const category of categories) {
     const inCategory = kept.filter((k) => k.s.category === category);
-    if (category === "feature") {
-      for (const { s, option, availableOnTrims } of inCategory) {
-        // required_options is a list of things to GET. A refused feature
-        // reaching it would read to every legacy surface as something the
-        // customer WANTS -- the exact inversion of what they said, and the
-        // same trap excluded colours are already kept out of.
-        if (!s.excluded) features.push(option.name);
-        rows.push(
-          buildSelectionRow(searchId, "feature", "feature", option, null, s.excluded, availableOnTrims),
-        );
-      }
-      continue;
-    }
+    // Packages flow through the exact same normalizeRanked path as every
+    // other ranked category now (2026-09-18) -- the old category==='feature'
+    // branch that skipped normalization and forced rank_position null is
+    // gone. Features/packages CAN be ranked now, so they need the same
+    // dense 1..n renumbering everything else already gets.
     const { ranked, excluded } = normalizeRanked(inCategory, (k) => k.s);
     for (const { item, rankPosition } of ranked) {
       if (category === "exterior_color") {
@@ -541,22 +555,18 @@ async function writeConfiguratorSelections(
       if (category === "exterior_color" || category === "interior" || category === "seating") {
         rankedPositionsByCategory[category].set(item.option.name, rankPosition);
       }
-      rows.push(
-        buildSelectionRow(
-          searchId,
-          category,
-          "ranked",
-          item.option,
-          rankPosition,
-          false,
-          item.availableOnTrims,
-        ),
-      );
+      // required_options is a list of things to GET -- ranked packages
+      // only, same "never an excluded one" reasoning as rankedColors above:
+      // a refused package reaching it would read to every legacy surface
+      // as something the customer WANTS, the exact inversion of what they
+      // said.
+      if (category === "feature") {
+        features.push(item.option.name);
+      }
+      rows.push(buildSelectionRow(searchId, category, item.option, rankPosition, false, item.availableOnTrims));
     }
     for (const { item } of excluded) {
-      rows.push(
-        buildSelectionRow(searchId, category, "ranked", item.option, null, true, item.availableOnTrims),
-      );
+      rows.push(buildSelectionRow(searchId, category, item.option, null, true, item.availableOnTrims));
     }
   }
 
@@ -587,14 +597,20 @@ async function writeConfiguratorSelections(
  * insert and sends an explicit NULL for any key a row omits, which defeats
  * the column default -- a row leaving out price_unknown fails the NOT NULL
  * constraint and takes the whole insert down with it. Found the hard way
- * while verifying step 3 (2026-09-14). Ranked rows and feature rows have
- * genuinely different populated fields, so they are exactly the mixed-shape
- * case that triggers it.
+ * while verifying step 3 (2026-09-14). Every category writes through this
+ * one function for exactly that reason -- a second, differently-shaped call
+ * site is how that bug happened the first time.
+ *
+ * question_kind is always 'ranked' now (2026-09-18) -- features/packages
+ * used to be a genuinely different shape ('feature', rank_position always
+ * null) and took their own call site with a `questionKind` parameter; now
+ * that they're ranked like everything else, there is no second shape left
+ * to parametrize over, so the column is set directly rather than threaded
+ * through as an argument every caller would just pass "ranked" to anyway.
  */
 function buildSelectionRow(
   searchId: string,
   category: string,
-  questionKind: "ranked" | "feature",
   option: {
     availability: string;
     name: string;
@@ -617,7 +633,7 @@ function buildSelectionRow(
   return {
     search_id: searchId,
     category,
-    question_kind: questionKind,
+    question_kind: "ranked",
     selection: option.name,
     rank_position: rankPosition,
     excluded,
@@ -850,6 +866,13 @@ async function writeCombinationPreferences(
   trimDetailsByConfiguratorId: Record<string, { trim: string; modelYear: number | null }>,
   rawOptions: RawConfiguratorOptionRow[],
   rankedPositionsByCategory: RankedPositionsByCategory,
+  // Ranked (non-excluded) package labels, straight from
+  // writeConfiguratorSelections's own requiredOptions -- that field is
+  // already EXACTLY this list by construction (2026-09-18: only the
+  // ranked loop ever pushes into it, and item.option.name there always
+  // equals the package label, not a raw feature name -- see that
+  // function's own comment). No separate plumbing needed.
+  rankedPackageNames: string[],
   preferences: CombinationPreference[] | undefined,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { error: clearError } = await admin
@@ -872,21 +895,32 @@ async function writeCombinationPreferences(
   }
 
   // Minimal ConfiguratorChoice reconstruction -- computeRealCombinations
-  // only ever reads `.name` off these, so price/package fields are
-  // intentionally not carried through (this function never stores or
-  // acts on them; writeConfiguratorSelections already owns that).
-  const toChoices = (trimId: string, category: string): ConfiguratorChoice[] =>
+  // only ever reads `.name` (and, for features, `.packageName`) off these,
+  // so price fields are intentionally not carried through (this function
+  // never stores or acts on them; writeConfiguratorSelections already owns
+  // that). packageName IS carried through, unlike the other price/package
+  // fields -- the package gate below needs it to group correctly, the same
+  // packageName ?? name identity groupIntoPackages uses everywhere else.
+  const toChoices = (trimId: string, category: string, allowed: Set<string>): ConfiguratorChoice[] =>
     (byTrim.get(trimId) ?? [])
-      .filter((r) => r.category === category && CHOICE_AVAILABILITY.has(r.availability))
+      .filter((r) => r.category === category && allowed.has(r.availability))
       .map((r) => ({
         name: r.name,
         availability: r.availability as ConfiguratorChoice["availability"],
         priceCents: null,
         priceIsIncluded: false,
-        packageName: null,
+        packageName: r.package_name,
         packagePriceCents: null,
         packageContents: null,
       }));
+
+  // Same rule real features ever use (configurator-questions.ts's own
+  // FEATURE_AVAILABILITY) -- deliberately narrower than CHOICE_AVAILABILITY
+  // above: a 'standard' feature is never really "offering the package",
+  // it's a different, unrelated concept (see the package-gate comment on
+  // computeRealCombinations), so including standard rows here risks a
+  // false gate pass on a coincidental name match.
+  const FEATURE_AVAILABILITY = new Set(["standalone", "package_only"]);
 
   const configuratorQuestionsByTrimId: Record<string, ConfiguratorQuestions> = {};
   for (const trimId of rankedResolvedTrimIds) {
@@ -895,13 +929,13 @@ async function writeCombinationPreferences(
       exteriorColor: [],
       interior: [],
       seating: [],
-      features: [],
-      exteriorColorRaw: toChoices(trimId, "exterior_color"),
-      interiorRaw: toChoices(trimId, "interior"),
-      seatingRaw: toChoices(trimId, "seating"),
+      features: toChoices(trimId, "feature", FEATURE_AVAILABILITY),
+      exteriorColorRaw: toChoices(trimId, "exterior_color", CHOICE_AVAILABILITY),
+      interiorRaw: toChoices(trimId, "interior", CHOICE_AVAILABILITY),
+      seatingRaw: toChoices(trimId, "seating", CHOICE_AVAILABILITY),
       featuresStandard: [],
-      // Unused by computeRealCombinations (only *Raw feeds it) -- present
-      // only to satisfy the type.
+      // Unused by computeRealCombinations (only *Raw and, for the package
+      // gate, features feed it) -- present only to satisfy the type.
       wheels: [],
       roof: [],
       drivetrain: [],
@@ -919,6 +953,7 @@ async function writeCombinationPreferences(
     rankedPositionsByCategory.exterior_color,
     rankedPositionsByCategory.interior,
     rankedPositionsByCategory.seating,
+    rankedPackageNames,
   );
 
   // Real-combination identity, keyed the same way on both sides -- the
@@ -1037,6 +1072,7 @@ export async function finalizeSelfService(
     trims.trimDetailsByConfiguratorId,
     stored.rawOptions,
     stored.rankedPositionsByCategory,
+    stored.requiredOptions,
     details.combinationPreferences,
   );
   if (!combos.ok) {
@@ -1162,6 +1198,7 @@ export async function updateFinalizedSearch(
     trims.trimDetailsByConfiguratorId,
     stored.rawOptions,
     stored.rankedPositionsByCategory,
+    stored.requiredOptions,
     details.combinationPreferences,
   );
   if (!combos.ok) {

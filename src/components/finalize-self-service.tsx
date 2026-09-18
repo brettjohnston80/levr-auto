@@ -9,6 +9,7 @@ import {
   combinationId,
   computeCategoryAvailability,
   computeRealCombinations,
+  groupIntoPackages,
   prioritizeCombinations,
   type CombinationPreference,
   type ConfiguratorChoice,
@@ -16,11 +17,7 @@ import {
   type ConfiguratorSelection,
   type TrimPreference,
 } from "@/lib/configurator-matching";
-import {
-  FeatureQuestion,
-  RankedQuestion,
-  SelectionSummary,
-} from "@/components/configurator-questions";
+import { RankedQuestion, SelectionSummary } from "@/components/configurator-questions";
 import { CombinationsQuestion } from "@/components/combinations-question";
 import { RankingQuestion } from "@/components/ranking-question";
 import { TrimComparisonModal } from "@/components/trim-comparison-modal";
@@ -107,14 +104,6 @@ export function FinalizeSelfService({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
-  // Where to jump BACK to once the trim step is left via the "Add it"
-  // quick-link (2026-09-17) -- null means "no detour in progress", so the
-  // trim step's own Next button falls through to its normal sequential
-  // behaviour. Set only by handleAddTrimFromAutoExcluded, cleared by
-  // either using it (jumping back) or navigating away some other way
-  // (breadcrumb click) -- a customer who explicitly picks a different step
-  // mid-detour has abandoned the detour, not asked to resume it later.
-  const [returnToStep, setReturnToStep] = useState<Step | null>(null);
   // Combination-preferences step (2026-09-17 Phase 3 UI, persisted via
   // writeCombinationPreferences as of 2026-09-19) -- local UI state here,
   // built from and saved back through buildCombinationPreferences() in
@@ -201,6 +190,7 @@ export function FinalizeSelfService({
         rankedNamesFor("exterior_color"),
         rankedNamesFor("interior"),
         rankedNamesFor("seating"),
+        [...rankedNamesFor("feature").keys()],
       )
     : [];
   const prioritizedCombinations = prioritizeCombinations(realCombinations);
@@ -256,7 +246,11 @@ export function FinalizeSelfService({
     matchedTrimIds,
     rankedTrimIds,
     configuratorQuestions,
-    (q) => q.features,
+    // Packages, not individual features (2026-09-18) -- see
+    // groupIntoPackages' own comment. computeCategoryAvailability itself
+    // is unchanged; this accessor is the whole redesign as far as it's
+    // concerned.
+    (q) => groupIntoPackages(q.features),
     trimDisplayNameById,
     rankedNamesFor("feature"),
   );
@@ -307,10 +301,18 @@ export function FinalizeSelfService({
       return null;
     };
 
+    // Feature/package joined this list 2026-09-18 -- features/packages are
+    // genuinely ranked now (see groupIntoPackages), so the same
+    // rankPosition === 1 check that already works for colour/interior/
+    // seating works for them too. This replaced a separate hand-rolled
+    // block that stood in "wanted" for "#1" because features used to have
+    // no ordinal at all; that workaround is gone along with the want/
+    // exclude/neutral model it existed for.
     const RANKED_CHECKS: [ConfiguratorSelection["category"], (q: ConfiguratorQuestions) => ConfiguratorChoice[]][] = [
       ["exterior_color", (q) => q.exteriorColorRaw],
       ["interior", (q) => q.interiorRaw],
       ["seating", (q) => q.seatingRaw],
+      ["feature", (q) => groupIntoPackages(q.features)],
     ];
     for (const [category, rawChoicesFor] of RANKED_CHECKS) {
       const top = selections.find((s) => s.category === category && !s.excluded && s.rankPosition === 1);
@@ -319,15 +321,6 @@ export function FinalizeSelfService({
       if (offeredByTop) continue;
       const offering = findOfferingRank(top.selection, rawChoicesFor);
       if (offering) conflicts.push({ category, name: top.selection, ...offering });
-    }
-
-    // Features aren't ranked, so "wanted" (not excluded) stands in for
-    // "#1" -- the same underlying conflict, just without an ordinal.
-    for (const f of selections.filter((s) => s.category === "feature" && !s.excluded)) {
-      const offeredByTop = topQuestions ? topQuestions.features.some((c) => c.name === f.selection) : false;
-      if (offeredByTop) continue;
-      const offering = findOfferingRank(f.selection, (q) => q.features);
-      if (offering) conflicts.push({ category: "feature", name: f.selection, ...offering });
     }
 
     return conflicts;
@@ -432,23 +425,26 @@ export function FinalizeSelfService({
   /**
    * "Available on {trim} — add it" (2026-09-17, combined breadcrumb + add-
    * it navigation). Jumps to the trim step with `trimId` already added to
-   * the ranking, remembering where the customer came from so the trim
-   * step's own Next button can return them there instead of falling
-   * through to trim's normal next-in-sequence step. Reuses
-   * handleTrimRanking outright rather than duplicating its auto-promotion
-   * logic -- adding a trim from here is not a new kind of trim-ranking
-   * change, just one triggered from an unusual place. If the trim was
-   * previously excluded, un-excludes it: the customer explicitly asking to
-   * add it now is a real override of that earlier exclusion.
+   * the ranking. Reuses handleTrimRanking outright rather than duplicating
+   * its auto-promotion logic -- adding a trim from here is not a new kind
+   * of trim-ranking change, just one triggered from an unusual place. If
+   * the trim was previously excluded, un-excludes it: the customer
+   * explicitly asking to add it now is a real override of that earlier
+   * exclusion.
+   *
+   * ⚠ No jump-back (2026-09-19, reverted): this used to remember which
+   * step the customer detoured from and relabel the trim step's Next
+   * button "Back to where I was" to return them there. Removed on Brett's
+   * instruction -- the trim step's Next button is now always plain "Next"
+   * and always advances sequentially, same as reaching it any other way.
    */
-  function handleAddTrimFromAutoExcluded(trimId: string, fromStep: Step) {
+  function handleAddTrimFromAutoExcluded(trimId: string) {
     if (!rankedTrimIds.includes(trimId)) {
       handleTrimRanking(
         [...rankedTrimIds, trimId],
         excludedTrimIds.filter((id) => id !== trimId),
       );
     }
-    setReturnToStep(fromStep);
     navigateToStep("trim");
   }
 
@@ -583,13 +579,7 @@ export function FinalizeSelfService({
               {visited ? (
                 <button
                   type="button"
-                  onClick={() => {
-                    // An explicit jump elsewhere abandons any "Add it"
-                    // detour in progress -- the customer chose to go
-                    // somewhere specific, not to resume where they left off.
-                    setReturnToStep(null);
-                    navigateToStep(s);
-                  }}
+                  onClick={() => navigateToStep(s)}
                   className={`hover:text-zinc-300 ${step === s ? "text-emerald-400" : ""}`}
                 >
                   {STEP_LABELS[s]}
@@ -681,20 +671,10 @@ export function FinalizeSelfService({
             </p>
             <button
               type="button"
-              onClick={() => {
-                // A detour via "Add it" returns to exactly where the
-                // customer left off, instead of falling through to trim's
-                // normal next-in-sequence step (2026-09-17).
-                if (returnToStep) {
-                  navigateToStep(returnToStep);
-                  setReturnToStep(null);
-                } else {
-                  goNext();
-                }
-              }}
+              onClick={goNext}
               className="shrink-0 rounded-full bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-zinc-950 hover:bg-emerald-400"
             >
-              {returnToStep ? "Back to where I was" : "Next"}
+              Next
             </button>
           </div>
         </div>
@@ -770,7 +750,7 @@ export function FinalizeSelfService({
           selections={selections}
           onChange={setSelections}
           trimDisplayNameById={trimDisplayNameById}
-          onAddTrim={(trimId) => handleAddTrimFromAutoExcluded(trimId, "exteriorColor")}
+          onAddTrim={(trimId) => handleAddTrimFromAutoExcluded(trimId)}
         />
       )}
 
@@ -784,7 +764,7 @@ export function FinalizeSelfService({
           selections={selections}
           onChange={setSelections}
           trimDisplayNameById={trimDisplayNameById}
-          onAddTrim={(trimId) => handleAddTrimFromAutoExcluded(trimId, "interior")}
+          onAddTrim={(trimId) => handleAddTrimFromAutoExcluded(trimId)}
         />
       )}
 
@@ -798,16 +778,21 @@ export function FinalizeSelfService({
           selections={selections}
           onChange={setSelections}
           trimDisplayNameById={trimDisplayNameById}
-          onAddTrim={(trimId) => handleAddTrimFromAutoExcluded(trimId, "seating")}
+          onAddTrim={(trimId) => handleAddTrimFromAutoExcluded(trimId)}
         />
       )}
 
       {step === "features" && questions && (
-        <FeatureQuestion
+        <RankedQuestion
+          title="Any packages or features worth asking for?"
+          subtitle="These aren't included by default. Some only come bundled as a package — pick one and you're getting everything included with it. Rank what you want, or flag what you don't. Skipping this is fine."
           rankable={featuresAvailability.rankable}
           autoExcluded={featuresAvailability.autoExcluded}
+          category="feature"
           selections={selections}
           onChange={setSelections}
+          trimDisplayNameById={trimDisplayNameById}
+          onAddTrim={(trimId) => handleAddTrimFromAutoExcluded(trimId)}
         />
       )}
 
@@ -889,6 +874,20 @@ export function FinalizeSelfService({
               excluding alone isn&apos;t enough.
             </p>
           )}
+          {/* Packages/features are optional throughout, unlike colour/
+              interior/seating -- same "no opinion is a real answer" status
+              trim already has, so this mirrors trim's own hint rather than
+              leaving an unexplained silence where the amber warning above
+              would otherwise be for a required category. */}
+          {step === "features" &&
+            !hasAtLeastOneRanked(
+              selections.filter((s) => s.category === "feature"),
+              (s) => s,
+            ) && (
+              <p className="mb-3 text-xs text-zinc-500">
+                Don&apos;t rank any, and we&apos;ll treat it as no preference.
+              </p>
+            )}
           <div className="flex justify-between">
             <button
               type="button"
