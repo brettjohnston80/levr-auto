@@ -12,6 +12,7 @@ import { ServiceAgreementSigning } from "@/components/service-agreement-signing"
 import { FinalizeEditForm } from "@/components/finalize-edit-form";
 import { AccountFaqSection } from "@/components/account-faq-section";
 import { AccountSettingsForm } from "@/components/account-settings-form";
+import { ChangePasswordForm } from "@/components/change-password-form";
 import { SwitchChoice } from "@/components/switch-choice";
 import { ExtendSearchButton } from "@/components/extend-search-button";
 import { AutoRenewToggle } from "@/components/auto-renew-toggle";
@@ -298,6 +299,8 @@ export default async function AccountPage() {
             communicationFrequency: customer?.communication_frequency ?? "real_time",
           }}
         />
+
+        <ChangePasswordForm />
 
         {searches.length === 0 ? (
           <p className="mt-10 text-center text-zinc-400">

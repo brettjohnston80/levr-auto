@@ -127,6 +127,56 @@ export async function updatePasswordFromRecovery(formData: FormData) {
   return { ok: true };
 }
 
+// Password change for an ALREADY-signed-in customer, from /account.
+// Different from updatePasswordFromRecovery above in one load-bearing way:
+// that one runs after a recovery link has already proven identity via a
+// token, so it trusts the session outright. This one runs from an ordinary
+// browsing session, where the only thing that's actually been proven is
+// "a cookie for this browser is valid right now" -- not that the person
+// currently at the keyboard is the account owner (a shared/public computer
+// left signed in is the real scenario this guards against). Supabase's own
+// updateUser({ password }) has no such check built in -- it will happily
+// accept the change off the session alone, confirmed directly against this
+// project's real Supabase config, not assumed from docs. The current-
+// password re-check below is therefore an APPLICATION-level decision, not
+// something Supabase requires: re-authenticate via signInWithPassword
+// first, using the session's own known email, and only call updateUser if
+// that succeeds. A wrong current password fails here with no password
+// changed; a correct one re-confirms the session (harmless — same user,
+// same account) before the real update.
+export async function updateAccountPassword(formData: FormData) {
+  const currentPassword = formData.get("current_password") as string;
+  const newPassword = formData.get("new_password") as string;
+
+  if (!newPassword || newPassword.length < 8) {
+    return { ok: false, error: "New password must be at least 8 characters." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user?.email) {
+    return { ok: false, error: "Not signed in." };
+  }
+
+  const { error: reauthError } = await supabase.auth.signInWithPassword({
+    email: user.email,
+    password: currentPassword,
+  });
+  if (reauthError) {
+    return { ok: false, error: "Current password is incorrect." };
+  }
+
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  return { ok: true };
+}
+
 // Inline versions — used by the intake-flow auth gate modal. Return a result
 // instead of redirecting, so the caller can stay on the same page.
 
