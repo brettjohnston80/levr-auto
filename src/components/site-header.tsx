@@ -1,8 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
-import { GetStartedButton } from "@/components/get-started-button";
 import { MobileNavMenu } from "@/components/mobile-nav-menu";
 import { HeaderAccountLink } from "@/components/header-account-link";
+import { HeaderGetStartedButton } from "@/components/header-get-started-button";
 import levrLogo from "../../public/levr-auto-logo-white.png";
 
 export function SiteHeader() {
@@ -29,9 +29,9 @@ export function SiteHeader() {
         <div className="flex items-center gap-4 sm:gap-6">
           <MobileNavMenu />
           <HeaderAccountLink className="hidden text-sm font-medium text-zinc-300 transition-colors hover:text-white sm:block" />
-          <GetStartedButton className="rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400">
+          <HeaderGetStartedButton className="rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400">
             Get Started
-          </GetStartedButton>
+          </HeaderGetStartedButton>
         </div>
       </div>
     </header>

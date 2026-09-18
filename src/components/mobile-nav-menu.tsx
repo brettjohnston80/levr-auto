@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { GetStartedButton } from "@/components/get-started-button";
 import { HeaderAccountLink } from "@/components/header-account-link";
+import { HeaderGetStartedButton } from "@/components/header-get-started-button";
 
 // Log In is NOT in this list -- it is rendered by HeaderAccountLink below,
 // which resolves the real session so a signed-in customer sees their name
@@ -100,16 +100,22 @@ export function MobileNavMenu() {
                   {link.label}
                 </Link>
               ))}
-              <span onClick={close}>
-                <HeaderAccountLink className="transition-colors hover:text-white" />
-              </span>
+              {/* No wrapping onClick={close} here, unlike every other item
+                  in this list -- HeaderAccountLink is now a dropdown
+                  trigger when signed in, and a blanket onClick would close
+                  this whole overlay the instant it's tapped, before the
+                  menu ever opens. It closes this overlay itself, via
+                  onNavigate, only when a menu item is actually chosen. */}
+              <HeaderAccountLink className="transition-colors hover:text-white" onNavigate={close} />
             </nav>
 
-            <div className="mt-auto pb-4" onClick={close}>
-              <GetStartedButton className="w-full rounded-full bg-emerald-500 px-4 py-2.5 text-center text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400">
-                Get Started
-              </GetStartedButton>
-            </div>
+            <HeaderGetStartedButton
+              wrapperClassName="mt-auto pb-4"
+              onClick={close}
+              className="w-full rounded-full bg-emerald-500 px-4 py-2.5 text-center text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400"
+            >
+              Get Started
+            </HeaderGetStartedButton>
           </div>,
           document.body
         )}
