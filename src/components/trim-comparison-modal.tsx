@@ -80,6 +80,54 @@ function Cell({ cell }: { cell: ComparisonCell }) {
   return <span className={`text-sm ${CELL_TONE_CLASSES[cell.tone]}`}>{cell.text}</span>;
 }
 
+/**
+ * A category divider row (2026-09-20 reorg) -- same th-sticky-left/td
+ * shape every other row here already uses, not a colSpan'd single cell,
+ * so it stays pinned on horizontal scroll exactly like every data row
+ * does. `onToggle` absent means non-collapsible (Overview, the only
+ * always-visible category, per the approved plan) -- rendered as a plain
+ * label with no +/- control, same convention AccountFaqSection uses for
+ * its own expand/collapse indicator, just without the toggle affordance
+ * when there's nothing to toggle.
+ */
+function CategoryHeaderRow({
+  label,
+  expanded,
+  onToggle,
+  trimIds,
+}: {
+  label: string;
+  expanded: boolean;
+  onToggle?: () => void;
+  trimIds: string[];
+}) {
+  return (
+    <tr className="border-t border-white/10">
+      <th scope="row" className="sticky left-0 z-10 bg-zinc-950 pt-5 pb-2 pr-4 text-left align-top">
+        {onToggle ? (
+          <button
+            type="button"
+            onClick={onToggle}
+            className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-400 hover:text-zinc-200"
+          >
+            {label}
+            <span className="text-sm normal-case tracking-normal text-zinc-500">
+              {expanded ? "−" : "+"}
+            </span>
+          </button>
+        ) : (
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+            {label}
+          </span>
+        )}
+      </th>
+      {trimIds.map((id) => (
+        <td key={id} className="pt-5 pb-2" />
+      ))}
+    </tr>
+  );
+}
+
 /** Up to 4 swatch dots + "+N more" -- the table cell's compact rendering
  *  of a colour/interior list. Full per-name list with price/package
  *  detail lives only in the single-trim detail modal (trim-detail-
@@ -161,7 +209,15 @@ export function TrimComparisonModal({
   const showWheels = cellsDiffer(wheelsCells);
   const showRoof = cellsDiffer(roofCells);
   const showDrivetrain = cellsDiffer(drivetrainCells);
+  const showPerformance = showWheels || showRoof || showDrivetrain;
   const featureRows = computeFeatureComparisonRows(trimIds, configuratorQuestions);
+
+  // Categorized collapsible sections (2026-09-20 reorg), defaulting to
+  // all-expanded per the approved plan. Overview is deliberately NOT one
+  // of these three -- it has no toggle at all, see CategoryHeaderRow.
+  const [colorsExpanded, setColorsExpanded] = useState(true);
+  const [performanceExpanded, setPerformanceExpanded] = useState(true);
+  const [featuresExpanded, setFeaturesExpanded] = useState(true);
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex flex-col bg-zinc-950" onClick={onClose}>
@@ -228,6 +284,9 @@ export function TrimComparisonModal({
                               ? `–${formatCents(opt.maxPriceCents)}`
                               : ""}
                           </p>
+                          <p className="mt-0.5 text-[11px] text-zinc-500">
+                            {opt.count} available nationwide
+                          </p>
                           {!configuratorQuestions[opt.id] && (
                             <p className="mt-0.5 text-[11px] text-zinc-600">inventory only</p>
                           )}
@@ -293,109 +352,134 @@ export function TrimComparisonModal({
               </tr>
             </thead>
             <tbody>
-              <tr className="border-t border-white/5">
-                <th scope="row" className="sticky left-0 z-10 bg-zinc-950 py-3 pr-4 text-left align-top text-xs font-semibold text-zinc-400">
-                  Price
-                </th>
-                {trimOptions.map((opt) => (
-                  <td key={opt.id} className="px-4 py-3 align-top text-sm text-zinc-300">
-                    {formatCents(opt.minPriceCents)}
-                    {opt.maxPriceCents && opt.maxPriceCents !== opt.minPriceCents
-                      ? `–${formatCents(opt.maxPriceCents)}`
-                      : ""}
-                  </td>
-                ))}
-              </tr>
-              <tr className="border-t border-white/5">
-                <th scope="row" className="sticky left-0 z-10 bg-zinc-950 py-3 pr-4 text-left align-top text-xs font-semibold text-zinc-400">
-                  Available
-                </th>
-                {trimOptions.map((opt) => (
-                  <td key={opt.id} className="px-4 py-3 align-top text-sm text-zinc-300">
-                    {opt.count} nationwide
-                  </td>
-                ))}
-              </tr>
-              <tr className="border-t border-white/5">
-                <th scope="row" className="sticky left-0 z-10 bg-zinc-950 py-3 pr-4 text-left align-top text-xs font-semibold text-zinc-400">
-                  Exterior colors
-                </th>
-                {trimOptions.map((opt) => (
-                  <td key={opt.id} className="px-4 py-3 align-top">
-                    <SwatchRow choices={configuratorQuestions[opt.id]?.exteriorColorRaw ?? []} />
-                  </td>
-                ))}
-              </tr>
-              <tr className="border-t border-white/5">
-                <th scope="row" className="sticky left-0 z-10 bg-zinc-950 py-3 pr-4 text-left align-top text-xs font-semibold text-zinc-400">
-                  Interior
-                </th>
-                {trimOptions.map((opt) => (
-                  <td key={opt.id} className="px-4 py-3 align-top">
-                    <SwatchRow choices={configuratorQuestions[opt.id]?.interiorRaw ?? []} />
-                  </td>
-                ))}
-              </tr>
+              {/* Overview -- always visible, no toggle. Price and Available
+                  are deliberately NOT here: both now render in the sticky
+                  header above (opt.count was added there in this same
+                  reorg specifically so dropping these two rows loses no
+                  info, not just to avoid a duplicate). Seating is the only
+                  row left worth a quick, un-collapsible glance -- everyone
+                  compares seat count without digging into a category. */}
               {showSeating && (
-                <tr className="border-t border-white/5">
-                  <th scope="row" className="sticky left-0 z-10 bg-zinc-950 py-3 pr-4 text-left align-top text-xs font-semibold text-zinc-400">
-                    Seating
-                  </th>
-                  {trimOptions.map((opt) => (
-                    <td key={opt.id} className="px-4 py-3 align-top">
-                      <Cell cell={seatingCell(configuratorQuestions[opt.id])} />
-                    </td>
-                  ))}
-                </tr>
+                <>
+                  <CategoryHeaderRow label="Overview" expanded trimIds={trimIds} />
+                  <tr className="border-t border-white/5">
+                    <th scope="row" className="sticky left-0 z-10 bg-zinc-950 py-3 pr-4 text-left align-top text-xs font-semibold text-zinc-400">
+                      Seating
+                    </th>
+                    {trimOptions.map((opt) => (
+                      <td key={opt.id} className="px-4 py-3 align-top">
+                        <Cell cell={seatingCell(configuratorQuestions[opt.id])} />
+                      </td>
+                    ))}
+                  </tr>
+                </>
               )}
-              {showWheels && (
-                <tr className="border-t border-white/5">
-                  <th scope="row" className="sticky left-0 z-10 bg-zinc-950 py-3 pr-4 text-left align-top text-xs font-semibold text-zinc-400">
-                    Wheels
-                  </th>
-                  {trimOptions.map((opt, i) => (
-                    <td key={opt.id} className="px-4 py-3 align-top">
-                      <Cell cell={wheelsCells[i]} />
-                    </td>
-                  ))}
-                </tr>
+
+              <CategoryHeaderRow
+                label="Colors & Interior"
+                expanded={colorsExpanded}
+                onToggle={() => setColorsExpanded((v) => !v)}
+                trimIds={trimIds}
+              />
+              {colorsExpanded && (
+                <>
+                  <tr className="border-t border-white/5">
+                    <th scope="row" className="sticky left-0 z-10 bg-zinc-950 py-3 pr-4 text-left align-top text-xs font-semibold text-zinc-400">
+                      Exterior colors
+                    </th>
+                    {trimOptions.map((opt) => (
+                      <td key={opt.id} className="px-4 py-3 align-top">
+                        <SwatchRow choices={configuratorQuestions[opt.id]?.exteriorColorRaw ?? []} />
+                      </td>
+                    ))}
+                  </tr>
+                  <tr className="border-t border-white/5">
+                    <th scope="row" className="sticky left-0 z-10 bg-zinc-950 py-3 pr-4 text-left align-top text-xs font-semibold text-zinc-400">
+                      Interior
+                    </th>
+                    {trimOptions.map((opt) => (
+                      <td key={opt.id} className="px-4 py-3 align-top">
+                        <SwatchRow choices={configuratorQuestions[opt.id]?.interiorRaw ?? []} />
+                      </td>
+                    ))}
+                  </tr>
+                </>
               )}
-              {showRoof && (
-                <tr className="border-t border-white/5">
-                  <th scope="row" className="sticky left-0 z-10 bg-zinc-950 py-3 pr-4 text-left align-top text-xs font-semibold text-zinc-400">
-                    Roof
-                  </th>
-                  {trimOptions.map((opt, i) => (
-                    <td key={opt.id} className="px-4 py-3 align-top">
-                      <Cell cell={roofCells[i]} />
-                    </td>
-                  ))}
-                </tr>
+
+              {showPerformance && (
+                <>
+                  <CategoryHeaderRow
+                    label="Performance"
+                    expanded={performanceExpanded}
+                    onToggle={() => setPerformanceExpanded((v) => !v)}
+                    trimIds={trimIds}
+                  />
+                  {performanceExpanded && (
+                    <>
+                      {showWheels && (
+                        <tr className="border-t border-white/5">
+                          <th scope="row" className="sticky left-0 z-10 bg-zinc-950 py-3 pr-4 text-left align-top text-xs font-semibold text-zinc-400">
+                            Wheels
+                          </th>
+                          {trimOptions.map((opt, i) => (
+                            <td key={opt.id} className="px-4 py-3 align-top">
+                              <Cell cell={wheelsCells[i]} />
+                            </td>
+                          ))}
+                        </tr>
+                      )}
+                      {showRoof && (
+                        <tr className="border-t border-white/5">
+                          <th scope="row" className="sticky left-0 z-10 bg-zinc-950 py-3 pr-4 text-left align-top text-xs font-semibold text-zinc-400">
+                            Roof
+                          </th>
+                          {trimOptions.map((opt, i) => (
+                            <td key={opt.id} className="px-4 py-3 align-top">
+                              <Cell cell={roofCells[i]} />
+                            </td>
+                          ))}
+                        </tr>
+                      )}
+                      {showDrivetrain && (
+                        <tr className="border-t border-white/5">
+                          <th scope="row" className="sticky left-0 z-10 bg-zinc-950 py-3 pr-4 text-left align-top text-xs font-semibold text-zinc-400">
+                            Drivetrain
+                          </th>
+                          {trimOptions.map((opt, i) => (
+                            <td key={opt.id} className="px-4 py-3 align-top">
+                              <Cell cell={drivetrainCells[i]} />
+                            </td>
+                          ))}
+                        </tr>
+                      )}
+                    </>
+                  )}
+                </>
               )}
-              {showDrivetrain && (
-                <tr className="border-t border-white/5">
-                  <th scope="row" className="sticky left-0 z-10 bg-zinc-950 py-3 pr-4 text-left align-top text-xs font-semibold text-zinc-400">
-                    Drivetrain
-                  </th>
-                  {trimOptions.map((opt, i) => (
-                    <td key={opt.id} className="px-4 py-3 align-top">
-                      <Cell cell={drivetrainCells[i]} />
-                    </td>
-                  ))}
-                </tr>
+
+              {featureRows.length > 0 && (
+                <>
+                  <CategoryHeaderRow
+                    label="Features"
+                    expanded={featuresExpanded}
+                    onToggle={() => setFeaturesExpanded((v) => !v)}
+                    trimIds={trimIds}
+                  />
+                  {featuresExpanded &&
+                    featureRows.map((row) => (
+                      <tr key={row.name} className="border-t border-white/5">
+                        <th scope="row" className="sticky left-0 z-10 bg-zinc-950 py-3 pr-4 text-left align-top text-xs font-semibold text-zinc-400">
+                          {row.name}
+                        </th>
+                        {trimOptions.map((opt) => (
+                          <td key={opt.id} className="px-4 py-3 align-top">
+                            <Cell cell={row.cellsByTrimId[opt.id]} />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                </>
               )}
-              {featureRows.map((row) => (
-                <tr key={row.name} className="border-t border-white/5">
-                  <th scope="row" className="sticky left-0 z-10 bg-zinc-950 py-3 pr-4 text-left align-top text-xs font-semibold text-zinc-400">
-                    {row.name}
-                  </th>
-                  {trimOptions.map((opt) => (
-                    <td key={opt.id} className="px-4 py-3 align-top">
-                      <Cell cell={row.cellsByTrimId[opt.id]} />
-                    </td>
-                  ))}
-                </tr>
-              ))}
             </tbody>
           </table>
         </div>

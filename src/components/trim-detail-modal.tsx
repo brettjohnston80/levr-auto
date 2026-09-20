@@ -2,7 +2,7 @@
 
 import { createPortal } from "react-dom";
 import type { TrimOption } from "@/lib/finalize-trims";
-import type { ConfiguratorChoice, ConfiguratorQuestions } from "@/lib/configurator-matching";
+import { groupIntoPackages, type ConfiguratorChoice, type ConfiguratorQuestions } from "@/lib/configurator-matching";
 import { PriceTag, PackageNote } from "@/components/configurator-questions";
 import { ColorDot, Thumb } from "@/components/ranking-question";
 
@@ -209,10 +209,17 @@ export function TrimDetailModal({
               <Section title="Wheels" choices={questions.wheels} />
               <Section title="Roof" choices={questions.roof} />
               <Section title="Drivetrain" choices={questions.drivetrain} />
+              {/* Grouped by package (2026-09-20 reversal) -- a multi-item
+                  package renders as ONE row under its package name, not one
+                  row per member feature, matching how the customer actually
+                  ranks these on the features step. PackageNote already
+                  handles both shapes (choice.name === choice.packageName
+                  for the grouped row vs. a raw member choice) with no
+                  changes needed here. */}
               <Section
                 title="Features"
                 choices={[
-                  ...questions.features,
+                  ...groupIntoPackages(questions.features),
                   ...questions.featuresStandard.map(standardChoice),
                 ]}
               />

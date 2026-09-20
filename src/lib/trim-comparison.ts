@@ -1,5 +1,6 @@
 import {
   categoryHasRealChoiceAcrossTrims,
+  groupIntoPackages,
   type ConfiguratorChoice,
   type ConfiguratorQuestions,
 } from "@/lib/configurator-matching";
@@ -159,25 +160,31 @@ export interface FeatureComparisonRow {
 }
 
 /**
- * Unions feature names across the COMPARED trim set (never the ranked
- * set -- trim comparison happens before any ranking exists, unlike
+ * Unions feature/package names across the COMPARED trim set (never the
+ * ranked set -- trim comparison happens before any ranking exists, unlike
  * combination-preferences' own union which is deliberately scoped to
- * ranked trims). Each trim's cell reads BOTH `.features` (obtainable:
- * standalone/package_only) and `.featuresStandard` (names only) so a
- * feature that's standard on one compared trim and an upgrade on another
- * renders correctly on both sides -- the same two fields the
- * combinations-question.tsx feature pills already read, just unioned
- * across a different trim set here.
+ * ranked trims). Each trim's obtainable rows are grouped by package first
+ * (2026-09-20 reversal) via groupIntoPackages -- the same function
+ * combination-preferences' pill logic and TrimDetailModal's own Features
+ * section both already use -- so a multi-item package unions as ONE row
+ * under its package name rather than one row per member feature, matching
+ * how the customer actually ranks these on the features step. Combined
+ * with `.featuresStandard` (names only) so a feature/package that's
+ * standard on one compared trim and an upgrade on another renders
+ * correctly on both sides.
  */
 export function computeFeatureComparisonRows(
   trimIds: string[],
   configuratorQuestions: Record<string, ConfiguratorQuestions>,
 ): FeatureComparisonRow[] {
+  const packagesByTrimId: Record<string, ConfiguratorChoice[]> = {};
   const names = new Set<string>();
   for (const id of trimIds) {
     const q = configuratorQuestions[id];
     if (!q) continue;
-    for (const c of q.features) names.add(c.name);
+    const packages = groupIntoPackages(q.features);
+    packagesByTrimId[id] = packages;
+    for (const c of packages) names.add(c.name);
     for (const n of q.featuresStandard) names.add(n);
   }
 
@@ -193,7 +200,7 @@ export function computeFeatureComparisonRows(
         cellsByTrimId[id] = { text: "Standard", tone: "free" };
         continue;
       }
-      const choice = q.features.find((c) => c.name === name);
+      const choice = packagesByTrimId[id]?.find((c) => c.name === name);
       cellsByTrimId[id] = choice ? priceCellFor(choice) : DASH;
     }
     return { name, cellsByTrimId };
