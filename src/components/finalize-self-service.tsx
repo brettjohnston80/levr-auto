@@ -11,13 +11,13 @@ import {
   computeRealCombinations,
   groupIntoPackages,
   prioritizeCombinations,
+  type AutoExcludedChoice,
   type CombinationPreference,
-  type ConfiguratorChoice,
   type ConfiguratorQuestions,
   type ConfiguratorSelection,
   type TrimPreference,
 } from "@/lib/configurator-matching";
-import { RankedQuestion, SelectionSummary } from "@/components/configurator-questions";
+import { RankedQuestion, SelectionSummary, type RankConflict } from "@/components/configurator-questions";
 import { CombinationsQuestion } from "@/components/combinations-question";
 import { RankingQuestion } from "@/components/ranking-question";
 import { TrimComparisonModal } from "@/components/trim-comparison-modal";
@@ -229,13 +229,24 @@ export function FinalizeSelfService({
   }
   steps.push("review");
 
+  // Hoisted into variables (2026-09-20) rather than called inline at each
+  // use site -- computeRankConflicts below needs the IDENTICAL rank-
+  // position maps computeCategoryAvailability already used to build each
+  // category's autoExcluded list, so the two can't drift by each calling
+  // rankedNamesFor separately and (in theory) catching selections mid-edit
+  // at slightly different moments.
+  const exteriorColorRankedPositions = rankedNamesFor("exterior_color");
+  const interiorRankedPositions = rankedNamesFor("interior");
+  const seatingRankedPositions = rankedNamesFor("seating");
+  const featureRankedPositions = rankedNamesFor("feature");
+
   const exteriorColorAvailability = computeCategoryAvailability(
     matchedTrimIds,
     rankedTrimIds,
     configuratorQuestions,
     (q) => q.exteriorColorRaw,
     trimDisplayNameById,
-    rankedNamesFor("exterior_color"),
+    exteriorColorRankedPositions,
   );
   const interiorAvailability = computeCategoryAvailability(
     matchedTrimIds,
@@ -243,7 +254,7 @@ export function FinalizeSelfService({
     configuratorQuestions,
     (q) => q.interiorRaw,
     trimDisplayNameById,
-    rankedNamesFor("interior"),
+    interiorRankedPositions,
   );
   const seatingAvailability = computeCategoryAvailability(
     matchedTrimIds,
@@ -251,7 +262,7 @@ export function FinalizeSelfService({
     configuratorQuestions,
     (q) => q.seatingRaw,
     trimDisplayNameById,
-    rankedNamesFor("seating"),
+    seatingRankedPositions,
   );
   const featuresAvailability = computeCategoryAvailability(
     matchedTrimIds,
@@ -263,17 +274,28 @@ export function FinalizeSelfService({
     // concerned.
     (q) => groupIntoPackages(q.features),
     trimDisplayNameById,
-    rankedNamesFor("feature"),
+    featureRankedPositions,
   );
 
   /**
    * The real conflict the ranked-trim-union redesign makes possible
-   * (2026-09-16): a customer's #1-ranked answer isn't necessarily
-   * buildable on their #1-ranked TRIM specifically anymore -- it only
-   * has to be buildable on SOME ranked trim. Non-blocking (their ranked
-   * trim list is already a fallback search order), but surfaced loudly on
-   * Review so it's never a silent surprise. Computed live from
-   * client-held state -- no round trip needed, matches what gets saved.
+   * (2026-09-16, broadened 2026-09-20): a ranked answer isn't necessarily
+   * buildable on the customer's RANKED trims at all anymore -- it only
+   * has to be buildable on some trim in the model. Originally this only
+   * ever checked the item ranked #1 in each category against the #1
+   * ranked trim -- a real gap: an item ranked #2+ that no ranked trim
+   * offers produced no callout at all. Now checks EVERY ranked position,
+   * against EVERY ranked trim, by reusing the exact same
+   * `*Availability.autoExcluded` partition each category already computes
+   * for the pool's own "Not offered on your selected trims" note
+   * (computeCategoryAvailability, configurator-matching.ts) -- a ranked
+   * selection whose name shows up in that category's `autoExcluded` list
+   * (i.e. `previousRank` was set when that list was built, since
+   * `*RankedPositions` above is the exact same map passed in) is, by
+   * construction, a real conflict. One shared computation feeds both this
+   * Review callout AND SelectionSummary's own inline strikethrough below
+   * -- see `rankConflicts` -- so the two can never disagree about the
+   * same fact.
    */
   const CONFLICT_LABEL: Record<ConfiguratorSelection["category"], string> = {
     exterior_color: "color",
@@ -281,62 +303,33 @@ export function FinalizeSelfService({
     seating: "seating layout",
     feature: "feature",
   };
-  function computeTopRankConflicts(): {
-    category: ConfiguratorSelection["category"];
-    name: string;
-    offeringTrimLabel: string;
-    offeringRank: number;
-  }[] {
-    if (!topTrimId) return [];
-    const topQuestions = configuratorQuestions[topTrimId];
-    const conflicts: {
-      category: ConfiguratorSelection["category"];
-      name: string;
-      offeringTrimLabel: string;
-      offeringRank: number;
-    }[] = [];
-
-    const findOfferingRank = (
-      name: string,
-      rawChoicesFor: (q: ConfiguratorQuestions) => ConfiguratorChoice[],
-    ): { offeringTrimLabel: string; offeringRank: number } | null => {
-      // Starts at rank 2 -- rank 1 (index 0) is the trim we already know
-      // doesn't offer it, or this wouldn't be a conflict.
-      for (let i = 1; i < rankedTrimIds.length; i++) {
-        const trimId = rankedTrimIds[i];
-        const q = configuratorQuestions[trimId];
-        if (q && rawChoicesFor(q).some((c) => c.name === name)) {
-          return { offeringTrimLabel: trimDisplayNameById[trimId] ?? trimId, offeringRank: i + 1 };
-        }
-      }
-      return null;
-    };
-
-    // Feature/package joined this list 2026-09-18 -- features/packages are
-    // genuinely ranked now (see groupIntoPackages), so the same
-    // rankPosition === 1 check that already works for colour/interior/
-    // seating works for them too. This replaced a separate hand-rolled
-    // block that stood in "wanted" for "#1" because features used to have
-    // no ordinal at all; that workaround is gone along with the want/
-    // exclude/neutral model it existed for.
-    const RANKED_CHECKS: [ConfiguratorSelection["category"], (q: ConfiguratorQuestions) => ConfiguratorChoice[]][] = [
-      ["exterior_color", (q) => q.exteriorColorRaw],
-      ["interior", (q) => q.interiorRaw],
-      ["seating", (q) => q.seatingRaw],
-      ["feature", (q) => groupIntoPackages(q.features)],
-    ];
-    for (const [category, rawChoicesFor] of RANKED_CHECKS) {
-      const top = selections.find((s) => s.category === category && !s.excluded && s.rankPosition === 1);
-      if (!top) continue;
-      const offeredByTop = topQuestions ? rawChoicesFor(topQuestions).some((c) => c.name === top.selection) : false;
-      if (offeredByTop) continue;
-      const offering = findOfferingRank(top.selection, rawChoicesFor);
-      if (offering) conflicts.push({ category, name: top.selection, ...offering });
+  function conflictsForCategory(
+    category: ConfiguratorSelection["category"],
+    availability: { autoExcluded: AutoExcludedChoice[] },
+    rankedPositions: Map<string, number>,
+  ): RankConflict[] {
+    const conflicts: RankConflict[] = [];
+    for (const ac of availability.autoExcluded) {
+      const rankPosition = rankedPositions.get(ac.choice.name);
+      // autoExcluded also holds names the customer never ranked at all
+      // (shown informationally in the pool, "add this trim to unlock
+      // it") -- only a name that's a REAL current ranked answer is a
+      // conflict worth surfacing here.
+      if (rankPosition == null) continue;
+      const offeringTrimLabel = ac.offeringTrimIds.map((id) => trimDisplayNameById[id] ?? id).join(", ");
+      conflicts.push({ category, name: ac.choice.name, rankPosition, offeringTrimLabel });
     }
-
-    return conflicts;
+    return conflicts.sort((a, b) => a.rankPosition - b.rankPosition);
   }
-  const topRankConflicts = step === "review" ? computeTopRankConflicts() : [];
+  const rankConflicts: RankConflict[] =
+    step === "review"
+      ? [
+          ...conflictsForCategory("exterior_color", exteriorColorAvailability, exteriorColorRankedPositions),
+          ...conflictsForCategory("interior", interiorAvailability, interiorRankedPositions),
+          ...conflictsForCategory("seating", seatingAvailability, seatingRankedPositions),
+          ...conflictsForCategory("feature", featuresAvailability, featureRankedPositions),
+        ]
+      : [];
 
   const index = Math.max(0, steps.indexOf(step));
 
@@ -945,7 +938,7 @@ export function FinalizeSelfService({
             </p>
             {questions ? (
               selections.length > 0 ? (
-                <SelectionSummary selections={selections} />
+                <SelectionSummary selections={selections} conflicts={rankConflicts} />
               ) : (
                 <p className="mt-1 text-zinc-500">No color or feature preferences — flexible.</p>
               )
@@ -962,14 +955,16 @@ export function FinalizeSelfService({
               </>
             )}
           </div>
-          {topRankConflicts.map((c) => (
+          {rankConflicts.map((c) => (
             <p
               key={`${c.category}::${c.name}`}
               className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-400"
             >
-              Your #1 ranked {CONFLICT_LABEL[c.category]}, {c.name}, isn&apos;t offered on your #1
-              ranked trim, {effectiveTrim} — it&apos;s available on {c.offeringTrimLabel}, your #
-              {c.offeringRank}.
+              Your #{c.rankPosition} ranked {CONFLICT_LABEL[c.category]}, {c.name}, isn&apos;t offered on
+              any of your ranked trims —{" "}
+              {c.offeringTrimLabel
+                ? `it's available on ${c.offeringTrimLabel}.`
+                : "it isn't offered on any trim currently available for this model."}
             </p>
           ))}
           <p className="mt-4 text-xs text-zinc-500">

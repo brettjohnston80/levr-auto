@@ -294,8 +294,47 @@ export function RankedQuestion({
 // git history for the old want/exclude/neutral pill UI if this is ever
 // revisited.
 
-/** Compact read-back of every answer, for the review step. */
-export function SelectionSummary({ selections }: { selections: ConfiguratorSelection[] }) {
+/**
+ * One ranked selection that isn't offered by any of the customer's
+ * currently-ranked trims -- the SAME fact, and the SAME computation
+ * (computeCategoryAvailability's `autoExcluded` partition), that drives
+ * the Review step's own amber conflict callouts (finalize-self-service.tsx).
+ * Passed into SelectionSummary as `conflicts` so the compact inline
+ * strikethrough below and the fuller callout paragraph above it can never
+ * disagree about which items are affected -- one shared list, two
+ * renderings.
+ */
+export interface RankConflict {
+  category: ConfiguratorSelection["category"];
+  name: string;
+  rankPosition: number;
+  /** Joined display names, e.g. "XSE" or "XSE, XLE" -- empty string for
+   *  the near-unreachable Case B (offered on no trim in the model at all). */
+  offeringTrimLabel: string;
+}
+
+/**
+ * Compact read-back of every answer, for the review step.
+ *
+ * ⚠ EXCLUSIONS ARE DELIBERATELY NEVER SHOWN HERE (2026-09-20, Brett's
+ * explicit correction) -- a prior version of this component rendered an
+ * "excluded: X" clarifying note per category. Confirmed via grep this
+ * component has exactly ONE caller (finalize-self-service.tsx's review
+ * step), so nothing else depends on that list being shown. This is the
+ * review step's own summary of what the customer IS asking for; a
+ * refusal is a real answer already visible on its own step (the
+ * "Excluded" pool section), and repeating it here read as clutter, not
+ * confirmation.
+ */
+export function SelectionSummary({
+  selections,
+  conflicts = [],
+}: {
+  selections: ConfiguratorSelection[];
+  /** See RankConflict's own comment -- defaults to none so any other
+   *  future caller isn't forced to compute this. */
+  conflicts?: RankConflict[];
+}) {
   if (selections.length === 0) return null;
   const byCategory: [ConfiguratorSelection["category"], string][] = [
     ["exterior_color", "Exterior"],
@@ -306,28 +345,38 @@ export function SelectionSummary({ selections }: { selections: ConfiguratorSelec
   return (
     <>
       {byCategory.map(([category, label]) => {
-        const rows = selections.filter((s) => s.category === category);
+        const rows = selections.filter((s) => s.category === category && !s.excluded);
         if (rows.length === 0) return null;
-        // Reads back as the ordered list the customer actually built, with
-        // refusals called out separately rather than folded in at the end
-        // -- "excluded: black" and "black last" are different answers.
         const ranked = rows
-          .filter((r) => !r.excluded && r.rankPosition != null)
+          .filter((r) => r.rankPosition != null)
           .sort((a, b) => (a.rankPosition ?? 0) - (b.rankPosition ?? 0));
-        const excluded = rows.filter((r) => r.excluded);
-        const unordered = rows.filter((r) => !r.excluded && r.rankPosition == null);
+        const unordered = rows.filter((r) => r.rankPosition == null);
+        const conflictFor = (name: string) =>
+          conflicts.find((c) => c.category === category && c.name === name);
         return (
           <p key={category} className="mt-1">
             <span className="text-zinc-500">{label}:</span>{" "}
             {ranked.length > 0
-              ? ranked.map((r, i) => `${i + 1}. ${r.selection}`).join(", ")
+              ? ranked.map((r, i) => {
+                  const conflict = conflictFor(r.selection);
+                  return (
+                    <span key={r.selection}>
+                      {i > 0 ? ", " : ""}
+                      {i + 1}.{" "}
+                      <span className={conflict ? "text-zinc-500 line-through decoration-zinc-600" : undefined}>
+                        {r.selection}
+                      </span>
+                      {conflict ? (
+                        <span className="text-amber-400">
+                          {" "}
+                          — unavailable, not offered by your currently-ranked trim(s)
+                          {conflict.offeringTrimLabel ? ` — available on ${conflict.offeringTrimLabel}` : ""}
+                        </span>
+                      ) : null}
+                    </span>
+                  );
+                })
               : unordered.map((r) => r.selection).join(", ")}
-            {excluded.length > 0 ? (
-              <span className="text-amber-400">
-                {ranked.length > 0 || unordered.length > 0 ? " — " : ""}
-                excluded: {excluded.map((r) => r.selection).join(", ")}
-              </span>
-            ) : null}
           </p>
         );
       })}

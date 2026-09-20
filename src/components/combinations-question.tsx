@@ -28,7 +28,7 @@ import { ColorDot, RankingQuestion, Thumb, type RankableItem } from "@/component
 // combination's identity is (trim, colour, interior, seating) only.
 
 interface FeaturePill {
-  tone: "amber" | "gray";
+  tone: "amber" | "gray" | "green";
   text: string;
 }
 
@@ -40,14 +40,21 @@ interface FeaturePill {
  *
  *   - wanted, but neither standard nor obtainable here -> amber, this
  *     trim genuinely cannot be built with it.
+ *   - wanted, AND obtainable here (standalone/package_only) -> green, a
+ *     positive confirmation this trim really can be built with it
+ *     (2026-09-20 -- previously no pill at all here, see below).
  *   - excluded, but standard here -> amber, the trim includes it whether
  *     they want it or not.
  *   - obtainable here, and the customer never said anything about it ->
  *     muted, purely informational.
  *
- * A wanted feature/package that IS obtainable here (standalone/
- * package_only) gets no pill at all -- it's a real, addressable option on
- * this trim, not a conflict worth flagging on the combination card itself.
+ * A wanted feature/package that's already STANDARD here (comes by
+ * default, nothing to obtain) still gets no pill -- it was never
+ * filtered by the features step to begin with, so there's nothing to
+ * confirm. Only the genuinely obtainable (standalone/package_only) case
+ * gained the green pill; the gap case it mirrors already named the trim
+ * (see `trimLabel` below), so the two read as a matched positive/negative
+ * pair on the same fact.
  *
  * Package-label granularity (2026-09-18, features-become-ranked-packages)
  * -- `selections` now carries package labels, not raw feature names, so
@@ -82,6 +89,8 @@ function featurePillsFor(
     if (!s.excluded) {
       if (!standardNames.has(s.selection) && !obtainableNames.has(s.selection)) {
         pills.push({ tone: "amber", text: `${s.selection} not available on ${trimLabel}` });
+      } else if (obtainableNames.has(s.selection)) {
+        pills.push({ tone: "green", text: `Includes: ${s.selection}` });
       }
     } else if (standardNames.has(s.selection)) {
       pills.push({ tone: "amber", text: `Includes ${s.selection} (can't be removed on this trim)` });
@@ -105,7 +114,9 @@ function PillRow({ pills }: { pills: FeaturePill[] }) {
           className={
             p.tone === "amber"
               ? "rounded-full border border-amber-500/40 bg-amber-500/[0.08] px-2.5 py-0.5 text-[11px] font-medium text-amber-300"
-              : "rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-0.5 text-[11px] font-medium text-zinc-500"
+              : p.tone === "green"
+                ? "rounded-full border border-emerald-500/40 bg-emerald-500/[0.08] px-2.5 py-0.5 text-[11px] font-medium text-emerald-300"
+                : "rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-0.5 text-[11px] font-medium text-zinc-500"
           }
         >
           {p.text}
