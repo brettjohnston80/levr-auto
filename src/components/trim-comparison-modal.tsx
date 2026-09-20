@@ -7,12 +7,14 @@ import type { TrimOption } from "@/lib/finalize-trims";
 import type { ConfiguratorQuestions } from "@/lib/configurator-matching";
 import {
   cellsDiffer,
+  computeChoiceComparisonRows,
   computeFeatureComparisonRows,
   seatingCell,
   seatingIsDifferentiator,
   summarizeDrivetrain,
   summarizeRoof,
   summarizeWheels,
+  type ChoiceComparisonRow,
   type ComparisonCell,
 } from "@/lib/trim-comparison";
 import { ColorDot, Thumb } from "@/components/ranking-question";
@@ -128,28 +130,57 @@ function CategoryHeaderRow({
   );
 }
 
-/** Up to 4 swatch dots + "+N more" -- the table cell's compact rendering
- *  of a colour/interior list. Full per-name list with price/package
- *  detail lives only in the single-trim detail modal (trim-detail-
- *  modal.tsx), which reads the same *Raw arrays directly. */
-function SwatchRow({ choices }: { choices: ConfiguratorQuestions["exteriorColorRaw"] }) {
-  if (choices.length === 0) return <Cell cell={{ text: "—", tone: "none" }} />;
-  const shown = choices.slice(0, 4);
+/**
+ * A light, non-collapsible sub-divider within "Colors & Interior" --
+ * "Exterior colors" / "Interior" -- distinct from CategoryHeaderRow's
+ * bolder top-level styling so the hierarchy (category > sub-group) reads
+ * clearly rather than looking like two co-equal categories. Same
+ * th-sticky-left/td shape as every other row here, for the same
+ * horizontal-scroll-pinning reason.
+ */
+function ChoiceGroupLabel({ label, trimIds }: { label: string; trimIds: string[] }) {
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-1">
-        {shown.map((c) => (
-          <span key={c.name} title={c.name} className="flex items-center">
-            <Thumb item={{ id: c.name, label: c.name, imageUrl: c.imageUrl ?? null }} />
-            <ColorDot item={{ id: c.name, label: c.name, swatch: c.swatch ?? null }} />
-          </span>
-        ))}
-      </div>
-      <span className="text-xs text-zinc-500">
-        {choices.length} color{choices.length === 1 ? "" : "s"}
-        {choices.length > shown.length ? ` (+${choices.length - shown.length} more)` : ""}
-      </span>
-    </div>
+    <tr>
+      <th
+        scope="row"
+        className="sticky left-0 z-10 bg-zinc-950 pt-3 pb-1 pr-4 text-left align-top text-[10px] font-semibold uppercase tracking-wide text-zinc-600"
+      >
+        {label}
+      </th>
+      {trimIds.map((id) => (
+        <td key={id} className="pt-3 pb-1" />
+      ))}
+    </tr>
+  );
+}
+
+/**
+ * One row per colour/interior NAME (2026-09-20) -- replaces the old
+ * SwatchRow, which crammed a trim's whole colour list (up to 4 dots plus
+ * a "+N more" count) into a single cell with no way to show which of the
+ * OTHER compared trims also offered it. The photo/swatch identifies the
+ * row once, in the sticky label column; each trim's own cell shows only
+ * its availability/price (Cell, via priceCellFor) rather than repeating
+ * the same swatch across every column -- a real trim set here runs
+ * 7-12+ colours, so keeping the swatch to one copy per row is what keeps
+ * this readable rather than just longer.
+ */
+function ChoiceRow({ row, trimOptions }: { row: ChoiceComparisonRow; trimOptions: TrimOption[] }) {
+  return (
+    <tr className="border-t border-white/5">
+      <th scope="row" className="sticky left-0 z-10 bg-zinc-950 py-2.5 pr-4 text-left align-top">
+        <span className="flex items-center gap-2">
+          <Thumb item={{ id: row.name, label: row.name, imageUrl: row.imageUrl }} />
+          <ColorDot item={{ id: row.name, label: row.name, swatch: row.swatch }} />
+          <span className="text-xs font-medium break-words text-zinc-300">{row.name}</span>
+        </span>
+      </th>
+      {trimOptions.map((opt) => (
+        <td key={opt.id} className="px-4 py-2.5 align-top">
+          <Cell cell={row.cellsByTrimId[opt.id]} />
+        </td>
+      ))}
+    </tr>
   );
 }
 
@@ -211,6 +242,13 @@ export function TrimComparisonModal({
   const showDrivetrain = cellsDiffer(drivetrainCells);
   const showPerformance = showWheels || showRoof || showDrivetrain;
   const featureRows = computeFeatureComparisonRows(trimIds, configuratorQuestions);
+  const exteriorColorRows = computeChoiceComparisonRows(
+    trimIds,
+    configuratorQuestions,
+    (q) => q.exteriorColorRaw,
+  );
+  const interiorRows = computeChoiceComparisonRows(trimIds, configuratorQuestions, (q) => q.interiorRaw);
+  const showColorsInterior = exteriorColorRows.length > 0 || interiorRows.length > 0;
 
   // Categorized collapsible sections (2026-09-20 reorg), defaulting to
   // all-expanded per the approved plan. Overview is deliberately NOT one
@@ -375,34 +413,34 @@ export function TrimComparisonModal({
                 </>
               )}
 
-              <CategoryHeaderRow
-                label="Colors & Interior"
-                expanded={colorsExpanded}
-                onToggle={() => setColorsExpanded((v) => !v)}
-                trimIds={trimIds}
-              />
-              {colorsExpanded && (
+              {showColorsInterior && (
                 <>
-                  <tr className="border-t border-white/5">
-                    <th scope="row" className="sticky left-0 z-10 bg-zinc-950 py-3 pr-4 text-left align-top text-xs font-semibold text-zinc-400">
-                      Exterior colors
-                    </th>
-                    {trimOptions.map((opt) => (
-                      <td key={opt.id} className="px-4 py-3 align-top">
-                        <SwatchRow choices={configuratorQuestions[opt.id]?.exteriorColorRaw ?? []} />
-                      </td>
-                    ))}
-                  </tr>
-                  <tr className="border-t border-white/5">
-                    <th scope="row" className="sticky left-0 z-10 bg-zinc-950 py-3 pr-4 text-left align-top text-xs font-semibold text-zinc-400">
-                      Interior
-                    </th>
-                    {trimOptions.map((opt) => (
-                      <td key={opt.id} className="px-4 py-3 align-top">
-                        <SwatchRow choices={configuratorQuestions[opt.id]?.interiorRaw ?? []} />
-                      </td>
-                    ))}
-                  </tr>
+                  <CategoryHeaderRow
+                    label="Colors & Interior"
+                    expanded={colorsExpanded}
+                    onToggle={() => setColorsExpanded((v) => !v)}
+                    trimIds={trimIds}
+                  />
+                  {colorsExpanded && (
+                    <>
+                      {exteriorColorRows.length > 0 && (
+                        <>
+                          <ChoiceGroupLabel label="Exterior colors" trimIds={trimIds} />
+                          {exteriorColorRows.map((row) => (
+                            <ChoiceRow key={row.name} row={row} trimOptions={trimOptions} />
+                          ))}
+                        </>
+                      )}
+                      {interiorRows.length > 0 && (
+                        <>
+                          <ChoiceGroupLabel label="Interior" trimIds={trimIds} />
+                          {interiorRows.map((row) => (
+                            <ChoiceRow key={row.name} row={row} trimOptions={trimOptions} />
+                          ))}
+                        </>
+                      )}
+                    </>
+                  )}
                 </>
               )}
 

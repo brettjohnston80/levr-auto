@@ -831,6 +831,7 @@ export function FinalizeSelfService({
           }}
           configuratorQuestions={configuratorQuestions}
           selections={selections}
+          trimOptions={trimOptions}
           showAll={showAllCombinations}
           onShowMore={() => setShowAllCombinations(true)}
         />

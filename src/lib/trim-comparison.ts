@@ -4,6 +4,12 @@ import {
   type ConfiguratorChoice,
   type ConfiguratorQuestions,
 } from "@/lib/configurator-matching";
+// Type-only, same reason configurator-matching.ts itself imports it this
+// way (see ConfiguratorChoice.swatch's own comment): vehicle-color-
+// swatches.ts pulls in server-only fs access for its toggle constant, and
+// this file is shared with client components, so only the TYPE may cross
+// that boundary -- erased entirely at build time, never a value import.
+import type { ColorSwatchValue } from "@/lib/vehicle-color-swatches";
 
 // Pure computation for the trim comparison view (2026-09-19) -- the trim
 // ranking step's own "which of these should I even rank" decision aid,
@@ -86,6 +92,69 @@ export function seatingIsDifferentiator(
 ): boolean {
   const rows = trimIds.flatMap((id) => configuratorQuestions[id]?.seatingRaw ?? []);
   return categoryHasRealChoiceAcrossTrims(rows);
+}
+
+/** One colour/interior-choice comparison row: a name, its representative
+ *  photo/swatch, and this compared trim set's per-trim availability cell
+ *  for it. */
+export interface ChoiceComparisonRow {
+  name: string;
+  imageUrl: string | null;
+  swatch: ColorSwatchValue | null;
+  cellsByTrimId: Record<string, ComparisonCell>;
+}
+
+/**
+ * Unions exterior-colour or interior names across the COMPARED trim set
+ * into ONE ROW PER NAME (2026-09-20) -- replaces the old SwatchRow, which
+ * compressed a trim's whole colour list into one cramped cell (up to 4
+ * dots plus a "+N more" count) that couldn't show per-trim availability at
+ * all. A real trim set here runs 7-12+ colours, so this is a genuine row-
+ * count increase, not a cosmetic change -- the readability fix is more
+ * rows, not a dropdown, since a dropdown would hide exactly the
+ * side-by-side comparison this table exists to show.
+ *
+ * Same union-by-name shape as computeFeatureComparisonRows, fed
+ * `rawChoicesFor` so one function serves both exteriorColorRaw and
+ * interiorRaw callers. The photo/swatch shown is pulled from the first
+ * compared trim that actually offers the name -- confirmed via
+ * vehicle-color-images.ts's own lookup key (make/model/category/colour
+ * name, never trim-scoped) that this is the SAME asset regardless of
+ * which trim offers it, not a guess at which trim's copy to prefer.
+ * Availability that isn't found for a trim renders as the shared DASH,
+ * the same "this column doesn't have this" convention every other row in
+ * this table already uses (Wheels/Roof/Drivetrain/Features) -- available
+ * cells show priceCellFor's real Standard/+$price/No extra cost text.
+ */
+export function computeChoiceComparisonRows(
+  trimIds: string[],
+  configuratorQuestions: Record<string, ConfiguratorQuestions>,
+  rawChoicesFor: (q: ConfiguratorQuestions) => ConfiguratorChoice[],
+): ChoiceComparisonRow[] {
+  const byName = new Map<string, ConfiguratorChoice>();
+  for (const id of trimIds) {
+    const q = configuratorQuestions[id];
+    if (!q) continue;
+    for (const c of rawChoicesFor(q)) {
+      if (!byName.has(c.name)) byName.set(c.name, c);
+    }
+  }
+
+  return [...byName.keys()].sort((a, b) => a.localeCompare(b)).map((name) => {
+    const representative = byName.get(name)!;
+    const cellsByTrimId: Record<string, ComparisonCell> = {};
+    for (const id of trimIds) {
+      const q = configuratorQuestions[id];
+      const choice = q ? rawChoicesFor(q).find((c) => c.name === name) : undefined;
+      cellsByTrimId[id] = choice ? priceCellFor(choice) : DASH;
+    }
+    return {
+      name,
+      imageUrl: representative.imageUrl ?? null,
+      swatch: representative.swatch ?? null,
+      cellsByTrimId,
+    };
+  });
 }
 
 /**

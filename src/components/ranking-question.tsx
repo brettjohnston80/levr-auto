@@ -424,11 +424,17 @@ export function Thumb({ item }: { item: RankableItem }) {
 
   return (
     <>
+      {/* Hover affordance (2026-09-20) -- reuses this SAME button's own
+          focus-visible ring (already ring-emerald-400) rather than
+          inventing a new hover treatment, so keyboard focus and mouse
+          hover read as the same "this is clickable/enlargeable" signal.
+          Swatches (ColorDot) deliberately get none of this -- only a real
+          photo is enlargeable, per the standing decision. */}
       <button
         type="button"
         onClick={() => setOpen(true)}
         aria-label={item.label ? `Enlarge photo of ${item.label}` : "Enlarge photo"}
-        className="shrink-0 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+        className="shrink-0 rounded-md transition-shadow focus:outline-none hover:ring-2 hover:ring-emerald-400/60 focus-visible:ring-2 focus-visible:ring-emerald-400"
       >
         {/* eslint-disable-next-line @next/next/no-img-element -- these are
             arbitrary files dropped into public/ at deploy time, not a
@@ -438,7 +444,7 @@ export function Thumb({ item }: { item: RankableItem }) {
           alt=""
           aria-hidden="true"
           loading="lazy"
-          className="h-10 w-14 rounded-md object-cover"
+          className="h-10 w-14 rounded-md object-cover transition-[filter] hover:brightness-110"
           onError={() => setBroken(true)}
         />
       </button>

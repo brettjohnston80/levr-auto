@@ -3,11 +3,13 @@
 import {
   combinationId,
   groupIntoPackages,
+  type ConfiguratorChoice,
   type ConfiguratorQuestions,
   type ConfiguratorSelection,
   type PrioritizedCombinations,
   type RealCombination,
 } from "@/lib/configurator-matching";
+import type { TrimOption } from "@/lib/finalize-trims";
 import { ColorDot, RankingQuestion, Thumb, type RankableItem } from "@/components/ranking-question";
 
 // The combinations step (combination-preferences Phase 3, 2026-09-17) --
@@ -57,10 +59,18 @@ interface FeaturePill {
  * default, so the "excluded but standard" check only ever fires for a
  * standalone single-item package, where the selection value already
  * equals the raw feature name `standardNames` holds.
+ *
+ * `trimLabel` names the specific trim this card is for (2026-09-20) --
+ * every combination card is already exactly one trim, so a customer
+ * comparing several cards side by side needs the amber "wanted but
+ * missing" pill to say WHICH trim lacks it, not a bare feature name with
+ * no context. Pure wording -- `q` was already this card's own trim's
+ * ConfiguratorQuestions, the pill just never said so.
  */
 function featurePillsFor(
   q: ConfiguratorQuestions,
   selections: ConfiguratorSelection[],
+  trimLabel: string,
 ): FeaturePill[] {
   const standardNames = new Set(q.featuresStandard);
   const obtainableNames = new Set(groupIntoPackages(q.features).map((c) => c.name));
@@ -71,7 +81,7 @@ function featurePillsFor(
   for (const s of featureSelections) {
     if (!s.excluded) {
       if (!standardNames.has(s.selection) && !obtainableNames.has(s.selection)) {
-        pills.push({ tone: "amber", text: `Doesn't include: ${s.selection}` });
+        pills.push({ tone: "amber", text: `${s.selection} not available on ${trimLabel}` });
       }
     } else if (standardNames.has(s.selection)) {
       pills.push({ tone: "amber", text: `Includes ${s.selection} (can't be removed on this trim)` });
@@ -105,6 +115,69 @@ function PillRow({ pills }: { pills: FeaturePill[] }) {
   );
 }
 
+function formatCents(cents: number): string {
+  return `$${Math.round(cents / 100).toLocaleString()}`;
+}
+
+/**
+ * Real extra cost of ONE choice, in cents -- 0 for standard/included/free,
+ * else the real researched number. Deliberately a small local twin of
+ * trim-comparison.ts's priceCellFor (same three-way availability branch),
+ * not a shared import: that function returns a DISPLAY cell (text+tone)
+ * for a table, this one returns a number to SUM -- forcing both through
+ * one shape would need an awkward unwrap on one side or the other for a
+ * six-line branch that's cheap to keep in sync by eye.
+ */
+function extraCostCentsFor(choice: ConfiguratorChoice | null | undefined): number {
+  if (!choice) return 0;
+  if (choice.availability === "standard") return 0;
+  if (choice.availability === "package_only") return choice.packagePriceCents ?? 0;
+  if (choice.priceIsIncluded) return 0;
+  return choice.priceCents ?? 0;
+}
+
+/**
+ * A real, honest ESTIMATE (2026-09-20) -- anchored to this trim's
+ * cheapest real synced listing (TrimOption.minPriceCents), since finalize
+ * has no single VIN to price exactly; real dealer pricing varies per
+ * unit. Adds the combination's own colour and interior extra cost
+ * (0 for a standard/included choice, same rule priceCellFor already
+ * uses), plus every feature/package the customer WANTS (not excluded)
+ * that this specific trim can actually build -- the same
+ * obtainable-and-wanted set featurePillsFor's own "no pill" case already
+ * represents silently, now given a real dollar value instead of nothing.
+ * A wanted-but-not-obtainable-here feature (the amber pill) contributes
+ * nothing -- it isn't a real cost on THIS trim. Returns null only when
+ * the trim itself has no real inventory price at all, never a silent $0.
+ */
+function estimatedPriceCentsFor(
+  combo: RealCombination,
+  trimOption: TrimOption | undefined,
+  q: ConfiguratorQuestions | undefined,
+  selections: ConfiguratorSelection[],
+): number | null {
+  if (!trimOption || trimOption.minPriceCents == null) return null;
+
+  const colorChoice = combo.exteriorColor
+    ? (q?.exteriorColorRaw.find((c) => c.name === combo.exteriorColor) ?? null)
+    : null;
+  const interiorChoice = combo.interior
+    ? (q?.interiorRaw.find((c) => c.name === combo.interior) ?? null)
+    : null;
+
+  let total = trimOption.minPriceCents + extraCostCentsFor(colorChoice) + extraCostCentsFor(interiorChoice);
+
+  if (q) {
+    const obtainableByName = new Map(groupIntoPackages(q.features).map((c) => [c.name, c]));
+    for (const s of selections) {
+      if (s.category !== "feature" || s.excluded) continue;
+      total += extraCostCentsFor(obtainableByName.get(s.selection));
+    }
+  }
+
+  return total;
+}
+
 /**
  * One combination, as a RankableItem. BOTH swatch/photo pairs -- exterior
  * and interior -- render explicitly in `detail`, stacked vertically
@@ -119,6 +192,7 @@ function toItem(
   combo: RealCombination,
   configuratorQuestions: Record<string, ConfiguratorQuestions>,
   selections: ConfiguratorSelection[],
+  trimOptionsById: Map<string, TrimOption>,
 ): RankableItem {
   const q = configuratorQuestions[combo.trimId];
   const colorChoice = combo.exteriorColor
@@ -136,9 +210,15 @@ function toItem(
   // every single card when it never varies).
   const label = `${combo.trim} — ${colorLabel} / ${interiorLabel}${combo.seating ? ` / ${combo.seating}` : ""}`;
 
-  const pills = q ? featurePillsFor(q, selections) : [];
+  const pills = q ? featurePillsFor(q, selections, combo.trim) : [];
   const hasColorSwatch = !!(colorChoice?.imageUrl || colorChoice?.swatch);
   const hasInteriorSwatch = !!(interiorChoice?.imageUrl || interiorChoice?.swatch);
+  const estimatedPriceCents = estimatedPriceCentsFor(
+    combo,
+    trimOptionsById.get(combo.trimId),
+    q,
+    selections,
+  );
 
   return {
     id: combinationId(combo),
@@ -147,6 +227,11 @@ function toItem(
     swatch: null,
     detail: (
       <>
+        {estimatedPriceCents != null && (
+          <span className="block text-sm font-semibold text-emerald-400">
+            {formatCents(estimatedPriceCents)} est.
+          </span>
+        )}
         {(hasColorSwatch || hasInteriorSwatch) && (
           <span className="mt-1 flex flex-col gap-1.5">
             {hasColorSwatch && (
@@ -178,6 +263,7 @@ export function CombinationsQuestion({
   onChange,
   configuratorQuestions,
   selections,
+  trimOptions,
   showAll,
   onShowMore,
 }: {
@@ -189,17 +275,21 @@ export function CombinationsQuestion({
   onChange: (ranked: string[], excluded: string[]) => void;
   configuratorQuestions: Record<string, ConfiguratorQuestions>;
   selections: ConfiguratorSelection[];
+  /** Real synced-inventory pricing per trim (2026-09-20) -- the anchor for
+   *  each combination card's estimated price, see estimatedPriceCentsFor. */
+  trimOptions: TrimOption[];
   /** Whether the display cap has been lifted from 5 to the full (<=10)
    *  prioritized set -- lives in the parent so it survives this
    *  component re-rendering, same as every other piece of step state. */
   showAll: boolean;
   onShowMore: () => void;
 }) {
+  const trimOptionsById = new Map(trimOptions.map((o) => [o.id, o]));
   const visibleCount = showAll
     ? prioritized.visible.length
     : Math.min(prioritized.initialCount, prioritized.visible.length);
   const shown = prioritized.visible.slice(0, visibleCount);
-  const items = shown.map((c) => toItem(c, configuratorQuestions, selections));
+  const items = shown.map((c) => toItem(c, configuratorQuestions, selections, trimOptionsById));
 
   const moreToReveal = prioritized.visible.length - visibleCount;
   const cappedBeyondDisplay = prioritized.totalReal - prioritized.visible.length;
