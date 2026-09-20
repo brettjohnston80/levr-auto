@@ -7,6 +7,7 @@ import { getVehicleDetails } from "@/lib/customer-dashboard";
 import { getFinalizeChoiceData } from "@/lib/finalize-choice-data";
 import { FinalizeChoice } from "@/components/finalize-choice";
 import { Section } from "@/components/trim-detail-modal";
+import { GetStartedButton } from "@/components/get-started-button";
 
 export const metadata: Metadata = {
   title: "Your Car — LEVR Auto",
@@ -61,13 +62,38 @@ export default async function VehiclePage({
     (s) => !TERMINAL_STATUSES.includes(s.search_status as string),
   );
 
+  // No bounce to /account -- this tab is meant to be a stable, revisitable
+  // destination (that's the whole point of it existing separately from the
+  // old one-time /finalize gate), so a customer with nothing active yet
+  // sees that explained right here, once, rather than landing somewhere
+  // else with a message tacked on.
+  if (nonTerminal.length === 0) {
+    return (
+      <section className="bg-zinc-950 py-24">
+        <div className="mx-auto max-w-2xl px-6 text-center">
+          <h1 className="text-2xl font-semibold text-white">No active search yet</h1>
+          <p className="mt-3 text-sm text-zinc-400">
+            Once you start a search, this is where you&apos;ll come back to see your vehicle
+            details.
+          </p>
+          <GetStartedButton className="mt-8 inline-flex items-center justify-center rounded-full bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400">
+            Get Started
+          </GetStartedButton>
+          <div className="mt-6">
+            <Link href="/account" className="text-sm text-zinc-400 hover:text-white">
+              ← Back to your account
+            </Link>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   let targetId: string | null = null;
   if (requestedSearchId && nonTerminal.some((s) => s.id === requestedSearchId)) {
     targetId = requestedSearchId;
   } else if (nonTerminal.length === 1) {
     targetId = nonTerminal[0].id as string;
-  } else if (nonTerminal.length === 0) {
-    redirect(`/account?message=${encodeURIComponent("No active search to show yet.")}`);
   }
 
   // More than one candidate and none specified -- a real but rare case
