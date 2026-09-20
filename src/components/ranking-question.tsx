@@ -29,8 +29,15 @@ export interface RankableItem {
   /** Stable identity. For trim this is trim+year, not the trim name. */
   id: string;
   label: string;
-  /** Model year, price, etc -- shown muted beside the label. */
-  sublabel?: string | null;
+  /**
+   * Model year, a "Details" link, etc -- shown muted beside the label.
+   * Widened from `string | null` to `React.ReactNode` (2026-09-21) so a
+   * caller can put a real control (e.g. a button opening a detail modal)
+   * inline next to the label, not just static text -- safe because this
+   * is a pure rendering slot, never read back out as a string (unlike
+   * `label`, which aria-labels below interpolate directly).
+   */
+  sublabel?: React.ReactNode;
   /** Real photo, when we have one. Null is the normal case. */
   imageUrl?: string | null;
   /**

@@ -720,12 +720,31 @@ export function FinalizeSelfService({
                 items={trimOptions.map((opt) => ({
                   id: opt.id,
                   label: opt.trim,
-                  // Year is shown only when it distinguishes something. With a
-                  // committed year every option is that year, so the suffix is
-                  // redundant and dropped. Without one (a search predating the
-                  // required year) a trim spanning two model years would
-                  // otherwise render as two identical-looking rows.
-                  sublabel: modelYear == null && opt.year != null ? String(opt.year) : null,
+                  // Year suffix (shown only when it distinguishes something --
+                  // see the original comment below) plus a "Details" button
+                  // (2026-09-21), both in the same inline sublabel slot next
+                  // to the trim name. Opens the EXACT SAME TrimDetailModal the
+                  // comparison view's own "Details" link opens -- setDetailTrimId
+                  // is already generic state, not scoped to the comparison
+                  // modal, so this is just a second place that sets it, not a
+                  // second modal instance or a parallel rank/exclude path.
+                  sublabel: (
+                    <>
+                      {/* Year is shown only when it distinguishes something. With a
+                          committed year every option is that year, so the suffix is
+                          redundant and dropped. Without one (a search predating the
+                          required year) a trim spanning two model years would
+                          otherwise render as two identical-looking rows. */}
+                      {modelYear == null && opt.year != null ? `${opt.year} ` : ""}
+                      <button
+                        type="button"
+                        onClick={() => setDetailTrimId(opt.id)}
+                        className="text-[11px] font-semibold text-zinc-500 underline underline-offset-2 hover:text-zinc-300"
+                      >
+                        Details
+                      </button>
+                    </>
+                  ),
                   detail: (
                     <span className="mt-0.5 block text-xs text-zinc-500">
                       {formatCents(opt.minPriceCents)}
