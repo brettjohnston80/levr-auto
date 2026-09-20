@@ -1,6 +1,13 @@
 import "server-only";
 import { createAdminClient } from "./supabase/admin";
-import type { ConfiguratorSelection } from "./configurator-matching";
+import {
+  computeCategoryAvailability,
+  groupIntoPackages,
+  type ConfiguratorChoice,
+  type ConfiguratorQuestions,
+  type ConfiguratorSelection,
+} from "./configurator-matching";
+import { getConfiguratorQuestionsForResolvedTrimIds } from "./configurator-questions";
 
 export interface DashboardAddon {
   id: string;
@@ -337,4 +344,186 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
     offers: offersBySearchId.get(search.id) ?? [],
     configuratorSelections: configuratorSelectionsBySearchId.get(search.id) ?? [],
   }));
+}
+
+export interface VehicleDetailsRankedTrim {
+  trim: string;
+  modelYear: number | null;
+  rankPosition: number;
+}
+
+export interface VehicleDetailsCategory {
+  /** Real ConfiguratorChoice per ranked (non-excluded) selection, in the
+   *  customer's own rank order -- real price/package data resolved via
+   *  computeCategoryAvailability's existing tie-break, same rule the
+   *  customer's own ranking UI used when they made the choice. Never
+   *  re-derived independently, so this can't disagree with what they saw. */
+  ranked: ConfiguratorChoice[];
+  /** Names only -- an exclusion has no price/package info worth showing. */
+  excludedNames: string[];
+}
+
+export interface VehicleDetails {
+  searchId: string;
+  make: string | null;
+  model: string | null;
+  modelYear: number | null;
+  trim: string | null;
+  searchStatus: string;
+  rankedTrims: VehicleDetailsRankedTrim[];
+  excludedTrims: VehicleDetailsRankedTrim[];
+  exteriorColor: VehicleDetailsCategory;
+  interior: VehicleDetailsCategory;
+  feature: VehicleDetailsCategory;
+}
+
+/**
+ * Real specs for ONE finalized search -- feeds /account/vehicle's full
+ * read-only detail view. Scoped to a single search (unlike
+ * getCustomerDashboard, which loads every search plus offers/addons/deal
+ * progress this page has no use for).
+ *
+ * Ownership is enforced at the query itself (customer_id = the id passed
+ * in), not just trusted from the caller -- same discipline every other
+ * customer-scoped read in this file already follows.
+ *
+ * Returns null if the search doesn't exist, isn't owned by this customer,
+ * or has no real vehicle yet (undecided intake).
+ */
+export async function getVehicleDetails(
+  searchId: string,
+  customerId: string,
+): Promise<VehicleDetails | null> {
+  const supabase = createAdminClient();
+
+  const { data: search, error: searchError } = await supabase
+    .from("customer_searches")
+    .select("id, make, model, model_year, trim, search_status")
+    .eq("id", searchId)
+    .eq("customer_id", customerId)
+    .maybeSingle();
+
+  if (searchError) {
+    throw new Error(`Failed to load search: ${searchError.message}`);
+  }
+  if (!search || !search.make || !search.model) {
+    return null;
+  }
+
+  const { data: trimPrefRows, error: trimPrefError } = await supabase
+    .from("search_trim_preferences")
+    .select("trim, model_year, rank_position, excluded, configurator_trim_id")
+    .eq("search_id", searchId)
+    .order("rank_position", { ascending: true, nullsFirst: false });
+
+  if (trimPrefError) {
+    throw new Error(`Failed to load trim preferences: ${trimPrefError.message}`);
+  }
+
+  const rankedTrims: VehicleDetailsRankedTrim[] = [];
+  const excludedTrims: VehicleDetailsRankedTrim[] = [];
+  const rankedResolvedTrimIds: string[] = [];
+  const trimDisplayNameById: Record<string, string> = {};
+
+  for (const row of trimPrefRows ?? []) {
+    const label = { trim: row.trim as string, modelYear: row.model_year as number | null };
+    if (row.excluded) {
+      excludedTrims.push({ ...label, rankPosition: 0 });
+      continue;
+    }
+    rankedTrims.push({ ...label, rankPosition: row.rank_position as number });
+    const configuratorTrimId = row.configurator_trim_id as string | null;
+    if (configuratorTrimId) {
+      rankedResolvedTrimIds.push(configuratorTrimId);
+      trimDisplayNameById[configuratorTrimId] =
+        row.model_year != null ? `${row.trim} ${row.model_year}` : (row.trim as string);
+    }
+  }
+
+  const { data: selectionRows, error: selectionError } = await supabase
+    .from("search_option_selections")
+    .select(
+      "category, selection, rank_position, excluded, package_name, package_price_cents, package_contents, price_unknown",
+    )
+    .eq("search_id", searchId)
+    .order("id");
+
+  if (selectionError) {
+    throw new Error(`Failed to load configurator selections: ${selectionError.message}`);
+  }
+
+  const configuratorQuestions: Record<string, ConfiguratorQuestions> =
+    rankedResolvedTrimIds.length > 0
+      ? await getConfiguratorQuestionsForResolvedTrimIds(rankedResolvedTrimIds, search.make, search.model)
+      : {};
+
+  const rawChoicesFor: Record<string, (q: ConfiguratorQuestions) => ConfiguratorChoice[]> = {
+    exterior_color: (q) => q.exteriorColorRaw,
+    interior: (q) => q.interiorRaw,
+    feature: (q) => groupIntoPackages(q.features),
+  };
+
+  const buildCategory = (category: "exterior_color" | "interior" | "feature"): VehicleDetailsCategory => {
+    const mine = (selectionRows ?? []).filter((r) => r.category === category);
+    const ranked = mine
+      .filter((r) => !r.excluded && r.rank_position != null)
+      .sort((a, b) => (a.rank_position as number) - (b.rank_position as number));
+    const excludedNames = mine.filter((r) => r.excluded).map((r) => r.selection as string);
+
+    if (rankedResolvedTrimIds.length === 0) {
+      return { ranked: [], excludedNames };
+    }
+
+    // Same real per-choice data (price, package name/contents, photo,
+    // swatch) the customer's own ranking UI showed them, resolved by the
+    // exact same tie-break -- never re-derived, so this can't quietly
+    // disagree on which trim's price to show for a package priced
+    // differently across the customer's ranked trims.
+    const { rankable } = computeCategoryAvailability(
+      rankedResolvedTrimIds,
+      rankedResolvedTrimIds,
+      configuratorQuestions,
+      rawChoicesFor[category],
+      trimDisplayNameById,
+    );
+    const byName = new Map(rankable.map((c) => [c.name, c]));
+
+    const choices: ConfiguratorChoice[] = ranked.map((r) => {
+      const live = byName.get(r.selection as string);
+      if (live) return live;
+      // Fallback for a name that's no longer live-resolvable (e.g. the
+      // option was dropped from a later dataset re-import). The selection
+      // row itself carries its own package snapshot from write time
+      // (search_option_selections denormalizes package_name/price/
+      // contents, same convention as search_trim_preferences' trim
+      // column) -- real historical price/package data, not a guess, just
+      // not re-validated against the current live dataset the way the
+      // common (live) case above is.
+      return {
+        name: r.selection as string,
+        availability: r.package_name ? "package_only" : "standalone",
+        priceCents: null,
+        priceIsIncluded: false,
+        packageName: (r.package_name as string | null) ?? null,
+        packagePriceCents: (r.package_price_cents as number | null) ?? null,
+        packageContents: (r.package_contents as string[] | null) ?? null,
+      };
+    });
+
+    return { ranked: choices, excludedNames };
+  };
+
+  return {
+    searchId: search.id,
+    make: search.make,
+    model: search.model,
+    modelYear: search.model_year as number | null,
+    trim: search.trim as string | null,
+    searchStatus: search.search_status as string,
+    rankedTrims,
+    excludedTrims,
+    exteriorColor: buildCategory("exterior_color"),
+    interior: buildCategory("interior"),
+    feature: buildCategory("feature"),
+  };
 }

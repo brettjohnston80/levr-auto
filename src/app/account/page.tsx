@@ -13,7 +13,6 @@ import { FinalizeEditForm } from "@/components/finalize-edit-form";
 import { AccountFaqSection } from "@/components/account-faq-section";
 import { AccountSettingsForm } from "@/components/account-settings-form";
 import { ChangePasswordForm } from "@/components/change-password-form";
-import { SelectionSummary } from "@/components/configurator-questions";
 import { SwitchChoice } from "@/components/switch-choice";
 import { ExtendSearchButton } from "@/components/extend-search-button";
 import { AutoRenewToggle } from "@/components/auto-renew-toggle";
@@ -238,7 +237,40 @@ function formatDate(iso: string): string {
   });
 }
 
-export default async function AccountPage() {
+// Full detail (every ranked color/interior/package, real prices/contents)
+// now lives in exactly one place -- /account/vehicle, built off
+// getVehicleDetails. This is the compact replacement for the inline
+// SelectionSummary block this card used to render in full (2026-09-19):
+// a one-line digest plus a link into that page, rather than a second copy
+// of the same detail.
+function buildCompactSelectionSummary(search: DashboardSearch): string {
+  const parts: string[] = [`Trim: ${search.trim || "No preference"}`];
+
+  const colorsRanked = search.configuratorSelections.filter(
+    (s) => s.category === "exterior_color" && !s.excluded,
+  ).length;
+  if (colorsRanked > 0) {
+    parts.push(`${colorsRanked} color${colorsRanked === 1 ? "" : "s"} ranked`);
+  }
+
+  const packageNames = new Set(
+    search.configuratorSelections
+      .filter((s) => !s.excluded && s.packageName)
+      .map((s) => s.packageName as string),
+  );
+  if (packageNames.size > 0) {
+    parts.push(`${packageNames.size} package${packageNames.size === 1 ? "" : "s"} selected`);
+  }
+
+  return parts.join(" · ");
+}
+
+export default async function AccountPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ message?: string }>;
+}) {
+  const { message } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -288,6 +320,12 @@ export default async function AccountPage() {
             {[customer?.first_name, customer?.last_name].filter(Boolean).join(" ") || user.email}
           </p>
         </div>
+
+        {message && (
+          <p className="mt-6 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-center text-sm text-zinc-300">
+            {message}
+          </p>
+        )}
 
         <AccountSettingsForm
           existing={{
@@ -436,25 +474,22 @@ function SearchCard({
       )}
 
       {/*
-        Real gap closed here (2026-09-18): once a search leaves
-        pending_refinement (the only status FinalizeEditForm above covers),
-        /account previously showed no summary of a Toyota/Honda customer's
-        actual rich selections at all -- not even a read-only one. This is
-        the exact same SelectionSummary the Review step itself renders at
-        initial finalize, reused unmodified, so what the customer sees back
-        here can never describe their answers differently than what they
-        saw when they submitted them. Read-only on purpose -- editing rich
-        selections after solidification isn't this piece's scope.
+        Compact summary + link, not the full detail (2026-09-19). Every
+        ranked color/interior/package, with real prices and contents, now
+        lives in exactly one place -- /account/vehicle -- so it isn't
+        duplicated (and can't drift) here. This one-line digest is just
+        enough to tell the customer something was chosen and where to see
+        the rest. Read-only on purpose, same as before.
       */}
       {search.searchStatus !== "pending_refinement" && search.configuratorSelections.length > 0 && (
         <div className="mt-4 border-t border-white/5 pt-4">
-          <p className="text-xs font-semibold text-zinc-400 uppercase">Your selections</p>
-          <div className="mt-2 text-sm text-zinc-300">
-            <p>
-              <span className="text-zinc-500">Trim:</span> {search.trim || "No preference"}
-            </p>
-            <SelectionSummary selections={search.configuratorSelections} />
-          </div>
+          <p className="text-sm text-zinc-300">{buildCompactSelectionSummary(search)}</p>
+          <Link
+            href={`/account/vehicle?searchId=${search.id}`}
+            className="mt-1 inline-block text-sm text-emerald-400 underline hover:text-emerald-300"
+          >
+            View full details →
+          </Link>
         </div>
       )}
 

@@ -42,7 +42,14 @@ function CloseIcon() {
  *  -- fabricated here only because featuresStandard is names-only
  *  (2026-09-17, combination-preferences), never a full choice. Read-only,
  *  never saved: this modal writes nothing about features at all. */
-function standardChoice(name: string): ConfiguratorChoice {
+// standardChoice/ChoiceRow/Section exported (2026-09-18) so the read-only
+// full-spec view on /account/vehicle can reuse them verbatim -- same "one
+// implementation, can't drift" reasoning as PriceTag/PackageNote's own
+// export from configurator-questions.tsx. That page needs the identical
+// name + swatch/photo + price + package-note row format this modal
+// already renders, just fed the customer's own ranked selections instead
+// of a trim's full unfiltered option list.
+export function standardChoice(name: string): ConfiguratorChoice {
   return {
     name,
     availability: "standard",
@@ -54,7 +61,7 @@ function standardChoice(name: string): ConfiguratorChoice {
   };
 }
 
-function ChoiceRow({ choice }: { choice: ConfiguratorChoice }) {
+export function ChoiceRow({ choice }: { choice: ConfiguratorChoice }) {
   return (
     <li className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
       <span className="flex shrink-0 items-center gap-1.5">
@@ -72,7 +79,7 @@ function ChoiceRow({ choice }: { choice: ConfiguratorChoice }) {
   );
 }
 
-function Section({ title, choices }: { title: string; choices: ConfiguratorChoice[] }) {
+export function Section({ title, choices }: { title: string; choices: ConfiguratorChoice[] }) {
   if (choices.length === 0) return null;
   return (
     <div className="mt-5">

@@ -1,18 +1,8 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { buildTrimOptions, filterListingsToCommittedYear } from "@/lib/finalize-trims";
-import { MODEL_YEAR_INVENTORY_BLOCK_ENABLED, computeInventoryBlock } from "@/lib/inventory-block";
-import { getConfiguratorQuestionsForTrims } from "@/lib/configurator-questions";
-import { hasAnyQuestion, type ConfiguratorQuestions } from "@/lib/configurator-matching";
 import { FinalizeChoice } from "@/components/finalize-choice";
-import {
-  getIntakeMakeModelOptions,
-  getIntakeModelYearOptions,
-  type MakeModelOptions,
-  type ModelYearOptions,
-} from "@/lib/intake-vehicle-options";
+import { getFinalizeChoiceData } from "@/lib/finalize-choice-data";
 
 export const metadata: Metadata = {
   title: "Finalize Your Search — LEVR Auto",
@@ -57,98 +47,12 @@ export default async function FinalizePage({
     redirect("/account");
   }
 
-  // Real current inventory for this exact make/model, synced on-demand by
-  // the Stripe webhook at payment time (see api/stripe/webhook/route.ts).
-  // Empty here just means the sync hasn't landed yet or found nothing --
-  // FinalizeSelfService degrades gracefully to a plain text trim field.
-  //
-  // Admin client required here, not the regular signed-in client above --
-  // listings has RLS enabled with zero policies for any role (service-role
-  // only, by design, per initial_schema.sql), so the RLS-subject client
-  // always returned empty here regardless of real synced data. Matches the
-  // same admin-client pattern already used for every other listings read
-  // in this codebase (outreach-queue.ts's buildTrimOptions call, etc).
-  const admin = createAdminClient();
-
-  // Paginated, not a plain select. PostgREST caps a select at 1,000 rows
-  // and truncates SILENTLY -- a popular make/model accumulates listings
-  // across repeated syncs (Honda Civic already sits at 569 real rows), and
-  // a capped read here would not error, it would quietly drop trim options
-  // the customer could have chosen. An undecided search has no make/model
-  // yet, so there is nothing to look up at all.
-  //
-  // powertrain rides along as a selected SCALAR rather than the whole
-  // raw_data blob: the configurator gate needs build.powertrain_type to
-  // tell a hybrid build from a gas one, and pulling the full MarketCheck
-  // payload for hundreds of listings to read one string would be wasteful.
-  const listingsForModel: {
-    trim: string | null;
-    price_cents: number | null;
-    year: number | null;
-    powertrain: string | null;
-  }[] = [];
-  if (search.make && search.model) {
-    const PAGE_SIZE = 1000;
-    for (let from = 0; ; from += PAGE_SIZE) {
-      const { data, error } = await admin
-        .from("listings")
-        .select("id, trim, price_cents, year, powertrain:raw_data->build->>powertrain_type")
-        .eq("make", search.make)
-        .eq("model", search.model)
-        .not("trim", "is", null)
-        .order("id")
-        .range(from, from + PAGE_SIZE - 1);
-      if (error) break;
-      listingsForModel.push(...((data ?? []) as unknown as typeof listingsForModel));
-      if (!data || data.length < PAGE_SIZE) break;
-    }
-  }
-
-  // Scoped to the committed model year before anything is derived from it,
-  // so the trim list AND the configurator gate below both only ever see
-  // that year's inventory. Same shared filter the agent queue uses.
-  const committedYear = (search.model_year as number | null) ?? null;
-  const listingsForYear = filterListingsToCommittedYear(listingsForModel, committedYear);
-  const trimOptions = buildTrimOptions(listingsForYear);
-
-  // Zero-inventory block (Step 5). Decided from the SAME listings the trim
-  // list above is built from, so the block and the list cannot disagree.
-  // Null whenever the switch is off -- today's behaviour, unchanged.
-  const inventoryBlock =
-    MODEL_YEAR_INVENTORY_BLOCK_ENABLED && search.make && search.model
-      ? computeInventoryBlock(
-          listingsForModel.map((l) => l.year),
-          committedYear,
-        )
-      : null;
-
-  // Rich configurator questions, where this exact trim resolves to one
-  // researched build. A miss -- no live batch, no configurator data for
-  // this make, or an ambiguous trim -- yields nothing here and the flow
-  // below is byte-for-byte today's behaviour. Inert until step 9 promotes
-  // a batch.
-  // Same source the intake form uses, so the two surfaces can never offer
-  // different vehicles. An undecided search (no make/model yet) is handled
-  // by the agent consultation queue, not here, so the edit control is only
-  // rendered once there is actually a vehicle to correct.
-  // Years ride on the same cached scan as make/models -- one read.
-  const [makeModelOptions, modelYearOptions]: [MakeModelOptions, ModelYearOptions] =
-    search.make && search.model
-      ? await Promise.all([getIntakeMakeModelOptions(), getIntakeModelYearOptions()])
-      : [{}, {}];
-
-  const gating = await getConfiguratorQuestionsForTrims(
-    search.make,
-    search.model,
-    trimOptions,
-    listingsForYear,
-  );
-  const configuratorQuestions: Record<string, ConfiguratorQuestions> = {};
-  for (const [optionId, result] of gating) {
-    if (result.questions && hasAnyQuestion(result.questions)) {
-      configuratorQuestions[optionId] = result.questions;
-    }
-  }
+  // Real current inventory, real configurator gating, real dataset
+  // options -- all of it shared with /account/vehicle now (2026-09-18),
+  // the new persistent home for this same choice. See that function's own
+  // comment for why this moved out rather than staying inlined here.
+  const { trimOptions, configuratorQuestions, makeModelOptions, modelYearOptions, inventoryBlock } =
+    await getFinalizeChoiceData(search);
 
   return (
     <section className="bg-zinc-950 py-24">

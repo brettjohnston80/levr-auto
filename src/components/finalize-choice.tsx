@@ -120,6 +120,23 @@ export function FinalizeChoice({
           {model} search. Once that call happens, the same 24-hour window to make changes still
           applies.
         </p>
+        {/* Reversible (2026-09-19) -- this used to be a dead end: no server
+            gate ever actually depended on call_requested_at (finalizeSelfService
+            checks only ownership + search_status), so a customer who
+            changed their mind before the agent got to it had no path back
+            except contacting support directly. Self-finalizing here is the
+            exact same real write finalizeSelfService always was; the old
+            call request is simply superseded -- getFinalizationQueue itself
+            filters on search_status = 'awaiting_finalization', so this
+            search drops off the agent's queue the instant self-service
+            finalize succeeds, with nothing further to clean up. */}
+        <button
+          type="button"
+          onClick={() => setMode("self-service")}
+          className="mt-6 text-sm font-medium text-emerald-400 underline underline-offset-4 hover:text-emerald-300"
+        >
+          Changed your mind? Finalize it yourself instead.
+        </button>
       </div>
     );
   }

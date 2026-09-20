@@ -205,93 +205,8 @@ export async function getConfiguratorQuestionsForTrims(
     byTrim.set(r.trim_id, list);
   }
 
-  const build = (trimId: string): ConfiguratorQuestions => {
-    const rows = byTrim.get(trimId) ?? [];
-    const pick = (category: string, allowed: Set<string>) => {
-      const choices = rows
-        .filter((r) => r.category === category && allowed.has(r.availability))
-        .map(toChoice)
-        .sort(sortChoices);
-      // Photos come from two independent pipelines, each behind its own
-      // switch: colours (exterior, interior) and features. Seating is a
-      // layout with nothing worth photographing.
-      const names = choices.map((c) => c.name);
-      const isColorCategory = category === "exterior_color" || category === "interior";
-      const images = isColorCategory
-        ? resolveColorImages(make, model, category, names)
-        : category === "feature"
-          ? resolveFeatureImages(make, model, names)
-          : null;
-      // Swatches ride on the SAME switch as the colour photos (no separate
-      // toggle) and are additive alongside them, never a replacement --
-      // only ever populated for the same two categories the photos cover.
-      const swatches = isColorCategory ? resolveColorSwatches(make, model, category, names) : null;
-      if (!images && !swatches) return choices;
-      return choices.map((c) => ({
-        ...c,
-        imageUrl: images ? (images[c.name] ?? null) : c.imageUrl,
-        swatch: swatches ? (swatches[c.name] ?? null) : c.swatch,
-      }));
-    };
-
-    // A colour/interior/seating question needs a real CHOICE -- offering a
-    // single option is not a question, it is a statement. A feature list
-    // needs only one obtainable item to be worth asking about.
-    const atLeastTwo = (list: ConfiguratorChoice[]) => (list.length > 1 ? list : []);
-
-    // RAW computed first, gated derived from it (2026-09-16) -- this trim's
-    // own real availability data must not be thrown away just because THIS
-    // trim alone doesn't clear the atLeastTwo bar. A trim with exactly one
-    // real interior colour (Nightshade: "Black SofTex/fabric mixed media
-    // trim") genuinely offers that colour -- atLeastTwo correctly keeps it
-    // out of ITS OWN customer-facing question, but the ranked-trim-union
-    // redesign (2026-09-16) needs to know it's available on Nightshade
-    // regardless, once Nightshade is ranked alongside another trim whose
-    // own count clears the bar. The gated fields below are exactly what
-    // atLeastTwo(raw) already computed before this change -- unchanged,
-    // still what a single resolved trim's own question set shows.
-    const exteriorColorRaw = pick("exterior_color", CHOICE_AVAILABILITY);
-    const interiorRaw = pick("interior", CHOICE_AVAILABILITY);
-    const seatingRaw = pick("seating", CHOICE_AVAILABILITY);
-    // Names only -- combination preferences (2026-09-17) needs to know
-    // which features this trim already includes by default, to tell that
-    // apart from genuinely unbuildable. rows here never went through
-    // FEATURE_AVAILABILITY, so this is a separate pick() call, not a slice
-    // of `features` below.
-    const featuresStandard = [
-      ...new Set(
-        rows.filter((r) => r.category === "feature" && r.availability === "standard").map((r) => r.name),
-      ),
-    ];
-    // wheels/roof/drivetrain (2026-09-19, trim comparison view) -- same
-    // CHOICE_AVAILABILITY filter as exteriorColorRaw/interiorRaw/
-    // seatingRaw, no atLeastTwo gate (nothing asks a question about
-    // these), no separate *Standard split (nothing here is ever ranked or
-    // refused, so there's no want/exclude distinction to preserve). See
-    // ConfiguratorQuestions' own comment on these three fields for the
-    // real per-category data shape this was built against.
-    const wheels = pick("wheels", CHOICE_AVAILABILITY);
-    const roof = pick("roof", CHOICE_AVAILABILITY);
-    const drivetrain = pick("drivetrain", CHOICE_AVAILABILITY);
-
-    return {
-      configuratorTrimId: trimId,
-      exteriorColor: atLeastTwo(exteriorColorRaw),
-      interior: atLeastTwo(interiorRaw),
-      seating: atLeastTwo(seatingRaw),
-      // Features never had an atLeastTwo gate -- pick("feature", ...) was
-      // already this trim's raw, ungated list, so exposing it a second
-      // time under a Raw name would only invite the two to drift apart.
-      features: pick("feature", FEATURE_AVAILABILITY),
-      exteriorColorRaw,
-      interiorRaw,
-      seatingRaw,
-      featuresStandard,
-      wheels,
-      roof,
-      drivetrain,
-    };
-  };
+  const build = (trimId: string): ConfiguratorQuestions =>
+    buildConfiguratorQuestions(trimId, byTrim.get(trimId) ?? [], make, model);
 
   for (const [optionId, result] of results) {
     if (result.outcome.matched) {
@@ -302,6 +217,160 @@ export async function getConfiguratorQuestionsForTrims(
     }
   }
   return results;
+}
+
+/**
+ * Assembles one trim's full ConfiguratorQuestions from its already-fetched
+ * option rows. Factored out of getConfiguratorQuestionsForTrims's own
+ * `build()` closure (2026-09-18) so getConfiguratorQuestionsForResolvedTrimIds
+ * below can produce byte-identical results from a different entry point --
+ * two independent copies of this ~50-line assembly could too easily drift
+ * on some future rule change (a new category, a new gating tweak) that only
+ * gets applied to one of them.
+ */
+function buildConfiguratorQuestions(
+  trimId: string,
+  rows: OptionRow[],
+  make: string,
+  model: string,
+): ConfiguratorQuestions {
+  const pick = (category: string, allowed: Set<string>) => {
+    const choices = rows
+      .filter((r) => r.category === category && allowed.has(r.availability))
+      .map(toChoice)
+      .sort(sortChoices);
+    // Photos come from two independent pipelines, each behind its own
+    // switch: colours (exterior, interior) and features. Seating is a
+    // layout with nothing worth photographing.
+    const names = choices.map((c) => c.name);
+    const isColorCategory = category === "exterior_color" || category === "interior";
+    const images = isColorCategory
+      ? resolveColorImages(make, model, category, names)
+      : category === "feature"
+        ? resolveFeatureImages(make, model, names)
+        : null;
+    // Swatches ride on the SAME switch as the colour photos (no separate
+    // toggle) and are additive alongside them, never a replacement --
+    // only ever populated for the same two categories the photos cover.
+    const swatches = isColorCategory ? resolveColorSwatches(make, model, category, names) : null;
+    if (!images && !swatches) return choices;
+    return choices.map((c) => ({
+      ...c,
+      imageUrl: images ? (images[c.name] ?? null) : c.imageUrl,
+      swatch: swatches ? (swatches[c.name] ?? null) : c.swatch,
+    }));
+  };
+
+  // A colour/interior/seating question needs a real CHOICE -- offering a
+  // single option is not a question, it is a statement. A feature list
+  // needs only one obtainable item to be worth asking about.
+  const atLeastTwo = (list: ConfiguratorChoice[]) => (list.length > 1 ? list : []);
+
+  // RAW computed first, gated derived from it (2026-09-16) -- this trim's
+  // own real availability data must not be thrown away just because THIS
+  // trim alone doesn't clear the atLeastTwo bar. A trim with exactly one
+  // real interior colour (Nightshade: "Black SofTex/fabric mixed media
+  // trim") genuinely offers that colour -- atLeastTwo correctly keeps it
+  // out of ITS OWN customer-facing question, but the ranked-trim-union
+  // redesign (2026-09-16) needs to know it's available on Nightshade
+  // regardless, once Nightshade is ranked alongside another trim whose
+  // own count clears the bar. The gated fields below are exactly what
+  // atLeastTwo(raw) already computed before this change -- unchanged,
+  // still what a single resolved trim's own question set shows.
+  const exteriorColorRaw = pick("exterior_color", CHOICE_AVAILABILITY);
+  const interiorRaw = pick("interior", CHOICE_AVAILABILITY);
+  const seatingRaw = pick("seating", CHOICE_AVAILABILITY);
+  // Names only -- combination preferences (2026-09-17) needs to know
+  // which features this trim already includes by default, to tell that
+  // apart from genuinely unbuildable. rows here never went through
+  // FEATURE_AVAILABILITY, so this is a separate pick() call, not a slice
+  // of `features` below.
+  const featuresStandard = [
+    ...new Set(
+      rows.filter((r) => r.category === "feature" && r.availability === "standard").map((r) => r.name),
+    ),
+  ];
+  // wheels/roof/drivetrain (2026-09-19, trim comparison view) -- same
+  // CHOICE_AVAILABILITY filter as exteriorColorRaw/interiorRaw/
+  // seatingRaw, no atLeastTwo gate (nothing asks a question about
+  // these), no separate *Standard split (nothing here is ever ranked or
+  // refused, so there's no want/exclude distinction to preserve). See
+  // ConfiguratorQuestions' own comment on these three fields for the
+  // real per-category data shape this was built against.
+  const wheels = pick("wheels", CHOICE_AVAILABILITY);
+  const roof = pick("roof", CHOICE_AVAILABILITY);
+  const drivetrain = pick("drivetrain", CHOICE_AVAILABILITY);
+
+  return {
+    configuratorTrimId: trimId,
+    exteriorColor: atLeastTwo(exteriorColorRaw),
+    interior: atLeastTwo(interiorRaw),
+    seating: atLeastTwo(seatingRaw),
+    // Features never had an atLeastTwo gate -- pick("feature", ...) was
+    // already this trim's raw, ungated list, so exposing it a second
+    // time under a Raw name would only invite the two to drift apart.
+    features: pick("feature", FEATURE_AVAILABILITY),
+    exteriorColorRaw,
+    interiorRaw,
+    seatingRaw,
+    featuresStandard,
+    wheels,
+    roof,
+    drivetrain,
+  };
+}
+
+/**
+ * Real specs for a set of ALREADY-RESOLVED configurator trims --
+ * search_trim_preferences.configurator_trim_id persists exactly which
+ * researched build each ranked trim resolved to at finalize time, so this
+ * skips straight to fetching real options for those known ids. No
+ * candidate matching against inventory trim strings/powertrains (that's
+ * what getConfiguratorQuestionsForTrims above is for, when the caller only
+ * has raw inventory data to start from) -- the identity question was
+ * already answered once, at finalize time, and is not re-asked here.
+ *
+ * Used by getVehicleDetails (customer-dashboard.ts) to show real prices/
+ * package contents on /account/vehicle once a search has been finalized.
+ */
+export async function getConfiguratorQuestionsForResolvedTrimIds(
+  trimIds: string[],
+  make: string,
+  model: string,
+): Promise<Record<string, ConfiguratorQuestions>> {
+  const result: Record<string, ConfiguratorQuestions> = {};
+  if (trimIds.length === 0) return result;
+
+  const admin = createAdminClient();
+  const optionRows: OptionRow[] = [];
+  for (let i = 0; i < trimIds.length; i += ID_CHUNK) {
+    const chunk = trimIds.slice(i, i + ID_CHUNK);
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error } = await admin
+        .from("configurator_options")
+        .select(
+          "id, trim_id, category, name, availability, price_cents, price_is_included, package_name, package_price_cents, package_contents",
+        )
+        .in("trim_id", chunk)
+        .order("id")
+        .range(from, from + PAGE_SIZE - 1);
+      if (error) return result;
+      optionRows.push(...((data ?? []) as unknown as OptionRow[]));
+      if (!data || data.length < PAGE_SIZE) break;
+    }
+  }
+
+  const byTrim = new Map<string, OptionRow[]>();
+  for (const r of optionRows) {
+    const list = byTrim.get(r.trim_id) ?? [];
+    list.push(r);
+    byTrim.set(r.trim_id, list);
+  }
+
+  for (const trimId of trimIds) {
+    result[trimId] = buildConfiguratorQuestions(trimId, byTrim.get(trimId) ?? [], make, model);
+  }
+  return result;
 }
 
 /** Re-exported so callers need only one import for the common case. */
