@@ -7,6 +7,8 @@ import type { TrimOption } from "@/lib/finalize-trims";
 import {
   categoryHasRealChoiceAcrossTrims,
   combinationId,
+  combinationLabel,
+  COMBINATION_INITIAL_COUNT,
   computeCategoryAvailability,
   computeRealCombinations,
   groupIntoPackages,
@@ -15,10 +17,11 @@ import {
   type CombinationPreference,
   type ConfiguratorQuestions,
   type ConfiguratorSelection,
+  type RealCombination,
   type TrimPreference,
 } from "@/lib/configurator-matching";
 import { RankedQuestion, SelectionSummary, type RankConflict } from "@/components/configurator-questions";
-import { CombinationsQuestion } from "@/components/combinations-question";
+import { CombinationsQuestion, estimatedPriceCentsFor } from "@/components/combinations-question";
 import { RankingQuestion } from "@/components/ranking-question";
 import { TrimComparisonModal } from "@/components/trim-comparison-modal";
 import { TrimDetailModal } from "@/components/trim-detail-modal";
@@ -330,6 +333,74 @@ export function FinalizeSelfService({
           ...conflictsForCategory("feature", featuresAvailability, featureRankedPositions),
         ]
       : [];
+
+  /**
+   * Review-step combination resolution (2026-09-21) -- responds to a real
+   * gap rankConflicts above can't catch: a per-item conflict check
+   * correctly finds NOTHING wrong when every ranked colour/interior/
+   * feature is individually real on SOME ranked trim, even when the
+   * ranked items never all intersect on any ONE real car (a genuine
+   * intersection failure, distinct from a single-item conflict -- there's
+   * no one ranked item to blame), or intersect on exactly one real car
+   * that isn't the bare "Vehicle: {trim}" line's #1 trim. Three states,
+   * all derived from data already computed above -- `prioritizedCombinations`/
+   * `realCombinations` (the actual real cars the rankings produce) and
+   * `combinationRanked` (the customer's own ranking of them, EMPTY
+   * whenever the combinations step never rendered at all -- `totalReal
+   * <= 1` skips it by design, see `steps` above, which is exactly why the
+   * single-real-car and untouched-multi-real-car cases both need a
+   * fallback to `prioritizedCombinations.visible` rather than assuming
+   * `combinationRanked` was ever populated).
+   *
+   * ⚠ Deliberately non-blocking, even the zero-real-combination case --
+   * consistent with this whole redesign's "surface, don't block"
+   * philosophy (rankConflicts above, the ranked-trim list itself as a
+   * fallback search order, combinations having no minimum-engagement
+   * gate at all). A genuine intersection failure isn't a different KIND
+   * of problem than a single-item conflict, just several at once; the
+   * customer's ranked trim list is still a real, honest fallback search
+   * order either way, and blocking here would be the first place in this
+   * entire feature that refuses to save over an amber warning.
+   *
+   * Excluded combinations are deliberately NEVER shown here, same
+   * principle as SelectionSummary's own exclusions-removed correction
+   * above: a refusal is a real answer already visible on its own step,
+   * not something worth repeating in a summary of what's being asked for.
+   */
+  type CombinationsReviewState =
+    | { kind: "zero" }
+    | { kind: "single"; combo: RealCombination }
+    | { kind: "resolved"; combos: RealCombination[]; customerRanked: boolean };
+  const combinationsReview: CombinationsReviewState | null =
+    step === "review" && questions
+      ? prioritizedCombinations.totalReal === 0
+        ? { kind: "zero" }
+        : prioritizedCombinations.totalReal === 1
+          ? { kind: "single", combo: prioritizedCombinations.visible[0] }
+          : (() => {
+              const byId = new Map(realCombinations.map((c) => [combinationId(c), c]));
+              const ranked = combinationRanked
+                .map((id) => byId.get(id))
+                .filter((c): c is RealCombination => !!c);
+              return ranked.length > 0
+                ? { kind: "resolved" as const, combos: ranked, customerRanked: true }
+                : {
+                    kind: "resolved" as const,
+                    combos: prioritizedCombinations.visible.slice(0, COMBINATION_INITIAL_COUNT),
+                    customerRanked: false,
+                  };
+            })()
+      : null;
+
+  function combinationPriceLabel(combo: RealCombination): string | null {
+    const price = estimatedPriceCentsFor(
+      combo,
+      trimById.get(combo.trimId),
+      configuratorQuestions[combo.trimId],
+      selections,
+    );
+    return price != null ? `${formatCents(price)} est.` : null;
+  }
 
   const index = Math.max(0, steps.indexOf(step));
 
@@ -967,6 +1038,51 @@ export function FinalizeSelfService({
                 : "it isn't offered on any trim currently available for this model."}
             </p>
           ))}
+          {combinationsReview?.kind === "zero" && (
+            <p className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-400">
+              None of your ranked colors/interiors/features exist together on a single real car
+              among your ranked trims. We&apos;ll search flexibly, but can&apos;t promise all of
+              these together — you may want to revisit your rankings.
+            </p>
+          )}
+          {combinationsReview?.kind === "single" && (
+            <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-zinc-300">
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                Your ranked options resolve to one real car
+              </p>
+              <p className="mt-2 flex items-baseline justify-between gap-3">
+                <span>{combinationLabel(combinationsReview.combo)}</span>
+                {combinationPriceLabel(combinationsReview.combo) && (
+                  <span className="shrink-0 font-semibold text-emerald-400">
+                    {combinationPriceLabel(combinationsReview.combo)}
+                  </span>
+                )}
+              </p>
+            </div>
+          )}
+          {combinationsReview?.kind === "resolved" && (
+            <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-zinc-300">
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                {combinationsReview.customerRanked
+                  ? "Your ranked combinations"
+                  : "Real combinations your rankings produce"}
+              </p>
+              <ul className="mt-2 space-y-1">
+                {combinationsReview.combos.map((combo, i) => (
+                  <li key={combinationId(combo)} className="flex items-baseline justify-between gap-3">
+                    <span>
+                      {i + 1}. {combinationLabel(combo)}
+                    </span>
+                    {combinationPriceLabel(combo) && (
+                      <span className="shrink-0 font-semibold text-emerald-400">
+                        {combinationPriceLabel(combo)}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <p className="mt-4 text-xs text-zinc-500">
             You&apos;ll have 24 hours after confirming to change any of this from your account —
             after that, we lock it in and start reaching out to dealers.

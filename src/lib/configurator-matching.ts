@@ -700,6 +700,21 @@ export function combinationId(c: RealCombination): string {
   return [c.trimId, c.exteriorColor ?? " ", c.interior ?? " ", c.seating ?? " "].join("::");
 }
 
+/**
+ * "{trim} — {color} / {interior}[ / {seating}]" -- the one display label
+ * every surface that shows a combination uses, so none of them can ever
+ * describe the same real car differently. Client-side twin of
+ * outreach-queue.ts's own combinationLabel (server-only, operates on a
+ * SAVED OutreachCombinationPreference row rather than a live
+ * RealCombination, so it can't be shared directly with a "use client"
+ * component) -- kept byte-identical in shape on purpose.
+ */
+export function combinationLabel(c: RealCombination): string {
+  const colorLabel = c.exteriorColor ?? "No preference";
+  const interiorLabel = c.interior ?? "No preference";
+  return `${c.trim} — ${colorLabel} / ${interiorLabel}${c.seating ? ` / ${c.seating}` : ""}`;
+}
+
 /** Initial visible rows before a "show more" reveal. */
 export const COMBINATION_INITIAL_COUNT = 5;
 /** Absolute ceiling -- same "cap, don't paginate everything" precedent as

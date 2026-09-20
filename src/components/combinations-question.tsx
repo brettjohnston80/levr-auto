@@ -2,6 +2,7 @@
 
 import {
   combinationId,
+  combinationLabel,
   groupIntoPackages,
   type ConfiguratorChoice,
   type ConfiguratorQuestions,
@@ -101,7 +102,15 @@ function featurePillsFor(
       pills.push({ tone: "gray", text: `Also available: ${name}` });
     }
   }
-  return pills;
+  // Positive first, then warnings, then purely informational (2026-09-20)
+  // -- pills were previously pushed in whatever order the customer ranked/
+  // excluded their features in, so a green "Includes:" could land below an
+  // amber "not available on {trim}" for the same card. A stable sort (ES2019
+  // guarantees Array#sort stability) reorders by tone only, preserving
+  // relative order within each tone -- two amber pills never swap places
+  // with each other, they just both move as a group.
+  const TONE_ORDER: Record<FeaturePill["tone"], number> = { green: 0, amber: 1, gray: 2 };
+  return pills.sort((a, b) => TONE_ORDER[a.tone] - TONE_ORDER[b.tone]);
 }
 
 function PillRow({ pills }: { pills: FeaturePill[] }) {
@@ -161,7 +170,7 @@ function extraCostCentsFor(choice: ConfiguratorChoice | null | undefined): numbe
  * nothing -- it isn't a real cost on THIS trim. Returns null only when
  * the trim itself has no real inventory price at all, never a silent $0.
  */
-function estimatedPriceCentsFor(
+export function estimatedPriceCentsFor(
   combo: RealCombination,
   trimOption: TrimOption | undefined,
   q: ConfiguratorQuestions | undefined,
@@ -215,11 +224,11 @@ function toItem(
 
   const colorLabel = combo.exteriorColor ?? "No preference";
   const interiorLabel = combo.interior ?? "No preference";
-  // Seating shown only when it's a genuine value -- null means the
-  // category was never a real question across the ranked union (an
-  // implicit "no preference" placeholder, not something worth printing on
-  // every single card when it never varies).
-  const label = `${combo.trim} — ${colorLabel} / ${interiorLabel}${combo.seating ? ` / ${combo.seating}` : ""}`;
+  // Shared with the Review step's own combinations summary and the agent
+  // view (outreach-queue.ts's server-side twin) -- see combinationLabel's
+  // own comment for why none of the three can ever describe the same real
+  // car differently.
+  const label = combinationLabel(combo);
 
   const pills = q ? featurePillsFor(q, selections, combo.trim) : [];
   const hasColorSwatch = !!(colorChoice?.imageUrl || colorChoice?.swatch);
