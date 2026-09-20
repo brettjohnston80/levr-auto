@@ -402,6 +402,21 @@ export function FinalizeSelfService({
     return price != null ? `${formatCents(price)} est.` : null;
   }
 
+  /**
+   * The Review step's own full ranked-trim list (2026-09-21) -- replaces
+   * the old single-name "Vehicle: {trim}" line, which only ever named the
+   * #1 trim and left a customer with 2+ ranked trims no way to see the
+   * rest on this page. Same year-suffix rule the trim step's own
+   * RankingQuestion items already use just above (a committed
+   * `modelYear` makes the suffix redundant on every option), reapplied
+   * here rather than invented fresh. Ranked only, no exclusions -- same
+   * standing correction as every other category SelectionSummary renders.
+   */
+  const trimRankingLabels = rankedTrimIds
+    .map((id) => trimById.get(id))
+    .filter((o): o is TrimOption => !!o)
+    .map((o) => (modelYear == null && o.year != null ? `${o.trim} ${o.year}` : o.trim));
+
   const index = Math.max(0, steps.indexOf(step));
 
   // High-water mark, never decreases (2026-09-17) -- the breadcrumb's own
@@ -1005,11 +1020,14 @@ export function FinalizeSelfService({
           <div className="mt-5 rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-zinc-300">
             <p>
               <span className="text-zinc-500">Vehicle:</span> {make} {model}
-              {effectiveTrim ? ` — ${effectiveTrim}` : " — any trim"}
             </p>
             {questions ? (
-              selections.length > 0 ? (
-                <SelectionSummary selections={selections} conflicts={rankConflicts} />
+              selections.length > 0 || trimRankingLabels.length > 0 ? (
+                <SelectionSummary
+                  selections={selections}
+                  conflicts={rankConflicts}
+                  trimRanking={trimRankingLabels}
+                />
               ) : (
                 <p className="mt-1 text-zinc-500">No color or feature preferences — flexible.</p>
               )

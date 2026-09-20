@@ -329,13 +329,31 @@ export interface RankConflict {
 export function SelectionSummary({
   selections,
   conflicts = [],
+  trimRanking = [],
 }: {
   selections: ConfiguratorSelection[];
   /** See RankConflict's own comment -- defaults to none so any other
    *  future caller isn't forced to compute this. */
   conflicts?: RankConflict[];
+  /**
+   * Pre-formatted, already-ranked trim labels (2026-09-21) -- e.g.
+   * `["XSE", "LE 2026"]` -- rendered as one more numbered-list line,
+   * first, using the exact same "{i+1}. {value}" shape every other
+   * category below already uses. Trim ranking lives in
+   * `search_trim_preferences`/`rankedTrimIds`, not `ConfiguratorSelection`
+   * (a trim isn't a category in that type), so it can't fall out of the
+   * `byCategory` loop below for free -- the caller (finalize-self-
+   * service.tsx) computes the labels (same year-suffix rule the trim
+   * step's own list already uses) and passes them in already formatted,
+   * same division of labour as `conflicts`. No conflict-checking applies
+   * to trim -- it's the thing every other category's conflict is checked
+   * AGAINST, not something checked itself -- and, per the same standing
+   * correction as every other category here, only RANKED trims render;
+   * excluded ones never do.
+   */
+  trimRanking?: string[];
 }) {
-  if (selections.length === 0) return null;
+  if (selections.length === 0 && trimRanking.length === 0) return null;
   const byCategory: [ConfiguratorSelection["category"], string][] = [
     ["exterior_color", "Exterior"],
     ["interior", "Interior"],
@@ -344,6 +362,17 @@ export function SelectionSummary({
   ];
   return (
     <>
+      {trimRanking.length > 0 && (
+        <p className="mt-1">
+          <span className="text-zinc-500">Trim:</span>{" "}
+          {trimRanking.map((label, i) => (
+            <span key={label}>
+              {i > 0 ? ", " : ""}
+              {i + 1}. {label}
+            </span>
+          ))}
+        </p>
+      )}
       {byCategory.map(([category, label]) => {
         const rows = selections.filter((s) => s.category === category && !s.excluded);
         if (rows.length === 0) return null;
