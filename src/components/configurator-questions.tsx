@@ -67,15 +67,36 @@ export function PriceTag({ choice }: { choice: ConfiguratorChoice }) {
  * feature only exists inside a package that also carries four other
  * things and a price. The customer sees what they would actually be
  * buying before they ask for it.
+ *
+ * TWO CALLING SHAPES, and the wording has to differ (2026-09-20 fix).
+ * `choice` is either an individual feature bundled inside a package
+ * (TrimDetailModal's raw `questions.features`, e.g. "Heated leather
+ * steering wheel") or the package itself, post-`groupIntoPackages`
+ * (RankedQuestion/`/account/vehicle`'s feature Section, where a real
+ * multi-item package is now the displayed item and `choice.name` IS
+ * `choice.packageName`). "Only available in the Cold Weather Package"
+ * under a row already titled "Cold Weather Package" is self-referential --
+ * `choice.name === choice.packageName` is the structural signal for that
+ * case, true regardless of which caller reached here, and switches to
+ * describing what's actually included instead. A single-item package (no
+ * other contents to list) gets no note at all -- there's nothing to add
+ * beyond the name already shown as the row's title.
  */
 export function PackageNote({ choice }: { choice: ConfiguratorChoice }) {
   if (choice.availability !== "package_only" || !choice.packageName) return null;
+  const hasContents = choice.packageContents && choice.packageContents.length > 0;
+  if (choice.name === choice.packageName) {
+    if (!hasContents) return null;
+    return (
+      <p className="mt-1.5 text-xs leading-relaxed text-zinc-500">
+        Includes: <span className="text-zinc-400">{choice.packageContents!.join(", ")}</span>
+      </p>
+    );
+  }
   return (
     <p className="mt-1.5 text-xs leading-relaxed text-zinc-500">
       Only available in the <span className="text-zinc-400">{choice.packageName}</span>
-      {choice.packageContents && choice.packageContents.length > 0 && (
-        <> — also includes {choice.packageContents.join(", ")}</>
-      )}
+      {hasContents && <> — also includes {choice.packageContents!.join(", ")}</>}
     </p>
   );
 }
