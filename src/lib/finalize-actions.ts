@@ -296,8 +296,36 @@ const MAX_RANKED_ITEMS = 60;
  * obvious hole -- a crafted
  * request claiming a $0 price on a $1,850 package would otherwise send an
  * agent into a real negotiation holding a number nobody ever researched.
- * A selection that does not correspond to a real, obtainable option on
- * this exact trim is dropped rather than stored.
+ *
+ * ⚠ NEVER DELETE, DEMOTE (2026-09-20) -- this used to drop a selection
+ * outright the instant it stopped matching the customer's currently-
+ * RANKED trim(s), a holdover from the original single-trim step-7 design
+ * (git history: f9f6290), predating the "never delete, demote with a
+ * note" principle the ranked-trim-union redesign (b3968e8) established
+ * for everything else in this flow -- that commit widened this exact
+ * check's SCOPE (one trim -> the ranked union) without ever revisiting
+ * whether dropping was still the right response to a miss. It wasn't: a
+ * customer who ranked 4 colours, then removed the one trim two of them
+ * were exclusive to, saw those two silently vanish from every summary
+ * with zero trace anywhere -- not demoted, not excluded, just gone,
+ * because this function never wrote them at all.
+ *
+ * The fix widens the validation pool a second time, from "offered by a
+ * ranked trim" to "offered by ANY live trim for this make/model"
+ * (fetchAllLiveTrimsForMakeModel) -- still never trusting anything the
+ * client sent, just re-deriving real price/package data from a wider set
+ * of real rows. A name real somewhere in that wider pool is written
+ * exactly as submitted (rank_position/excluded untouched), with
+ * available_on_trims reflecting reality -- ranked trims if any still
+ * offer it, non-ranked ones otherwise, which is the same "Available on
+ * {trim}" fact the client's own demotion note already shows, just
+ * finally persisted. Only a name that matches NOTHING in that wider pool
+ * -- genuinely never real for this vehicle -- is still dropped; there is
+ * no real option to validate a snapshot against at all in that case.
+ * `search_combination_preferences` is NOT touched by this -- a demoted
+ * (trim, colour, interior, seating) TUPLE has no equivalent fallback,
+ * since its own trim is no longer ranked at all, a materially different
+ * situation from a single name still being real elsewhere.
  *
  * Runs BEFORE the status flip, and deletes this search's existing rows
  * first, so it is safely repeatable: a failure part-way leaves the search
@@ -364,6 +392,8 @@ async function writeConfiguratorSelections(
   rankedResolvedTrimIds: string[],
   trimLabelsByConfiguratorId: Record<string, string>,
   selections: ConfiguratorSelection[] | undefined,
+  make: string | null,
+  model: string | null,
 ): Promise<
   | {
       ok: true;
@@ -402,15 +432,46 @@ async function writeConfiguratorSelections(
   // why this is still safe. trim_id is part of the select: with more than
   // one trim in scope, a matched row's OWN trim is no longer implied by
   // the query itself the way `.eq()` used to imply it.
-  const fetched = await fetchConfiguratorOptionsForTrims(admin, rankedResolvedTrimIds);
-  if (!fetched.ok) return { ok: false, error: fetched.error };
-  const options = fetched.rows;
+  //
+  // Kept as its OWN fetch, separate from the wider one below, because the
+  // minimum-engagement check further down must stay scoped to exactly
+  // this ranked set -- it has to keep agreeing with the client's own
+  // step-visibility gate (finalize-self-service.tsx), which is ranked-
+  // trim-scoped, never the wider pool.
+  const rankedFetched = await fetchConfiguratorOptionsForTrims(admin, rankedResolvedTrimIds);
+  if (!rankedFetched.ok) return { ok: false, error: rankedFetched.error };
+  const rankedOptions = rankedFetched.rows;
+
+  // The wider "never delete, demote" validation pool (2026-09-20) -- see
+  // this function's own top comment. Every live-batch trim for this exact
+  // make/model, not just ranked ones, so a name that's still real
+  // somewhere gets written (demoted, not dropped) once it stops matching
+  // any currently-ranked trim.
+  const allLiveTrims = await fetchAllLiveTrimsForMakeModel(admin, make, model);
+  const allMatchedTrimIds = [
+    ...new Set([...rankedResolvedTrimIds, ...allLiveTrims.map((t) => t.id)]),
+  ];
+  const allFetched = await fetchConfiguratorOptionsForTrims(admin, allMatchedTrimIds);
+  if (!allFetched.ok) return { ok: false, error: allFetched.error };
+  const options = allFetched.rows;
+
+  // Ranked labels first (the caller's own, in rank order), then every
+  // other live trim for this model that isn't already ranked -- so
+  // available_on_trims can name a non-ranked trim by its real label
+  // ("Available on XSE") instead of falling back to a bare id.
+  const allTrimLabelsByConfiguratorId: Record<string, string> = { ...trimLabelsByConfiguratorId };
+  for (const t of allLiveTrims) {
+    if (t.id in allTrimLabelsByConfiguratorId) continue;
+    allTrimLabelsByConfiguratorId[t.id] = t.modelYear != null ? `${t.trim} ${t.modelYear}` : t.trim;
+  }
 
   // Rank order among the customer's ranked trims, for two purposes: (1)
   // when the SAME option name is real on more than one ranked trim, which
   // trim's copy of price/package data wins for display -- the
   // highest-ranked one that actually offers it; (2) so `available_on_trims`
-  // lists trims in the customer's own priority order, not query order.
+  // lists ranked trims in the customer's own priority order, with every
+  // non-ranked trim (Infinity -- never wins the tie-break, always sorts
+  // after) in whatever order the query returned them.
   const trimRank = new Map(rankedResolvedTrimIds.map((id, i) => [id, i]));
 
   const optionsByKey = new Map<string, typeof options>();
@@ -440,6 +501,11 @@ async function writeConfiguratorSelections(
     // answer is the same answer, not a second one.
     if (seen.has(key)) continue;
     const matches = (optionsByKey.get(key) ?? []).filter((o) => o.availability !== "unavailable");
+    // Genuinely never real for this vehicle -- optionsByKey is built from
+    // the WIDER pool (every live trim for this make/model, not just
+    // ranked ones), so this is the one remaining case actually worth
+    // dropping: there's no real option anywhere to validate a price/
+    // package snapshot against, fabricated or otherwise.
     if (matches.length === 0) continue;
 
     // Highest-ranked ranked trim that offers it wins for display fields --
@@ -480,10 +546,14 @@ async function writeConfiguratorSelections(
     seen.add(key);
     // Deduped by trim before mapping to labels (2026-09-18) -- a package's
     // several member rows on one trim would otherwise list that trim
-    // multiple times.
+    // multiple times. Ranked trims sort first (their real rank order),
+    // then any non-ranked trim that also offers it -- for a demoted
+    // selection (no ranked trim left in `matches` at all) this list is
+    // exactly the "Available on {trim}" fact the ranking step's own
+    // demotion note already shows, now actually persisted.
     const availableOnTrims = [...new Set(matches.map((o) => o.trim_id))]
       .sort((a, b) => (trimRank.get(a) ?? Infinity) - (trimRank.get(b) ?? Infinity))
-      .map((trimId) => trimLabelsByConfiguratorId[trimId] ?? trimId);
+      .map((trimId) => allTrimLabelsByConfiguratorId[trimId] ?? trimId);
     kept.push({ s, option: winner, availableOnTrims });
   }
 
@@ -513,7 +583,10 @@ async function writeConfiguratorSelections(
     ["seating", "a seating layout"],
   ] as const;
   for (const [category, label] of RANKED_CATEGORIES_REQUIRING_ENGAGEMENT) {
-    if (!categoryHasRealChoiceAcrossTrims(options.filter((o) => o.category === category))) continue;
+    // rankedOptions, not the wider `options` -- must stay agreeing with
+    // the client's own ranked-trim-scoped step-visibility gate (see
+    // comment above), never the demote-friendly wider pool.
+    if (!categoryHasRealChoiceAcrossTrims(rankedOptions.filter((o) => o.category === category))) continue;
     const inCategory = kept.filter((k) => k.s.category === category);
     const engaged = hasAtLeastOneRanked(inCategory, (k) => k.s);
     if (!engaged) {
@@ -792,6 +865,57 @@ async function writeTrimPreferences(
   };
 }
 
+/**
+ * Every live-batch configurator_trims id + display label for this exact
+ * make/model -- not scoped to ranked, or even claimed, trims at all. Same
+ * batch+make/model query resolveValidConfiguratorTrimIds already runs,
+ * just without its "claimed ids" filter.
+ *
+ * This is the wider validation pool writeConfiguratorSelections needs to
+ * stop dropping a demoted selection (2026-09-20): a name real on SOME
+ * trim of this vehicle, just not a currently-RANKED one, is still a real,
+ * researched answer, not a fabricated one -- see that function's own
+ * comment for the full reasoning. Deliberately broader than the client's
+ * own `matchedTrimIds` (which also requires live MarketCheck inventory
+ * backing a trim before it's ever rankable) -- every trim reachable
+ * client-side is already a subset of "every live-batch trim for this
+ * model," so nothing becomes forgeable by widening to this superset; it
+ * only means a genuinely-once-real selection can still be re-validated
+ * after its own ranked trim drops out.
+ */
+async function fetchAllLiveTrimsForMakeModel(
+  admin: ReturnType<typeof createAdminClient>,
+  make: string | null,
+  model: string | null,
+): Promise<{ id: string; trim: string; modelYear: number | null }[]> {
+  if (!make || !model) return [];
+
+  const { data: batch } = await admin
+    .from("configurator_batches")
+    .select("id")
+    .eq("is_live", true)
+    .maybeSingle();
+  if (!batch) return [];
+
+  const { data, error } = await admin
+    .from("configurator_trims")
+    .select("id, make, model, trim, model_year")
+    .eq("batch_id", batch.id);
+  if (error || !data) return [];
+
+  return data
+    .filter(
+      (t) =>
+        String(t.make).toLowerCase() === make.toLowerCase() &&
+        String(t.model).toLowerCase() === model.toLowerCase(),
+    )
+    .map((t) => ({
+      id: t.id as string,
+      trim: t.trim as string,
+      modelYear: (t.model_year as number | null) ?? null,
+    }));
+}
+
 /** Which of the claimed configurator builds are real, live, and this vehicle. */
 async function resolveValidConfiguratorTrimIds(
   admin: ReturnType<typeof createAdminClient>,
@@ -1060,6 +1184,8 @@ export async function finalizeSelfService(
     trims.rankedResolvedTrimIds,
     trims.trimLabelsByConfiguratorId,
     details.selections,
+    check.make,
+    check.model,
   );
   if (!stored.ok) {
     return { ok: false, error: `Failed to save your selections: ${stored.error}` };
@@ -1180,6 +1306,8 @@ export async function updateFinalizedSearch(
     trims.rankedResolvedTrimIds,
     trims.trimLabelsByConfiguratorId,
     details.selections,
+    (search.make as string | null) ?? null,
+    (search.model as string | null) ?? null,
   );
   if (!stored.ok) {
     return { ok: false, error: `Failed to save your selections: ${stored.error}` };
