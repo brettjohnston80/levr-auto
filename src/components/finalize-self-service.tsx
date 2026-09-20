@@ -123,6 +123,17 @@ export function FinalizeSelfService({
   const topTrimId = rankedTrimIds[0] ?? null;
   const effectiveTrim = (topTrimId && trimById.get(topTrimId)?.trim) || "";
 
+  // The comparison view's own trim set (2026-09-20) -- ranked trims first,
+  // in rank order (so column order matches "your order" left to right),
+  // then everything still undecided. An EXCLUDED trim is a real statement
+  // ("never offer me this"), so it drops out of the comparison entirely
+  // rather than sitting there as a column nobody wants -- comparing
+  // something you've already ruled out isn't a comparison.
+  const comparisonTrimOptions = [
+    ...rankedTrimIds.map((id) => trimById.get(id)).filter((o): o is TrimOption => !!o),
+    ...trimOptions.filter((o) => !rankedTrimIds.includes(o.id) && !excludedTrimIds.includes(o.id)),
+  ];
+
   // ⚠ #1 STILL DECIDES WHETHER THE RICH FLOW RENDERS AT ALL -- that part is
   // deliberately UNCHANGED by the ranked-trim-union redesign. If the
   // customer's top choice doesn't resolve to a researched build (an
@@ -350,6 +361,14 @@ export function FinalizeSelfService({
     const i = Math.max(0, steps.indexOf(s));
     setMaxIndexReached((prev) => Math.max(prev, i));
     setStep(s);
+    // Every step transition funnels through here (confirmed via
+    // `grep -n "setStep("` -- see the comment above), so this is the one
+    // place a scroll-to-top fix can't miss a path. Without it, a customer
+    // who scrolled to the bottom of a long option list (often past
+    // excluded/auto-excluded items) to hit Next lands at that same scroll
+    // position on the NEW step -- among ITS unavailable items, not its
+    // title.
+    window.scrollTo(0, 0);
   }
   const goNext = () => navigateToStep(steps[Math.min(index + 1, steps.length - 1)]);
   const goBack = () => navigateToStep(steps[Math.max(index - 1, 0)]);
@@ -596,24 +615,29 @@ export function FinalizeSelfService({
         <div className="mt-6">
           {trimOptions.length > 0 ? (
             <>
-              {/* Trim comparison view (2026-09-19) -- a decision aid for
-                  THIS step, not the combination-preferences step further
-                  along: helps decide what to rank, before anything is
-                  ranked, rather than refining an already-ranked list.
-                  Only worth offering once there's genuinely something to
-                  compare. */}
-              {trimOptions.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => setComparisonOpen(true)}
-                  className="mb-4 text-sm font-semibold text-emerald-400 underline underline-offset-2 hover:text-emerald-300"
-                >
-                  Compare trims
-                </button>
-              )}
               <RankingQuestion
                 title={`Which ${make} ${model} trim?`}
                 subtitle="Rank them in the order you'd like us to search — we'll work down your list. Mark anything you'd exclude, and leave the rest alone."
+                afterSubtitle={
+                  /* Trim comparison view (2026-09-19) -- a decision aid for
+                     THIS step, not the combination-preferences step
+                     further along: helps decide what to rank, before
+                     anything is ranked, rather than refining an
+                     already-ranked list. Only worth offering once there's
+                     genuinely something to compare -- comparisonTrimOptions
+                     already excludes trims the customer has ruled out, so
+                     this gate and the modal can never disagree about what
+                     "something to compare" means. */
+                  comparisonTrimOptions.length > 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => setComparisonOpen(true)}
+                      className="mt-3 text-sm font-semibold text-emerald-400 underline underline-offset-2 hover:text-emerald-300"
+                    >
+                      Compare trims
+                    </button>
+                  ) : null
+                }
                 items={trimOptions.map((opt) => ({
                   id: opt.id,
                   label: opt.trim,
@@ -692,7 +716,7 @@ export function FinalizeSelfService({
         <TrimComparisonModal
           make={make}
           model={model}
-          trimOptions={trimOptions}
+          trimOptions={comparisonTrimOptions}
           configuratorQuestions={configuratorQuestions}
           ranked={rankedTrimIds}
           excluded={excludedTrimIds}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useId } from "react";
+import { useEffect, useId, useState } from "react";
+import { createPortal } from "react-dom";
 import { useDragReorder } from "@/lib/use-drag-reorder";
 import type { ColorSwatchValue } from "@/lib/vehicle-color-swatches";
 
@@ -51,6 +52,7 @@ export function RankingQuestion({
   autoExcluded,
   removeMeansExclude,
   onChange,
+  afterSubtitle,
 }: {
   title: string;
   subtitle: string;
@@ -80,6 +82,11 @@ export function RankingQuestion({
    */
   removeMeansExclude?: boolean;
   onChange: (ranked: string[], excluded: string[]) => void;
+  /** Rendered directly after the subtitle text -- e.g. the trim step's
+   *  "Compare trims" link. Generic rather than trim-specific: any future
+   *  category-level affordance that belongs with the question's own
+   *  intro text, not floating above it, can use the same slot. */
+  afterSubtitle?: React.ReactNode;
 }) {
   const byId = new Map(items.map((i) => [i.id, i]));
   const rankedItems = ranked.map((id) => byId.get(id)).filter(Boolean) as RankableItem[];
@@ -110,6 +117,7 @@ export function RankingQuestion({
     <div className="mt-6">
       <h2 className="text-xl font-semibold text-white">{title}</h2>
       <p className="mt-2 text-sm text-zinc-400">{subtitle}</p>
+      {afterSubtitle}
 
       {/* ---- Ranked ---- */}
       <div className="mt-5">
@@ -375,24 +383,94 @@ export function RankingQuestion({
  * colour one) with the identical rendering rules -- never a reimplemented
  * copy that could drift on the no-placeholder behaviour above.
  */
-export function Thumb({ item }: { item: RankableItem }) {
-  if (!item.imageUrl) return null;
+/** A minimal X, matching the inline-SVG-per-file convention every other
+ *  modal in this codebase already uses rather than a shared icon module
+ *  (trim-comparison-modal.tsx/trim-detail-modal.tsx each define their own
+ *  CloseIcon too). */
+function LightboxCloseIcon() {
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- these are
-    // arbitrary files dropped into public/ at deploy time, not a fixed set
-    // next/image can be configured against.
-    <img
-      src={item.imageUrl}
-      alt=""
-      aria-hidden="true"
-      loading="lazy"
-      className="h-10 w-14 shrink-0 rounded-md object-cover"
-      // If a file vanishes or fails to decode, remove the element outright
-      // rather than leaving the browser's broken-image glyph on screen.
-      onError={(e) => {
-        e.currentTarget.style.display = "none";
-      }}
-    />
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/**
+ * A real photo, click-to-enlarge (2026-09-20). Swatches (ColorDot, below)
+ * deliberately do NOT get this -- a flat colour circle has no extra detail
+ * a bigger version would reveal, while a real photo genuinely does. Every
+ * caller of Thumb (the ranking pool, combinations, trim detail, trim
+ * comparison) gets the lightbox for free by construction, since this is
+ * the ONE place any of them render a real photo -- no per-caller wiring.
+ */
+export function Thumb({ item }: { item: RankableItem }) {
+  const [open, setOpen] = useState(false);
+  const [broken, setBroken] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open]);
+
+  // Same "remove outright, never leave the broken-image glyph" rule as
+  // before -- now a state flag rather than direct DOM manipulation, since
+  // hiding just the <img> would leave an empty, still-clickable button
+  // behind.
+  if (!item.imageUrl || broken) return null;
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label={item.label ? `Enlarge photo of ${item.label}` : "Enlarge photo"}
+        className="shrink-0 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element -- these are
+            arbitrary files dropped into public/ at deploy time, not a
+            fixed set next/image can be configured against. */}
+        <img
+          src={item.imageUrl}
+          alt=""
+          aria-hidden="true"
+          loading="lazy"
+          className="h-10 w-14 rounded-md object-cover"
+          onError={() => setBroken(true)}
+        />
+      </button>
+      {open &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={item.label ? `${item.label} photo` : "Photo"}
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 p-6"
+            onClick={() => setOpen(false)}
+          >
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              aria-label="Close"
+              className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"
+            >
+              <LightboxCloseIcon />
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={item.imageUrl}
+              alt={item.label || ""}
+              className="max-h-full max-w-full rounded-lg object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 

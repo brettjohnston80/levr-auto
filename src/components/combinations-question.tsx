@@ -106,12 +106,14 @@ function PillRow({ pills }: { pills: FeaturePill[] }) {
 }
 
 /**
- * One combination, as a RankableItem. The exterior colour's photo/swatch
- * ride in the item's own imageUrl/swatch slot -- rendered automatically by
- * RankingQuestion, identical to every other ranked category. The interior
- * gets a SECOND swatch/photo pair, via the same exported Thumb/ColorDot,
- * rendered explicitly in `detail` since RankableItem only has one built-in
- * icon slot.
+ * One combination, as a RankableItem. BOTH swatch/photo pairs -- exterior
+ * and interior -- render explicitly in `detail`, stacked vertically
+ * (2026-09-20), rather than exterior riding in RankableItem's own built-in
+ * leading-icon slot with interior below the label: a combination card is
+ * comparing two colour decisions at once, and putting one to the row's
+ * left and the other under the label read as unrelated rather than as a
+ * pair. Neither goes in the built-in slot here (imageUrl/swatch both
+ * null) so nothing double-renders.
  */
 function toItem(
   combo: RealCombination,
@@ -135,20 +137,32 @@ function toItem(
   const label = `${combo.trim} — ${colorLabel} / ${interiorLabel}${combo.seating ? ` / ${combo.seating}` : ""}`;
 
   const pills = q ? featurePillsFor(q, selections) : [];
+  const hasColorSwatch = !!(colorChoice?.imageUrl || colorChoice?.swatch);
   const hasInteriorSwatch = !!(interiorChoice?.imageUrl || interiorChoice?.swatch);
 
   return {
     id: combinationId(combo),
     label,
-    imageUrl: colorChoice?.imageUrl ?? null,
-    swatch: colorChoice?.swatch ?? null,
+    imageUrl: null,
+    swatch: null,
     detail: (
       <>
-        {hasInteriorSwatch && (
-          <span className="mt-1 flex items-center gap-1.5">
-            <Thumb item={{ id: "interior", label: "", imageUrl: interiorChoice?.imageUrl ?? null }} />
-            <ColorDot item={{ id: "interior", label: "", swatch: interiorChoice?.swatch ?? null }} />
-            <span className="text-[11px] text-zinc-500">interior</span>
+        {(hasColorSwatch || hasInteriorSwatch) && (
+          <span className="mt-1 flex flex-col gap-1.5">
+            {hasColorSwatch && (
+              <span className="flex items-center gap-1.5">
+                <Thumb item={{ id: "exterior", label: colorLabel, imageUrl: colorChoice?.imageUrl ?? null }} />
+                <ColorDot item={{ id: "exterior", label: "", swatch: colorChoice?.swatch ?? null }} />
+                <span className="text-[11px] text-zinc-500">exterior</span>
+              </span>
+            )}
+            {hasInteriorSwatch && (
+              <span className="flex items-center gap-1.5">
+                <Thumb item={{ id: "interior", label: interiorLabel, imageUrl: interiorChoice?.imageUrl ?? null }} />
+                <ColorDot item={{ id: "interior", label: "", swatch: interiorChoice?.swatch ?? null }} />
+                <span className="text-[11px] text-zinc-500">interior</span>
+              </span>
+            )}
           </span>
         )}
         <PillRow pills={pills} />
