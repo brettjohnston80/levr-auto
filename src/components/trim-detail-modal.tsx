@@ -1,8 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import type { TrimOption } from "@/lib/finalize-trims";
 import { groupIntoPackages, type ConfiguratorChoice, type ConfiguratorQuestions } from "@/lib/configurator-matching";
+import {
+  seatingCell,
+  summarizeDrivetrain,
+  summarizeRoof,
+  summarizeWheels,
+  type ComparisonCell,
+} from "@/lib/trim-comparison";
 import { PriceTag, PackageNote } from "@/components/configurator-questions";
 import { ColorDot, Thumb } from "@/components/ranking-question";
 
@@ -95,6 +103,164 @@ export function Section({ title, choices }: { title: string; choices: Configurat
   );
 }
 
+// Highlights tab (2026-09-21) -- compact/visual-first, distinct in kind
+// from "All details" below: no names, no prices, no itemized package
+// contents, just the minimum a customer needs to get a feel for this
+// trim at a glance. Reads the exact same `questions` fields the existing
+// Section-based "All details" tab already reads -- zero new props, zero
+// new fetch.
+
+/** Byte-identical twin of trim-comparison-modal.tsx's own CELL_TONE_CLASSES
+ *  -- a 4-entry style map is cheap enough to keep in sync by eye, same
+ *  precedent as this session's other small intentional twins (e.g.
+ *  combinations-question.tsx's extraCostCentsFor next to priceCellFor). */
+const CELL_TONE_CLASSES: Record<ComparisonCell["tone"], string> = {
+  free: "text-emerald-400/80",
+  cost: "text-zinc-300",
+  unknown: "text-amber-400/90",
+  none: "text-zinc-600",
+};
+
+/**
+ * One colour/interior swatch cell for the Highlights grid -- ONE visual
+ * per cell (photo preferred, else swatch, else a placeholder), not the
+ * photo+swatch PAIR every other surface in this app shows side by side
+ * (ChoiceRow just above, the plain trim list, combinations cards). That
+ * pairing is right in a list row with room to spare; doubling every cell's
+ * width here would cut how many fit per row roughly in half, undermining
+ * the whole point of a dense grid. `title` carries the name for hover/
+ * accessibility -- the grid itself shows no text, per the approved plan.
+ *
+ * ⚠ Real photos and hand-checked swatches both exist for Toyota Camry and
+ * Honda Civic ONLY (vehicle-color-swatches.ts) -- every other configurator
+ * make/model has neither for most colours. A blank cell there would be
+ * worse than today's named list, so a colour with neither renders a
+ * muted first-letter placeholder square instead of nothing (Brett's
+ * explicit call, 2026-09-21).
+ */
+function ColorGridCell({ choice }: { choice: ConfiguratorChoice }) {
+  if (choice.imageUrl) {
+    return (
+      <span title={choice.name}>
+        <Thumb item={{ id: choice.name, label: choice.name, imageUrl: choice.imageUrl }} />
+      </span>
+    );
+  }
+  if (choice.swatch) {
+    return (
+      <span title={choice.name}>
+        <ColorDot item={{ id: choice.name, label: choice.name, swatch: choice.swatch }} />
+      </span>
+    );
+  }
+  return (
+    <span
+      title={choice.name}
+      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-white/[0.05] text-sm font-semibold text-zinc-500"
+    >
+      {choice.name.charAt(0).toUpperCase()}
+    </span>
+  );
+}
+
+function ColorGrid({ title, choices }: { title: string; choices: ConfiguratorChoice[] }) {
+  if (choices.length === 0) return null;
+  return (
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-600">{title}</p>
+      <div className="mt-1.5 grid grid-cols-5 gap-2 sm:grid-cols-8">
+        {choices.map((c) => (
+          <ColorGridCell key={c.name} choice={c} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** One compact "Label: value" line, reusing the exact same summarizer
+ *  functions trim-comparison-modal.tsx's own Performance rows already
+ *  use -- e.g. "Wheels: Standard", "Roof: +$870" -- rather than the full
+ *  per-choice list "All details" shows. `cell` already carries the tone
+ *  (free/cost/unknown/none) the shared class map colours. */
+function SpecLine({ label, cell }: { label: string; cell: ComparisonCell }) {
+  return (
+    <p className="mt-1 text-sm">
+      <span className="text-zinc-500">{label}:</span>{" "}
+      <span className={CELL_TONE_CLASSES[cell.tone]}>{cell.text}</span>
+    </p>
+  );
+}
+
+/** One package/feature pill -- name plus PriceTag's own short price text
+ *  (the same component "All details" already uses), no itemized package
+ *  contents. Standard (already-included) features are deliberately
+ *  omitted from Highlights entirely -- see the caller below. */
+function FeatureChip({ choice }: { choice: ConfiguratorChoice }) {
+  return (
+    <span
+      title={choice.name}
+      className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[11px] font-medium text-zinc-300"
+    >
+      {choice.name}
+      <PriceTag choice={choice} />
+    </span>
+  );
+}
+
+function Highlights({ make, model, questions }: { make: string; model: string; questions: ConfiguratorQuestions | null }) {
+  if (!questions) {
+    return (
+      <p className="mt-5 text-sm text-zinc-500">
+        This trim doesn&apos;t have researched build data from {make}/{model}&apos;s own
+        configurator — no exact colour, interior, or feature options to show. It&apos;s still
+        fully searchable, just without that extra detail.
+      </p>
+    );
+  }
+
+  const hasColors = questions.exteriorColorRaw.length > 0 || questions.interiorRaw.length > 0;
+  const obtainablePackages = groupIntoPackages(questions.features);
+
+  return (
+    <div className="mt-5 space-y-5">
+      {hasColors && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <ColorGrid title="Exterior" choices={questions.exteriorColorRaw} />
+          <ColorGrid title="Interior" choices={questions.interiorRaw} />
+        </div>
+      )}
+
+      {(questions.seatingRaw.length > 0 ||
+        questions.wheels.length > 0 ||
+        questions.roof.length > 0 ||
+        questions.drivetrain.length > 0) && (
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-600">Specs</p>
+          {questions.seatingRaw.length > 0 && <SpecLine label="Seating" cell={seatingCell(questions)} />}
+          {questions.wheels.length > 0 && <SpecLine label="Wheels" cell={summarizeWheels(questions)} />}
+          {questions.roof.length > 0 && <SpecLine label="Roof" cell={summarizeRoof(questions)} />}
+          {questions.drivetrain.length > 0 && (
+            <SpecLine label="Drivetrain" cell={summarizeDrivetrain(questions)} />
+          )}
+        </div>
+      )}
+
+      {obtainablePackages.length > 0 && (
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-600">
+            Features & packages
+          </p>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {obtainablePackages.map((c) => (
+              <FeatureChip key={c.name} choice={c} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function TrimDetailModal({
   make,
   model,
@@ -120,6 +286,12 @@ export function TrimDetailModal({
   onUndo: () => void;
   onClose: () => void;
 }) {
+  // Local, resets to "Highlights" every open -- TrimDetailModal only ever
+  // mounts while detailTrimId is non-null and fully unmounts on close (no
+  // cross-trim remount-without-unmount path exists in either caller), so
+  // there's no stale-tab-on-a-different-trim case to guard against.
+  const [activeTab, setActiveTab] = useState<"highlights" | "all">("highlights");
+
   return createPortal(
     <div
       className="fixed inset-0 z-[110] overflow-y-auto bg-black/70 px-6 py-12 backdrop-blur-sm"
@@ -201,7 +373,34 @@ export function TrimDetailModal({
             )}
           </div>
 
-          {questions ? (
+          {questions && (
+            <div className="mt-5 flex gap-1 border-b border-white/10">
+              {(["highlights", "all"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setActiveTab(tab)}
+                  className={`-mb-px border-b-2 px-1 pb-2 text-sm font-semibold transition-colors ${
+                    activeTab === tab
+                      ? "border-emerald-400 text-white"
+                      : "border-transparent text-zinc-500 hover:text-zinc-300"
+                  }`}
+                >
+                  {tab === "highlights" ? "Highlights" : "All details"}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {!questions ? (
+            <p className="mt-5 text-sm text-zinc-500">
+              This trim doesn&apos;t have researched build data from {make}/{model}&apos;s own
+              configurator — no exact colour, interior, or feature options to show. It&apos;s still
+              fully searchable, just without that extra detail.
+            </p>
+          ) : activeTab === "highlights" ? (
+            <Highlights make={make} model={model} questions={questions} />
+          ) : (
             <>
               <Section title="Exterior colors" choices={questions.exteriorColorRaw} />
               <Section title="Interior" choices={questions.interiorRaw} />
@@ -224,12 +423,6 @@ export function TrimDetailModal({
                 ]}
               />
             </>
-          ) : (
-            <p className="mt-5 text-sm text-zinc-500">
-              This trim doesn&apos;t have researched build data from {make}/{model}&apos;s own
-              configurator — no exact colour, interior, or feature options to show. It&apos;s still
-              fully searchable, just without that extra detail.
-            </p>
           )}
         </div>
       </div>
