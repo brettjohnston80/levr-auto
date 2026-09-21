@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useIsNarrowViewport } from "@/lib/use-is-narrow-viewport";
 import type { TrimOption } from "@/lib/finalize-trims";
-import type { ConfiguratorQuestions } from "@/lib/configurator-matching";
+import { groupIntoPackages, type ConfiguratorQuestions } from "@/lib/configurator-matching";
 import {
   cellsDiffer,
   computeChoiceComparisonRows,
@@ -92,24 +92,26 @@ function Cell({ cell }: { cell: ComparisonCell }) {
  * its own expand/collapse indicator, just without the toggle affordance
  * when there's nothing to toggle.
  *
- * `summary` (2026-09-21, defaults-to-collapsed reversal) renders only
- * while COLLAPSED -- once expanded, the real rows underneath already say
- * everything the summary would, so showing both would be redundant. Each
- * caller computes its own summary text from data it already has (see the
- * three `*Summary` values below) -- no new fetch, no new computation
- * shape, just a short string built from counts/booleans already in scope.
+ * `perTrimSummary` (2026-09-21, correcting the first collapsed-summary
+ * pass) renders per TRIM COLUMN, only while COLLAPSED -- e.g. "3 colors"
+ * under one trim, "8 colors" under another. The original version of this
+ * put one AGGREGATE count in the label column instead, which read as one
+ * shared fact about the whole comparison rather than what actually
+ * differs trim to trim -- the entire point of a comparison table. Once
+ * expanded, the real rows underneath already say everything a per-trim
+ * count would, so nothing renders in these cells then either.
  */
 function CategoryHeaderRow({
   label,
   expanded,
   onToggle,
-  summary,
+  perTrimSummary,
   trimIds,
 }: {
   label: string;
   expanded: boolean;
   onToggle?: () => void;
-  summary?: string;
+  perTrimSummary?: (trimId: string) => string;
   trimIds: string[];
 }) {
   return (
@@ -122,11 +124,6 @@ function CategoryHeaderRow({
             className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-400 hover:text-zinc-200"
           >
             {label}
-            {!expanded && summary && (
-              <span className="text-[11px] font-normal normal-case tracking-normal text-zinc-600">
-                — {summary}
-              </span>
-            )}
             <span className="text-sm normal-case tracking-normal text-zinc-500">
               {expanded ? "−" : "+"}
             </span>
@@ -138,7 +135,9 @@ function CategoryHeaderRow({
         )}
       </th>
       {trimIds.map((id) => (
-        <td key={id} className="pt-5 pb-2" />
+        <td key={id} className="px-4 pt-5 pb-2 align-top text-xs text-zinc-500">
+          {!expanded && perTrimSummary ? perTrimSummary(id) : null}
+        </td>
       ))}
     </tr>
   );
@@ -151,8 +150,23 @@ function CategoryHeaderRow({
  * clearly rather than looking like two co-equal categories. Same
  * th-sticky-left/td shape as every other row here, for the same
  * horizontal-scroll-pinning reason.
+ *
+ * `perTrimSummary` (2026-09-21) -- same per-column-count contract as
+ * CategoryHeaderRow's own, one level down: while the PARENT category is
+ * collapsed, this row is what actually shows "3 colors" under one trim
+ * and "8 colors" under another (Colors & Interior spans two real
+ * sub-groups, so the count belongs here, not on the category row itself,
+ * which stays a bare label + toggle with no aggregate of its own).
  */
-function ChoiceGroupLabel({ label, trimIds }: { label: string; trimIds: string[] }) {
+function ChoiceGroupLabel({
+  label,
+  trimIds,
+  perTrimSummary,
+}: {
+  label: string;
+  trimIds: string[];
+  perTrimSummary?: (trimId: string) => string;
+}) {
   return (
     <tr>
       <th
@@ -162,7 +176,9 @@ function ChoiceGroupLabel({ label, trimIds }: { label: string; trimIds: string[]
         {label}
       </th>
       {trimIds.map((id) => (
-        <td key={id} className="pt-3 pb-1" />
+        <td key={id} className="px-4 pt-3 pb-1 align-top text-xs font-normal normal-case tracking-normal text-zinc-500">
+          {perTrimSummary ? perTrimSummary(id) : null}
+        </td>
       ))}
     </tr>
   );
@@ -272,22 +288,46 @@ export function TrimComparisonModal({
   const [performanceExpanded, setPerformanceExpanded] = useState(false);
   const [featuresExpanded, setFeaturesExpanded] = useState(false);
 
-  // Collapsed-state summaries (2026-09-21) -- each built from data this
-  // component already computed above, no new fetch or shape. Plurals are
-  // hand-checked rather than a library, since there are only ever 3
-  // possible counts for Performance and simple 0/1/N counts elsewhere.
+  // Collapsed-state PER-TRIM summaries (2026-09-21, correcting the first
+  // pass -- see CategoryHeaderRow's own comment for why this replaced a
+  // single aggregate line entirely rather than supplementing it). Each
+  // function reads a specific trim's own already-fetched data -- no new
+  // fetch, no new shape, just a per-trim count instead of a cross-trim one.
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
-  const colorsInteriorSummary = [
-    exteriorColorRows.length > 0 ? plural(exteriorColorRows.length, "exterior color") : null,
-    interiorRows.length > 0 ? plural(interiorRows.length, "interior") : null,
-  ]
-    .filter((s): s is string => !!s)
-    .join(", ");
-  const performanceDiffCount = [showWheels, showRoof, showDrivetrain].filter(Boolean).length;
-  const performanceSummary = `${performanceDiffCount} spec${performanceDiffCount === 1 ? "" : "s"} differ${
-    performanceDiffCount === 1 ? "s" : ""
-  }`;
-  const featuresSummary = plural(featureRows.length, "feature") + " compared";
+
+  const exteriorCountFor = (trimId: string): string => {
+    const n = configuratorQuestions[trimId]?.exteriorColorRaw.length ?? 0;
+    return n > 0 ? plural(n, "color") : "—";
+  };
+  const interiorCountFor = (trimId: string): string => {
+    const n = configuratorQuestions[trimId]?.interiorRaw.length ?? 0;
+    return n > 0 ? plural(n, "option") : "—";
+  };
+
+  // Performance's per-trim count is "of the spec rows this table is
+  // actually showing (showWheels/showRoof/showDrivetrain, decided once
+  // across the whole compared set), how many does THIS trim have real
+  // data for" -- not a bare re-statement of the shown-row count, since a
+  // trim genuinely missing one category (summarizeWheels et al. return
+  // the "none"-tone DASH only when that trim's own array is empty) should
+  // show fewer specs than a trim with full data, even though both are
+  // being compared on the same shown rows.
+  const performanceRows: { show: boolean; cells: ComparisonCell[] }[] = [
+    { show: showWheels, cells: wheelsCells },
+    { show: showRoof, cells: roofCells },
+    { show: showDrivetrain, cells: drivetrainCells },
+  ];
+  const performanceCountFor = (trimId: string): string => {
+    const i = trimIds.indexOf(trimId);
+    const n = performanceRows.filter((r) => r.show && r.cells[i]?.tone !== "none").length;
+    return n > 0 ? plural(n, "spec") : "—";
+  };
+
+  const featuresCountFor = (trimId: string): string => {
+    const q = configuratorQuestions[trimId];
+    const n = q ? groupIntoPackages(q.features).length : 0;
+    return n > 0 ? `${n} obtainable` : "—";
+  };
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex flex-col bg-zinc-950" onClick={onClose}>
@@ -451,10 +491,9 @@ export function TrimComparisonModal({
                     label="Colors & Interior"
                     expanded={colorsExpanded}
                     onToggle={() => setColorsExpanded((v) => !v)}
-                    summary={colorsInteriorSummary}
                     trimIds={trimIds}
                   />
-                  {colorsExpanded && (
+                  {colorsExpanded ? (
                     <>
                       {exteriorColorRows.length > 0 && (
                         <>
@@ -473,6 +512,23 @@ export function TrimComparisonModal({
                         </>
                       )}
                     </>
+                  ) : (
+                    <>
+                      {exteriorColorRows.length > 0 && (
+                        <ChoiceGroupLabel
+                          label="Exterior colors"
+                          trimIds={trimIds}
+                          perTrimSummary={exteriorCountFor}
+                        />
+                      )}
+                      {interiorRows.length > 0 && (
+                        <ChoiceGroupLabel
+                          label="Interior"
+                          trimIds={trimIds}
+                          perTrimSummary={interiorCountFor}
+                        />
+                      )}
+                    </>
                   )}
                 </>
               )}
@@ -483,7 +539,7 @@ export function TrimComparisonModal({
                     label="Performance"
                     expanded={performanceExpanded}
                     onToggle={() => setPerformanceExpanded((v) => !v)}
-                    summary={performanceSummary}
+                    perTrimSummary={performanceCountFor}
                     trimIds={trimIds}
                   />
                   {performanceExpanded && (
@@ -535,7 +591,7 @@ export function TrimComparisonModal({
                     label="Features"
                     expanded={featuresExpanded}
                     onToggle={() => setFeaturesExpanded((v) => !v)}
-                    summary={featuresSummary}
+                    perTrimSummary={featuresCountFor}
                     trimIds={trimIds}
                   />
                   {featuresExpanded &&
