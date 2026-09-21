@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import type { TrimOption } from "@/lib/finalize-trims";
 import { groupIntoPackages, type ConfiguratorChoice, type ConfiguratorQuestions } from "@/lib/configurator-matching";
 import {
+  roofChoiceIsRedundant,
   seatingCell,
   summarizeDrivetrain,
   summarizeRoof,
@@ -406,7 +407,18 @@ export function TrimDetailModal({
               <Section title="Interior" choices={questions.interiorRaw} />
               <Section title="Seating" choices={questions.seatingRaw} />
               <Section title="Wheels" choices={questions.wheels} />
-              <Section title="Roof" choices={questions.roof} />
+              {/* Drops just the redundant choice, not the whole section
+                  (2026-09-22) -- a trim whose ONLY roof choice duplicates
+                  a Features entry at the same price loses the "ROOF"
+                  heading entirely here (Section returns null on an empty
+                  array), same outcome as the comparison table's row and
+                  Highlights' spec line, both driven by the same
+                  summarizeRoof fix. See roofChoiceIsRedundant's own
+                  comment for the real-data investigation behind this. */}
+              <Section
+                title="Roof"
+                choices={questions.roof.filter((c) => !roofChoiceIsRedundant(c, questions.features))}
+              />
               <Section title="Drivetrain" choices={questions.drivetrain} />
               {/* Grouped by package (2026-09-20 reversal) -- a multi-item
                   package renders as ONE row under its package name, not one

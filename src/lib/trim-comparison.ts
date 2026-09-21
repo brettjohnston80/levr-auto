@@ -173,6 +173,57 @@ export function summarizeWheels(q: ConfiguratorQuestions | undefined): Compariso
   return { text: "Standard", tone: "free" };
 }
 
+/** Byte-identical twin of combinations-question.tsx's own
+ *  extraCostCentsFor -- a small local price-normalizer is cheap enough to
+ *  keep in sync by eye, same precedent as that file's own comment
+ *  explains for why it isn't shared through a common function. */
+function effectivePriceCentsFor(c: ConfiguratorChoice): number | null {
+  if (c.availability === "package_only") return c.packagePriceCents;
+  if (c.priceIsIncluded) return 0;
+  return c.priceCents;
+}
+
+/**
+ * Whether a trim's priced Roof choice duplicates a Features choice for
+ * that SAME trim at the identical effective price (2026-09-22
+ * investigation, confirmed against the real live batch: 38 of 50 real
+ * priced roof rows are exactly this -- Camry's "Power tilt/slide
+ * moonroof" $870 next to a Features "Moonroof" $870, same real option
+ * under two researched strings). Deliberately PRICE-only, never
+ * name-based, for the same reason summarizeRoof's own header comment
+ * gives for keeping Roof separate in the first place: names are known to
+ * genuinely differ for the same real option, so a name match would miss
+ * real duplicates and a name mismatch proves nothing either way.
+ *
+ * Only ever applied to a genuinely priced, non-standard roof choice --
+ * two unrelated $0/standard rows coincidentally sharing a price is not
+ * evidence of duplication (a real false positive caught during the
+ * investigation itself, before this function existed).
+ *
+ * The remaining 12 of 50 real cases are genuine exceptions this
+ * correctly leaves untouched: Toyota Tacoma's "Moonroof" ($850, all 4
+ * real trims) and Prius Prime XSE Premium's "Solar charging roof" ($610)
+ * have NO Features counterpart at any price; Honda Ridgeline Black
+ * Edition's "Two-Tone Black-Painted Roof" ($500) isn't a moonroof at all
+ * (its own researched name says so) and RAV4 XSE's "Panoramic Moonroof"
+ * ($700 upgrade) coexists with a genuinely different $0 standard
+ * Moonroof feature, not a re-statement of it.
+ */
+export function roofChoiceIsRedundant(
+  roofChoice: ConfiguratorChoice,
+  features: ConfiguratorChoice[],
+): boolean {
+  if (roofChoice.availability === "standard") return false;
+  const roofPrice = effectivePriceCentsFor(roofChoice);
+  if (!roofPrice) return false;
+  // `features` (ConfiguratorQuestions.features) never contains an
+  // "unavailable" row in the first place -- OptionAvailability itself
+  // has no such value, "unavailable" rows are filtered out upstream
+  // (see summarizeRoof's own comment on CHOICE_AVAILABILITY/pick()) --
+  // so no extra filter is needed here.
+  return features.some((f) => effectivePriceCentsFor(f) === roofPrice);
+}
+
 /**
  * Roof (2026-09-19) -- closest in shape to a real feature: `standard`, or
  * a priced `standalone`/`package_only` moonroof (pick() already excludes
@@ -191,10 +242,21 @@ export function summarizeWheels(q: ConfiguratorQuestions | undefined): Compariso
  * ever genuinely diverge. Keeping Roof as its own row is the honest
  * choice: it reflects the source data exactly as researched, never
  * guesses at a dedup.
+ *
+ * A priced choice that's REDUNDANT with a Features entry at the same
+ * price (2026-09-22, roofChoiceIsRedundant above) renders as DASH here
+ * instead of its real price -- not "Standard", which would wrongly imply
+ * no upgrade exists at all. The upgrade is real; Features is just the
+ * more informative place it's already shown (a named "Moonroof" pill
+ * beats a bare "Roof: +$870"). This single function feeds the
+ * comparison table, the Highlights spec line, AND (via cellsDiffer
+ * re-evaluating the resulting DASH cells) the Performance row's own
+ * show/hide decision -- fixing it here fixes all three at once.
  */
 export function summarizeRoof(q: ConfiguratorQuestions | undefined): ComparisonCell {
   if (!q || q.roof.length === 0) return DASH;
   const priced = q.roof.find((c) => c.availability !== "standard");
+  if (priced && roofChoiceIsRedundant(priced, q.features)) return DASH;
   if (priced) return priceCellFor(priced);
   return { text: "Standard", tone: "free" };
 }
