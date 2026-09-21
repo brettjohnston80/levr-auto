@@ -456,7 +456,7 @@ export default async function OutreachQueuePage() {
           </div>
         </div>
 
-        <div className="mt-10">
+        <div id="finalization-calls" className="mt-10">
           <h2 className="text-lg font-semibold text-white">
             Finalization calls requested ({finalizationQueue.length})
           </h2>
@@ -489,7 +489,7 @@ export default async function OutreachQueuePage() {
           )}
         </div>
 
-        <div className="mt-10">
+        <div id="switch-calls" className="mt-10">
           <h2 className="text-lg font-semibold text-white">
             Switch calls requested ({switchCallQueue.length})
           </h2>
@@ -519,7 +519,7 @@ export default async function OutreachQueuePage() {
           )}
         </div>
 
-        <div className="mt-10">
+        <div id="cancellation-calls" className="mt-10">
           <h2 className="text-lg font-semibold text-white">
             Cancellation calls requested ({cancellationCallQueue.length})
           </h2>

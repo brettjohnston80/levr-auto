@@ -18,6 +18,7 @@ import { isOfferedModelYear } from "@/lib/intake-vehicle-options";
 import { loadInventoryBlock } from "@/lib/inventory-block";
 import { inventoryBlockCopy } from "@/lib/inventory-block-copy";
 import { syncListingsForMakeModel } from "@/lib/marketcheck-sync";
+import { notifyAgentsOfCallRequest } from "@/lib/agent-call-notifications";
 
 export type FinalizeResult = { ok: true } | { ok: false; error: string };
 
@@ -47,6 +48,7 @@ async function getOwnedAwaitingFinalizationSearch(searchId: string) {
 
   return {
     ok: true as const,
+    customerId: user.id,
     make: (search.make as string | null) ?? null,
     model: (search.model as string | null) ?? null,
     modelYear: (search.model_year as number | null) ?? null,
@@ -86,15 +88,31 @@ export async function requestFinalizationCall(searchId: string): Promise<Finaliz
   if (refusal) return { ok: false, error: refusal };
 
   const admin = createAdminClient();
-  const { error } = await admin
+  const { data: updated, error } = await admin
     .from("customer_searches")
     .update({ call_requested_at: new Date().toISOString() })
     .eq("id", searchId)
     .eq("search_status", "awaiting_finalization")
-    .is("call_requested_at", null);
+    .is("call_requested_at", null)
+    .select("id");
 
   if (error) {
     return { ok: false, error: `Failed to request a call: ${error.message}` };
+  }
+
+  // The .is("call_requested_at", null) guard above means a second click
+  // (or a stale tab re-submitting) matches zero rows -- .select() is what
+  // lets us tell "actually just recorded" apart from "already recorded",
+  // so the agent notification below fires exactly once per real request,
+  // never once per click.
+  if (updated && updated.length > 0) {
+    await notifyAgentsOfCallRequest({
+      callType: "finalization",
+      customerId: check.customerId,
+      make: check.make,
+      model: check.model,
+      modelYear: check.modelYear,
+    });
   }
 
   revalidatePath(`/finalize/${searchId}`);

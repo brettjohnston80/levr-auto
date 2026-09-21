@@ -7,6 +7,7 @@ import { getStripe } from "@/lib/stripe";
 import { EXTENSION_FEE } from "@/lib/vehicle-data";
 import { isOfferedModelYear } from "@/lib/intake-vehicle-options";
 import { syncListingsForMakeModel } from "@/lib/marketcheck-sync";
+import { notifyAgentsOfCallRequest } from "@/lib/agent-call-notifications";
 
 export type SwitchActionResult = { ok: true } | { ok: false; error: string };
 
@@ -22,7 +23,7 @@ async function getOwnedSwitchableSearch(searchId: string) {
 
   const { data: search, error } = await supabase
     .from("customer_searches")
-    .select("id, search_status, paid_at")
+    .select("id, search_status, paid_at, make, model, model_year")
     .eq("id", searchId)
     .eq("customer_id", user.id)
     .maybeSingle();
@@ -37,7 +38,14 @@ async function getOwnedSwitchableSearch(searchId: string) {
     return { ok: false as const, error: "This search has already been switched." };
   }
 
-  return { ok: true as const, userId: user.id, userEmail: user.email ?? null };
+  return {
+    ok: true as const,
+    userId: user.id,
+    userEmail: user.email ?? null,
+    make: (search.make as string | null) ?? null,
+    model: (search.model as string | null) ?? null,
+    modelYear: (search.model_year as number | null) ?? null,
+  };
 }
 
 /**
@@ -82,14 +90,25 @@ export async function requestSwitchCall(searchId: string): Promise<SwitchActionR
   if (!check.ok) return check;
 
   const admin = createAdminClient();
-  const { error } = await admin
+  const { data: updated, error } = await admin
     .from("customer_searches")
     .update({ switch_call_requested_at: new Date().toISOString() })
     .eq("id", searchId)
-    .is("switch_call_requested_at", null);
+    .is("switch_call_requested_at", null)
+    .select("id");
 
   if (error) {
     return { ok: false, error: `Failed to request a call: ${error.message}` };
+  }
+
+  if (updated && updated.length > 0) {
+    await notifyAgentsOfCallRequest({
+      callType: "switch",
+      customerId: check.userId,
+      make: check.make,
+      model: check.model,
+      modelYear: check.modelYear,
+    });
   }
 
   revalidatePath("/account");

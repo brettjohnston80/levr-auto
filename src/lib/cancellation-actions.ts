@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { notifyAgentsOfCallRequest } from "@/lib/agent-call-notifications";
 
 export type CancellationActionResult = { ok: true } | { ok: false; error: string };
 
@@ -31,7 +32,7 @@ async function getOwnedCancellableSearch(searchId: string) {
 
   const { data: search, error } = await supabase
     .from("customer_searches")
-    .select("id, search_status, paid_at")
+    .select("id, search_status, paid_at, make, model, model_year")
     .eq("id", searchId)
     .eq("customer_id", user.id)
     .maybeSingle();
@@ -46,7 +47,13 @@ async function getOwnedCancellableSearch(searchId: string) {
     return { ok: false as const, error: "This search can't be cancelled right now." };
   }
 
-  return { ok: true as const };
+  return {
+    ok: true as const,
+    customerId: user.id,
+    make: (search.make as string | null) ?? null,
+    model: (search.model as string | null) ?? null,
+    modelYear: (search.model_year as number | null) ?? null,
+  };
 }
 
 /**
@@ -85,14 +92,25 @@ export async function requestCancellationCall(searchId: string): Promise<Cancell
   if (!check.ok) return check;
 
   const admin = createAdminClient();
-  const { error } = await admin
+  const { data: updated, error } = await admin
     .from("customer_searches")
     .update({ cancellation_call_requested_at: new Date().toISOString() })
     .eq("id", searchId)
-    .is("cancellation_call_requested_at", null);
+    .is("cancellation_call_requested_at", null)
+    .select("id");
 
   if (error) {
     return { ok: false, error: `Failed to request a call: ${error.message}` };
+  }
+
+  if (updated && updated.length > 0) {
+    await notifyAgentsOfCallRequest({
+      callType: "cancellation",
+      customerId: check.customerId,
+      make: check.make,
+      model: check.model,
+      modelYear: check.modelYear,
+    });
   }
 
   revalidatePath("/account");
