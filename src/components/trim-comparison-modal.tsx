@@ -91,16 +91,25 @@ function Cell({ cell }: { cell: ComparisonCell }) {
  * label with no +/- control, same convention AccountFaqSection uses for
  * its own expand/collapse indicator, just without the toggle affordance
  * when there's nothing to toggle.
+ *
+ * `summary` (2026-09-21, defaults-to-collapsed reversal) renders only
+ * while COLLAPSED -- once expanded, the real rows underneath already say
+ * everything the summary would, so showing both would be redundant. Each
+ * caller computes its own summary text from data it already has (see the
+ * three `*Summary` values below) -- no new fetch, no new computation
+ * shape, just a short string built from counts/booleans already in scope.
  */
 function CategoryHeaderRow({
   label,
   expanded,
   onToggle,
+  summary,
   trimIds,
 }: {
   label: string;
   expanded: boolean;
   onToggle?: () => void;
+  summary?: string;
   trimIds: string[];
 }) {
   return (
@@ -113,6 +122,11 @@ function CategoryHeaderRow({
             className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-400 hover:text-zinc-200"
           >
             {label}
+            {!expanded && summary && (
+              <span className="text-[11px] font-normal normal-case tracking-normal text-zinc-600">
+                — {summary}
+              </span>
+            )}
             <span className="text-sm normal-case tracking-normal text-zinc-500">
               {expanded ? "−" : "+"}
             </span>
@@ -250,12 +264,30 @@ export function TrimComparisonModal({
   const interiorRows = computeChoiceComparisonRows(trimIds, configuratorQuestions, (q) => q.interiorRaw);
   const showColorsInterior = exteriorColorRows.length > 0 || interiorRows.length > 0;
 
-  // Categorized collapsible sections (2026-09-20 reorg), defaulting to
-  // all-expanded per the approved plan. Overview is deliberately NOT one
-  // of these three -- it has no toggle at all, see CategoryHeaderRow.
-  const [colorsExpanded, setColorsExpanded] = useState(true);
-  const [performanceExpanded, setPerformanceExpanded] = useState(true);
-  const [featuresExpanded, setFeaturesExpanded] = useState(true);
+  // Categorized collapsible sections, now defaulting to all-COLLAPSED
+  // (2026-09-21, reversing the earlier all-expanded default per Brett's
+  // explicit request) -- Overview is deliberately NOT one of these three,
+  // it has no toggle at all, see CategoryHeaderRow.
+  const [colorsExpanded, setColorsExpanded] = useState(false);
+  const [performanceExpanded, setPerformanceExpanded] = useState(false);
+  const [featuresExpanded, setFeaturesExpanded] = useState(false);
+
+  // Collapsed-state summaries (2026-09-21) -- each built from data this
+  // component already computed above, no new fetch or shape. Plurals are
+  // hand-checked rather than a library, since there are only ever 3
+  // possible counts for Performance and simple 0/1/N counts elsewhere.
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  const colorsInteriorSummary = [
+    exteriorColorRows.length > 0 ? plural(exteriorColorRows.length, "exterior color") : null,
+    interiorRows.length > 0 ? plural(interiorRows.length, "interior") : null,
+  ]
+    .filter((s): s is string => !!s)
+    .join(", ");
+  const performanceDiffCount = [showWheels, showRoof, showDrivetrain].filter(Boolean).length;
+  const performanceSummary = `${performanceDiffCount} spec${performanceDiffCount === 1 ? "" : "s"} differ${
+    performanceDiffCount === 1 ? "s" : ""
+  }`;
+  const featuresSummary = plural(featureRows.length, "feature") + " compared";
 
   return createPortal(
     <div className="fixed inset-0 z-[100] flex flex-col bg-zinc-950" onClick={onClose}>
@@ -419,6 +451,7 @@ export function TrimComparisonModal({
                     label="Colors & Interior"
                     expanded={colorsExpanded}
                     onToggle={() => setColorsExpanded((v) => !v)}
+                    summary={colorsInteriorSummary}
                     trimIds={trimIds}
                   />
                   {colorsExpanded && (
@@ -450,6 +483,7 @@ export function TrimComparisonModal({
                     label="Performance"
                     expanded={performanceExpanded}
                     onToggle={() => setPerformanceExpanded((v) => !v)}
+                    summary={performanceSummary}
                     trimIds={trimIds}
                   />
                   {performanceExpanded && (
@@ -501,6 +535,7 @@ export function TrimComparisonModal({
                     label="Features"
                     expanded={featuresExpanded}
                     onToggle={() => setFeaturesExpanded((v) => !v)}
+                    summary={featuresSummary}
                     trimIds={trimIds}
                   />
                   {featuresExpanded &&
