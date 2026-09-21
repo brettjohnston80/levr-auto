@@ -32,7 +32,16 @@ export interface ComparisonCell {
   tone: CellTone;
 }
 
-const DASH: ComparisonCell = { text: "—", tone: "none" };
+/**
+ * Exported so callers can distinguish "nothing to show" from a real
+ * cell without re-deriving that from `tone` (which "none" also means
+ * for a genuinely real value, e.g. seatingCell's single-configuration
+ * case -- see that function) or from `text === "—"` (fragile if the
+ * literal glyph ever changes). Reference equality is exact here because
+ * every DASH-returning function returns this one module-level object,
+ * never a fresh `{ text: "—", tone: "none" }` literal.
+ */
+export const DASH: ComparisonCell = { text: "—", tone: "none" };
 
 /**
  * One choice's compact table-cell rendering: Standard / +$price / +$price

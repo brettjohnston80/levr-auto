@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import type { TrimOption } from "@/lib/finalize-trims";
 import { groupIntoPackages, type ConfiguratorChoice, type ConfiguratorQuestions } from "@/lib/configurator-matching";
 import {
+  DASH,
   roofChoiceIsRedundant,
   seatingCell,
   summarizeDrivetrain,
@@ -221,6 +222,15 @@ function Highlights({ make, model, questions }: { make: string; model: string; q
 
   const hasColors = questions.exteriorColorRaw.length > 0 || questions.interiorRaw.length > 0;
   const obtainablePackages = groupIntoPackages(questions.features);
+  // Gated on the SUMMARIZER's own output, not the raw questions.roof
+  // array length -- a redundant priced choice (roofChoiceIsRedundant)
+  // still leaves a non-empty raw array, but summarizeRoof correctly
+  // collapses it to DASH; the raw-length check was blind to that and is
+  // what let "Roof: —" render here after the redundancy fix (2026-09-22)
+  // instead of the line disappearing the way every other DASH-producing
+  // spec here already does when its own array is genuinely empty.
+  const roofCell = summarizeRoof(questions);
+  const showRoof = roofCell !== DASH;
 
   return (
     <div className="mt-5 space-y-5">
@@ -233,13 +243,13 @@ function Highlights({ make, model, questions }: { make: string; model: string; q
 
       {(questions.seatingRaw.length > 0 ||
         questions.wheels.length > 0 ||
-        questions.roof.length > 0 ||
+        showRoof ||
         questions.drivetrain.length > 0) && (
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-600">Specs</p>
           {questions.seatingRaw.length > 0 && <SpecLine label="Seating" cell={seatingCell(questions)} />}
           {questions.wheels.length > 0 && <SpecLine label="Wheels" cell={summarizeWheels(questions)} />}
-          {questions.roof.length > 0 && <SpecLine label="Roof" cell={summarizeRoof(questions)} />}
+          {showRoof && <SpecLine label="Roof" cell={roofCell} />}
           {questions.drivetrain.length > 0 && (
             <SpecLine label="Drivetrain" cell={summarizeDrivetrain(questions)} />
           )}
