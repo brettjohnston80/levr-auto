@@ -293,9 +293,24 @@ export function summarizeDrivetrain(q: ConfiguratorQuestions | undefined): Compa
 }
 
 /** One feature-union comparison row: a feature name, and this compared
- *  trim set's per-trim cell for it. */
+ *  trim set's per-trim cell for it.
+ *
+ *  `imageUrl` (2026-09-22) mirrors ChoiceComparisonRow's own field and
+ *  the same reasoning: the photo is a property of the NAME (the same
+ *  real feature/package regardless of which compared trim offers it,
+ *  confirmed via vehicle-feature-images.ts's own lookup key being make/
+ *  model/feature-name, never trim-scoped), so it belongs on the row's
+ *  shared label, not duplicated per-trim cell -- unlike Wheels, which
+ *  genuinely differs per trim and lives in trim-comparison-modal.tsx's
+ *  own per-column resolveWheelImage() call instead. Null for every
+ *  `featuresStandard` name (never obtained a photo in the first place --
+ *  vehicle-feature-images.ts only ever resolves non-standard features)
+ *  and for any name with no delivered photo, same "no image is the
+ *  normal case" convention every photo pipeline here already follows.
+ */
 export interface FeatureComparisonRow {
   name: string;
+  imageUrl: string | null;
   cellsByTrimId: Record<string, ComparisonCell>;
 }
 
@@ -330,6 +345,7 @@ export function computeFeatureComparisonRows(
 
   return [...names].sort((a, b) => a.localeCompare(b)).map((name) => {
     const cellsByTrimId: Record<string, ComparisonCell> = {};
+    let imageUrl: string | null = null;
     for (const id of trimIds) {
       const q = configuratorQuestions[id];
       if (!q) {
@@ -342,7 +358,12 @@ export function computeFeatureComparisonRows(
       }
       const choice = packagesByTrimId[id]?.find((c) => c.name === name);
       cellsByTrimId[id] = choice ? priceCellFor(choice) : DASH;
+      // Same "first compared trim that actually offers the name" rule
+      // computeChoiceComparisonRows already uses -- the photo is the
+      // same real asset regardless of which trim offers it, so the
+      // first one found is as good as any.
+      if (!imageUrl && choice?.imageUrl) imageUrl = choice.imageUrl;
     }
-    return { name, cellsByTrimId };
+    return { name, imageUrl, cellsByTrimId };
   });
 }

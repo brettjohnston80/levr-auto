@@ -16,6 +16,7 @@ import {
   summarizeWheels,
   type ChoiceComparisonRow,
   type ComparisonCell,
+  type FeatureComparisonRow,
 } from "@/lib/trim-comparison";
 import { ColorDot, Thumb } from "@/components/ranking-question";
 import { resolveWheelImage } from "@/lib/vehicle-wheel-images";
@@ -208,6 +209,32 @@ function ChoiceRow({ row, trimOptions }: { row: ChoiceComparisonRow; trimOptions
       </th>
       {trimOptions.map((opt) => (
         <td key={opt.id} className="px-4 py-2.5 align-top">
+          <Cell cell={row.cellsByTrimId[opt.id]} />
+        </td>
+      ))}
+    </tr>
+  );
+}
+
+/**
+ * Features row equivalent of ChoiceRow just above -- same shape, minus
+ * ColorDot: a feature/package never carries a colour swatch, only ever a
+ * photo (2026-09-22). Kept as its own component rather than widening
+ * ChoiceRow/ChoiceComparisonRow to accept an optional swatch, since that
+ * would let a feature row silently render an empty swatch slot no caller
+ * ever populates.
+ */
+function FeatureRow({ row, trimOptions }: { row: FeatureComparisonRow; trimOptions: TrimOption[] }) {
+  return (
+    <tr className="border-t border-white/5">
+      <th scope="row" className="sticky left-0 z-10 bg-zinc-950 py-3 pr-4 text-left align-top text-xs font-semibold text-zinc-400">
+        <span className="flex items-center gap-2">
+          <Thumb item={{ id: row.name, label: row.name, imageUrl: row.imageUrl }} />
+          <span>{row.name}</span>
+        </span>
+      </th>
+      {trimOptions.map((opt) => (
+        <td key={opt.id} className="px-4 py-3 align-top">
           <Cell cell={row.cellsByTrimId[opt.id]} />
         </td>
       ))}
@@ -616,16 +643,7 @@ export function TrimComparisonModal({
                   />
                   {featuresExpanded &&
                     featureRows.map((row) => (
-                      <tr key={row.name} className="border-t border-white/5">
-                        <th scope="row" className="sticky left-0 z-10 bg-zinc-950 py-3 pr-4 text-left align-top text-xs font-semibold text-zinc-400">
-                          {row.name}
-                        </th>
-                        {trimOptions.map((opt) => (
-                          <td key={opt.id} className="px-4 py-3 align-top">
-                            <Cell cell={row.cellsByTrimId[opt.id]} />
-                          </td>
-                        ))}
-                      </tr>
+                      <FeatureRow key={row.name} row={row} trimOptions={trimOptions} />
                     ))}
                 </>
               )}

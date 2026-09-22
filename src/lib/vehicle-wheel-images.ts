@@ -62,7 +62,7 @@
  * convention as the sibling sets, no per-option subfolder (mirrors
  * vehicle-features/, which has no category subfolder either).
  */
-export const VEHICLE_WHEEL_IMAGES_ENABLED = false;
+export const VEHICLE_WHEEL_IMAGES_ENABLED = true;
 
 interface WheelImageEntry {
   /** configurator_trims.body_style for this trim, exact casing as stored
