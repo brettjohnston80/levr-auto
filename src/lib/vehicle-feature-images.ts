@@ -9,13 +9,18 @@ import { slugifyForImage } from "@/lib/vehicle-color-images";
  * and deliberately the same shape: a directory scan, a data-layer switch,
  * and "no image" as the normal answer.
  *
- * WHAT IS ACTUALLY ON DISK (2026-09-14): Toyota Camry only -- "Heated
- * seats" and "Heated steering wheel". Both are package_only (Cold Weather
- * Package) on LE / SE / Nightshade, i.e. they genuinely reach the features
- * step. Matched to the exact configurator_options name via a hand-checked
- * map, never by slugifying the source filename: Toyota's own label for the
- * seats photo is "Heated and Ventilated Seats", which slugifies to nothing
- * in the dataset.
+ * WHAT IS ACTUALLY ON DISK (2026-09-14, +1 added 2026-09-21): Toyota Camry
+ * only -- "Heated seats" and "Heated steering wheel" (both package_only,
+ * Cold Weather Package, on LE / SE / Nightshade, i.e. they genuinely reach
+ * the features step), plus "Moonroof/panoramic roof" (standalone, XLE/XSE
+ * only, $1,330 -- added 2026-09-21, same real option the `roof` category's
+ * own de-duplication logic already treats as redundant with this exact
+ * `feature`-category entry; that logic is untouched by adding a photo
+ * here). Matched to the exact configurator_options name via a hand-checked
+ * FILENAME, never by slugifying the source filename Toyota happened to
+ * give the download: e.g. Toyota's own label for the seats photo is
+ * "Heated and Ventilated Seats", which slugifies to nothing in the
+ * dataset -- the file was deliberately named heated-seats.jpg instead.
  *
  * ⚠ THE 11 CIVIC FEATURE PHOTOS ARE DELIBERATELY NOT HERE. Every Civic
  * feature they show is coded standard or unavailable -- confirmed correct
@@ -49,7 +54,7 @@ import { slugifyForImage } from "@/lib/vehicle-color-images";
  * returns nothing while this is false, so no caller can render a URL it
  * obtained some other way.
  */
-export const VEHICLE_FEATURE_IMAGES_ENABLED = false;
+export const VEHICLE_FEATURE_IMAGES_ENABLED = true;
 
 const IMAGE_ROOT = path.join(process.cwd(), "public", "vehicle-features");
 const ACCEPTED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".avif"];

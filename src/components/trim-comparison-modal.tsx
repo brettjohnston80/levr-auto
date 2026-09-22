@@ -18,6 +18,7 @@ import {
   type ComparisonCell,
 } from "@/lib/trim-comparison";
 import { ColorDot, Thumb } from "@/components/ranking-question";
+import { resolveWheelImage } from "@/lib/vehicle-wheel-images";
 
 // The trim comparison view (2026-09-19) -- a decision aid for the trim
 // ranking step itself, distinct from combination-preferences (which only
@@ -265,6 +266,18 @@ export function TrimComparisonModal({
 
   const showSeating = seatingIsDifferentiator(trimIds, configuratorQuestions);
   const wheelsCells = trimIds.map((id) => summarizeWheels(configuratorQuestions[id]));
+  // Per-column, not merged into wheelsCells itself, and only shown when
+  // that column's OWN cell reads "Standard" -- summarizeWheels prefers a
+  // priced upgrade's cost over "Standard" whenever a trim has one (e.g.
+  // Civic Sport's real $1,600 Black Coal Alloy option), and no photo
+  // exists for any upgrade. Showing the standard wheel's photo next to a
+  // "+$1,600" cell would misrepresent what that price is for -- see
+  // Highlights' own identical guard in trim-detail-modal.tsx.
+  const wheelImageUrls = trimOptions.map((opt, i) =>
+    wheelsCells[i].text === "Standard"
+      ? resolveWheelImage(make, model, opt.trim, configuratorQuestions[opt.id]?.bodyStyle ?? null)
+      : null,
+  );
   const roofCells = trimIds.map((id) => summarizeRoof(configuratorQuestions[id]));
   const drivetrainCells = trimIds.map((id) => summarizeDrivetrain(configuratorQuestions[id]));
   const showWheels = cellsDiffer(wheelsCells);
@@ -551,7 +564,14 @@ export function TrimComparisonModal({
                           </th>
                           {trimOptions.map((opt, i) => (
                             <td key={opt.id} className="px-4 py-3 align-top">
-                              <Cell cell={wheelsCells[i]} />
+                              <div className="flex items-start gap-2">
+                                <Cell cell={wheelsCells[i]} />
+                                {wheelImageUrls[i] && (
+                                  <Thumb
+                                    item={{ id: `wheels-${opt.id}`, label: `${opt.trim} wheels`, imageUrl: wheelImageUrls[i] }}
+                                  />
+                                )}
+                              </div>
                             </td>
                           ))}
                         </tr>

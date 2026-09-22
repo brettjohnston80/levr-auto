@@ -128,10 +128,17 @@ export async function getConfiguratorQuestionsForTrims(
 
   // --- candidate trims for this make/model ------------------------------
   const candidates: ConfiguratorTrimCandidate[] = [];
+  // Keyed separately from `candidates` rather than widening
+  // ConfiguratorTrimCandidate itself -- body_style has nothing to do with
+  // matchConfiguratorTrim's own matching logic (trim string/year/
+  // powertrain only), it's purely for resolveWheelImage's defensive check
+  // once a trim is already resolved, so it doesn't belong on the type
+  // every matching function receives.
+  const bodyStyleById = new Map<string, string | null>();
   for (let from = 0; ; from += PAGE_SIZE) {
     const { data, error } = await admin
       .from("configurator_trims")
-      .select("id, make, model, trim, model_year, fuel_type")
+      .select("id, make, model, trim, model_year, fuel_type, body_style")
       .eq("batch_id", batch.id)
       .eq("make", make)
       .eq("model", model)
@@ -147,6 +154,7 @@ export async function getConfiguratorQuestionsForTrims(
         modelYear: r.model_year as number,
         fuelType: (r.fuel_type as string | null) ?? null,
       });
+      bodyStyleById.set(r.id as string, (r.body_style as string | null) ?? null);
     }
     if (!data || data.length < PAGE_SIZE) break;
   }
@@ -206,7 +214,7 @@ export async function getConfiguratorQuestionsForTrims(
   }
 
   const build = (trimId: string): ConfiguratorQuestions =>
-    buildConfiguratorQuestions(trimId, byTrim.get(trimId) ?? [], make, model);
+    buildConfiguratorQuestions(trimId, byTrim.get(trimId) ?? [], make, model, bodyStyleById.get(trimId) ?? null);
 
   for (const [optionId, result] of results) {
     if (result.outcome.matched) {
@@ -233,6 +241,7 @@ function buildConfiguratorQuestions(
   rows: OptionRow[],
   make: string,
   model: string,
+  bodyStyle: string | null,
 ): ConfiguratorQuestions {
   const pick = (category: string, allowed: Set<string>) => {
     const choices = rows
@@ -303,6 +312,7 @@ function buildConfiguratorQuestions(
 
   return {
     configuratorTrimId: trimId,
+    bodyStyle,
     exteriorColor: atLeastTwo(exteriorColorRaw),
     interior: atLeastTwo(interiorRaw),
     seating: atLeastTwo(seatingRaw),
@@ -360,6 +370,21 @@ export async function getConfiguratorQuestionsForResolvedTrimIds(
     }
   }
 
+  // body_style, fetched alongside options rather than folded into
+  // matching data -- this entry point never runs matchConfiguratorTrim
+  // (its ids are already resolved), so there's no ConfiguratorTrimCandidate
+  // to piggyback on here either way. Small, un-paginated `.in()` is safe:
+  // trimIds is a customer's own ranked-trim set, never near PostgREST's
+  // 1,000-row cap.
+  const bodyStyleById = new Map<string, string | null>();
+  for (let i = 0; i < trimIds.length; i += ID_CHUNK) {
+    const chunk = trimIds.slice(i, i + ID_CHUNK);
+    const { data } = await admin.from("configurator_trims").select("id, body_style").in("id", chunk);
+    for (const r of data ?? []) {
+      bodyStyleById.set(r.id as string, (r.body_style as string | null) ?? null);
+    }
+  }
+
   const byTrim = new Map<string, OptionRow[]>();
   for (const r of optionRows) {
     const list = byTrim.get(r.trim_id) ?? [];
@@ -368,7 +393,13 @@ export async function getConfiguratorQuestionsForResolvedTrimIds(
   }
 
   for (const trimId of trimIds) {
-    result[trimId] = buildConfiguratorQuestions(trimId, byTrim.get(trimId) ?? [], make, model);
+    result[trimId] = buildConfiguratorQuestions(
+      trimId,
+      byTrim.get(trimId) ?? [],
+      make,
+      model,
+      bodyStyleById.get(trimId) ?? null,
+    );
   }
   return result;
 }

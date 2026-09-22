@@ -1068,6 +1068,10 @@ async function writeCombinationPreferences(
   for (const trimId of rankedResolvedTrimIds) {
     configuratorQuestionsByTrimId[trimId] = {
       configuratorTrimId: trimId,
+      // Never rendered -- this is a server-side minimal reconstruction
+      // purely for computeRealCombinations' own matching, so bodyStyle
+      // (wheel-photo resolution only) has nothing to attach to here.
+      bodyStyle: null,
       exteriorColor: [],
       interior: [],
       seating: [],

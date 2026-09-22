@@ -295,6 +295,20 @@ export function sortChoices(a: ConfiguratorChoice, b: ConfiguratorChoice): numbe
  */
 export interface ConfiguratorQuestions {
   configuratorTrimId: string;
+  /**
+   * configurator_trims.body_style for this specific resolved trim
+   * (2026-09-21) -- added solely so resolveWheelImage (vehicle-wheel-
+   * images.ts) has a real defensive check available wherever `questions`
+   * already flows (TrimDetailModal, the comparison table), without any
+   * client component needing its own DB read. Fetched by BOTH
+   * configurator-questions.ts entry points (getConfiguratorQuestionsForTrims
+   * and getConfiguratorQuestionsForResolvedTrimIds), so /account/vehicle's
+   * reuse of the same TrimDetailModal rendering can't silently disagree
+   * with /finalize's. Null when the underlying trim row's body_style is
+   * null -- resolveWheelImage already treats that as "no photo", never a
+   * crash.
+   */
+  bodyStyle: string | null;
   exteriorColor: ConfiguratorChoice[];
   interior: ConfiguratorChoice[];
   seating: ConfiguratorChoice[];

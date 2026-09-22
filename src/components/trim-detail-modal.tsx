@@ -15,6 +15,7 @@ import {
 } from "@/lib/trim-comparison";
 import { PriceTag, PackageNote } from "@/components/configurator-questions";
 import { ColorDot, Thumb } from "@/components/ranking-question";
+import { resolveWheelImage } from "@/lib/vehicle-wheel-images";
 
 // Single-trim detail modal (2026-09-19) -- the "Details" button's target,
 // both from the plain trim list and from trim-comparison-modal.tsx's
@@ -209,7 +210,17 @@ function FeatureChip({ choice }: { choice: ConfiguratorChoice }) {
   );
 }
 
-function Highlights({ make, model, questions }: { make: string; model: string; questions: ConfiguratorQuestions | null }) {
+function Highlights({
+  make,
+  model,
+  trim,
+  questions,
+}: {
+  make: string;
+  model: string;
+  trim: string;
+  questions: ConfiguratorQuestions | null;
+}) {
   if (!questions) {
     return (
       <p className="mt-5 text-sm text-zinc-500">
@@ -231,6 +242,17 @@ function Highlights({ make, model, questions }: { make: string; model: string; q
   // spec here already does when its own array is genuinely empty.
   const roofCell = summarizeRoof(questions);
   const showRoof = roofCell !== DASH;
+  const wheelsCell = summarizeWheels(questions);
+  // Only shown when the SpecLine is genuinely describing the photographed
+  // wheel -- summarizeWheels prefers a priced upgrade's cost over
+  // "Standard" whenever a trim has one (e.g. Civic Sport's real $1,600
+  // Black Coal Alloy option), and no photo exists for any upgrade. Pairing
+  // the standard wheel's photo next to a line reading "+$1,600" would
+  // misrepresent what that price is actually for; All-details doesn't
+  // have this risk since it lists the standard and upgrade rows
+  // separately, each with its own correct (photo or no-photo) pairing.
+  const wheelImageUrl =
+    wheelsCell.text === "Standard" ? resolveWheelImage(make, model, trim, questions.bodyStyle) : null;
 
   return (
     <div className="mt-5 space-y-5">
@@ -248,7 +270,14 @@ function Highlights({ make, model, questions }: { make: string; model: string; q
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-600">Specs</p>
           {questions.seatingRaw.length > 0 && <SpecLine label="Seating" cell={seatingCell(questions)} />}
-          {questions.wheels.length > 0 && <SpecLine label="Wheels" cell={summarizeWheels(questions)} />}
+          {questions.wheels.length > 0 && (
+            <div className="flex items-start gap-2">
+              <SpecLine label="Wheels" cell={wheelsCell} />
+              {wheelImageUrl && (
+                <Thumb item={{ id: "wheels", label: `${trim} wheels`, imageUrl: wheelImageUrl }} />
+              )}
+            </div>
+          )}
           {showRoof && <SpecLine label="Roof" cell={roofCell} />}
           {questions.drivetrain.length > 0 && (
             <SpecLine label="Drivetrain" cell={summarizeDrivetrain(questions)} />
@@ -302,6 +331,18 @@ export function TrimDetailModal({
   // cross-trim remount-without-unmount path exists in either caller), so
   // there's no stale-tab-on-a-different-trim case to guard against.
   const [activeTab, setActiveTab] = useState<"highlights" | "all">("highlights");
+
+  // Attached only to the SPECIFIC wheels choice with availability ===
+  // "standard" -- never to a priced upgrade row a trim might also carry
+  // (e.g. Civic's $1,600 Black Coal Alloy Wheels), which has no delivered
+  // photo and must stay text-only. See vehicle-wheel-images.ts's own
+  // comment for why this can't be resolved generically the way colour/
+  // feature photos are.
+  const wheelImageUrl = questions ? resolveWheelImage(make, model, trim.trim, questions.bodyStyle) : null;
+  const allDetailsWheels =
+    questions && wheelImageUrl
+      ? questions.wheels.map((w) => (w.availability === "standard" ? { ...w, imageUrl: wheelImageUrl } : w))
+      : (questions?.wheels ?? []);
 
   return createPortal(
     <div
@@ -410,13 +451,13 @@ export function TrimDetailModal({
               fully searchable, just without that extra detail.
             </p>
           ) : activeTab === "highlights" ? (
-            <Highlights make={make} model={model} questions={questions} />
+            <Highlights make={make} model={model} trim={trim.trim} questions={questions} />
           ) : (
             <>
               <Section title="Exterior colors" choices={questions.exteriorColorRaw} />
               <Section title="Interior" choices={questions.interiorRaw} />
               <Section title="Seating" choices={questions.seatingRaw} />
-              <Section title="Wheels" choices={questions.wheels} />
+              <Section title="Wheels" choices={allDetailsWheels} />
               {/* Drops just the redundant choice, not the whole section
                   (2026-09-22) -- a trim whose ONLY roof choice duplicates
                   a Features entry at the same price loses the "ROOF"
