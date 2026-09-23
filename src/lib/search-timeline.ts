@@ -1,4 +1,14 @@
-import type { DashboardSearch } from "./customer-dashboard";
+/**
+ * Minimal shape either DashboardSearch or DealDetails (customer-dashboard.ts)
+ * satisfies -- this is the only reason the two types don't need to share a
+ * base interface. Widened from a direct DashboardSearch import (2026-09-22)
+ * specifically so /account/deal's DealDetails can reuse this derivation too.
+ */
+export interface SearchTimelineInput {
+  solidifiedAt: string | null;
+  searchStatus: string;
+  offers: { status: string }[];
+}
 
 /**
  * Customer-facing journey stages, in order. There is deliberately no new
@@ -50,7 +60,7 @@ export interface SearchTimelineInfo {
  * ever solidifying) -- there is no journey to show a timeline for yet, so
  * SearchCard falls back to its existing plain status text in that case.
  */
-export function deriveSearchTimeline(search: DashboardSearch): SearchTimelineInfo | null {
+export function deriveSearchTimeline(search: SearchTimelineInput): SearchTimelineInfo | null {
   if (!search.solidifiedAt && search.searchStatus !== "purchased") {
     return null;
   }

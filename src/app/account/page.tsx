@@ -4,13 +4,6 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { logout } from "@/lib/auth-actions";
 import { getCustomerDashboard, type DashboardSearch } from "@/lib/customer-dashboard";
-import { OfferResponseButtons } from "@/components/offer-response-buttons";
-import { OfferPhoto } from "@/components/offer-photo";
-import { bestValueOfferId, computeOfferSavings } from "@/lib/offer-comparison";
-import { AddonRemovalButton } from "@/components/addon-removal-button";
-import { FinancingCaptureForm } from "@/components/financing-capture-form";
-import { DeliveryPreferenceForm } from "@/components/delivery-preference-form";
-import { ServiceAgreementSigning } from "@/components/service-agreement-signing";
 import { FinalizeEditForm } from "@/components/finalize-edit-form";
 import { AccountFaqSection } from "@/components/account-faq-section";
 import { AccountSettingsForm } from "@/components/account-settings-form";
@@ -20,11 +13,8 @@ import { ExtendSearchButton } from "@/components/extend-search-button";
 import { AutoRenewToggle } from "@/components/auto-renew-toggle";
 import { AutoRenewOffLink } from "@/components/auto-renew-off-link";
 import { CancellationChoice } from "@/components/cancellation-choice";
-import { PurchasedCelebration } from "@/components/purchased-celebration";
-import { PostDealSurveyPrompt } from "@/components/post-deal-survey-prompt";
-import { SearchStatusTimeline } from "@/components/search-status-timeline";
-import { deriveSearchTimeline, type SearchTimelineBannerTone } from "@/lib/search-timeline";
-import { RESUME_WINDOW_DAYS } from "@/lib/vehicle-data";
+import { getPausedResumeInfo, getStatusCopy, getStatusBadge } from "@/lib/search-status-copy";
+import { formatDate } from "@/lib/dashboard-format";
 import {
   getIntakeMakeModelOptions,
   getIntakeModelYearOptions,
@@ -38,99 +28,6 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = "force-dynamic";
-
-// awaiting_finalization has two very different real meanings depending on
-// paid_at: "just paid, ready to finalize" (the common case) vs. "checkout
-// was started but abandoned/never completed" (paid_at still null -- intake
-// creates this row before the customer ever reaches Stripe). The unpaid
-// case used SEARCH_STATUS_COPY's normal "Payment received..." text before
-// this fix, which was wrong, plus a live "Finalize this search" link that
-// dead-ended at /finalize's own paid_at guard. See getStatusCopy below,
-// which branches on paidAt before falling back to this table.
-const SEARCH_STATUS_COPY: Record<string, string> = {
-  awaiting_finalization: "Payment received — finalize trim, color, and options to start your search.",
-  pending_refinement:
-    "Finalized — you're in the 24-hour window to change trim, color, or options before dealer outreach begins.",
-  searching: "Actively searching — we'll show new offers here as they come in.",
-  // Defensive fallback only -- a real paused row always has paused_at set
-  // (day60-extension.ts's pauseOverdueSearches sets both together), so
-  // getStatusCopy branches to getPausedStatusCopy's countdown/expired copy
-  // before this is ever actually shown.
-  paused: "Search paused.",
-  closed: "Search closed.",
-  switched: "Superseded by a newer search.",
-  cancelled: "This search was cancelled. To search again, start a new $699 search from the homepage.",
-  // Defensive fallback only -- SearchCard renders PurchasedCelebration
-  // instead of this text for a purchased search, never falls through here.
-  purchased: "This search is complete — you purchased your vehicle.",
-};
-
-const UNPAID_AWAITING_FINALIZATION_COPY =
-  "Checkout wasn't completed — this search hasn't been paid for, so it hasn't started.";
-
-const PAUSED_EXPIRED_COPY = "This search has ended. To continue, you'll need to start a new search.";
-
-// Locked copy from the finalized Day-60 paused-state policy (CLAUDE.md,
-// 2026-08-15) -- deliberately no hint of the hidden agent bypass (Pass 3)
-// anywhere in either branch, expired or not. withinWindow gates whether
-// ExtendSearchButton renders -- matches createExtensionCheckoutSession's
-// own eligibility gate (RESUME_WINDOW_DAYS after paused_at), so the button
-// never appears somewhere the RPC would just reject it.
-function getPausedResumeInfo(pausedAt: string | null): { copy: string; withinWindow: boolean } {
-  if (!pausedAt) {
-    return { copy: SEARCH_STATUS_COPY.paused, withinWindow: false };
-  }
-
-  const resumeWindowEnds = new Date(pausedAt);
-  resumeWindowEnds.setUTCDate(resumeWindowEnds.getUTCDate() + RESUME_WINDOW_DAYS);
-  const msRemaining = resumeWindowEnds.getTime() - Date.now();
-
-  if (msRemaining <= 0) {
-    return { copy: PAUSED_EXPIRED_COPY, withinWindow: false };
-  }
-
-  const daysRemaining = Math.ceil(msRemaining / (24 * 60 * 60 * 1000));
-  return {
-    copy: `Your search is paused. You have ${daysRemaining} day${daysRemaining === 1 ? "" : "s"} left to resume it by extending — after that, you'll need to start a new search.`,
-    withinWindow: true,
-  };
-}
-
-const UNDECIDED_PAID_COPY =
-  "We're finding the right vehicle for you — your agent will reach out soon to talk through what you're looking for.";
-
-// The undecided copy promises a call that is still coming, so it is only
-// true while the search is actually waiting for one. An ALLOW-LIST, not a
-// block-list, matching this file's own canCancel/canSwitch convention and
-// getOverdueFollowUpQueue's: a status added later defaults to the plain
-// status copy rather than silently inheriting a promise of agent contact.
-//
-// Without this guard the `paidAt && !make` check above ran before every
-// status branch, so a paid "not sure yet" search that was CANCELLED still
-// rendered "your agent will reach out soon" directly under a CANCELLED
-// badge -- reproduced in a real browser 2026-09-12. Reachable by the normal
-// self-service path: undecided intake -> pay -> cancel before the
-// consultation call happens. Same badge-vs-body contradiction already fixed
-// once for the unpaid awaiting_finalization case above; the undecided
-// branch was added later and did not inherit the guard.
-const UNDECIDED_COPY_STATUSES = ["awaiting_finalization"];
-
-function getStatusCopy(search: DashboardSearch): string {
-  if (
-    search.paidAt &&
-    !search.make &&
-    UNDECIDED_COPY_STATUSES.includes(search.searchStatus)
-  ) {
-    return UNDECIDED_PAID_COPY;
-  }
-  if (search.searchStatus === "awaiting_finalization" && !search.paidAt) {
-    return UNPAID_AWAITING_FINALIZATION_COPY;
-  }
-  if (search.searchStatus === "paused") {
-    return getPausedResumeInfo(search.pausedAt).copy;
-  }
-  return SEARCH_STATUS_COPY[search.searchStatus] ?? "";
-}
 
 // Reminder banner -- locked copy from CLAUDE.md (2026-08-15), never actually
 // built until now (confirmed via grep before this pass: no prior
@@ -164,17 +61,6 @@ function getReminderBannerCopy(search: DashboardSearch): string | null {
   }
 
   return `Your search pauses in ${daysRemaining} day${daysRemaining === 1 ? "" : "s"} unless extended. Extend now to keep us actively searching for 30 more days.`;
-}
-
-// The raw search_status badge (below) says "awaiting finalization" even when
-// paid_at is null, which visually contradicts getStatusCopy's accurate body
-// text for that same unpaid case ("hasn't been paid for, so it hasn't
-// started"). This branches the badge the same way.
-function getStatusBadge(search: DashboardSearch): string {
-  if (search.searchStatus === "awaiting_finalization" && !search.paidAt) {
-    return "checkout incomplete";
-  }
-  return search.searchStatus.replace(/_/g, " ");
 }
 
 // Switching only makes sense for a search that's actually live and paid --
@@ -217,28 +103,6 @@ function canCancel(search: DashboardSearch): boolean {
       search.searchStatus
     )
   );
-}
-
-const ADDON_REMOVAL_STATUS_COPY: Record<string, string> = {
-  pending: "Removal requested — waiting on the dealer",
-  dealer_accepted: "Dealer agreed to remove this",
-  dealer_declined: "Dealer declined to remove this",
-  dealer_countered: "Dealer countered",
-};
-
-const ADDON_REREQUESTABLE_STATUSES = ["none", "dealer_declined", "dealer_countered"];
-
-function formatCents(cents: number): string {
-  return `$${(cents / 100).toLocaleString()}`;
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
 }
 
 // Full detail (every ranked color/interior/package, real prices/contents)
@@ -388,22 +252,11 @@ function SearchCard({
 }) {
   const reminderBannerCopy = getReminderBannerCopy(search);
   const pausedInfo = search.searchStatus === "paused" ? getPausedResumeInfo(search.pausedAt) : null;
-
-  const timelineInfo = deriveSearchTimeline(search);
-  // No new copy is introduced for the paused/cancelled/switched banner --
-  // resolved from the exact same already-approved strings getStatusCopy
-  // itself would otherwise render below, so the status paragraph is
-  // suppressed whenever the timeline is already showing that same text as
-  // a banner (see suppressStatusParagraph below), rather than showing it
-  // twice on the same card.
-  const timelineBanner: { tone: SearchTimelineBannerTone; text: string } | null = (() => {
-    if (!timelineInfo?.bannerTone) return null;
-    if (timelineInfo.bannerTone === "paused") {
-      return { tone: "paused", text: pausedInfo?.copy ?? SEARCH_STATUS_COPY.paused };
-    }
-    return { tone: timelineInfo.bannerTone, text: SEARCH_STATUS_COPY[timelineInfo.bannerTone] };
-  })();
-  const suppressStatusParagraph = timelineBanner !== null;
+  // Matches deriveSearchTimeline's own gate (search-timeline.ts) -- there's
+  // nothing to show under "Your Deal" until a search has actually started
+  // (solidified) or is a permanent purchased record, so the teaser below
+  // stays hidden until then rather than linking to an empty page.
+  const hasDeal = search.solidifiedAt !== null || search.searchStatus === "purchased";
 
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
@@ -421,24 +274,7 @@ function SearchCard({
         <p className="mt-1 text-sm text-zinc-500">Colors: {search.colors.join(", ")}</p>
       )}
 
-      {timelineInfo && (
-        <SearchStatusTimeline
-          stages={timelineInfo.stages}
-          currentStageIndex={timelineInfo.currentStageIndex}
-          banner={timelineBanner}
-        />
-      )}
-
-      {search.searchStatus === "purchased" && search.make && search.model ? (
-        <>
-          <PurchasedCelebration make={search.make} model={search.model} trim={search.trim} />
-          {search.survey && <PostDealSurveyPrompt survey={search.survey} />}
-        </>
-      ) : (
-        <>
-      {!suppressStatusParagraph && (
-        <p className="mt-3 text-sm text-zinc-400">{getStatusCopy(search)}</p>
-      )}
+      <p className="mt-3 text-sm text-zinc-400">{getStatusCopy(search)}</p>
 
       {reminderBannerCopy && (
         <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
@@ -536,135 +372,29 @@ function SearchCard({
         </div>
       )}
 
-      <div className="mt-5">
-        <h3 className="text-sm font-semibold text-zinc-300">
-          {search.offers.length > 0 ? `Offers (${search.offers.length})` : "No offers yet"}
-        </h3>
-        {search.offers.length > 0 && (() => {
-          const bestOfferId = bestValueOfferId(search.offers);
-          return (
-          <ul className="mt-3 space-y-3">
-            {search.offers.map((offer) => {
-              const savings = computeOfferSavings(offer);
-              return (
-              <li key={offer.id} className="rounded-xl border border-white/10 bg-black/20 p-4">
-                <div className="flex gap-4">
-                  <OfferPhoto
-                    photoUrl={offer.photoUrl}
-                    alt={
-                      offer.vehicleExteriorColor
-                        ? `${search.make ?? ""} ${search.model ?? ""} in ${offer.vehicleExteriorColor}`.trim()
-                        : `${search.make ?? ""} ${search.model ?? ""}`.trim()
-                    }
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <span className="font-semibold text-white">{offer.dealerName}</span>
-                      <div className="flex flex-wrap gap-2">
-                        {offer.id === bestOfferId && (
-                          <span className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-semibold text-zinc-950">
-                            Best value
-                          </span>
-                        )}
-                        {offer.isBelowMsrp && (
-                          <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-400">
-                            Below Total SRP
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    {offer.vehicleTrim && (
-                      <p className="mt-0.5 text-xs text-zinc-500">Trim: {offer.vehicleTrim}</p>
-                    )}
-                    <p className="mt-2 text-sm text-zinc-400">
-                      Offer: <span className="text-white">{formatCents(offer.offerPriceCents)}</span> — Total
-                      Suggested Retail Price: {formatCents(offer.msrpCents)}
-                    </p>
-                    {savings && (
-                      <p className="mt-0.5 text-sm font-medium text-emerald-400">
-                        {formatCents(savings.belowMsrpCents)} below Total SRP ({savings.belowMsrpPercent}% off)
-                      </p>
-                    )}
-                    <p className="mt-1 text-xs text-zinc-500">
-                      Delivered {formatDate(offer.deliveredAt)} — status: {offer.status.replace(/_/g, " ")}
-                      {offer.customerRespondedAt && ` on ${formatDate(offer.customerRespondedAt)}`}
-                    </p>
-                    {offer.offerSheetUrl && (
-                      <a
-                        href={offer.offerSheetUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-1 inline-block text-xs text-emerald-400 underline hover:text-emerald-300"
-                      >
-                        View offer sheet (PDF)
-                      </a>
-                    )}
-                    {offer.status === "pending" && <OfferResponseButtons offerId={offer.id} />}
-                  </div>
-                </div>
-
-                {offer.addons.length > 0 && (
-                  <div className="mt-3 border-t border-white/5 pt-3">
-                    <p className="text-xs font-semibold text-zinc-400 uppercase">Add-ons</p>
-                    <ul className="mt-2 space-y-2">
-                      {offer.addons.map((addon) => (
-                        <li key={addon.id} className="text-sm">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <span className="text-zinc-300">
-                              {addon.description} — {formatCents(addon.amountCents)}
-                            </span>
-                            {ADDON_REREQUESTABLE_STATUSES.includes(addon.removalStatus) ? (
-                              <AddonRemovalButton addonId={addon.id} />
-                            ) : (
-                              <span className="text-xs text-zinc-500">
-                                {ADDON_REMOVAL_STATUS_COPY[addon.removalStatus] ?? addon.removalStatus}
-                              </span>
-                            )}
-                          </div>
-                          {addon.dealerResponse && (
-                            <p className="mt-1 text-xs text-zinc-500">&ldquo;{addon.dealerResponse}&rdquo;</p>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {offer.status === "customer_accepted" && (
-                  <div className="mt-3 border-t border-white/5 pt-3">
-                    <p className="text-xs font-semibold text-emerald-400 uppercase">
-                      Congratulations — next steps
-                    </p>
-
-                    <p className="mt-2 text-xs text-zinc-400">
-                      {offer.dealProgress?.availabilityReconfirmedAt
-                        ? `Dealer confirmed availability on ${formatDate(offer.dealProgress.availabilityReconfirmedAt)}.`
-                        : "Waiting on the dealer to reconfirm the vehicle is still available."}
-                    </p>
-                    <p className="mt-1 text-xs text-zinc-400">
-                      {offer.dealProgress?.depositConfirmedAt
-                        ? `Deposit confirmed: ${formatCents(offer.dealProgress.depositAmountCents ?? 0)} on ${formatDate(offer.dealProgress.depositConfirmedAt)}.`
-                        : "A refundable deposit is paid directly to the dealer to reserve the car — we'll show it here once the dealer confirms they've received it."}
-                    </p>
-
-                    <FinancingCaptureForm offerId={offer.id} existing={offer.dealProgress} />
-
-                    <DeliveryPreferenceForm offerId={offer.id} existing={offer.dealProgress} />
-
-                    <ServiceAgreementSigning
-                      offerId={offer.id}
-                      initiallySigned={!!offer.serviceAgreementSignedAt}
-                    />
-                  </div>
-                )}
-              </li>
-              );
-            })}
-          </ul>
-          );
-        })()}
-      </div>
-        </>
+      {/*
+        Compact teaser + link (2026-09-22) -- the status timeline, full
+        offers list (photo cards, savings/best-value, accept/decline,
+        add-ons, the post-acceptance panel), and the purchased-celebration
+        flow all moved to /account/deal ("Your Deal"). Same convention as
+        the vehicle-selection summary above: a one-line digest here, full
+        detail on its own page, never duplicated so the two can't disagree
+        on offer count/status.
+      */}
+      {hasDeal && (
+        <div className="mt-4 border-t border-white/5 pt-4">
+          <Link
+            href={`/account/deal?searchId=${search.id}`}
+            className="text-sm text-emerald-400 underline hover:text-emerald-300"
+          >
+            {search.searchStatus === "purchased"
+              ? "Purchased"
+              : search.offers.length === 0
+                ? "No offers yet"
+                : `${search.offers.length} offer${search.offers.length === 1 ? "" : "s"}`}
+            {" — view your deal →"}
+          </Link>
+        </div>
       )}
 
       {canCancel(search) && (

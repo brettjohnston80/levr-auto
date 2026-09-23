@@ -194,6 +194,14 @@ export function HeaderAccountLink({
           Your Car
         </Link>
         <Link
+          href="/account/deal"
+          role="menuitem"
+          onClick={handleSelect}
+          className="block px-4 py-2 text-sm text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
+        >
+          Your Deal
+        </Link>
+        <Link
           href="/account"
           role="menuitem"
           onClick={handleSelect}

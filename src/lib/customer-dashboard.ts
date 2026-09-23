@@ -10,6 +10,8 @@ import {
 import { getConfiguratorQuestionsForResolvedTrimIds } from "./configurator-questions";
 import { vehicleColorImageUrl } from "./vehicle-color-images";
 
+type AdminClient = ReturnType<typeof createAdminClient>;
+
 export interface DashboardAddon {
   id: string;
   description: string;
@@ -105,62 +107,28 @@ export interface DashboardSearch {
 }
 
 /**
- * Loads a customer's searches and offers, and — per the guarantee rule —
- * marks any not-yet-delivered offer as delivered the moment it's shown here.
- * `delivered_at` is the 24h response-window clock start, not raw dealer
- * receipt (see the comment on qualifying_offers in the schema). The
- * WHERE delivered_at IS NULL guard makes this idempotent: revisiting the
- * page, or a concurrent load, never re-fires or double-sets it.
+ * Loads every qualifying_offer for the given searches (with add-ons, deal
+ * progress, signed document URLs, and a resolved photo), keyed by search id
+ * -- and, per the guarantee rule, marks any not-yet-delivered offer as
+ * delivered the moment it's loaded here. `delivered_at` is the 24h
+ * response-window clock start, not raw dealer receipt (see the comment on
+ * qualifying_offers in the schema). The WHERE delivered_at IS NULL guard
+ * makes this idempotent: loading the same offer again, from either caller,
+ * never re-fires or double-sets it.
  *
- * finalized_at, solidified_at, and call_requested_at are surfaced here so
- * /account can render the post-payment finalize/self-edit UI: finalized_at
- * anchors the 24h self-edit countdown (see finalize-actions.ts), solidified_at
- * tells us the window already closed (search-solidification.ts), and
- * call_requested_at lets the page show "an agent will reach out" instead of
- * a dead end while a search sits in awaiting_finalization. switch_call_requested_at
- * is the same idea for the switch flow (SwitchChoice) -- lets /account show
- * the locked call-request confirmation instead of the picker again.
- * paused_at anchors the paused-state countdown/expired copy (RESUME_WINDOW_DAYS,
- * see account/page.tsx's getPausedStatusCopy).
+ * Extracted out of getCustomerDashboard (2026-09-22) so getDealDetails
+ * (below) can load a single search's offers through the exact same path --
+ * a second, hand-written copy of this is exactly the kind of thing that
+ * drifts (a fixed bug applied to one copy but not the other, a signed-URL
+ * TTL that disagrees between the two surfaces showing the same PDF link).
  */
-export async function getCustomerDashboard(customerId: string): Promise<DashboardSearch[]> {
-  const supabase = createAdminClient();
-
-  const { data: searches, error: searchesError } = await supabase
-    .from("customer_searches")
-    .select(
-      "id, make, model, model_year, trim, colors, required_options, search_status, guarantee_status, paid_at, finalized_at, solidified_at, call_requested_at, switch_call_requested_at, paused_at, search_deadline_at, auto_renew_enabled, cancellation_call_requested_at, purchased_at"
-    )
-    .eq("customer_id", customerId)
-    .order("created_at", { ascending: true });
-
-  if (searchesError) {
-    throw new Error(`Failed to load customer searches: ${searchesError.message}`);
-  }
-
-  if (!searches || searches.length === 0) {
-    return [];
-  }
-
-  const searchIds = searches.map((s) => s.id);
-
-  // LEVRating Phase B -- created by the daily post-deal-survey cron, not
-  // here. Existence of the row (not any local date math) is what unlocks
-  // the /account prompt card, same 2-day trigger as the email.
-  const { data: surveys, error: surveysError } = await supabase
-    .from("post_deal_surveys")
-    .select("id, customer_search_id, submitted_at")
-    .in("customer_search_id", searchIds);
-
-  if (surveysError) {
-    throw new Error(`Failed to load post-deal surveys: ${surveysError.message}`);
-  }
-
-  const surveyBySearchId = new Map((surveys ?? []).map((s) => [s.customer_search_id, s]));
-
-  // Needed to resolve each offer's photo below -- vehicleColorImageUrl is
-  // keyed on make/model, which lives on the search, not the offer itself.
-  const makeModelBySearchId = new Map(searches.map((s) => [s.id, { make: s.make, model: s.model }]));
+async function loadOffersBySearchId(
+  supabase: AdminClient,
+  searchIds: string[],
+  makeModelBySearchId: Map<string, { make: string | null; model: string | null }>,
+): Promise<Map<string, DashboardOffer[]>> {
+  const offersBySearchId = new Map<string, DashboardOffer[]>();
+  if (searchIds.length === 0) return offersBySearchId;
 
   const { data: offers, error: offersError } = await supabase
     .from("qualifying_offers")
@@ -272,6 +240,114 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
     }
   }
 
+  const undelivered = (offers ?? []).filter((o) => !o.delivered_at).map((o) => o.id);
+  let deliveredAtNow: string | null = null;
+
+  if (undelivered.length > 0) {
+    deliveredAtNow = new Date().toISOString();
+    const { error: updateError } = await supabase
+      .from("qualifying_offers")
+      .update({ delivered_at: deliveredAtNow })
+      .in("id", undelivered)
+      .is("delivered_at", null);
+
+    if (updateError) {
+      throw new Error(`Failed to mark offers delivered: ${updateError.message}`);
+    }
+  }
+
+  for (const offer of offers ?? []) {
+    const { make, model } = makeModelBySearchId.get(offer.customer_search_id) ?? {
+      make: null,
+      model: null,
+    };
+    const list = offersBySearchId.get(offer.customer_search_id) ?? [];
+    list.push({
+      id: offer.id,
+      dealerName: offer.dealer_name,
+      offerPriceCents: offer.offer_price_cents,
+      msrpCents: offer.msrp_cents,
+      isBelowMsrp: offer.is_below_msrp,
+      status: offer.status,
+      receivedAt: offer.received_at,
+      deliveredAt: offer.delivered_at ?? deliveredAtNow!,
+      customerRespondedAt: offer.customer_responded_at,
+      addons: addonsByOfferId.get(offer.id) ?? [],
+      dealProgress: dealProgressByOfferId.get(offer.id) ?? null,
+      serviceAgreementSignedAt: serviceAgreementSignedAtByOfferId.get(offer.id) ?? null,
+      offerSheetUrl: offerSheetUrlByOfferId.get(offer.id) ?? null,
+      vehicleTrim: offer.vehicle_trim,
+      vehicleExteriorColor: offer.vehicle_exterior_color,
+      photoUrl: offer.vehicle_exterior_color
+        ? vehicleColorImageUrl(make, model, "exterior_color", offer.vehicle_exterior_color)
+        : null,
+    });
+    offersBySearchId.set(offer.customer_search_id, list);
+  }
+
+  return offersBySearchId;
+}
+
+/**
+ * Loads a customer's searches and offers, and — per the guarantee rule —
+ * marks any not-yet-delivered offer as delivered the moment it's shown here.
+ * `delivered_at` is the 24h response-window clock start, not raw dealer
+ * receipt (see the comment on qualifying_offers in the schema). The
+ * WHERE delivered_at IS NULL guard makes this idempotent: revisiting the
+ * page, or a concurrent load, never re-fires or double-sets it.
+ *
+ * finalized_at, solidified_at, and call_requested_at are surfaced here so
+ * /account can render the post-payment finalize/self-edit UI: finalized_at
+ * anchors the 24h self-edit countdown (see finalize-actions.ts), solidified_at
+ * tells us the window already closed (search-solidification.ts), and
+ * call_requested_at lets the page show "an agent will reach out" instead of
+ * a dead end while a search sits in awaiting_finalization. switch_call_requested_at
+ * is the same idea for the switch flow (SwitchChoice) -- lets /account show
+ * the locked call-request confirmation instead of the picker again.
+ * paused_at anchors the paused-state countdown/expired copy (RESUME_WINDOW_DAYS,
+ * see account/page.tsx's getPausedStatusCopy).
+ */
+export async function getCustomerDashboard(customerId: string): Promise<DashboardSearch[]> {
+  const supabase = createAdminClient();
+
+  const { data: searches, error: searchesError } = await supabase
+    .from("customer_searches")
+    .select(
+      "id, make, model, model_year, trim, colors, required_options, search_status, guarantee_status, paid_at, finalized_at, solidified_at, call_requested_at, switch_call_requested_at, paused_at, search_deadline_at, auto_renew_enabled, cancellation_call_requested_at, purchased_at"
+    )
+    .eq("customer_id", customerId)
+    .order("created_at", { ascending: true });
+
+  if (searchesError) {
+    throw new Error(`Failed to load customer searches: ${searchesError.message}`);
+  }
+
+  if (!searches || searches.length === 0) {
+    return [];
+  }
+
+  const searchIds = searches.map((s) => s.id);
+
+  // LEVRating Phase B -- created by the daily post-deal-survey cron, not
+  // here. Existence of the row (not any local date math) is what unlocks
+  // the /account prompt card, same 2-day trigger as the email.
+  const { data: surveys, error: surveysError } = await supabase
+    .from("post_deal_surveys")
+    .select("id, customer_search_id, submitted_at")
+    .in("customer_search_id", searchIds);
+
+  if (surveysError) {
+    throw new Error(`Failed to load post-deal surveys: ${surveysError.message}`);
+  }
+
+  const surveyBySearchId = new Map((surveys ?? []).map((s) => [s.customer_search_id, s]));
+
+  // Needed to resolve each offer's photo below -- vehicleColorImageUrl is
+  // keyed on make/model, which lives on the search, not the offer itself.
+  const makeModelBySearchId = new Map(searches.map((s) => [s.id, { make: s.make, model: s.model }]));
+
+  const offersBySearchId = await loadOffersBySearchId(supabase, searchIds, makeModelBySearchId);
+
   // Not paginated, unlike getOutreachQueue's equivalent read -- that one
   // spans every active search across every customer and can realistically
   // near PostgREST's 1,000-row cap; this is scoped to one customer's own
@@ -305,52 +381,6 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
     configuratorSelectionsBySearchId.set(row.search_id, list);
   }
 
-  const undelivered = (offers ?? []).filter((o) => !o.delivered_at).map((o) => o.id);
-  let deliveredAtNow: string | null = null;
-
-  if (undelivered.length > 0) {
-    deliveredAtNow = new Date().toISOString();
-    const { error: updateError } = await supabase
-      .from("qualifying_offers")
-      .update({ delivered_at: deliveredAtNow })
-      .in("id", undelivered)
-      .is("delivered_at", null);
-
-    if (updateError) {
-      throw new Error(`Failed to mark offers delivered: ${updateError.message}`);
-    }
-  }
-
-  const offersBySearchId = new Map<string, DashboardOffer[]>();
-  for (const offer of offers ?? []) {
-    const { make, model } = makeModelBySearchId.get(offer.customer_search_id) ?? {
-      make: null,
-      model: null,
-    };
-    const list = offersBySearchId.get(offer.customer_search_id) ?? [];
-    list.push({
-      id: offer.id,
-      dealerName: offer.dealer_name,
-      offerPriceCents: offer.offer_price_cents,
-      msrpCents: offer.msrp_cents,
-      isBelowMsrp: offer.is_below_msrp,
-      status: offer.status,
-      receivedAt: offer.received_at,
-      deliveredAt: offer.delivered_at ?? deliveredAtNow!,
-      customerRespondedAt: offer.customer_responded_at,
-      addons: addonsByOfferId.get(offer.id) ?? [],
-      dealProgress: dealProgressByOfferId.get(offer.id) ?? null,
-      serviceAgreementSignedAt: serviceAgreementSignedAtByOfferId.get(offer.id) ?? null,
-      offerSheetUrl: offerSheetUrlByOfferId.get(offer.id) ?? null,
-      vehicleTrim: offer.vehicle_trim,
-      vehicleExteriorColor: offer.vehicle_exterior_color,
-      photoUrl: offer.vehicle_exterior_color
-        ? vehicleColorImageUrl(make, model, "exterior_color", offer.vehicle_exterior_color)
-        : null,
-    });
-    offersBySearchId.set(offer.customer_search_id, list);
-  }
-
   return searches.map((search) => ({
     id: search.id,
     make: search.make,
@@ -378,6 +408,94 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
     offers: offersBySearchId.get(search.id) ?? [],
     configuratorSelections: configuratorSelectionsBySearchId.get(search.id) ?? [],
   }));
+}
+
+export interface DealDetails {
+  searchId: string;
+  make: string | null;
+  model: string | null;
+  trim: string | null;
+  searchStatus: string;
+  paidAt: string | null;
+  solidifiedAt: string | null;
+  pausedAt: string | null;
+  /**
+   * The offer actually marked purchased (markSearchPurchased), not just
+   * "whichever offer has status customer_accepted" -- respondToOffer has no
+   * guard preventing a customer from accepting more than one offer on the
+   * same search (confirmed 2026-09-23, logged as a separate known gap, not
+   * fixed here), so status alone can't reliably identify the ONE offer that
+   * was actually bought. This column is the real source of truth for that.
+   * Null on a non-purchased search, or on a purchased search predating this
+   * column's own writer (2026-08-18) -- account/deal/page.tsx falls back to
+   * the single customer_accepted offer for that old-data case.
+   */
+  purchasedQualifyingOfferId: string | null;
+  survey: { id: string; submittedAt: string | null } | null;
+  offers: DashboardOffer[];
+}
+
+/**
+ * Real offer/negotiation detail for ONE finalized search -- feeds
+ * /account/deal's "Your Deal" tab. Scoped to a single search (unlike
+ * getCustomerDashboard, which loads every search this page has no use for),
+ * same precedent getVehicleDetails already set for /account/vehicle's
+ * "Your Car" tab.
+ *
+ * Ownership is enforced at the query itself (customer_id = the id passed
+ * in), same discipline every other customer-scoped read in this file
+ * already follows.
+ *
+ * Returns null if the search doesn't exist or isn't owned by this customer
+ * -- the caller (account/deal/page.tsx) never reaches this for a search
+ * that hasn't at least solidified, since its own candidate query already
+ * filters on that, but this doesn't re-check it: a purchased search is a
+ * legitimate permanent record to keep showing, same as /account/vehicle's
+ * own TERMINAL_STATUSES carve-out for it.
+ */
+export async function getDealDetails(searchId: string, customerId: string): Promise<DealDetails | null> {
+  const supabase = createAdminClient();
+
+  const { data: search, error: searchError } = await supabase
+    .from("customer_searches")
+    .select(
+      "id, make, model, trim, search_status, paid_at, solidified_at, paused_at, purchased_qualifying_offer_id"
+    )
+    .eq("id", searchId)
+    .eq("customer_id", customerId)
+    .maybeSingle();
+
+  if (searchError) {
+    throw new Error(`Failed to load search: ${searchError.message}`);
+  }
+  if (!search) return null;
+
+  const { data: surveyRow, error: surveyError } = await supabase
+    .from("post_deal_surveys")
+    .select("id, submitted_at")
+    .eq("customer_search_id", searchId)
+    .maybeSingle();
+
+  if (surveyError) {
+    throw new Error(`Failed to load post-deal survey: ${surveyError.message}`);
+  }
+
+  const makeModelBySearchId = new Map([[searchId, { make: search.make, model: search.model }]]);
+  const offersBySearchId = await loadOffersBySearchId(supabase, [searchId], makeModelBySearchId);
+
+  return {
+    searchId: search.id,
+    make: search.make,
+    model: search.model,
+    trim: search.trim,
+    searchStatus: search.search_status,
+    paidAt: search.paid_at,
+    solidifiedAt: search.solidified_at,
+    pausedAt: search.paused_at,
+    purchasedQualifyingOfferId: search.purchased_qualifying_offer_id,
+    survey: surveyRow ? { id: surveyRow.id, submittedAt: surveyRow.submitted_at } : null,
+    offers: offersBySearchId.get(searchId) ?? [],
+  };
 }
 
 export interface VehicleDetailsRankedTrim {
