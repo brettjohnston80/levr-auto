@@ -19,6 +19,12 @@ export function LogOfferForm({ searchId, listings }: { searchId: string; listing
   const [dealerContact, setDealerContact] = useState("");
   const [offerPrice, setOfferPrice] = useState("");
   const [msrp, setMsrp] = useState("");
+  // Both optional -- feed the customer-facing offer card's photo/value
+  // display. Pre-filled from a selected listing below when available, same
+  // as dealerName/offerPrice/msrp already are; otherwise left for the
+  // agent to type in if known, or left blank.
+  const [vehicleTrim, setVehicleTrim] = useState("");
+  const [vehicleExteriorColor, setVehicleExteriorColor] = useState("");
   const [notes, setNotes] = useState("");
   const [addons, setAddons] = useState<AddonLine[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -43,6 +49,8 @@ export function LogOfferForm({ searchId, listings }: { searchId: string; listing
       setDealerContact(listing.dealerPhone ?? "");
       if (listing.priceCents != null) setOfferPrice((listing.priceCents / 100).toString());
       if (listing.msrpCents != null) setMsrp((listing.msrpCents / 100).toString());
+      if (listing.trim) setVehicleTrim(listing.trim);
+      if (listing.color) setVehicleExteriorColor(listing.color);
     }
   }
 
@@ -52,6 +60,8 @@ export function LogOfferForm({ searchId, listings }: { searchId: string; listing
     setDealerContact("");
     setOfferPrice("");
     setMsrp("");
+    setVehicleTrim("");
+    setVehicleExteriorColor("");
     setNotes("");
     setAddons([]);
     setRawText("");
@@ -111,6 +121,8 @@ export function LogOfferForm({ searchId, listings }: { searchId: string; listing
     formData.set("dealer_contact", dealerContact);
     formData.set("offer_price", offerPrice);
     formData.set("msrp", msrp);
+    formData.set("vehicle_trim", vehicleTrim);
+    formData.set("vehicle_exterior_color", vehicleExteriorColor);
     formData.set("notes", notes);
     formData.set("addons_json", JSON.stringify(addonsPayload));
     if (parseMode === "pdf" && pdfFile) {
@@ -255,7 +267,29 @@ export function LogOfferForm({ searchId, listings }: { searchId: string; listing
             className="mt-1 w-full rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
           />
         </div>
+        <div>
+          <label className="block text-xs text-zinc-400">Vehicle trim (optional)</label>
+          <input
+            value={vehicleTrim}
+            onChange={(e) => setVehicleTrim(e.target.value)}
+            placeholder="e.g. XSE"
+            className="mt-1 w-full rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-zinc-400">Exterior color (optional)</label>
+          <input
+            value={vehicleExteriorColor}
+            onChange={(e) => setVehicleExteriorColor(e.target.value)}
+            placeholder="e.g. Supersonic Red"
+            className="mt-1 w-full rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
+          />
+        </div>
       </div>
+      <p className="text-xs text-zinc-500">
+        Trim/color feed the customer&apos;s offer card (a real photo when we have one for this
+        make/model/color, otherwise a placeholder) — leave blank if not confirmed with the dealer yet.
+      </p>
 
       <div>
         <div className="flex items-center justify-between">

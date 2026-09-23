@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { logout } from "@/lib/auth-actions";
 import { getCustomerDashboard, type DashboardSearch } from "@/lib/customer-dashboard";
 import { OfferResponseButtons } from "@/components/offer-response-buttons";
+import { OfferPhoto } from "@/components/offer-photo";
+import { bestValueOfferId, computeOfferSavings } from "@/lib/offer-comparison";
 import { AddonRemovalButton } from "@/components/addon-removal-button";
 import { FinancingCaptureForm } from "@/components/financing-capture-form";
 import { DeliveryPreferenceForm } from "@/components/delivery-preference-form";
@@ -20,6 +22,8 @@ import { AutoRenewOffLink } from "@/components/auto-renew-off-link";
 import { CancellationChoice } from "@/components/cancellation-choice";
 import { PurchasedCelebration } from "@/components/purchased-celebration";
 import { PostDealSurveyPrompt } from "@/components/post-deal-survey-prompt";
+import { SearchStatusTimeline } from "@/components/search-status-timeline";
+import { deriveSearchTimeline, type SearchTimelineBannerTone } from "@/lib/search-timeline";
 import { RESUME_WINDOW_DAYS } from "@/lib/vehicle-data";
 import {
   getIntakeMakeModelOptions,
@@ -385,6 +389,22 @@ function SearchCard({
   const reminderBannerCopy = getReminderBannerCopy(search);
   const pausedInfo = search.searchStatus === "paused" ? getPausedResumeInfo(search.pausedAt) : null;
 
+  const timelineInfo = deriveSearchTimeline(search);
+  // No new copy is introduced for the paused/cancelled/switched banner --
+  // resolved from the exact same already-approved strings getStatusCopy
+  // itself would otherwise render below, so the status paragraph is
+  // suppressed whenever the timeline is already showing that same text as
+  // a banner (see suppressStatusParagraph below), rather than showing it
+  // twice on the same card.
+  const timelineBanner: { tone: SearchTimelineBannerTone; text: string } | null = (() => {
+    if (!timelineInfo?.bannerTone) return null;
+    if (timelineInfo.bannerTone === "paused") {
+      return { tone: "paused", text: pausedInfo?.copy ?? SEARCH_STATUS_COPY.paused };
+    }
+    return { tone: timelineInfo.bannerTone, text: SEARCH_STATUS_COPY[timelineInfo.bannerTone] };
+  })();
+  const suppressStatusParagraph = timelineBanner !== null;
+
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -401,6 +421,14 @@ function SearchCard({
         <p className="mt-1 text-sm text-zinc-500">Colors: {search.colors.join(", ")}</p>
       )}
 
+      {timelineInfo && (
+        <SearchStatusTimeline
+          stages={timelineInfo.stages}
+          currentStageIndex={timelineInfo.currentStageIndex}
+          banner={timelineBanner}
+        />
+      )}
+
       {search.searchStatus === "purchased" && search.make && search.model ? (
         <>
           <PurchasedCelebration make={search.make} model={search.model} trim={search.trim} />
@@ -408,7 +436,9 @@ function SearchCard({
         </>
       ) : (
         <>
-      <p className="mt-3 text-sm text-zinc-400">{getStatusCopy(search)}</p>
+      {!suppressStatusParagraph && (
+        <p className="mt-3 text-sm text-zinc-400">{getStatusCopy(search)}</p>
+      )}
 
       {reminderBannerCopy && (
         <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
@@ -510,37 +540,68 @@ function SearchCard({
         <h3 className="text-sm font-semibold text-zinc-300">
           {search.offers.length > 0 ? `Offers (${search.offers.length})` : "No offers yet"}
         </h3>
-        {search.offers.length > 0 && (
+        {search.offers.length > 0 && (() => {
+          const bestOfferId = bestValueOfferId(search.offers);
+          return (
           <ul className="mt-3 space-y-3">
-            {search.offers.map((offer) => (
+            {search.offers.map((offer) => {
+              const savings = computeOfferSavings(offer);
+              return (
               <li key={offer.id} className="rounded-xl border border-white/10 bg-black/20 p-4">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <span className="font-semibold text-white">{offer.dealerName}</span>
-                  {offer.isBelowMsrp && (
-                    <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-400">
-                      Below Total SRP
-                    </span>
-                  )}
+                <div className="flex gap-4">
+                  <OfferPhoto
+                    photoUrl={offer.photoUrl}
+                    alt={
+                      offer.vehicleExteriorColor
+                        ? `${search.make ?? ""} ${search.model ?? ""} in ${offer.vehicleExteriorColor}`.trim()
+                        : `${search.make ?? ""} ${search.model ?? ""}`.trim()
+                    }
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <span className="font-semibold text-white">{offer.dealerName}</span>
+                      <div className="flex flex-wrap gap-2">
+                        {offer.id === bestOfferId && (
+                          <span className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-semibold text-zinc-950">
+                            Best value
+                          </span>
+                        )}
+                        {offer.isBelowMsrp && (
+                          <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-400">
+                            Below Total SRP
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {offer.vehicleTrim && (
+                      <p className="mt-0.5 text-xs text-zinc-500">Trim: {offer.vehicleTrim}</p>
+                    )}
+                    <p className="mt-2 text-sm text-zinc-400">
+                      Offer: <span className="text-white">{formatCents(offer.offerPriceCents)}</span> — Total
+                      Suggested Retail Price: {formatCents(offer.msrpCents)}
+                    </p>
+                    {savings && (
+                      <p className="mt-0.5 text-sm font-medium text-emerald-400">
+                        {formatCents(savings.belowMsrpCents)} below Total SRP ({savings.belowMsrpPercent}% off)
+                      </p>
+                    )}
+                    <p className="mt-1 text-xs text-zinc-500">
+                      Delivered {formatDate(offer.deliveredAt)} — status: {offer.status.replace(/_/g, " ")}
+                      {offer.customerRespondedAt && ` on ${formatDate(offer.customerRespondedAt)}`}
+                    </p>
+                    {offer.offerSheetUrl && (
+                      <a
+                        href={offer.offerSheetUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1 inline-block text-xs text-emerald-400 underline hover:text-emerald-300"
+                      >
+                        View offer sheet (PDF)
+                      </a>
+                    )}
+                    {offer.status === "pending" && <OfferResponseButtons offerId={offer.id} />}
+                  </div>
                 </div>
-                <p className="mt-2 text-sm text-zinc-400">
-                  Offer: <span className="text-white">{formatCents(offer.offerPriceCents)}</span> — Total
-                  Suggested Retail Price: {formatCents(offer.msrpCents)}
-                </p>
-                <p className="mt-1 text-xs text-zinc-500">
-                  Delivered {formatDate(offer.deliveredAt)} — status: {offer.status.replace(/_/g, " ")}
-                  {offer.customerRespondedAt && ` on ${formatDate(offer.customerRespondedAt)}`}
-                </p>
-                {offer.offerSheetUrl && (
-                  <a
-                    href={offer.offerSheetUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-1 inline-block text-xs text-emerald-400 underline hover:text-emerald-300"
-                  >
-                    View offer sheet (PDF)
-                  </a>
-                )}
-                {offer.status === "pending" && <OfferResponseButtons offerId={offer.id} />}
 
                 {offer.addons.length > 0 && (
                   <div className="mt-3 border-t border-white/5 pt-3">
@@ -597,9 +658,11 @@ function SearchCard({
                   </div>
                 )}
               </li>
-            ))}
+              );
+            })}
           </ul>
-        )}
+          );
+        })()}
       </div>
         </>
       )}

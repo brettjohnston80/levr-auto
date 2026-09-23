@@ -8,6 +8,7 @@ import {
   type ConfiguratorSelection,
 } from "./configurator-matching";
 import { getConfiguratorQuestionsForResolvedTrimIds } from "./configurator-questions";
+import { vehicleColorImageUrl } from "./vehicle-color-images";
 
 export interface DashboardAddon {
   id: string;
@@ -43,6 +44,26 @@ export interface DashboardOffer {
   dealProgress: DashboardDealProgress | null;
   serviceAgreementSignedAt: string | null;
   offerSheetUrl: string | null;
+  /**
+   * Denormalized snapshot of what the dealer is offering, agent-entered at
+   * log time -- see the migration header on qualifying_offers.vehicle_trim/
+   * vehicle_exterior_color for why these are never live-joined against a
+   * listing. Both null on most offers today (most real offers aren't
+   * listing-backed and the AI offer-parser never extracts a vehicle
+   * description) -- that's the expected, common case, not a bug.
+   */
+  vehicleTrim: string | null;
+  vehicleExteriorColor: string | null;
+  /**
+   * Resolved server-side (vehicleColorImageUrl needs fs access, so this
+   * can't be resolved from a client component) against the PARENT SEARCH's
+   * make/model -- an offer has no make/model of its own. Null whenever no
+   * color is on file, or when we simply don't have a photo for this
+   * make/model/color (the overwhelmingly common case -- only Camry/Civic
+   * are covered today). OfferPhoto renders the honest silhouette
+   * placeholder for null, never a broken image.
+   */
+  photoUrl: string | null;
 }
 
 export interface DashboardSearch {
@@ -137,10 +158,14 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
 
   const surveyBySearchId = new Map((surveys ?? []).map((s) => [s.customer_search_id, s]));
 
+  // Needed to resolve each offer's photo below -- vehicleColorImageUrl is
+  // keyed on make/model, which lives on the search, not the offer itself.
+  const makeModelBySearchId = new Map(searches.map((s) => [s.id, { make: s.make, model: s.model }]));
+
   const { data: offers, error: offersError } = await supabase
     .from("qualifying_offers")
     .select(
-      "id, customer_search_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at"
+      "id, customer_search_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at, vehicle_trim, vehicle_exterior_color"
     )
     .in("customer_search_id", searchIds)
     .order("received_at", { ascending: false });
@@ -298,6 +323,10 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
 
   const offersBySearchId = new Map<string, DashboardOffer[]>();
   for (const offer of offers ?? []) {
+    const { make, model } = makeModelBySearchId.get(offer.customer_search_id) ?? {
+      make: null,
+      model: null,
+    };
     const list = offersBySearchId.get(offer.customer_search_id) ?? [];
     list.push({
       id: offer.id,
@@ -313,6 +342,11 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
       dealProgress: dealProgressByOfferId.get(offer.id) ?? null,
       serviceAgreementSignedAt: serviceAgreementSignedAtByOfferId.get(offer.id) ?? null,
       offerSheetUrl: offerSheetUrlByOfferId.get(offer.id) ?? null,
+      vehicleTrim: offer.vehicle_trim,
+      vehicleExteriorColor: offer.vehicle_exterior_color,
+      photoUrl: offer.vehicle_exterior_color
+        ? vehicleColorImageUrl(make, model, "exterior_color", offer.vehicle_exterior_color)
+        : null,
     });
     offersBySearchId.set(offer.customer_search_id, list);
   }

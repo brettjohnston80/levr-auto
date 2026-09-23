@@ -57,6 +57,13 @@ export async function logQualifyingOffer(formData: FormData): Promise<LogOfferRe
   const listingId = formData.get("listing_id")?.toString() || null;
   const dealerName = formData.get("dealer_name")?.toString().trim();
   const dealerContact = formData.get("dealer_contact")?.toString().trim() || null;
+  // Both optional -- feeds the customer-facing offer card's photo/value
+  // display (see the migration header on qualifying_offers.vehicle_trim/
+  // vehicle_exterior_color). Left blank when the agent doesn't know the
+  // exact trim/color yet; the offer card falls back to a generic
+  // placeholder in that case, same as it always has.
+  const vehicleTrim = formData.get("vehicle_trim")?.toString().trim() || null;
+  const vehicleExteriorColor = formData.get("vehicle_exterior_color")?.toString().trim() || null;
   const offerPriceRaw = formData.get("offer_price")?.toString();
   const msrpRaw = formData.get("msrp")?.toString();
   const notes = formData.get("notes")?.toString().trim() || null;
@@ -107,6 +114,8 @@ export async function logQualifyingOffer(formData: FormData): Promise<LogOfferRe
       offer_price_cents: offerPriceCents,
       msrp_cents: msrpCents,
       notes,
+      vehicle_trim: vehicleTrim,
+      vehicle_exterior_color: vehicleExteriorColor,
     })
     .select("id")
     .single();
