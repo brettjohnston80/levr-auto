@@ -225,6 +225,10 @@ export interface OutreachOffer {
   deliveredAt: string | null;
   customerRespondedAt: string | null;
   vehicleSoldAt: string | null;
+  /** Set only on a released accepted offer (withdrawAcceptedOffer). */
+  withdrawnAt: string | null;
+  withdrawnByAgentName: string | null;
+  withdrawalReason: string | null;
   addons: OutreachAddon[];
   dealProgress: OutreachDealProgress | null;
   serviceAgreementSignedAt: string | null;
@@ -314,13 +318,24 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
     supabase
       .from("qualifying_offers")
       .select(
-        "id, customer_search_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at, vehicle_sold_at"
+        "id, customer_search_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at, vehicle_sold_at, withdrawn_at, withdrawn_by_agent_id, withdrawal_reason"
       )
       .in("customer_search_id", searchIds),
   ]);
 
   if (offersError) {
     throw new Error(`Failed to load qualifying offers: ${offersError.message}`);
+  }
+
+  // Names for the "Released by ..." line on withdrawn offers -- only
+  // fetched when at least one offer in view has actually been released.
+  const withdrawingAgentIds = [
+    ...new Set((offers ?? []).map((o) => o.withdrawn_by_agent_id).filter((id): id is string => !!id)),
+  ];
+  const agentNameById = new Map<string, string>();
+  if (withdrawingAgentIds.length > 0) {
+    const { data: agents } = await supabase.from("agents").select("id, name").in("id", withdrawingAgentIds);
+    for (const a of agents ?? []) agentNameById.set(a.id as string, a.name as string);
   }
 
   const offerIds = (offers ?? []).map((o) => o.id);
@@ -546,6 +561,11 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
       deliveredAt: offer.delivered_at,
       customerRespondedAt: offer.customer_responded_at,
       vehicleSoldAt: offer.vehicle_sold_at,
+      withdrawnAt: offer.withdrawn_at,
+      withdrawnByAgentName: offer.withdrawn_by_agent_id
+        ? (agentNameById.get(offer.withdrawn_by_agent_id) ?? null)
+        : null,
+      withdrawalReason: offer.withdrawal_reason,
       addons: addonsByOfferId.get(offer.id) ?? [],
       dealProgress: dealProgressByOfferId.get(offer.id) ?? null,
       serviceAgreementSignedAt: serviceAgreementSignedAtByOfferId.get(offer.id) ?? null,

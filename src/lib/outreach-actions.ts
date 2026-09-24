@@ -241,6 +241,14 @@ export interface MarkSearchPurchasedResult {
  * more than one offer on a search were ever independently accepted; the
  * caller already has the specific offer in scope (this button renders
  * inline per-offer), so it's passed through explicitly instead of guessed.
+ *
+ * The offer itself is verified too (2026-09-24): it must belong to this
+ * search and still be customer_accepted. deal_progress alone isn't enough
+ * -- a released (withdrawn) offer keeps its deal_progress history, and
+ * "deposit confirmed, then the deal fell through" is exactly the case where
+ * a withdrawn offer carries full availability + deposit confirmation. A
+ * stale tab showing this button must not be able to mark that offer
+ * purchased.
  */
 export async function markSearchPurchased(searchId: string, offerId: string): Promise<MarkSearchPurchasedResult> {
   const agent = await getAuthorizedAgent();
@@ -249,6 +257,22 @@ export async function markSearchPurchased(searchId: string, offerId: string): Pr
   }
 
   const admin = createAdminClient();
+
+  const { data: offer, error: offerError } = await admin
+    .from("qualifying_offers")
+    .select("customer_search_id, status, dealer_name")
+    .eq("id", offerId)
+    .maybeSingle();
+
+  if (offerError || !offer) {
+    return { ok: false, error: "That offer no longer exists." };
+  }
+  if (offer.customer_search_id !== searchId) {
+    return { ok: false, error: "That offer doesn't belong to this search." };
+  }
+  if (offer.status !== "customer_accepted") {
+    return { ok: false, error: "Only an accepted offer can be marked purchased." };
+  }
 
   const { data: progress, error: progressError } = await admin
     .from("deal_progress")
@@ -285,11 +309,10 @@ export async function markSearchPurchased(searchId: string, offerId: string): Pr
     return { ok: false, error: "This search isn't active right now — can't mark it purchased." };
   }
 
-  const { data: offer } = await admin.from("qualifying_offers").select("dealer_name").eq("id", offerId).maybeSingle();
   await logNotificationEvent({
     customerSearchId: searchId,
     eventType: "search_purchased",
-    eventData: { dealerName: offer?.dealer_name ?? "the dealership" },
+    eventData: { dealerName: offer.dealer_name ?? "the dealership" },
   });
 
   const { error: logError } = await admin
@@ -339,6 +362,105 @@ export async function revertPurchasedSearch(searchId: string, reason: string): P
 
   revalidatePath("/internal/outreach");
   revalidatePath("/account");
+  return { ok: true };
+}
+
+export interface WithdrawAcceptedOfferResult {
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * Releases an accepted offer whose deal fell through (dealer sold the car,
+ * financing collapsed, ...) by moving it to 'withdrawn'. Required because
+ * respondToOffer allows at most one accepted offer per search and nothing
+ * else ever un-accepts one -- without this, a customer whose deal fell
+ * through could never accept another offer on that search.
+ *
+ * Agent-only, reason required. Refused on a purchased search: the agent
+ * reverts the purchase first (revertPurchasedSearch), so
+ * purchased_qualifying_offer_id can never end up pointing at a withdrawn
+ * offer. Guarded by .eq("status", "customer_accepted") on the write, so a
+ * double-click is a clean no-op.
+ *
+ * Writes ONLY status + the three withdrawn_* columns. customer_responded_at,
+ * delivered_at and vehicle_sold_at are left exactly as they were -- the
+ * Day-30 guarantee evaluation reads those (never status), so a release can't
+ * change a guarantee outcome. deal_progress, documents and add-ons are kept
+ * as history; every action on them already requires customer_accepted, so
+ * they simply go inert. One-way: if the deal comes back together, the agent
+ * logs it as a new offer.
+ *
+ * Known, accepted limitation: two agents acting at the same instant
+ * (one releasing, one marking the search purchased) could still interleave
+ * between the purchased check and the write. Only one agent exists today;
+ * fully closing this would need a row-locking RPC.
+ */
+export async function withdrawAcceptedOffer(offerId: string, reason: string): Promise<WithdrawAcceptedOfferResult> {
+  const agent = await getAuthorizedAgent();
+  if (!agent) {
+    return { ok: false, error: "Not authorized." };
+  }
+
+  const trimmedReason = reason?.trim();
+  if (!trimmedReason) {
+    return { ok: false, error: "A reason is required." };
+  }
+
+  const admin = createAdminClient();
+
+  const { data: offer, error: offerError } = await admin
+    .from("qualifying_offers")
+    .select("id, customer_search_id, status")
+    .eq("id", offerId)
+    .maybeSingle();
+
+  if (offerError || !offer) {
+    return { ok: false, error: "That offer no longer exists." };
+  }
+  if (offer.status !== "customer_accepted") {
+    return { ok: false, error: "Only an accepted offer can be released." };
+  }
+
+  const { data: search, error: searchError } = await admin
+    .from("customer_searches")
+    .select("search_status")
+    .eq("id", offer.customer_search_id)
+    .maybeSingle();
+
+  if (searchError || !search) {
+    return { ok: false, error: "That search no longer exists." };
+  }
+  if (search.search_status === "purchased") {
+    return {
+      ok: false,
+      error: "This search is marked purchased — revert the purchase first, then release the offer.",
+    };
+  }
+
+  const { data: updated, error: updateError } = await admin
+    .from("qualifying_offers")
+    .update({
+      status: "withdrawn",
+      withdrawn_at: new Date().toISOString(),
+      withdrawn_by_agent_id: agent.id,
+      withdrawal_reason: trimmedReason,
+    })
+    .eq("id", offerId)
+    .eq("status", "customer_accepted")
+    .select("id")
+    .maybeSingle();
+
+  if (updateError) {
+    return { ok: false, error: `Failed to release the offer: ${updateError.message}` };
+  }
+  if (!updated) {
+    return { ok: false, error: "This offer is no longer accepted." };
+  }
+
+  revalidatePath("/internal/outreach");
+  revalidatePath("/account");
+  revalidatePath("/account/deal");
   return { ok: true };
 }
 

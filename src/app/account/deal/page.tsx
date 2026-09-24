@@ -139,12 +139,14 @@ export default async function DealPage({
   })();
   const suppressStatusParagraph = timelineBanner !== null;
   const bestOfferId = bestValueOfferId(deal.offers);
+  // At most one offer per search can be customer_accepted (2026-09-24), so
+  // while one is, every pending card offers only Decline.
+  const anOfferIsAccepted = deal.offers.some((o) => o.status === "customer_accepted");
 
-  // Purchased-search-only. purchasedQualifyingOfferId is the real source of
-  // truth for which offer was actually bought (see its own comment on
-  // DealDetails for why status alone can't be trusted here); the
-  // customer_accepted fallback only matters for a purchased search
-  // predating that column's writer (2026-08-18).
+  // Purchased-search-only. purchasedQualifyingOfferId is the source of truth
+  // for which offer was actually bought (see its own comment on
+  // DealDetails); the customer_accepted fallback only matters for a
+  // purchased search predating that column's writer (2026-08-18).
   const acceptedOffer =
     deal.searchStatus === "purchased"
       ? (deal.offers.find((o) => o.id === deal.purchasedQualifyingOfferId) ??
@@ -189,6 +191,7 @@ export default async function DealPage({
                   make={deal.make}
                   model={deal.model}
                   isBestValue={acceptedOffer.id === bestOfferId}
+                  anotherOfferAccepted={false}
                 />
               </ul>
             )}
@@ -229,6 +232,7 @@ export default async function DealPage({
                       make={deal.make}
                       model={deal.model}
                       isBestValue={offer.id === bestOfferId}
+                      anotherOfferAccepted={anOfferIsAccepted}
                     />
                   ))}
                 </ul>

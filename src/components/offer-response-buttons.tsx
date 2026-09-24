@@ -3,7 +3,11 @@
 import { useState } from "react";
 import { respondToOffer } from "@/lib/offer-response-actions";
 
-export function OfferResponseButtons({ offerId }: { offerId: string }) {
+// allowAccept is false while another offer on the same search is already
+// accepted -- only Decline is offered, with a short note. respondToOffer
+// still refuses a second accept server-side (a stale tab can reach it);
+// hiding the button just means customers rarely see that error.
+export function OfferResponseButtons({ offerId, allowAccept = true }: { offerId: string; allowAccept?: boolean }) {
   const [submitting, setSubmitting] = useState<"accepted" | "declined" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,15 +26,20 @@ export function OfferResponseButtons({ offerId }: { offerId: string }) {
 
   return (
     <div className="mt-3">
+      {!allowAccept && (
+        <p className="mb-2 text-xs text-zinc-500">You&apos;ve already accepted another offer on this search.</p>
+      )}
       <div className="flex gap-2">
-        <button
-          type="button"
-          disabled={submitting !== null}
-          onClick={() => handleRespond("accepted")}
-          className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-zinc-950 disabled:opacity-50"
-        >
-          {submitting === "accepted" ? "Accepting…" : "Accept"}
-        </button>
+        {allowAccept && (
+          <button
+            type="button"
+            disabled={submitting !== null}
+            onClick={() => handleRespond("accepted")}
+            className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-zinc-950 disabled:opacity-50"
+          >
+            {submitting === "accepted" ? "Accepting…" : "Accept"}
+          </button>
+        )}
         <button
           type="button"
           disabled={submitting !== null}

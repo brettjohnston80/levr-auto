@@ -42,6 +42,14 @@ export interface DashboardOffer {
   receivedAt: string;
   deliveredAt: string;
   customerRespondedAt: string | null;
+  /**
+   * Set only on an accepted offer an agent released (withdrawAcceptedOffer)
+   * after the deal fell through. OfferCard shows this date on a withdrawn
+   * offer instead of customerRespondedAt, which still holds the original
+   * accept time. The agent's reason is deliberately not loaded here -- it's
+   * agent-facing only.
+   */
+  withdrawnAt: string | null;
   addons: DashboardAddon[];
   dealProgress: DashboardDealProgress | null;
   serviceAgreementSignedAt: string | null;
@@ -133,7 +141,7 @@ async function loadOffersBySearchId(
   const { data: offers, error: offersError } = await supabase
     .from("qualifying_offers")
     .select(
-      "id, customer_search_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at, vehicle_trim, vehicle_exterior_color"
+      "id, customer_search_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at, withdrawn_at, vehicle_trim, vehicle_exterior_color"
     )
     .in("customer_search_id", searchIds)
     .order("received_at", { ascending: false });
@@ -272,6 +280,7 @@ async function loadOffersBySearchId(
       receivedAt: offer.received_at,
       deliveredAt: offer.delivered_at ?? deliveredAtNow!,
       customerRespondedAt: offer.customer_responded_at,
+      withdrawnAt: offer.withdrawn_at,
       addons: addonsByOfferId.get(offer.id) ?? [],
       dealProgress: dealProgressByOfferId.get(offer.id) ?? null,
       serviceAgreementSignedAt: serviceAgreementSignedAtByOfferId.get(offer.id) ?? null,
@@ -420,15 +429,15 @@ export interface DealDetails {
   solidifiedAt: string | null;
   pausedAt: string | null;
   /**
-   * The offer actually marked purchased (markSearchPurchased), not just
-   * "whichever offer has status customer_accepted" -- respondToOffer has no
-   * guard preventing a customer from accepting more than one offer on the
-   * same search (confirmed 2026-09-23, logged as a separate known gap, not
-   * fixed here), so status alone can't reliably identify the ONE offer that
-   * was actually bought. This column is the real source of truth for that.
-   * Null on a non-purchased search, or on a purchased search predating this
-   * column's own writer (2026-08-18) -- account/deal/page.tsx falls back to
-   * the single customer_accepted offer for that old-data case.
+   * The offer actually marked purchased (markSearchPurchased) -- the source
+   * of truth for which offer was bought. Since 2026-09-24 a search can hold
+   * at most one customer_accepted offer (respondToOffer's check, backed by
+   * the partial unique index qualifying_offers_one_accepted_per_search_idx),
+   * so status would now agree with this column; it's still preferred because
+   * it records the purchase itself rather than inferring it. Null on a
+   * non-purchased search, or on a purchased search predating this column's
+   * own writer (2026-08-18) -- account/deal/page.tsx falls back to the
+   * customer_accepted offer for that old-data case.
    */
   purchasedQualifyingOfferId: string | null;
   survey: { id: string; submittedAt: string | null } | null;

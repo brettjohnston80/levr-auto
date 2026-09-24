@@ -19,6 +19,7 @@ import { ResolveNotificationCallbackButton } from "@/components/resolve-notifica
 import { LogOfferForm } from "@/components/log-offer-form";
 import { MarkSoldButton } from "@/components/mark-sold-button";
 import { MarkPurchasedButton } from "@/components/mark-purchased-button";
+import { WithdrawAcceptedOfferButton } from "@/components/withdraw-accepted-offer-button";
 import { AddOfferAddonForm } from "@/components/add-offer-addon-form";
 import { ResolveAddonRemovalForm } from "@/components/resolve-addon-removal-form";
 import { ConfirmAvailabilityButton } from "@/components/confirm-availability-button";
@@ -712,6 +713,13 @@ export default async function OutreachQueuePage() {
                             ) : (
                               offer.isBelowMsrp && <MarkSoldButton offerId={offer.id} />
                             )}
+                            {offer.status === "withdrawn" && offer.withdrawnAt && (
+                              <p className="ml-4 text-xs text-amber-400">
+                                Released {new Date(offer.withdrawnAt).toLocaleDateString()}
+                                {offer.withdrawnByAgentName ? ` by ${offer.withdrawnByAgentName}` : ""}
+                                {offer.withdrawalReason ? ` — ${offer.withdrawalReason}` : ""}
+                              </p>
+                            )}
 
                             {offer.addons.length > 0 && (
                               <ul className="mt-1 ml-4 space-y-1 border-l border-white/10 pl-3">
@@ -819,6 +827,10 @@ export default async function OutreachQueuePage() {
 
                                 <div className="mt-2 text-xs text-zinc-400">
                                   Deal closed? <MarkPurchasedButton searchId={search.id} offerId={offer.id} />
+                                </div>
+
+                                <div className="mt-2 text-xs text-zinc-400">
+                                  Deal fell through? <WithdrawAcceptedOfferButton offerId={offer.id} />
                                 </div>
                               </div>
                             )}

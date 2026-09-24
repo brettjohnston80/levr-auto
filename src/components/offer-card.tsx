@@ -26,13 +26,22 @@ export function OfferCard({
   make,
   model,
   isBestValue,
+  anotherOfferAccepted,
 }: {
   offer: DashboardOffer;
   make: string | null;
   model: string | null;
   isBestValue: boolean;
+  /** True while a different offer on this search is customer_accepted --
+   *  a pending card then offers only Decline. Goes false again the moment
+   *  an agent releases that offer, so Accept comes back. */
+  anotherOfferAccepted: boolean;
 }) {
   const savings = computeOfferSavings(offer);
+  // A withdrawn offer still carries customer_responded_at from when it was
+  // accepted -- showing that date next to "withdrawn" would misdate the
+  // release, so it uses withdrawn_at instead.
+  const statusDate = offer.status === "withdrawn" ? offer.withdrawnAt : offer.customerRespondedAt;
 
   return (
     <li className="rounded-xl border border-white/10 bg-black/20 p-4">
@@ -73,7 +82,7 @@ export function OfferCard({
           )}
           <p className="mt-1 text-xs text-zinc-500">
             Delivered {formatDate(offer.deliveredAt)} — status: {offer.status.replace(/_/g, " ")}
-            {offer.customerRespondedAt && ` on ${formatDate(offer.customerRespondedAt)}`}
+            {statusDate && ` on ${formatDate(statusDate)}`}
           </p>
           {offer.offerSheetUrl && (
             <a
@@ -85,7 +94,9 @@ export function OfferCard({
               View offer sheet (PDF)
             </a>
           )}
-          {offer.status === "pending" && <OfferResponseButtons offerId={offer.id} />}
+          {offer.status === "pending" && (
+            <OfferResponseButtons offerId={offer.id} allowAccept={!anotherOfferAccepted} />
+          )}
         </div>
       </div>
 
