@@ -27,6 +27,7 @@ export function OfferCard({
   model,
   isBestValue,
   anotherOfferAccepted,
+  initiallyOpen = false,
 }: {
   offer: DashboardOffer;
   make: string | null;
@@ -36,6 +37,8 @@ export function OfferCard({
    *  a pending card then offers only Decline. Goes false again the moment
    *  an agent releases that offer, so Accept comes back. */
   anotherOfferAccepted: boolean;
+  /** Open this offer's detail view on load (/account/deal?offer=...). */
+  initiallyOpen?: boolean;
 }) {
   const savings = computeOfferSavings(offer);
   // A withdrawn offer still carries customer_responded_at from when it was
@@ -106,6 +109,7 @@ export function OfferCard({
             model={model}
             isBestValue={isBestValue}
             anotherOfferAccepted={anotherOfferAccepted}
+            initiallyOpen={initiallyOpen}
           />
         </div>
       </div>

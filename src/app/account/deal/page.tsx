@@ -30,9 +30,9 @@ const TERMINAL_STATUSES = ["switched", "cancelled", "closed"];
 export default async function DealPage({
   searchParams,
 }: {
-  searchParams: Promise<{ searchId?: string }>;
+  searchParams: Promise<{ searchId?: string; offer?: string }>;
 }) {
-  const { searchId: requestedSearchId } = await searchParams;
+  const { searchId: requestedSearchId, offer: openOfferId } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -192,6 +192,7 @@ export default async function DealPage({
                   model={deal.model}
                   isBestValue={acceptedOffer.id === bestOfferId}
                   anotherOfferAccepted={false}
+                  initiallyOpen={acceptedOffer.id === openOfferId}
                 />
               </ul>
             )}
@@ -233,6 +234,7 @@ export default async function DealPage({
                       model={deal.model}
                       isBestValue={offer.id === bestOfferId}
                       anotherOfferAccepted={anOfferIsAccepted}
+                      initiallyOpen={offer.id === openOfferId}
                     />
                   ))}
                 </ul>

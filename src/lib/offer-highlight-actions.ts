@@ -9,9 +9,7 @@ export interface OfferHighlightResult {
   error?: string;
 }
 
-const NOTE_MAX_LENGTH = 500;
-
-// Owner check shared by both actions. Status is re-checked by each write's
+// Owner check. Status is re-checked by each write's
 // own .eq("status", "pending") guard, not just here -- an offer accepted,
 // declined or released between page load and click must stay frozen.
 async function verifyOwnedOffer(offerId: string) {
@@ -46,7 +44,8 @@ function revalidate() {
 
 /**
  * Highlight ("interested, not ready to commit") on/off for a pending offer.
- * Independent of the note. Bumps customer_activity_at so the change
+ * Independent of the offer's message thread (the customer note it used to
+ * sit beside was retired into threads, 2026-09-25). Bumps customer_activity_at so the change
  * surfaces in the agent's "Customer activity on offers" section -- the
  * stand-in for an email/SMS, deliberately never sent.
  */
@@ -65,39 +64,6 @@ export async function setOfferHighlight(offerId: string, highlighted: boolean): 
 
   if (error) return { ok: false, error: `Failed to save: ${error.message}` };
   if (!updated) return { ok: false, error: "You can only highlight an offer you haven't responded to yet." };
-
-  revalidate();
-  return { ok: true };
-}
-
-/**
- * Sets, edits or clears (empty string) the customer's note on a pending
- * offer. Max 500 characters, enforced here and by a DB check constraint.
- */
-export async function setOfferNote(offerId: string, note: string): Promise<OfferHighlightResult> {
-  const trimmed = (note ?? "").trim();
-  if (trimmed.length > NOTE_MAX_LENGTH) {
-    return { ok: false, error: `Notes can be up to ${NOTE_MAX_LENGTH} characters.` };
-  }
-
-  const check = await verifyOwnedOffer(offerId);
-  if (!check.ok) return check;
-
-  const now = new Date().toISOString();
-  const { data: updated, error } = await check.admin
-    .from("qualifying_offers")
-    .update({
-      customer_note: trimmed === "" ? null : trimmed,
-      customer_note_updated_at: now,
-      customer_activity_at: now,
-    })
-    .eq("id", offerId)
-    .eq("status", "pending")
-    .select("id")
-    .maybeSingle();
-
-  if (error) return { ok: false, error: `Failed to save your note: ${error.message}` };
-  if (!updated) return { ok: false, error: "You can only add a note to an offer you haven't responded to yet." };
 
   revalidate();
   return { ok: true };

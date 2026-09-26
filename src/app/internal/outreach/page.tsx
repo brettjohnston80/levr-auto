@@ -21,6 +21,10 @@ import { LogOfferForm } from "@/components/log-offer-form";
 import { MarkSoldButton } from "@/components/mark-sold-button";
 import { MarkPurchasedButton } from "@/components/mark-purchased-button";
 import { WithdrawAcceptedOfferButton } from "@/components/withdraw-accepted-offer-button";
+import { AgentOfferThread } from "@/components/agent-offer-thread";
+import { OfferMessageList } from "@/components/offer-message-list";
+import { OfferMessageComposer } from "@/components/offer-message-composer";
+import { threadIsOpen } from "@/lib/offer-messages-shared";
 import { MarkOfferActivityReviewedButton } from "@/components/mark-offer-activity-reviewed-button";
 import { AddOfferAddonForm } from "@/components/add-offer-addon-form";
 import { ResolveAddonRemovalForm } from "@/components/resolve-addon-removal-form";
@@ -413,15 +417,16 @@ export default async function OutreachQueuePage() {
 
         {/* Customer activity on offers (2026-09-25). The agent-facing
             stand-in for an email/SMS, which is deliberately never sent:
-            every unreviewed highlight, note change or decline, across
-            searching AND paused searches (paused searches have no card
-            anywhere else on this page). Stays until "Mark reviewed". */}
+            every unreviewed highlight, customer message or decline, across
+            searching, paused and purchased searches (the latter two have no
+            card anywhere else on this page, so this is the only place to
+            reply to their threads). Stays until "Mark reviewed". */}
         <div className="mt-10">
           <h2 className="text-lg font-semibold text-white">
             Customer activity on offers ({offerActivityQueue.length})
           </h2>
           <p className="mt-1 text-sm text-zinc-400">
-            Highlights, notes and declines from customers, newest first. Each stays here until you mark it
+            Highlights, messages and declines from customers, newest first. Each stays here until you mark it
             reviewed, and comes back if the customer changes it again.
           </p>
           {offerActivityQueue.length === 0 ? (
@@ -439,6 +444,11 @@ export default async function OutreachQueuePage() {
                         {item.searchStatus === "paused" && (
                           <span className="ml-2 rounded-full border border-white/15 px-2 py-0.5 text-xs text-zinc-400">
                             paused search
+                          </span>
+                        )}
+                        {item.searchStatus === "purchased" && (
+                          <span className="ml-2 rounded-full border border-white/15 px-2 py-0.5 text-xs text-zinc-400">
+                            purchased search
                           </span>
                         )}
                       </span>
@@ -460,15 +470,36 @@ export default async function OutreachQueuePage() {
                     {item.customerHighlightedAt && (
                       <p className="text-amber-300">★ Highlighted {formatDate(item.customerHighlightedAt)}</p>
                     )}
-                    {item.customerNote && (
-                      <p className="text-zinc-200">
-                        Note: <span className="italic">&ldquo;{item.customerNote}&rdquo;</span>
-                      </p>
+                    {item.newCustomerMessages.length > 0 && (
+                      <div className="pt-1">
+                        <p className="text-xs font-semibold text-zinc-400">
+                          New message{item.newCustomerMessages.length === 1 ? "" : "s"} from the customer:
+                        </p>
+                        <div className="mt-1">
+                          <OfferMessageList messages={item.newCustomerMessages} viewer="agent" />
+                        </div>
+                      </div>
                     )}
-                    {item.status === "pending" && !item.customerHighlightedAt && !item.customerNote && (
-                      <p className="text-zinc-500">Customer removed their highlight/note.</p>
+                    {item.status === "pending" && !item.customerHighlightedAt && item.newCustomerMessages.length === 0 && (
+                      <p className="text-zinc-500">Customer removed their highlight.</p>
                     )}
                   </div>
+                  {item.threadOpen && (
+                    <div className="mt-3 max-w-xl">
+                      <OfferMessageComposer offerId={item.offerId} sender="agent" seenActivityAt={item.customerActivityAt} />
+                      <p className="mt-1 text-xs text-zinc-500">Replying also marks this reviewed.</p>
+                    </div>
+                  )}
+                  {item.messages.length > item.newCustomerMessages.length && (
+                    <details className="mt-2 text-sm">
+                      <summary className="cursor-pointer text-xs text-zinc-400 hover:text-white">
+                        Full thread ({item.messages.length})
+                      </summary>
+                      <div className="mt-2 max-w-xl">
+                        <OfferMessageList messages={item.messages} viewer="agent" />
+                      </div>
+                    </details>
+                  )}
                   <div className="mt-2 flex items-center gap-3 text-xs">
                     {item.searchStatus === "searching" && (
                       <a href={`#search-${item.searchId}`} className="text-emerald-400 underline hover:text-emerald-300">
@@ -811,11 +842,15 @@ export default async function OutreachQueuePage() {
                                 ★ Highlighted {new Date(offer.customerHighlightedAt).toLocaleDateString()}
                               </p>
                             )}
-                            {offer.customerNote && (
-                              <p className="ml-4 text-xs text-zinc-200">
-                                Customer note: <span className="italic">&ldquo;{offer.customerNote}&rdquo;</span>
-                              </p>
-                            )}
+                            {/* This card list is searching-only, so the
+                                thread is open unless the offer was released. */}
+                            <div className="ml-4">
+                              <AgentOfferThread
+                                offerId={offer.id}
+                                messages={offer.messages}
+                                open={threadIsOpen(offer.status, "searching")}
+                              />
+                            </div>
 
                             {offer.addons.length > 0 && (
                               <ul className="mt-1 ml-4 space-y-1 border-l border-white/10 pl-3">

@@ -11,6 +11,8 @@ import { getConfiguratorQuestionsForResolvedTrimIds } from "./configurator-quest
 import { vehicleColorImageUrl } from "./vehicle-color-images";
 import { haversineMiles } from "./geo";
 import { listingPhotoUrls } from "./listing-photos";
+import { hasUnreadForCustomer, loadMessagesForOffers } from "./offer-messages";
+import { threadIsOpen, type OfferMessage } from "./offer-messages-shared";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -76,10 +78,14 @@ export interface DashboardOffer {
    * placeholder for null, never a broken image.
    */
   photoUrl: string | null;
-  /** Customer's highlight/note (2026-09-25). Editable only while pending;
-   *  kept, read-only, once the offer is accepted/declined/withdrawn. */
+  /** Customer's highlight (2026-09-25). Editable only while pending. */
   customerHighlightedAt: string | null;
-  customerNote: string | null;
+  /** The offer's message thread with the agent, oldest first (2026-09-25;
+   *  replaced the single customer note). threadOpen decides whether new
+   *  messages can be sent -- see threadIsOpen. */
+  messages: OfferMessage[];
+  threadOpen: boolean;
+  hasUnreadMessages: boolean;
   /** Copied onto the offer at log time (pre-filled from a linked listing
    *  when one was chosen). Any of these can be null -- most offers today
    *  have none of them. Dealer phone/email/listing link are deliberately
@@ -161,7 +167,7 @@ export interface DashboardSearch {
 async function loadOffersBySearchId(
   supabase: AdminClient,
   searchIds: string[],
-  makeModelBySearchId: Map<string, { make: string | null; model: string | null }>,
+  makeModelBySearchId: Map<string, { make: string | null; model: string | null; searchStatus: string }>,
   detail?: { customerZipBySearchId: Map<string, string | null> },
 ): Promise<Map<string, DashboardOffer[]>> {
   const offersBySearchId = new Map<string, DashboardOffer[]>();
@@ -170,7 +176,7 @@ async function loadOffersBySearchId(
   const { data: offers, error: offersError } = await supabase
     .from("qualifying_offers")
     .select(
-      "id, customer_search_id, listing_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at, withdrawn_at, vehicle_trim, vehicle_exterior_color, customer_highlighted_at, customer_note, dealer_street, dealer_city, dealer_state, dealer_zip, vin, stock_number"
+      "id, customer_search_id, listing_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at, withdrawn_at, vehicle_trim, vehicle_exterior_color, customer_highlighted_at, last_agent_message_at, customer_messages_read_at, dealer_street, dealer_city, dealer_state, dealer_zip, vin, stock_number"
     )
     .in("customer_search_id", searchIds)
     .order("received_at", { ascending: false });
@@ -180,6 +186,7 @@ async function loadOffersBySearchId(
   }
 
   const offerIds = (offers ?? []).map((o) => o.id);
+  const messagesByOfferId = await loadMessagesForOffers(supabase, offerIds, "customer");
   const addonsByOfferId = new Map<string, DashboardAddon[]>();
 
   if (offerIds.length > 0) {
@@ -349,9 +356,10 @@ async function loadOffersBySearchId(
   };
 
   for (const offer of offers ?? []) {
-    const { make, model } = makeModelBySearchId.get(offer.customer_search_id) ?? {
+    const { make, model, searchStatus } = makeModelBySearchId.get(offer.customer_search_id) ?? {
       make: null,
       model: null,
+      searchStatus: "",
     };
     const listingDetail = offer.listing_id ? listingDetailById.get(offer.listing_id) : undefined;
     const list = offersBySearchId.get(offer.customer_search_id) ?? [];
@@ -376,7 +384,9 @@ async function loadOffersBySearchId(
         ? vehicleColorImageUrl(make, model, "exterior_color", offer.vehicle_exterior_color)
         : null,
       customerHighlightedAt: offer.customer_highlighted_at,
-      customerNote: offer.customer_note,
+      messages: messagesByOfferId.get(offer.id) ?? [],
+      threadOpen: threadIsOpen(offer.status, searchStatus),
+      hasUnreadMessages: hasUnreadForCustomer(offer.last_agent_message_at, offer.customer_messages_read_at),
       dealerStreet: offer.dealer_street,
       dealerCity: offer.dealer_city,
       dealerState: offer.dealer_state,
@@ -449,7 +459,9 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
 
   // Needed to resolve each offer's photo below -- vehicleColorImageUrl is
   // keyed on make/model, which lives on the search, not the offer itself.
-  const makeModelBySearchId = new Map(searches.map((s) => [s.id, { make: s.make, model: s.model }]));
+  const makeModelBySearchId = new Map(
+    searches.map((s) => [s.id, { make: s.make, model: s.model, searchStatus: s.search_status as string }]),
+  );
 
   const offersBySearchId = await loadOffersBySearchId(supabase, searchIds, makeModelBySearchId);
 
@@ -585,7 +597,9 @@ export async function getDealDetails(searchId: string, customerId: string): Prom
     throw new Error(`Failed to load post-deal survey: ${surveyError.message}`);
   }
 
-  const makeModelBySearchId = new Map([[searchId, { make: search.make, model: search.model }]]);
+  const makeModelBySearchId = new Map([
+    [searchId, { make: search.make, model: search.model, searchStatus: search.search_status as string }],
+  ]);
   const offersBySearchId = await loadOffersBySearchId(supabase, [searchId], makeModelBySearchId, {
     customerZipBySearchId: new Map([[searchId, (search.zip as string | null) ?? null]]),
   });

@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { logout } from "@/lib/auth-actions";
+import { getMyUnreadThreadCount } from "@/lib/offer-message-actions";
+import { UNREAD_CHANGED_EVENT } from "@/components/unread-count-refresh";
 import { useSignedIn } from "@/lib/use-signed-in";
 
 // Header auth indicator. Reported by a tester: the header said "Log In"
@@ -59,6 +62,29 @@ export function HeaderAccountLink({
   // Shared with the header's "Get Started" buttons (useSignedIn) -- see
   // that hook's own comment for why this can't just live on SiteHeader.
   const signedIn = useSignedIn();
+  // Unread offer-message threads (2026-09-25). There are no email/SMS alerts
+  // for messages, so this badge is how a customer learns an agent replied.
+  // Re-fetched on every route change -- reading a thread navigates, so the
+  // count drops as soon as they've looked.
+  const pathname = usePathname();
+  const [unreadThreads, setUnreadThreads] = useState(0);
+
+  useEffect(() => {
+    if (!signedIn) return;
+    let active = true;
+    const recount = () =>
+      getMyUnreadThreadCount().then((count) => {
+        if (active) setUnreadThreads(count);
+      });
+    recount();
+    // Reading a thread fires this (thread page, offer detail view), since
+    // the route-change recount above can run before the read is saved.
+    window.addEventListener(UNREAD_CHANGED_EVENT, recount);
+    return () => {
+      active = false;
+      window.removeEventListener(UNREAD_CHANGED_EVENT, recount);
+    };
+  }, [signedIn, pathname]);
 
   useEffect(() => {
     // Nothing to fetch while signed out or still resolving -- and nothing
@@ -154,6 +180,9 @@ export function HeaderAccountLink({
       >
         <span className="inline-flex items-center gap-1">
           {firstName ? firstName : "My Account"}
+          {unreadThreads > 0 && (
+            <span className="h-2 w-2 rounded-full bg-emerald-400" aria-label="New messages" role="img" />
+          )}
           <svg
             viewBox="0 0 20 20"
             fill="currentColor"
@@ -200,6 +229,19 @@ export function HeaderAccountLink({
           className="block px-4 py-2 text-sm text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
         >
           Your Deal
+        </Link>
+        <Link
+          href="/account/messages"
+          role="menuitem"
+          onClick={handleSelect}
+          className="flex items-center justify-between px-4 py-2 text-sm text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
+        >
+          Messages
+          {unreadThreads > 0 && (
+            <span className="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] leading-none font-semibold text-zinc-950">
+              {unreadThreads}
+            </span>
+          )}
         </Link>
         <Link
           href="/account"

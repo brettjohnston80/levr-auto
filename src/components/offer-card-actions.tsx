@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { respondToOffer } from "@/lib/offer-response-actions";
 import { HighlightToggle } from "@/components/offer-highlight-controls";
@@ -14,28 +14,41 @@ import type { DashboardOffer } from "@/lib/customer-dashboard";
  * stays direct.
  *
  * While another offer on the search is accepted, a pending offer offers only
- * Decline plus a note (respondToOffer still refuses a second accept
- * server-side for a stale tab). Highlight/note are pending-only; on any other
- * status an existing note is shown read-only.
+ * Decline (respondToOffer still refuses a second accept server-side for a
+ * stale tab). Highlight is pending-only. The message thread (2026-09-25,
+ * replaced the customer note) opens in the detail view; the card only shows
+ * the entry point and an unread badge, and never marks anything read.
  */
+// Server snapshot false, client true: the modal portals into document.body,
+// so a deep-linked (initially open) modal must wait until the client --
+// rendering it during SSR throws "document is not defined".
+const noopSubscribe = () => () => {};
+function useIsClient() {
+  return useSyncExternalStore(noopSubscribe, () => true, () => false);
+}
+
 export function OfferCardActions({
   offer,
   make,
   model,
   isBestValue,
   anotherOfferAccepted,
+  initiallyOpen = false,
 }: {
   offer: DashboardOffer;
   make: string | null;
   model: string | null;
   isBestValue: boolean;
   anotherOfferAccepted: boolean;
+  /** Deep link (/account/deal?offer=...) -- open this offer's detail view on load. */
+  initiallyOpen?: boolean;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initiallyOpen);
   const [declining, setDeclining] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const close = useCallback(() => setOpen(false), []);
+  const isClient = useIsClient();
 
   const isPending = offer.status === "pending";
 
@@ -64,25 +77,21 @@ export function OfferCardActions({
         {isPending && <HighlightToggle offerId={offer.id} highlighted={!!offer.customerHighlightedAt} />}
       </div>
 
-      {offer.customerNote ? (
-        <p className="mt-2 line-clamp-1 text-xs text-zinc-400">
-          Your note: <span className="text-zinc-300">&ldquo;{offer.customerNote}&rdquo;</span>
-          {isPending && (
-            <button type="button" onClick={() => setOpen(true)} className="ml-2 text-emerald-400 underline">
-              Edit note
-            </button>
-          )}
-        </p>
-      ) : (
-        isPending && (
+      {offer.hasUnreadMessages && (
+        <span className="mt-2 inline-block rounded-full border border-emerald-400/40 bg-emerald-400/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-300">
+          New message from your agent
+        </span>
+      )}
+      {(offer.messages.length > 0 || offer.threadOpen) && (
+        <div>
           <button
             type="button"
             onClick={() => setOpen(true)}
             className="mt-2 text-xs text-emerald-400 underline hover:text-emerald-300"
           >
-            Add a note for your agent
+            {offer.messages.length > 0 ? `Messages (${offer.messages.length})` : "Message your agent"}
           </button>
-        )
+        </div>
       )}
 
       {isPending && (
@@ -113,7 +122,7 @@ export function OfferCardActions({
         </div>
       )}
 
-      {open && (
+      {open && isClient && (
         <OfferDetailModal
           offer={offer}
           make={make}

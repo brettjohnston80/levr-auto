@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -7,10 +8,18 @@ import { respondToOffer } from "@/lib/offer-response-actions";
 import { computeOfferSavings } from "@/lib/offer-comparison";
 import { formatCents } from "@/lib/dashboard-format";
 import { SilhouetteIcon } from "@/components/vehicle-silhouette";
-import { HighlightToggle, NoteEditor } from "@/components/offer-highlight-controls";
+import { HighlightToggle } from "@/components/offer-highlight-controls";
+import { OfferMessageList } from "@/components/offer-message-list";
+import { OfferMessageComposer } from "@/components/offer-message-composer";
+import { markThreadReadByCustomer } from "@/lib/offer-message-actions";
+import { announceUnreadChanged } from "@/components/unread-count-refresh";
+import { frozenThreadCopy } from "@/lib/offer-messages-shared";
 import type { DashboardOffer } from "@/lib/customer-dashboard";
 
 // Approved copy (2026-09-25). "refundable" deliberately removed.
+const MESSAGES_EMPTY = "No messages yet. Ask your agent anything about this offer — they'll reply here.";
+// The detail view shows the newest few; the full thread lives in Messages.
+const RECENT_MESSAGE_COUNT = 3;
 const ACCEPT_EXPLANATION =
   "Accepting tells your agent this is the car you want. They'll confirm it's still available and help you place a deposit with the dealer. You can accept one offer per search.";
 
@@ -65,6 +74,18 @@ export function OfferDetailModal({
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [onClose]);
+
+  // Opening the detail view counts as reading the thread (the card alone
+  // never does). Refresh so the card badge and header count update.
+  const hasUnread = offer.hasUnreadMessages;
+  useEffect(() => {
+    if (!hasUnread) return;
+    markThreadReadByCustomer(offer.id).then((res) => {
+      if (!res.ok) return;
+      announceUnreadChanged();
+      router.refresh();
+    });
+  }, [hasUnread, offer.id, router]);
 
   async function respond(response: "accepted" | "declined") {
     setSubmitting(response);
@@ -193,25 +214,37 @@ export function OfferDetailModal({
               </a>
             )}
 
-            {isPending ? (
+            {isPending && (
               <Section title="Tell your agent">
                 <HighlightToggle offerId={offer.id} highlighted={!!offer.customerHighlightedAt} />
                 <p className="mt-2 text-xs text-zinc-500">
                   Interested but not ready to accept? Highlight it so your agent knows.
                 </p>
-                <div className="mt-4">
-                  <NoteEditor offerId={offer.id} note={offer.customerNote} />
-                </div>
               </Section>
-            ) : (
-              offer.customerNote && (
-                <Section title="Tell your agent">
-                  <p className="text-sm text-zinc-300">
-                    Your note: <span className="text-zinc-200">&ldquo;{offer.customerNote}&rdquo;</span>
-                  </p>
-                </Section>
-              )
             )}
+
+            <Section title="Messages">
+              {offer.messages.length > 0 ? (
+                <OfferMessageList messages={offer.messages.slice(-RECENT_MESSAGE_COUNT)} viewer="customer" />
+              ) : (
+                offer.threadOpen && <p className="text-sm text-zinc-400">{MESSAGES_EMPTY}</p>
+              )}
+              {offer.messages.length > RECENT_MESSAGE_COUNT && (
+                <Link
+                  href={`/account/messages/${offer.id}`}
+                  className="mt-2 inline-block text-sm text-emerald-400 underline hover:text-emerald-300"
+                >
+                  View all {offer.messages.length} messages →
+                </Link>
+              )}
+              <div className="mt-4">
+                {offer.threadOpen ? (
+                  <OfferMessageComposer offerId={offer.id} sender="customer" />
+                ) : (
+                  <p className="text-sm text-zinc-500">{frozenThreadCopy(offer.status)}</p>
+                )}
+              </div>
+            </Section>
           </div>
 
           {/* -bottom-8 + the extra 2rem of bottom padding cancel the backdrop's

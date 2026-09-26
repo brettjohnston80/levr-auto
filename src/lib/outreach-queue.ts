@@ -9,6 +9,8 @@ import {
 } from "./inventory-block";
 import { RESUME_WINDOW_DAYS } from "./vehicle-data";
 import { isTestEmail } from "./test-accounts";
+import { loadMessagesForOffers } from "./offer-messages";
+import { threadIsOpen, type OfferMessage } from "./offer-messages-shared";
 
 export interface OutreachDealer {
   name: string;
@@ -236,9 +238,11 @@ export interface OutreachOffer {
   withdrawnAt: string | null;
   withdrawnByAgentName: string | null;
   withdrawalReason: string | null;
-  /** Customer's highlight/note (2026-09-25) -- shown on the offer line. */
+  /** Customer's highlight (2026-09-25) -- shown on the offer line. */
   customerHighlightedAt: string | null;
-  customerNote: string | null;
+  /** The offer's customer <-> agent thread, oldest first (replaced the
+   *  single customer note, 2026-09-25). */
+  messages: OfferMessage[];
   addons: OutreachAddon[];
   dealProgress: OutreachDealProgress | null;
   serviceAgreementSignedAt: string | null;
@@ -328,7 +332,7 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
     supabase
       .from("qualifying_offers")
       .select(
-        "id, customer_search_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at, vehicle_sold_at, withdrawn_at, withdrawn_by_agent_id, withdrawal_reason, customer_highlighted_at, customer_note"
+        "id, customer_search_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at, vehicle_sold_at, withdrawn_at, withdrawn_by_agent_id, withdrawal_reason, customer_highlighted_at"
       )
       .in("customer_search_id", searchIds),
   ]);
@@ -557,6 +561,12 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
   const listingsByMakeModel = new Map(
     listingsByPair.map(({ make, model, listings }) => [`${make}::${model}`, listings])
   );
+  const messagesByOfferId = await loadMessagesForOffers(
+    supabase,
+    (offers ?? []).map((o) => o.id as string),
+    "agent",
+  );
+
   const offersBySearchId = new Map<string, OutreachOffer[]>();
   for (const offer of offers ?? []) {
     const list = offersBySearchId.get(offer.customer_search_id) ?? [];
@@ -577,7 +587,7 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
         : null,
       withdrawalReason: offer.withdrawal_reason,
       customerHighlightedAt: offer.customer_highlighted_at,
-      customerNote: offer.customer_note,
+      messages: messagesByOfferId.get(offer.id) ?? [],
       addons: addonsByOfferId.get(offer.id) ?? [],
       dealProgress: dealProgressByOfferId.get(offer.id) ?? null,
       serviceAgreementSignedAt: serviceAgreementSignedAtByOfferId.get(offer.id) ?? null,
@@ -1177,18 +1187,27 @@ export interface CustomerOfferActivityItem {
   status: string;
   customerRespondedAt: string | null;
   customerHighlightedAt: string | null;
-  customerNote: string | null;
+  /** Customer messages the agent hasn't reviewed yet (newer than
+   *  agent_reviewed_at), oldest first. */
+  newCustomerMessages: OfferMessage[];
+  /** Whole thread, for context under the new messages. */
+  messages: OfferMessage[];
+  threadOpen: boolean;
   /** Echoed back by "Mark reviewed" so a change the agent hasn't seen yet
    *  can't be marked reviewed from a stale page. */
   customerActivityAt: string;
 }
 
-const ACTIVITY_SEARCH_STATUSES = ["searching", "paused"];
+// purchased added 2026-09-25: accepted offers on purchased searches keep an
+// open message thread (delivery/paperwork questions), so a customer message
+// there has to surface somewhere.
+const ACTIVITY_SEARCH_STATUSES = ["searching", "paused", "purchased"];
 
 /**
  * "Customer activity on offers" (2026-09-25) -- the agent-facing stand-in for
  * an email/SMS, which is deliberately never sent. Every offer whose
- * customer_activity_at (bumped by a highlight/note change or a decline) is
+ * customer_activity_at (bumped by a highlight change, a customer message, or
+ * a decline) is
  * newer than agent_reviewed_at, across searching AND paused searches. Stays
  * until "Mark reviewed", so nothing ages out; any later customer change
  * makes it reappear.
@@ -1209,7 +1228,6 @@ export async function getCustomerOfferActivityQueue(): Promise<CustomerOfferActi
     status: string;
     customer_responded_at: string | null;
     customer_highlighted_at: string | null;
-    customer_note: string | null;
     customer_activity_at: string;
     agent_reviewed_at: string | null;
   }[] = [];
@@ -1217,7 +1235,7 @@ export async function getCustomerOfferActivityQueue(): Promise<CustomerOfferActi
     const { data, error } = await supabase
       .from("qualifying_offers")
       .select(
-        "id, customer_search_id, dealer_name, offer_price_cents, status, customer_responded_at, customer_highlighted_at, customer_note, customer_activity_at, agent_reviewed_at"
+        "id, customer_search_id, dealer_name, offer_price_cents, status, customer_responded_at, customer_highlighted_at, customer_activity_at, agent_reviewed_at"
       )
       .not("customer_activity_at", "is", null)
       .order("id")
@@ -1247,6 +1265,12 @@ export async function getCustomerOfferActivityQueue(): Promise<CustomerOfferActi
     : { data: [] };
   const customerById = new Map((customers ?? []).map((c) => [c.id as string, c]));
 
+  const messagesByOfferId = await loadMessagesForOffers(
+    supabase,
+    unreviewed.filter((o) => searchById.has(o.customer_search_id)).map((o) => o.id),
+    "agent",
+  );
+
   return unreviewed
     .filter((o) => searchById.has(o.customer_search_id))
     .map((o) => {
@@ -1268,7 +1292,13 @@ export async function getCustomerOfferActivityQueue(): Promise<CustomerOfferActi
         status: o.status,
         customerRespondedAt: o.customer_responded_at,
         customerHighlightedAt: o.customer_highlighted_at,
-        customerNote: o.customer_note,
+        newCustomerMessages: (messagesByOfferId.get(o.id) ?? []).filter(
+          (m) =>
+            m.authorType === "customer" &&
+            (!o.agent_reviewed_at || new Date(m.createdAt) > new Date(o.agent_reviewed_at)),
+        ),
+        messages: messagesByOfferId.get(o.id) ?? [],
+        threadOpen: threadIsOpen(o.status, search.search_status as string),
         customerActivityAt: o.customer_activity_at,
       };
     })
