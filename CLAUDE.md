@@ -43,11 +43,18 @@ This file exists so any Claude Code session (yours, your collaborator's, or a fu
   - **⚠ THE ONE QUERY IT DOES CONTAMINATE: a bare `select count(*) from customers`.** There is **no `is_test` flag anywhere in this schema** — confirmed by grep, no such column and no naming convention checked in code — so nothing excludes it automatically. **Any future "how many real customers do we have" check must subtract it** (or filter `email not like '%@levrauto.invalid'`). Searches, paid searches and payments are all unaffected, so the pre-launch "zero real money has moved" checks stay valid as-is: at the time of writing `customers = 3` (Brett's two accounts plus this one) while `customer_searches = 0`, `paid searches = 0` and `payments = 0`.
   - **Discipline when Brett uses it himself:** create whatever searches/rows a verification needs, then delete them afterwards and confirm by count. Leave the account itself in place — it is meant to persist. If a proper `is_test` flag is ever wanted, that is a migration plus edits to each enumeration surface, and should be its own reviewed change rather than a column nothing reads.
 
-## ⚠ IN-FLIGHT STATE — read before doing anything (written 2026-09-25, before a session restart)
+## ⚠ IN-FLIGHT STATE — read before doing anything (updated 2026-09-25)
 
 A snapshot of work that is mid-flight right now. Verify against `git log`/`git status` before acting on it, and delete or rewrite this section once these items are resolved.
 
-1. **`fa339be` is committed but NOT pushed — do not push it.** "Allow one accepted offer per search, with an agent release path." Brett is holding the push until he signs off on the verification screenshots. `origin/main` is at `98f4ca0`. Its migration (`20260924120000_one_accepted_offer_and_withdrawal.sql`) **has already been applied** to the shared Supabase project, so the database is ahead of `origin/main`: the partial unique index `qualifying_offers_one_accepted_per_search_idx` and the `withdrawn_at` / `withdrawn_by_agent_id` / `withdrawal_reason` columns exist in production regardless of the push. What `fa339be` contains:
+**Three commits are on local `main` and NOT pushed. `origin/main` is at `98f4ca0`. Do not push any of them until Brett signs off after his own review.** In order:
+- `fa339be`: "Allow one accepted offer per search, with an agent release path."
+- `ecbb602`: "Record in-flight state and save the offer-detail/highlight plan." Docs only.
+- `8f05d3c`: "Add offer highlight/note, offer detail view, and agent activity queue."
+
+Both of their migrations **have already been applied** to the shared Supabase project, so the database is ahead of `origin/main`. Production code on `98f4ca0` ignores the new columns, so this is harmless until the push.
+
+1. **`fa339be`: one accepted offer per search.** Migration `20260924120000_one_accepted_offer_and_withdrawal.sql` added the partial unique index `qualifying_offers_one_accepted_per_search_idx` and the `withdrawn_at` / `withdrawn_by_agent_id` / `withdrawal_reason` columns. What the commit contains:
    - `respondToOffer` refuses a second accept on the same search; the index is the race-proof backstop.
    - The new agent-only `withdrawAcceptedOffer` action (status `withdrawn`, reason required, refused on a purchased search).
    - `markSearchPurchased` now requires the offer to belong to the search and still be `customer_accepted`.
@@ -55,17 +62,33 @@ A snapshot of work that is mid-flight right now. Verify against `git log`/`git s
    - It was verified end-to-end on a disposable customer plus a scratch agent, both cleaned up.
    - **Known follow-ups, not in scope there:** `respondToOffer` doesn't check that the search is still active; releasing an offer doesn't notify the customer.
 
-2. **The persistent review account `brett-deal-review@levrauto-test.invalid` now has 3 searches** (customer id `00cc0f70-9e4b-4ba7-b9b1-242f8a4aea40`). See its own bullet under "Approach & patterns"; never clean it up or write to it without Brett's explicit request.
+2. **`8f05d3c`: offer highlight/note, offer detail view, and agent activity queue.** Built from `docs/plans/offer-detail-highlight-plan.md`, with Brett's decisions and copy approvals. Migration `20260925120000_offer_highlight_note_and_detail_fields.sql` adds:
+   - customer columns: `customer_highlighted_at`, `customer_note`, `customer_note_updated_at`;
+   - review-tracking columns: `customer_activity_at`, `agent_reviewed_at`;
+   - copy-at-log-time snapshot columns: `dealer_street/city/state/zip`, `vin`, `stock_number`.
+
+   What it does:
+   - **Highlight and note.** Customers can highlight a pending offer and leave a note for their agent, up to 500 characters. Both can be edited while the offer is pending and are frozen once the customer responds.
+   - **Detail view before accepting.** Accept goes through the detail view (`offer-detail-modal.tsx`). It shows the address, the distance from the search ZIP, trim, color, VIN, stock #, and the in-transit badge.
+   - **Listing photos stay off.** The gallery is gated by `LISTING_PHOTOS_ENABLED` in `src/lib/listing-photos.ts`, which is **OFF** until MarketCheck's terms are reviewed. Never flip it on and commit.
+   - **Agent activity section.** Agents get "Customer activity on offers", covering both searching and paused searches. Its "Mark reviewed" is guarded against stale pages.
+   - **Offer order in the agent view.** Offers now render above matching dealers.
+   - **Log Offer pre-fill.** Dealer address, VIN and stock number are pre-filled from the linked listing. A ZIP+4 is trimmed to 5 digits; stored ZIP+4 values used to fail the 5-digit check.
+   - **"Refundable" removed.** The word is gone from the "Congratulations — next steps" deposit line.
+
+   How it was verified: end-to-end on a disposable customer plus a scratch agent, both cleaned up. One layout bug was found and fixed during that pass: the modal's sticky footer let content scroll through a 32px strip, now fixed with `-bottom-8` plus extra bottom padding. Known follow-up: the "Your Deal" picker still labels searches by make and model only.
+
+3. **The persistent review account `brett-deal-review@levrauto-test.invalid` has 3 searches** (customer id `00cc0f70-9e4b-4ba7-b9b1-242f8a4aea40`). See its own bullet under "Approach & patterns"; never clean it up or write to it without Brett's explicit request.
    - `7c337ac2-d1d7-4903-a35b-2dc6bc65077d`: Toyota Camry XSE, `searching`, timeline at "Accepted." Sunrise Toyota $32,000 accepted (real photo); Lakeside Toyota $31,200 pending (Best value); Metro Toyota $33,500 pending.
    - `886a1f19-f270-4056-bab8-fbd3093d9909`: Honda Civic Sport Touring, `purchased`. Capital Honda $26,800 accepted and purchased (real photo); Riverside Honda $27,200 declined; Union Honda $27,900 pending. The summary line reads "2 other offers received — lowest $27,200 · median $27,550."
-   - `f90b0dc7-e51d-490e-add9-afe8ce3cc95c` (added 2026-09-25): Honda Civic Sport, `searching`, timeline at "Offer received." All three offers pending: Northgate Honda $27,300 (real photo, Sonic Gray Pearl), Westside Honda $26,650 (Best value), Parkway Honda $28,100.
+   - `f90b0dc7-e51d-490e-add9-afe8ce3cc95c`: Honda Civic Sport, `searching`, all three offers pending with no highlights or notes, left that way so Brett can try highlight, note and accept himself. Updated 2026-09-25 with detail-view fields:
+     - Northgate Honda $27,300 (real photo, Sonic Gray Pearl) is **linked to a real MarketCheck listing**: `b6e429d1-37d2-4643-bb02-a74dd8b907c6`, Honda of Toms River, NJ, VIN `2HGFE2F57TH625152`, stock `TH625152`, in transit. The address, VIN and stock come from that listing, but the offer keeps its fictional dealer name and its Sonic Gray Pearl color.
+     - Westside Honda $26,650 (Best value): fictional 9100 Metcalf Ave, Overland Park, KS 66212. Placeholder VIN `2HGFE2F5XDEMO0001`, stock `WS-40121`.
+     - Parkway Honda $28,100: fictional 1500 NE Rice Rd, Lee's Summit, MO 64086. Placeholder VIN `2HGFE2F5XDEMO0002`, stock `PK-88317`.
+     - All four ZIPs (the search's 66062 plus the three dealer ZIPs) resolve in `zip_coordinates`, so the distance line renders.
    - Known cosmetic issue: the "Your Deal" picker labels searches by make and model only, so this account's two Civic searches both read "Honda Civic." The per-search "view your deal →" links on `/account` go straight to the right one.
+   - **Review happens on the local dev server, not production.** The new features exist only in the unpushed commits, so review links point at `localhost:3000`.
    - Magic links are single-use, and minting a new one cancels older ones. Mint one fresh per sign-in.
-
-3. **Highlight/note plus offer-detail-modal feature: plan complete, awaiting Brett's approval. No code or migration written yet.** The full plan is in **`docs/plans/offer-detail-highlight-plan.md`**: findings, migration draft, design recommendations, the four open business decisions, and all draft copy. The investigation is done, so read the plan rather than redoing it. Before building, re-check its data counts, since they were taken 2026-09-25. The plan needs:
-   - Brett's approval.
-   - Answers to its four business decisions: dealer phone, email and listing link shown to customers or not; street address shown or not; the listing-photos switch starting off or on; and moving offers above dealers in the agent card.
-   - Sign-off on every piece of customer-facing copy in section 6. That includes the accept-confirm explanation, which Brett needs to check against the real process.
 
 ## Start Here (updated 2026-09-02 — third and final full Matchmaker section rewrite this session, comprehensive, written as the session ends: covers the complete hard-filter/rank-weighted scoring system, MY2027 (real, live, 2,269-row dataset), the full Comparison Tool, mobile fixes, the VehicleDetailModal photo placeholder and live inventory count, and a real bug fix (Model Year's "Both years" pre-highlighting) shipped after the previous rewrite — all committed and pushed to `origin/main`. A "choose this car" checkout-handoff build is **IN PROGRESS, not yet started as of this rewrite** — see its own flagged bullet below before assuming any code exists for it. Rest of this section carried forward)
 
