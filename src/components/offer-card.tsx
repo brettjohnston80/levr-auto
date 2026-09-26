@@ -1,4 +1,4 @@
-import { OfferResponseButtons } from "@/components/offer-response-buttons";
+import { OfferCardActions } from "@/components/offer-card-actions";
 import { OfferPhoto } from "@/components/offer-photo";
 import { AddonRemovalButton } from "@/components/addon-removal-button";
 import { FinancingCaptureForm } from "@/components/financing-capture-form";
@@ -44,7 +44,13 @@ export function OfferCard({
   const statusDate = offer.status === "withdrawn" ? offer.withdrawnAt : offer.customerRespondedAt;
 
   return (
-    <li className="rounded-xl border border-white/10 bg-black/20 p-4">
+    <li
+      className={`rounded-xl border bg-black/20 p-4 ${
+        offer.status === "pending" && offer.customerHighlightedAt
+          ? "border-amber-400/50 ring-1 ring-amber-400/30"
+          : "border-white/10"
+      }`}
+    >
       <div className="flex gap-4">
         <OfferPhoto
           photoUrl={offer.photoUrl}
@@ -94,9 +100,13 @@ export function OfferCard({
               View offer sheet (PDF)
             </a>
           )}
-          {offer.status === "pending" && (
-            <OfferResponseButtons offerId={offer.id} allowAccept={!anotherOfferAccepted} />
-          )}
+          <OfferCardActions
+            offer={offer}
+            make={make}
+            model={model}
+            isBestValue={isBestValue}
+            anotherOfferAccepted={anotherOfferAccepted}
+          />
         </div>
       </div>
 
@@ -139,7 +149,7 @@ export function OfferCard({
           <p className="mt-1 text-xs text-zinc-400">
             {offer.dealProgress?.depositConfirmedAt
               ? `Deposit confirmed: ${formatCents(offer.dealProgress.depositAmountCents ?? 0)} on ${formatDate(offer.dealProgress.depositConfirmedAt)}.`
-              : "A refundable deposit is paid directly to the dealer to reserve the car — we'll show it here once the dealer confirms they've received it."}
+              : "A deposit is paid directly to the dealer to reserve the car — we'll show it here once the dealer confirms they've received it."}
           </p>
 
           <FinancingCaptureForm offerId={offer.id} existing={offer.dealProgress} />

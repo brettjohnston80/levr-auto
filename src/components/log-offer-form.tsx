@@ -12,6 +12,16 @@ interface AddonLine {
 
 type ParseMode = "text" | "pdf";
 
+// Listings can store ZIP+4 ("67202-1234"), which failed the 5-digit ZIP
+// check and blocked the whole save (reproduced 2026-09-25). Keep the 5-digit
+// ZIP; anything unrecognizable is left as-is so the agent sees the
+// validation message rather than a silently wrong value.
+function fiveDigitZip(zip: string | null): string {
+  const trimmed = (zip ?? "").trim();
+  const match = /^(\d{5})(?:-?\d{4})?$/.exec(trimmed);
+  return match ? match[1] : trimmed;
+}
+
 export function LogOfferForm({ searchId, listings }: { searchId: string; listings: OutreachListing[] }) {
   const [expanded, setExpanded] = useState(false);
   const [selectedListingId, setSelectedListingId] = useState("");
@@ -25,6 +35,15 @@ export function LogOfferForm({ searchId, listings }: { searchId: string; listing
   // agent to type in if known, or left blank.
   const [vehicleTrim, setVehicleTrim] = useState("");
   const [vehicleExteriorColor, setVehicleExteriorColor] = useState("");
+  // Also optional, copied onto the offer at log time and shown to the
+  // customer in the offer detail view (address + distance, VIN, stock #).
+  // Pre-filled from a selected listing; typed otherwise.
+  const [dealerStreet, setDealerStreet] = useState("");
+  const [dealerCity, setDealerCity] = useState("");
+  const [dealerState, setDealerState] = useState("");
+  const [dealerZip, setDealerZip] = useState("");
+  const [vin, setVin] = useState("");
+  const [stockNumber, setStockNumber] = useState("");
   const [notes, setNotes] = useState("");
   const [addons, setAddons] = useState<AddonLine[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -51,6 +70,12 @@ export function LogOfferForm({ searchId, listings }: { searchId: string; listing
       if (listing.msrpCents != null) setMsrp((listing.msrpCents / 100).toString());
       if (listing.trim) setVehicleTrim(listing.trim);
       if (listing.color) setVehicleExteriorColor(listing.color);
+      setDealerStreet(listing.dealerStreet ?? "");
+      setDealerCity(listing.dealerCity ?? "");
+      setDealerState(listing.dealerState ?? "");
+      setDealerZip(fiveDigitZip(listing.dealerZip));
+      setVin(listing.vin ?? "");
+      setStockNumber(listing.stockNumber ?? "");
     }
   }
 
@@ -62,6 +87,12 @@ export function LogOfferForm({ searchId, listings }: { searchId: string; listing
     setMsrp("");
     setVehicleTrim("");
     setVehicleExteriorColor("");
+    setDealerStreet("");
+    setDealerCity("");
+    setDealerState("");
+    setDealerZip("");
+    setVin("");
+    setStockNumber("");
     setNotes("");
     setAddons([]);
     setRawText("");
@@ -123,6 +154,12 @@ export function LogOfferForm({ searchId, listings }: { searchId: string; listing
     formData.set("msrp", msrp);
     formData.set("vehicle_trim", vehicleTrim);
     formData.set("vehicle_exterior_color", vehicleExteriorColor);
+    formData.set("dealer_street", dealerStreet);
+    formData.set("dealer_city", dealerCity);
+    formData.set("dealer_state", dealerState);
+    formData.set("dealer_zip", dealerZip);
+    formData.set("vin", vin);
+    formData.set("stock_number", stockNumber);
     formData.set("notes", notes);
     formData.set("addons_json", JSON.stringify(addonsPayload));
     if (parseMode === "pdf" && pdfFile) {
@@ -207,8 +244,12 @@ export function LogOfferForm({ searchId, listings }: { searchId: string; listing
       </div>
 
       {listings.length > 0 && (
-        <div>
-          <label className="block text-xs text-zinc-400">Pre-fill from a known listing (optional)</label>
+        <div className="rounded-md border border-emerald-500/20 bg-emerald-500/[0.03] p-3">
+          <label className="block text-xs font-semibold text-zinc-200">Link the dealer&apos;s listing (recommended)</label>
+          <p className="mt-0.5 text-xs text-zinc-500">
+            Pre-fills the dealer, price, address, VIN and stock number, and is the only way the customer&apos;s
+            offer detail can show real photos of this exact car.
+          </p>
           <select
             value={selectedListingId}
             onChange={(e) => handleListingSelect(e.target.value)}
@@ -290,6 +331,58 @@ export function LogOfferForm({ searchId, listings }: { searchId: string; listing
         Trim/color feed the customer&apos;s offer card (a real photo when we have one for this
         make/model/color, otherwise a placeholder) — leave blank if not confirmed with the dealer yet.
       </p>
+
+      <div>
+        <p className="text-xs text-zinc-400">
+          Dealer address, VIN &amp; stock # (optional — shown to the customer in the offer detail, with distance
+          from their ZIP)
+        </p>
+        <div className="mt-1 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <input
+            value={dealerStreet}
+            onChange={(e) => setDealerStreet(e.target.value)}
+            placeholder="Street"
+            className="col-span-2 rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
+          />
+          <input
+            value={dealerCity}
+            onChange={(e) => setDealerCity(e.target.value)}
+            placeholder="City"
+            className="rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
+          />
+          <div className="flex gap-2">
+            <input
+              value={dealerState}
+              onChange={(e) => setDealerState(e.target.value)}
+              placeholder="ST"
+              maxLength={2}
+              className="w-14 rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
+            />
+            <input
+              value={dealerZip}
+              onChange={(e) => setDealerZip(e.target.value)}
+              placeholder="ZIP"
+              inputMode="numeric"
+              pattern="[0-9]{5}"
+              title="5-digit ZIP"
+              maxLength={5}
+              className="w-full rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
+            />
+          </div>
+          <input
+            value={vin}
+            onChange={(e) => setVin(e.target.value)}
+            placeholder="VIN"
+            className="col-span-2 rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
+          />
+          <input
+            value={stockNumber}
+            onChange={(e) => setStockNumber(e.target.value)}
+            placeholder="Stock #"
+            className="col-span-2 rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
+          />
+        </div>
+      </div>
 
       <div>
         <div className="flex items-center justify-between">

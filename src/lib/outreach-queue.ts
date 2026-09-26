@@ -29,6 +29,13 @@ export interface OutreachListing {
   msrpCents: number | null;
   dealerName: string | null;
   dealerPhone: string | null;
+  /** Pre-fill for LogOfferForm's copy-at-log-time address/stock fields.
+   *  Street and stock number exist only inside raw_data (MarketCheck). */
+  dealerStreet: string | null;
+  dealerCity: string | null;
+  dealerState: string | null;
+  dealerZip: string | null;
+  stockNumber: string | null;
 }
 
 export interface OutreachAddon {
@@ -229,6 +236,9 @@ export interface OutreachOffer {
   withdrawnAt: string | null;
   withdrawnByAgentName: string | null;
   withdrawalReason: string | null;
+  /** Customer's highlight/note (2026-09-25) -- shown on the offer line. */
+  customerHighlightedAt: string | null;
+  customerNote: string | null;
   addons: OutreachAddon[];
   dealProgress: OutreachDealProgress | null;
   serviceAgreementSignedAt: string | null;
@@ -308,7 +318,7 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
         const { data } = await supabase
           .from("listings")
           .select(
-            "id, vin, trim, year, color, price_cents, msrp_cents, dealer_name, dealer_phone, dealer_website, dealer_city, dealer_state"
+            "id, vin, trim, year, color, price_cents, msrp_cents, dealer_name, dealer_phone, dealer_website, dealer_city, dealer_state, dealer_zip, dealer_street:raw_data->dealer->>street, stock_no:raw_data->>stock_no"
           )
           .eq("make", make)
           .eq("model", model);
@@ -318,7 +328,7 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
     supabase
       .from("qualifying_offers")
       .select(
-        "id, customer_search_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at, vehicle_sold_at, withdrawn_at, withdrawn_by_agent_id, withdrawal_reason"
+        "id, customer_search_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at, vehicle_sold_at, withdrawn_at, withdrawn_by_agent_id, withdrawal_reason, customer_highlighted_at, customer_note"
       )
       .in("customer_search_id", searchIds),
   ]);
@@ -566,6 +576,8 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
         ? (agentNameById.get(offer.withdrawn_by_agent_id) ?? null)
         : null,
       withdrawalReason: offer.withdrawal_reason,
+      customerHighlightedAt: offer.customer_highlighted_at,
+      customerNote: offer.customer_note,
       addons: addonsByOfferId.get(offer.id) ?? [],
       dealProgress: dealProgressByOfferId.get(offer.id) ?? null,
       serviceAgreementSignedAt: serviceAgreementSignedAtByOfferId.get(offer.id) ?? null,
@@ -615,6 +627,11 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
         msrpCents: l.msrp_cents,
         dealerName: l.dealer_name,
         dealerPhone: l.dealer_phone,
+        dealerStreet: (l.dealer_street as string | null) ?? null,
+        dealerCity: l.dealer_city,
+        dealerState: l.dealer_state,
+        dealerZip: l.dealer_zip,
+        stockNumber: (l.stock_no as string | null) ?? null,
       })),
       offers: offersBySearchId.get(search.id) ?? [],
       selections: selectionsBySearchId.get(search.id) ?? [],
@@ -1141,4 +1158,119 @@ export async function getNotificationCallbackQueue(): Promise<NotificationCallba
       createdAt: e.created_at,
     };
   });
+}
+
+export interface CustomerOfferActivityItem {
+  offerId: string;
+  searchId: string;
+  /** "searching" searches also have a card further down the page; "paused"
+   *  ones don't appear anywhere else in agent tools, so this section is the
+   *  only place their offer activity surfaces. */
+  searchStatus: string;
+  customerEmail: string | null;
+  customerName: string | null;
+  isTest: boolean;
+  make: string | null;
+  model: string | null;
+  dealerName: string;
+  offerPriceCents: number;
+  status: string;
+  customerRespondedAt: string | null;
+  customerHighlightedAt: string | null;
+  customerNote: string | null;
+  /** Echoed back by "Mark reviewed" so a change the agent hasn't seen yet
+   *  can't be marked reviewed from a stale page. */
+  customerActivityAt: string;
+}
+
+const ACTIVITY_SEARCH_STATUSES = ["searching", "paused"];
+
+/**
+ * "Customer activity on offers" (2026-09-25) -- the agent-facing stand-in for
+ * an email/SMS, which is deliberately never sent. Every offer whose
+ * customer_activity_at (bumped by a highlight/note change or a decline) is
+ * newer than agent_reviewed_at, across searching AND paused searches. Stays
+ * until "Mark reviewed", so nothing ages out; any later customer change
+ * makes it reappear.
+ *
+ * PostgREST can't compare two columns in a filter, so unreviewed-ness is
+ * decided here after fetching every offer that has any activity at all --
+ * paginated, since PostgREST silently caps a plain select at 1,000 rows.
+ */
+export async function getCustomerOfferActivityQueue(): Promise<CustomerOfferActivityItem[]> {
+  const supabase = createAdminClient();
+  const PAGE = 1000;
+
+  const rows: {
+    id: string;
+    customer_search_id: string;
+    dealer_name: string;
+    offer_price_cents: number;
+    status: string;
+    customer_responded_at: string | null;
+    customer_highlighted_at: string | null;
+    customer_note: string | null;
+    customer_activity_at: string;
+    agent_reviewed_at: string | null;
+  }[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from("qualifying_offers")
+      .select(
+        "id, customer_search_id, dealer_name, offer_price_cents, status, customer_responded_at, customer_highlighted_at, customer_note, customer_activity_at, agent_reviewed_at"
+      )
+      .not("customer_activity_at", "is", null)
+      .order("id")
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(`Failed to load offer activity: ${error.message}`);
+    rows.push(...((data ?? []) as typeof rows));
+    if (!data || data.length < PAGE) break;
+  }
+
+  const unreviewed = rows.filter(
+    (o) => !o.agent_reviewed_at || new Date(o.customer_activity_at) > new Date(o.agent_reviewed_at)
+  );
+  if (unreviewed.length === 0) return [];
+
+  const searchIds = [...new Set(unreviewed.map((o) => o.customer_search_id))];
+  const { data: searches, error: searchError } = await supabase
+    .from("customer_searches")
+    .select("id, customer_id, make, model, search_status")
+    .in("id", searchIds)
+    .in("search_status", ACTIVITY_SEARCH_STATUSES);
+  if (searchError) throw new Error(`Failed to load searches for offer activity: ${searchError.message}`);
+  const searchById = new Map((searches ?? []).map((s) => [s.id as string, s]));
+
+  const customerIds = [...new Set((searches ?? []).map((s) => s.customer_id as string))];
+  const { data: customers } = customerIds.length
+    ? await supabase.from("customers").select("id, email, first_name, last_name").in("id", customerIds)
+    : { data: [] };
+  const customerById = new Map((customers ?? []).map((c) => [c.id as string, c]));
+
+  return unreviewed
+    .filter((o) => searchById.has(o.customer_search_id))
+    .map((o) => {
+      const search = searchById.get(o.customer_search_id)!;
+      const customer = customerById.get(search.customer_id as string);
+      const email = (customer?.email as string | undefined) ?? null;
+      const name = [customer?.first_name, customer?.last_name].filter(Boolean).join(" ") || null;
+      return {
+        offerId: o.id,
+        searchId: o.customer_search_id,
+        searchStatus: search.search_status as string,
+        customerEmail: email,
+        customerName: name,
+        isTest: isTestEmail(email),
+        make: (search.make as string | null) ?? null,
+        model: (search.model as string | null) ?? null,
+        dealerName: o.dealer_name,
+        offerPriceCents: o.offer_price_cents,
+        status: o.status,
+        customerRespondedAt: o.customer_responded_at,
+        customerHighlightedAt: o.customer_highlighted_at,
+        customerNote: o.customer_note,
+        customerActivityAt: o.customer_activity_at,
+      };
+    })
+    .sort((a, b) => new Date(b.customerActivityAt).getTime() - new Date(a.customerActivityAt).getTime());
 }

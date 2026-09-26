@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requireAgent } from "@/lib/agent-auth";
 import {
   getOutreachQueue,
+  getCustomerOfferActivityQueue,
   getFinalizationQueue,
   getSwitchCallQueue,
   getOverdueFollowUpQueue,
@@ -20,6 +21,7 @@ import { LogOfferForm } from "@/components/log-offer-form";
 import { MarkSoldButton } from "@/components/mark-sold-button";
 import { MarkPurchasedButton } from "@/components/mark-purchased-button";
 import { WithdrawAcceptedOfferButton } from "@/components/withdraw-accepted-offer-button";
+import { MarkOfferActivityReviewedButton } from "@/components/mark-offer-activity-reviewed-button";
 import { AddOfferAddonForm } from "@/components/add-offer-addon-form";
 import { ResolveAddonRemovalForm } from "@/components/resolve-addon-removal-form";
 import { ConfirmAvailabilityButton } from "@/components/confirm-availability-button";
@@ -80,6 +82,25 @@ function formatDaysRemaining(daysRemaining: number, pausedAt: string): string {
  * row workable while making it impossible to mistake for real. These pages
  * are agent-only; no customer ever sees this.
  */
+// Readable, color-coded offer state (2026-09-25) in place of the raw status
+// string ("customer_declined" with no date), which made a decline easy to
+// miss while working a search.
+function OfferStatusLabel({ status, respondedAt }: { status: string; respondedAt: string | null }) {
+  const when = respondedAt ? ` ${new Date(respondedAt).toLocaleDateString()}` : "";
+  switch (status) {
+    case "pending":
+      return <span className="text-zinc-400">pending</span>;
+    case "customer_accepted":
+      return <span className="text-emerald-400">Accepted by customer{when}</span>;
+    case "customer_declined":
+      return <span className="font-semibold text-red-400">Declined by customer{when}</span>;
+    case "withdrawn":
+      return <span className="text-amber-400">withdrawn</span>;
+    default:
+      return <span>{status}</span>;
+  }
+}
+
 function TestBadge({ isTest }: { isTest: boolean }) {
   if (!isTest) return null;
   return (
@@ -335,6 +356,7 @@ export default async function OutreachQueuePage() {
     vehicleConsultationQueue,
     notificationCallbackQueue,
     inventoryBlockedQueue,
+    offerActivityQueue,
   ] = await Promise.all([
     getOutreachQueue(),
     getFinalizationQueue(),
@@ -345,6 +367,7 @@ export default async function OutreachQueuePage() {
     getVehicleConsultationQueue(),
     getNotificationCallbackQueue(),
     getInventoryBlockedQueue(),
+    getCustomerOfferActivityQueue(),
   ]);
 
   const callbackRequests = notificationCallbackQueue.filter((e) => e.reason === "callback_requested");
@@ -385,6 +408,78 @@ export default async function OutreachQueuePage() {
                 </div>
               ))}
             </div>
+          )}
+        </div>
+
+        {/* Customer activity on offers (2026-09-25). The agent-facing
+            stand-in for an email/SMS, which is deliberately never sent:
+            every unreviewed highlight, note change or decline, across
+            searching AND paused searches (paused searches have no card
+            anywhere else on this page). Stays until "Mark reviewed". */}
+        <div className="mt-10">
+          <h2 className="text-lg font-semibold text-white">
+            Customer activity on offers ({offerActivityQueue.length})
+          </h2>
+          <p className="mt-1 text-sm text-zinc-400">
+            Highlights, notes and declines from customers, newest first. Each stays here until you mark it
+            reviewed, and comes back if the customer changes it again.
+          </p>
+          {offerActivityQueue.length === 0 ? (
+            <p className="mt-3 text-sm text-zinc-400">No unreviewed customer activity.</p>
+          ) : (
+            <ul className="mt-4 space-y-3">
+              {offerActivityQueue.map((item) => (
+                <li key={item.offerId} className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.03] p-4">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="text-sm font-semibold text-white">
+                      {item.customerName ?? item.customerEmail ?? "unknown customer"}
+                      <TestBadge isTest={item.isTest} />
+                      <span className="ml-2 font-normal text-zinc-400">
+                        {item.make} {item.model}
+                        {item.searchStatus === "paused" && (
+                          <span className="ml-2 rounded-full border border-white/15 px-2 py-0.5 text-xs text-zinc-400">
+                            paused search
+                          </span>
+                        )}
+                      </span>
+                    </span>
+                    <span className="text-xs text-zinc-500">{formatDate(item.customerActivityAt)}</span>
+                  </div>
+                  <p className="mt-1 text-sm text-zinc-300">
+                    {item.dealerName} — ${(item.offerPriceCents / 100).toLocaleString()}
+                  </p>
+                  <div className="mt-2 space-y-1 text-sm">
+                    {item.status === "customer_accepted" && (
+                      <p className="text-emerald-400">Accepted by customer</p>
+                    )}
+                    {item.status === "customer_declined" && (
+                      <p className="text-red-400">
+                        Declined by customer{item.customerRespondedAt ? ` ${formatDate(item.customerRespondedAt)}` : ""}
+                      </p>
+                    )}
+                    {item.customerHighlightedAt && (
+                      <p className="text-amber-300">★ Highlighted {formatDate(item.customerHighlightedAt)}</p>
+                    )}
+                    {item.customerNote && (
+                      <p className="text-zinc-200">
+                        Note: <span className="italic">&ldquo;{item.customerNote}&rdquo;</span>
+                      </p>
+                    )}
+                    {item.status === "pending" && !item.customerHighlightedAt && !item.customerNote && (
+                      <p className="text-zinc-500">Customer removed their highlight/note.</p>
+                    )}
+                  </div>
+                  <div className="mt-2 flex items-center gap-3 text-xs">
+                    {item.searchStatus === "searching" && (
+                      <a href={`#search-${item.searchId}`} className="text-emerald-400 underline hover:text-emerald-300">
+                        Go to this search
+                      </a>
+                    )}
+                    <MarkOfferActivityReviewedButton offerId={item.offerId} seenActivityAt={item.customerActivityAt} />
+                  </div>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
 
@@ -660,7 +755,11 @@ export default async function OutreachQueuePage() {
           ) : (
             <div className="mt-4 space-y-8">
               {queue.map((search) => (
-                <div key={search.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+                <div
+                  key={search.id}
+                  id={`search-${search.id}`}
+                  className="scroll-mt-24 rounded-2xl border border-white/10 bg-white/[0.03] p-6"
+                >
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <h2 className="text-lg font-semibold text-white">
                       {search.make} {search.model}
@@ -682,24 +781,10 @@ export default async function OutreachQueuePage() {
                     combinationPreferences={search.combinationPreferences}
                   />
 
-                  <div className="mt-4">
-                    <h3 className="text-sm font-semibold text-zinc-300">
-                      Matching dealers ({search.dealers.length})
-                    </h3>
-                    {search.dealers.length === 0 ? (
-                      <p className="mt-1 text-sm text-zinc-500">No listings synced yet for this make/model.</p>
-                    ) : (
-                      <ul className="mt-2 space-y-1 text-sm text-zinc-400">
-                        {search.dealers.map((dealer) => (
-                          <li key={dealer.name}>
-                            {dealer.name} — {dealer.phone ?? "no phone"} — {dealer.city ?? "?"}, {dealer.state ?? "?"} (
-                            {dealer.listingCount} listing{dealer.listingCount === 1 ? "" : "s"})
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-
+                  {/* Offers sit ABOVE the dealer list (2026-09-25): they're
+                      what's actionable -- a decline, highlight or customer
+                      note used to sit below a dealer list that can run
+                      dozens of lines, easy to miss. */}
                   {search.offers.length > 0 && (
                     <div className="mt-4">
                       <h3 className="text-sm font-semibold text-zinc-300">Offers logged ({search.offers.length})</h3>
@@ -707,7 +792,8 @@ export default async function OutreachQueuePage() {
                         {search.offers.map((offer) => (
                           <li key={offer.id}>
                             {offer.dealerName} — ${(offer.offerPriceCents / 100).toLocaleString()}
-                            {offer.isBelowMsrp ? " (below MSRP)" : " (at/above MSRP)"} — {offer.status}
+                            {offer.isBelowMsrp ? " (below MSRP)" : " (at/above MSRP)"} —{" "}
+                            <OfferStatusLabel status={offer.status} respondedAt={offer.customerRespondedAt} />
                             {offer.vehicleSoldAt ? (
                               <span className="ml-2 text-amber-400">sold to another buyer</span>
                             ) : (
@@ -718,6 +804,16 @@ export default async function OutreachQueuePage() {
                                 Released {new Date(offer.withdrawnAt).toLocaleDateString()}
                                 {offer.withdrawnByAgentName ? ` by ${offer.withdrawnByAgentName}` : ""}
                                 {offer.withdrawalReason ? ` — ${offer.withdrawalReason}` : ""}
+                              </p>
+                            )}
+                            {offer.customerHighlightedAt && (
+                              <p className="ml-4 text-xs text-amber-300">
+                                ★ Highlighted {new Date(offer.customerHighlightedAt).toLocaleDateString()}
+                              </p>
+                            )}
+                            {offer.customerNote && (
+                              <p className="ml-4 text-xs text-zinc-200">
+                                Customer note: <span className="italic">&ldquo;{offer.customerNote}&rdquo;</span>
                               </p>
                             )}
 
@@ -839,6 +935,24 @@ export default async function OutreachQueuePage() {
                       </ul>
                     </div>
                   )}
+
+                  <div className="mt-4">
+                    <h3 className="text-sm font-semibold text-zinc-300">
+                      Matching dealers ({search.dealers.length})
+                    </h3>
+                    {search.dealers.length === 0 ? (
+                      <p className="mt-1 text-sm text-zinc-500">No listings synced yet for this make/model.</p>
+                    ) : (
+                      <ul className="mt-2 space-y-1 text-sm text-zinc-400">
+                        {search.dealers.map((dealer) => (
+                          <li key={dealer.name}>
+                            {dealer.name} — {dealer.phone ?? "no phone"} — {dealer.city ?? "?"}, {dealer.state ?? "?"} (
+                            {dealer.listingCount} listing{dealer.listingCount === 1 ? "" : "s"})
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
 
                   <LogOfferForm searchId={search.id} listings={search.listings} />
                   <AgentSwitchSearchForm

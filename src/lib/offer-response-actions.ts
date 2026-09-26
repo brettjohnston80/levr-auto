@@ -90,10 +90,18 @@ export async function respondToOffer(
   }
 
   const newStatus = response === "accepted" ? "customer_accepted" : "customer_declined";
+  const respondedAt = new Date().toISOString();
 
+  // A decline also bumps customer_activity_at so it surfaces in the agent's
+  // "Customer activity on offers" section (2026-09-25). Accepts don't --
+  // they already get the prominent "Accepted — closing this deal" panel.
   const { data: updated, error: updateError } = await admin
     .from("qualifying_offers")
-    .update({ customer_responded_at: new Date().toISOString(), status: newStatus })
+    .update({
+      customer_responded_at: respondedAt,
+      status: newStatus,
+      ...(response === "declined" ? { customer_activity_at: respondedAt } : {}),
+    })
     .eq("id", offerId)
     .eq("status", "pending")
     .select("id")
@@ -125,5 +133,6 @@ export async function respondToOffer(
 
   revalidatePath("/account");
   revalidatePath("/account/deal");
+  revalidatePath("/internal/outreach");
   return { ok: true };
 }

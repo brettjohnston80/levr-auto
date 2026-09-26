@@ -64,6 +64,15 @@ export async function logQualifyingOffer(formData: FormData): Promise<LogOfferRe
   // placeholder in that case, same as it always has.
   const vehicleTrim = formData.get("vehicle_trim")?.toString().trim() || null;
   const vehicleExteriorColor = formData.get("vehicle_exterior_color")?.toString().trim() || null;
+  // Optional, copied onto the offer at log time for the customer's offer
+  // detail view (address + ZIP-centroid distance, VIN, stock #). Pre-filled
+  // client-side from a linked listing; typed otherwise.
+  const dealerStreet = formData.get("dealer_street")?.toString().trim() || null;
+  const dealerCity = formData.get("dealer_city")?.toString().trim() || null;
+  const dealerState = formData.get("dealer_state")?.toString().trim().toUpperCase() || null;
+  const dealerZip = formData.get("dealer_zip")?.toString().trim() || null;
+  const vin = formData.get("vin")?.toString().trim().toUpperCase() || null;
+  const stockNumber = formData.get("stock_number")?.toString().trim() || null;
   const offerPriceRaw = formData.get("offer_price")?.toString();
   const msrpRaw = formData.get("msrp")?.toString();
   const notes = formData.get("notes")?.toString().trim() || null;
@@ -75,6 +84,11 @@ export async function logQualifyingOffer(formData: FormData): Promise<LogOfferRe
   }
   if (addons === null) {
     return { ok: false, error: "Invalid add-on data." };
+  }
+  // Mirrors the qualifying_offers_dealer_zip_format check constraint, so a
+  // bad ZIP gets a readable error instead of a raw constraint violation.
+  if (dealerZip && !/^[0-9]{5}$/.test(dealerZip)) {
+    return { ok: false, error: "Dealer ZIP must be 5 digits." };
   }
   for (const a of addons) {
     if (!a.description || !Number.isFinite(a.amountCents) || a.amountCents <= 0) {
@@ -116,6 +130,12 @@ export async function logQualifyingOffer(formData: FormData): Promise<LogOfferRe
       notes,
       vehicle_trim: vehicleTrim,
       vehicle_exterior_color: vehicleExteriorColor,
+      dealer_street: dealerStreet,
+      dealer_city: dealerCity,
+      dealer_state: dealerState,
+      dealer_zip: dealerZip,
+      vin,
+      stock_number: stockNumber,
     })
     .select("id")
     .single();
@@ -461,6 +481,47 @@ export async function withdrawAcceptedOffer(offerId: string, reason: string): Pr
   revalidatePath("/internal/outreach");
   revalidatePath("/account");
   revalidatePath("/account/deal");
+  return { ok: true };
+}
+
+export interface MarkOfferActivityReviewedResult {
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * "Mark reviewed" in the agent's "Customer activity on offers" section.
+ * seenActivityAt is the customer_activity_at the agent's page was showing;
+ * the write only lands if it's still current, so a highlight/note/decline
+ * that arrives after the page loaded can't be marked reviewed unseen --
+ * the agent is told to refresh instead.
+ */
+export async function markOfferActivityReviewed(
+  offerId: string,
+  seenActivityAt: string
+): Promise<MarkOfferActivityReviewedResult> {
+  const agent = await getAuthorizedAgent();
+  if (!agent) {
+    return { ok: false, error: "Not authorized." };
+  }
+
+  const admin = createAdminClient();
+  const { data: updated, error } = await admin
+    .from("qualifying_offers")
+    .update({ agent_reviewed_at: new Date().toISOString() })
+    .eq("id", offerId)
+    .eq("customer_activity_at", seenActivityAt)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    return { ok: false, error: `Failed to mark reviewed: ${error.message}` };
+  }
+  if (!updated) {
+    return { ok: false, error: "The customer changed this since the page loaded — refresh to see the latest." };
+  }
+
+  revalidatePath("/internal/outreach");
   return { ok: true };
 }
 

@@ -9,6 +9,8 @@ import {
 } from "./configurator-matching";
 import { getConfiguratorQuestionsForResolvedTrimIds } from "./configurator-questions";
 import { vehicleColorImageUrl } from "./vehicle-color-images";
+import { haversineMiles } from "./geo";
+import { listingPhotoUrls } from "./listing-photos";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -74,6 +76,27 @@ export interface DashboardOffer {
    * placeholder for null, never a broken image.
    */
   photoUrl: string | null;
+  /** Customer's highlight/note (2026-09-25). Editable only while pending;
+   *  kept, read-only, once the offer is accepted/declined/withdrawn. */
+  customerHighlightedAt: string | null;
+  customerNote: string | null;
+  /** Copied onto the offer at log time (pre-filled from a linked listing
+   *  when one was chosen). Any of these can be null -- most offers today
+   *  have none of them. Dealer phone/email/listing link are deliberately
+   *  never loaded for customers (same rule as dealer_contact). */
+  dealerStreet: string | null;
+  dealerCity: string | null;
+  dealerState: string | null;
+  dealerZip: string | null;
+  vin: string | null;
+  stockNumber: string | null;
+  /** Detail-view-only data, filled in by getDealDetails and left empty by
+   *  getCustomerDashboard (which never opens the detail view).
+   *  listingPhotoUrls is empty unless LISTING_PHOTOS_ENABLED is on. */
+  listingPhotoUrls: string[];
+  inTransit: boolean;
+  /** ZIP-centroid distance in miles; null when either zip is unknown. */
+  distanceMiles: number | null;
 }
 
 export interface DashboardSearch {
@@ -129,11 +152,17 @@ export interface DashboardSearch {
  * a second, hand-written copy of this is exactly the kind of thing that
  * drifts (a fixed bug applied to one copy but not the other, a signed-URL
  * TTL that disagrees between the two surfaces showing the same PDF link).
+ *
+ * `detail` (2026-09-25) additionally resolves what only the offer detail
+ * view needs -- linked-listing photos + in-transit flag, and the ZIP-
+ * centroid distance from the search's zip to the dealer's -- so
+ * getCustomerDashboard (/account, no detail view) doesn't pay for it.
  */
 async function loadOffersBySearchId(
   supabase: AdminClient,
   searchIds: string[],
   makeModelBySearchId: Map<string, { make: string | null; model: string | null }>,
+  detail?: { customerZipBySearchId: Map<string, string | null> },
 ): Promise<Map<string, DashboardOffer[]>> {
   const offersBySearchId = new Map<string, DashboardOffer[]>();
   if (searchIds.length === 0) return offersBySearchId;
@@ -141,7 +170,7 @@ async function loadOffersBySearchId(
   const { data: offers, error: offersError } = await supabase
     .from("qualifying_offers")
     .select(
-      "id, customer_search_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at, withdrawn_at, vehicle_trim, vehicle_exterior_color"
+      "id, customer_search_id, listing_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at, withdrawn_at, vehicle_trim, vehicle_exterior_color, customer_highlighted_at, customer_note, dealer_street, dealer_city, dealer_state, dealer_zip, vin, stock_number"
     )
     .in("customer_search_id", searchIds)
     .order("received_at", { ascending: false });
@@ -264,11 +293,67 @@ async function loadOffersBySearchId(
     }
   }
 
+  // Detail-view-only: linked-listing photos/in-transit, and ZIP distances.
+  const listingDetailById = new Map<string, { photoUrls: string[]; inTransit: boolean }>();
+  const coordByZip = new Map<string, { lat: number; lon: number }>();
+  if (detail) {
+    const listingIds = [
+      ...new Set((offers ?? []).map((o) => o.listing_id).filter((id): id is string => !!id)),
+    ];
+    if (listingIds.length > 0) {
+      // Only the two sub-objects needed -- never the whole raw_data payload.
+      const { data: listingRows, error: listingError } = await supabase
+        .from("listings")
+        .select("id, media:raw_data->media, in_transit:raw_data->in_transit")
+        .in("id", listingIds);
+      if (listingError) {
+        throw new Error(`Failed to load linked listings: ${listingError.message}`);
+      }
+      for (const row of listingRows ?? []) {
+        listingDetailById.set(row.id as string, {
+          photoUrls: listingPhotoUrls(row.media),
+          inTransit: row.in_transit === true,
+        });
+      }
+    }
+
+    const zips = [
+      ...new Set(
+        [
+          ...(offers ?? []).map((o) => o.dealer_zip as string | null),
+          ...detail.customerZipBySearchId.values(),
+        ].filter((z): z is string => !!z),
+      ),
+    ];
+    if (zips.length > 0) {
+      const { data: coords, error: coordsError } = await supabase
+        .from("zip_coordinates")
+        .select("zip, latitude, longitude")
+        .in("zip", zips);
+      if (coordsError) {
+        throw new Error(`Failed to load zip coordinates: ${coordsError.message}`);
+      }
+      for (const c of coords ?? []) {
+        coordByZip.set(c.zip as string, { lat: c.latitude as number, lon: c.longitude as number });
+      }
+    }
+  }
+
+  const distanceFor = (searchId: string, dealerZip: string | null): number | null => {
+    if (!detail || !dealerZip) return null;
+    const customerZip = detail.customerZipBySearchId.get(searchId);
+    const from = customerZip ? coordByZip.get(customerZip) : undefined;
+    const to = coordByZip.get(dealerZip);
+    if (!from || !to) return null;
+    return haversineMiles(from.lat, from.lon, to.lat, to.lon);
+  };
+
   for (const offer of offers ?? []) {
     const { make, model } = makeModelBySearchId.get(offer.customer_search_id) ?? {
       make: null,
       model: null,
     };
+    const listingDetail = offer.listing_id ? listingDetailById.get(offer.listing_id) : undefined;
     const list = offersBySearchId.get(offer.customer_search_id) ?? [];
     list.push({
       id: offer.id,
@@ -290,6 +375,17 @@ async function loadOffersBySearchId(
       photoUrl: offer.vehicle_exterior_color
         ? vehicleColorImageUrl(make, model, "exterior_color", offer.vehicle_exterior_color)
         : null,
+      customerHighlightedAt: offer.customer_highlighted_at,
+      customerNote: offer.customer_note,
+      dealerStreet: offer.dealer_street,
+      dealerCity: offer.dealer_city,
+      dealerState: offer.dealer_state,
+      dealerZip: offer.dealer_zip,
+      vin: offer.vin,
+      stockNumber: offer.stock_number,
+      listingPhotoUrls: listingDetail?.photoUrls ?? [],
+      inTransit: listingDetail?.inTransit ?? false,
+      distanceMiles: distanceFor(offer.customer_search_id, offer.dealer_zip),
     });
     offersBySearchId.set(offer.customer_search_id, list);
   }
@@ -468,7 +564,7 @@ export async function getDealDetails(searchId: string, customerId: string): Prom
   const { data: search, error: searchError } = await supabase
     .from("customer_searches")
     .select(
-      "id, make, model, trim, search_status, paid_at, solidified_at, paused_at, purchased_qualifying_offer_id"
+      "id, make, model, trim, zip, search_status, paid_at, solidified_at, paused_at, purchased_qualifying_offer_id"
     )
     .eq("id", searchId)
     .eq("customer_id", customerId)
@@ -490,7 +586,9 @@ export async function getDealDetails(searchId: string, customerId: string): Prom
   }
 
   const makeModelBySearchId = new Map([[searchId, { make: search.make, model: search.model }]]);
-  const offersBySearchId = await loadOffersBySearchId(supabase, [searchId], makeModelBySearchId);
+  const offersBySearchId = await loadOffersBySearchId(supabase, [searchId], makeModelBySearchId, {
+    customerZipBySearchId: new Map([[searchId, (search.zip as string | null) ?? null]]),
+  });
 
   return {
     searchId: search.id,
