@@ -43,52 +43,45 @@ This file exists so any Claude Code session (yours, your collaborator's, or a fu
   - **⚠ THE ONE QUERY IT DOES CONTAMINATE: a bare `select count(*) from customers`.** There is **no `is_test` flag anywhere in this schema** — confirmed by grep, no such column and no naming convention checked in code — so nothing excludes it automatically. **Any future "how many real customers do we have" check must subtract it** (or filter `email not like '%@levrauto.invalid'`). Searches, paid searches and payments are all unaffected, so the pre-launch "zero real money has moved" checks stay valid as-is: at the time of writing `customers = 3` (Brett's two accounts plus this one) while `customer_searches = 0`, `paid searches = 0` and `payments = 0`.
   - **Discipline when Brett uses it himself:** create whatever searches/rows a verification needs, then delete them afterwards and confirm by count. Leave the account itself in place — it is meant to persist. If a proper `is_test` flag is ever wanted, that is a migration plus edits to each enumeration surface, and should be its own reviewed change rather than a column nothing reads.
 
-## ⚠ IN-FLIGHT STATE — read before doing anything (updated 2026-09-25)
+## ⚠ IN-FLIGHT STATE — read before doing anything (updated 2026-09-26)
 
-A snapshot of work that is mid-flight right now. Verify against `git log`/`git status` before acting on it, and delete or rewrite this section once these items are resolved.
+A snapshot of work that is mid-flight right now. Verify against `git log`/`git status` before acting on it, and delete or rewrite this section once these items are resolved. **Nothing gets pushed until Brett signs off.**
 
-**Three commits are on local `main` and NOT pushed. `origin/main` is at `98f4ca0`. Do not push any of them until Brett signs off after his own review.** In order:
-- `fa339be`: "Allow one accepted offer per search, with an agent release path."
-- `ecbb602`: "Record in-flight state and save the offer-detail/highlight plan." Docs only.
-- `8f05d3c`: "Add offer highlight/note, offer detail view, and agent activity queue."
+**Pushed:** `origin/main` is at `596f362`. That includes `fa339be` (one accepted offer per search), `ecbb602` and `8f05d3c` (offer highlight, detail view and agent activity queue); Brett pushed these 2026-09-25.
 
-Both of their migrations **have already been applied** to the shared Supabase project, so the database is ahead of `origin/main`. Production code on `98f4ca0` ignores the new columns, so this is harmless until the push.
+1. **`ca0c3d0` — offer message threads. Committed and verified, NOT pushed.**
+   - Each offer has a customer ↔ agent thread; it replaced the single customer note. Plan: `docs/plans/offer-messages-plan.md`.
+   - Migration `20260926120000_offer_messages.sql` **has been applied** to the shared Supabase project. The live site ignores the new table until the push.
+   - Follow-up still owed **after the deploy**: a small migration that re-runs the note-to-message copy, then drops `qualifying_offers.customer_note`, `customer_note_updated_at` and their length constraint.
+   - Verified 2026-09-26 on a disposable customer plus a scratch agent, both cleaned up. Two bugs were found and fixed before the commit: the header unread dot lagged by one page view, and the `?offer=` deep link rendered its portal during server rendering.
 
-1. **`fa339be`: one accepted offer per search.** Migration `20260924120000_one_accepted_offer_and_withdrawal.sql` added the partial unique index `qualifying_offers_one_accepted_per_search_idx` and the `withdrawn_at` / `withdrawn_by_agent_id` / `withdrawal_reason` columns. What the commit contains:
-   - `respondToOffer` refuses a second accept on the same search; the index is the race-proof backstop.
-   - The new agent-only `withdrawAcceptedOffer` action (status `withdrawn`, reason required, refused on a purchased search).
-   - `markSearchPurchased` now requires the offer to belong to the search and still be `customer_accepted`.
-   - Customer and agent UI changes.
-   - It was verified end-to-end on a disposable customer plus a scratch agent, both cleaned up.
-   - **Known follow-ups, not in scope there:** `respondToOffer` doesn't check that the search is still active; releasing an offer doesn't notify the customer.
+2. **Pickup range, per-offer pickup/delivery, out-of-range flag and offer sorting: BUILT, UNCOMMITTED, BLOCKED.**
+   - Plan: `docs/plans/pickup-delivery-plan.md`, approved 2026-09-26 with decisions recorded at its top.
+   - Migration: `20260926130000_pickup_travel_and_handoff.sql`.
+   - **Its columns do NOT exist in the database** (checked 2026-09-26: `pickup_travel_choice` and `handoff_method` both return Postgres 42703). Brett reported running it, so it likely failed and rolled back, or went to another project.
+   - **Until it's applied, intake, Your Deal and /internal/outreach error on any server running this working tree.**
+   - Verification is waiting on the migration; commit only after it passes.
+   - When done, `deal_progress.delivery_method` (retired) needs the same post-deploy drop migration as the customer note.
 
-2. **`8f05d3c`: offer highlight/note, offer detail view, and agent activity queue.** Built from `docs/plans/offer-detail-highlight-plan.md`, with Brett's decisions and copy approvals. Migration `20260925120000_offer_highlight_note_and_detail_fields.sql` adds:
-   - customer columns: `customer_highlighted_at`, `customer_note`, `customer_note_updated_at`;
-   - review-tracking columns: `customer_activity_at`, `agent_reviewed_at`;
-   - copy-at-log-time snapshot columns: `dealer_street/city/state/zip`, `vin`, `stock_number`.
+3. **Agent-message email: APPROVED 2026-09-26, not built.**
+   - Plan: `docs/plans/message-email-plan.md`.
+   - Decisions: send regardless of the daily-digest setting; one email per thread until the customer opens it; use the email-off variant of the privacy line; all copy approved.
+   - Build it after pickup/delivery is verified.
 
-   What it does:
-   - **Highlight and note.** Customers can highlight a pending offer and leave a note for their agent, up to 500 characters. Both can be edited while the offer is pending and are frozen once the customer responds.
-   - **Detail view before accepting.** Accept goes through the detail view (`offer-detail-modal.tsx`). It shows the address, the distance from the search ZIP, trim, color, VIN, stock #, and the in-transit badge.
-   - **Listing photos stay off.** The gallery is gated by `LISTING_PHOTOS_ENABLED` in `src/lib/listing-photos.ts`, which is **OFF** until MarketCheck's terms are reviewed. Never flip it on and commit.
-   - **Agent activity section.** Agents get "Customer activity on offers", covering both searching and paused searches. Its "Mark reviewed" is guarded against stale pages.
-   - **Offer order in the agent view.** Offers now render above matching dealers.
-   - **Log Offer pre-fill.** Dealer address, VIN and stock number are pre-filled from the linked listing. A ZIP+4 is trimmed to 5 digits; stored ZIP+4 values used to fail the 5-digit check.
-   - **"Refundable" removed.** The word is gone from the "Congratulations — next steps" deposit line.
+4. **Map view on Your Deal: APPROVED 2026-09-26, not built.**
+   - Plan: `docs/plans/offer-map-plan.md`: MapLibre GL JS plus a self-hosted Protomaps US basemap, with a List | Map toggle next to "Sort by" defaulting to List.
+   - Blocked on Brett setting up the tile storage.
+   - Section 7 copy still needs his sign-off.
 
-   How it was verified: end-to-end on a disposable customer plus a scratch agent, both cleaned up. One layout bug was found and fixed during that pass: the modal's sticky footer let content scroll through a 32px strip, now fixed with `-bottom-8` plus extra bottom padding. Known follow-up: the "Your Deal" picker still labels searches by make and model only.
+5. **Verification-environment note.** Brett's shared Chrome is usually signed in to the review account on `localhost`, so browser verification runs on `127.0.0.1`, which has its own cookie jar. That needs `allowedDevOrigins: ["127.0.0.1"]` in `next.config.ts`, added only with Brett's OK and reverted afterward. Never sign his localhost session out without asking.
 
-3. **The persistent review account `brett-deal-review@levrauto-test.invalid` has 3 searches** (customer id `00cc0f70-9e4b-4ba7-b9b1-242f8a4aea40`). See its own bullet under "Approach & patterns"; never clean it up or write to it without Brett's explicit request.
-   - `7c337ac2-d1d7-4903-a35b-2dc6bc65077d`: Toyota Camry XSE, `searching`, timeline at "Accepted." Sunrise Toyota $32,000 accepted (real photo); Lakeside Toyota $31,200 pending (Best value); Metro Toyota $33,500 pending.
-   - `886a1f19-f270-4056-bab8-fbd3093d9909`: Honda Civic Sport Touring, `purchased`. Capital Honda $26,800 accepted and purchased (real photo); Riverside Honda $27,200 declined; Union Honda $27,900 pending. The summary line reads "2 other offers received — lowest $27,200 · median $27,550."
-   - `f90b0dc7-e51d-490e-add9-afe8ce3cc95c`: Honda Civic Sport, `searching`, all three offers pending with no highlights or notes, left that way so Brett can try highlight, note and accept himself. Updated 2026-09-25 with detail-view fields:
-     - Northgate Honda $27,300 (real photo, Sonic Gray Pearl) is **linked to a real MarketCheck listing**: `b6e429d1-37d2-4643-bb02-a74dd8b907c6`, Honda of Toms River, NJ, VIN `2HGFE2F57TH625152`, stock `TH625152`, in transit. The address, VIN and stock come from that listing, but the offer keeps its fictional dealer name and its Sonic Gray Pearl color.
-     - Westside Honda $26,650 (Best value): fictional 9100 Metcalf Ave, Overland Park, KS 66212. Placeholder VIN `2HGFE2F5XDEMO0001`, stock `WS-40121`.
-     - Parkway Honda $28,100: fictional 1500 NE Rice Rd, Lee's Summit, MO 64086. Placeholder VIN `2HGFE2F5XDEMO0002`, stock `PK-88317`.
-     - All four ZIPs (the search's 66062 plus the three dealer ZIPs) resolve in `zip_coordinates`, so the distance line renders.
-   - Known cosmetic issue: the "Your Deal" picker labels searches by make and model only, so this account's two Civic searches both read "Honda Civic." The per-search "view your deal →" links on `/account` go straight to the right one.
-   - **Review happens on the local dev server, not production.** The new features exist only in the unpushed commits, so review links point at `localhost:3000`.
-   - Magic links are single-use, and minting a new one cancels older ones. Mint one fresh per sign-in.
+6. **The persistent review account `brett-deal-review@levrauto-test.invalid` has 3 searches** (customer id `00cc0f70-9e4b-4ba7-b9b1-242f8a4aea40`). See its own bullet under "Approach & patterns"; never clean it up or write to it without Brett's explicit request.
+   - `7c337ac2-d1d7-4903-a35b-2dc6bc65077d`: Toyota Camry XSE, `searching`. Sunrise Toyota $32,000 accepted; Lakeside Toyota $31,200 and Metro Toyota $33,500 pending.
+   - `886a1f19-f270-4056-bab8-fbd3093d9909`: Honda Civic Sport Touring, `purchased` (Capital Honda $26,800).
+   - `f90b0dc7-e51d-490e-add9-afe8ce3cc95c`: Honda Civic Sport, `searching`.
+     - Offers: Northgate Honda $27,300, linked to a real listing (Honda of Toms River, NJ, in transit); Westside Honda $26,650 (Overland Park, KS); Parkway Honda $28,100 (Lee's Summit, MO).
+     - Brett has been using this search himself, so its current highlights and messages are his. Don't assume the state last written here.
+   - Magic links are single-use, and minting a new one cancels older ones.
 
 ## Start Here (updated 2026-09-02 — third and final full Matchmaker section rewrite this session, comprehensive, written as the session ends: covers the complete hard-filter/rank-weighted scoring system, MY2027 (real, live, 2,269-row dataset), the full Comparison Tool, mobile fixes, the VehicleDetailModal photo placeholder and live inventory count, and a real bug fix (Model Year's "Both years" pre-highlighting) shipped after the previous rewrite — all committed and pushed to `origin/main`. A "choose this car" checkout-handoff build is **IN PROGRESS, not yet started as of this rewrite** — see its own flagged bullet below before assuming any code exists for it. Rest of this section carried forward)
 
@@ -987,3 +980,4 @@ Discovery only, nothing built yet.
 - AI voice-calling for dealer outreach (real open question, needs legal review before any real use)
 - Post-purchase mailer/giveaway program (has an unresolved sweepstakes-law question — needs attorney review before it's real)
 - Lender referral, transporter marketplace revenue streams
+- LEVR arranging delivery for customers in-house (recorded 2026-09-26, Brett). Today "Estimate delivery for me" on an offer only means the agent gets a delivery estimate from the dealer, and the customer and dealer set up shipping directly (see `docs/plans/pickup-delivery-plan.md`). An in-house version needs a transporter relationship (`TRANSPORTER_REFERRAL_ENABLED` is the existing inert placeholder), pricing, and changed customer-facing delivery copy.
