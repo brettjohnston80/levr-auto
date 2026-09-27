@@ -92,6 +92,9 @@ export interface DashboardOffer {
   /** The search's pickup range, copied onto each offer so the detail view
    *  can pre-fill the accept confirmation and flag out-of-range offers. */
   pickupTravel: PickupTravel | null;
+  /** Customer's notify_by_email, so the send box shows the privacy line
+   *  that's true for them (agent replies email them only when it's on). */
+  customerEmailAlerts: boolean;
   /** Copied onto the offer at log time (pre-filled from a linked listing
    *  when one was chosen). Any of these can be null -- most offers today
    *  have none of them. Dealer phone/email/listing link are deliberately
@@ -175,7 +178,13 @@ async function loadOffersBySearchId(
   searchIds: string[],
   makeModelBySearchId: Map<
     string,
-    { make: string | null; model: string | null; searchStatus: string; pickupTravel?: PickupTravel | null }
+    {
+      make: string | null;
+      model: string | null;
+      searchStatus: string;
+      pickupTravel?: PickupTravel | null;
+      emailAlerts?: boolean;
+    }
   >,
   detail?: { customerZipBySearchId: Map<string, string | null> },
 ): Promise<Map<string, DashboardOffer[]>> {
@@ -364,11 +373,12 @@ async function loadOffersBySearchId(
   };
 
   for (const offer of offers ?? []) {
-    const { make, model, searchStatus, pickupTravel } = makeModelBySearchId.get(offer.customer_search_id) ?? {
+    const { make, model, searchStatus, pickupTravel, emailAlerts } = makeModelBySearchId.get(offer.customer_search_id) ?? {
       make: null,
       model: null,
       searchStatus: "",
       pickupTravel: null,
+      emailAlerts: true,
     };
     const listingDetail = offer.listing_id ? listingDetailById.get(offer.listing_id) : undefined;
     const list = offersBySearchId.get(offer.customer_search_id) ?? [];
@@ -398,6 +408,7 @@ async function loadOffersBySearchId(
       hasUnreadMessages: hasUnreadForCustomer(offer.last_agent_message_at, offer.customer_messages_read_at),
       handoffMethod: (offer.handoff_method as HandoffMethod | null) ?? null,
       pickupTravel: pickupTravel ?? null,
+      customerEmailAlerts: emailAlerts ?? true,
       dealerStreet: offer.dealer_street,
       dealerCity: offer.dealer_city,
       dealerState: offer.dealer_state,
@@ -610,12 +621,26 @@ export async function getDealDetails(searchId: string, customerId: string): Prom
     throw new Error(`Failed to load post-deal survey: ${surveyError.message}`);
   }
 
+  const { data: customerRow } = await supabase
+    .from("customers")
+    .select("notify_by_email")
+    .eq("id", customerId)
+    .maybeSingle();
   const pickupTravel = travelFromColumns(
     search.pickup_travel_choice as string | null,
     search.pickup_travel_miles as number | null,
   );
   const makeModelBySearchId = new Map([
-    [searchId, { make: search.make, model: search.model, searchStatus: search.search_status as string, pickupTravel }],
+    [
+      searchId,
+      {
+        make: search.make,
+        model: search.model,
+        searchStatus: search.search_status as string,
+        pickupTravel,
+        emailAlerts: customerRow?.notify_by_email !== false,
+      },
+    ],
   ]);
   const offersBySearchId = await loadOffersBySearchId(supabase, [searchId], makeModelBySearchId, {
     customerZipBySearchId: new Map([[searchId, (search.zip as string | null) ?? null]]),

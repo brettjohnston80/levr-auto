@@ -5,6 +5,7 @@ import { createClient } from "./supabase/server";
 import { createAdminClient } from "./supabase/admin";
 import { getAuthorizedAgent } from "./agent-auth";
 import { getCustomerUnreadThreadCount } from "./offer-messages";
+import { emailCustomerAboutAgentMessage } from "./message-email";
 import { CLOSED_SEND_ERROR, threadIsOpen, validateMessageBody } from "./offer-messages-shared";
 
 export interface OfferMessageResult {
@@ -50,8 +51,8 @@ async function currentCustomerId(): Promise<string | null> {
 
 /**
  * Customer posts to an offer's thread. Also bumps customer_activity_at so the
- * offer surfaces in the agent's "Customer activity on offers" section (the
- * stand-in for an alert -- no email/SMS is ever sent), and marks the thread
+ * offer surfaces in the agent's "Customer activity on offers" section (agents
+ * get no email for customer messages), and marks the thread
  * read for the customer, since they're looking at it.
  */
 export async function sendCustomerMessage(offerId: string, body: string): Promise<OfferMessageResult> {
@@ -113,7 +114,8 @@ export async function getMyUnreadThreadCount(): Promise<number> {
 }
 
 /**
- * Agent posts to an offer's thread (reply or a new thread). When sent from
+ * Agent posts to an offer's thread (reply or a new thread), then emails the
+ * customer a content-free "you have a new message" link (message-email.ts). When sent from
  * the activity section, `seenActivityAt` is the customer_activity_at that item
  * was rendered with: replying then also marks it reviewed -- but only if the
  * customer hasn't changed anything since, the same stale-page guard as
@@ -148,6 +150,10 @@ export async function sendAgentMessage(
     .update({ last_message_at: at, last_agent_message_at: at })
     .eq("id", offerId);
   if (stateError) console.error("sendAgentMessage: thread state update failed", stateError.message);
+
+  // One "you have a new message" email per thread until the customer opens
+  // it (2026-09-26). Never throws; the message above is already saved.
+  await emailCustomerAboutAgentMessage(admin, offerId);
 
   if (seenActivityAt) {
     await admin

@@ -15,14 +15,24 @@ export const dynamic = "force-dynamic";
 // Every offer thread the customer has, across all their searches (frozen
 // ones included -- they stay readable), newest activity first. Threads are
 // started from an offer's detail view, so there is no "new message" button.
-export default async function MessagesPage() {
+export default async function MessagesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filter?: string }>;
+}) {
+  const { filter } = await searchParams;
+  const unreadOnly = filter === "unread";
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login?next=/account/messages");
 
-  const threads = await getCustomerThreads(createAdminClient(), user.id);
+  const allThreads = await getCustomerThreads(createAdminClient(), user.id);
+  const unreadCount = allThreads.filter((t) => t.unread).length;
+  // "Unread" filter (2026-09-26). Opening a thread marks it read, so it drops
+  // off this list the next time the page loads.
+  const threads = unreadOnly ? allThreads.filter((t) => t.unread) : allThreads;
 
   return (
     <section className="bg-zinc-950 py-24">
@@ -35,7 +45,29 @@ export default async function MessagesPage() {
           Your conversations with your LEVR agent, one per offer. Newest first.
         </p>
 
-        {threads.length === 0 ? (
+        {allThreads.length > 0 && (
+          <nav aria-label="Filter messages" className="mt-5 flex gap-2 text-sm">
+            {[
+              { href: "/account/messages", label: "All", active: !unreadOnly },
+              { href: "/account/messages?filter=unread", label: `Unread (${unreadCount})`, active: unreadOnly },
+            ].map((tab) => (
+              <Link
+                key={tab.href}
+                href={tab.href}
+                aria-current={tab.active ? "page" : undefined}
+                className={`rounded-full px-3 py-1 ${
+                  tab.active ? "bg-white/10 font-semibold text-white" : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                {tab.label}
+              </Link>
+            ))}
+          </nav>
+        )}
+
+        {unreadOnly && threads.length === 0 && allThreads.length > 0 ? (
+          <p className="mt-8 text-sm text-zinc-400">No unread messages.</p>
+        ) : threads.length === 0 ? (
           <p className="mt-8 text-sm text-zinc-400">
             No messages yet. You can message your agent from any offer on{" "}
             <Link href="/account/deal" className="text-emerald-400 underline hover:text-emerald-300">

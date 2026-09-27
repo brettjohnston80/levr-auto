@@ -293,7 +293,7 @@ export function OfferDetailModal({
               )}
               <div className="mt-4">
                 {offer.threadOpen ? (
-                  <OfferMessageComposer offerId={offer.id} sender="customer" />
+                  <OfferMessageComposer offerId={offer.id} sender="customer" emailAlerts={offer.customerEmailAlerts} />
                 ) : (
                   <p className="text-sm text-zinc-500">{frozenThreadCopy(offer.status)}</p>
                 )}

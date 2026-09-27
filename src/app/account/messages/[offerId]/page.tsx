@@ -40,6 +40,8 @@ export default async function MessageThreadPage({ params }: { params: Promise<{ 
     .eq("id", offerId);
 
   const vehicle = [thread.make, thread.model].filter(Boolean).join(" ");
+  const { data: customerRow } = await admin.from("customers").select("notify_by_email").eq("id", user.id).maybeSingle();
+  const emailAlerts = customerRow?.notify_by_email !== false;
 
   return (
     <section className="bg-zinc-950 py-24">
@@ -75,7 +77,7 @@ export default async function MessageThreadPage({ params }: { params: Promise<{ 
 
         <div className="mt-6">
           {thread.open ? (
-            <OfferMessageComposer offerId={thread.offerId} sender="customer" />
+            <OfferMessageComposer offerId={thread.offerId} sender="customer" emailAlerts={emailAlerts} />
           ) : (
             <p className="text-sm text-zinc-500">{frozenThreadCopy(thread.offerStatus)}</p>
           )}

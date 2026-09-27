@@ -7,8 +7,13 @@ import { MESSAGE_MAX_LENGTH } from "@/lib/offer-messages-shared";
 
 // Approved copy (2026-09-25; privacy line revised by Brett).
 const CUSTOMER_PLACEHOLDER = "e.g. Would they do $31,000? Is the sunroof included?";
+// Revised 2026-09-26 when agent replies started emailing the customer: the
+// default line says so; customers with email notifications off get the
+// variant, so the line stays true for everyone.
 const CUSTOMER_PRIVACY_LINE =
-  "Only you and the LEVR team can see these messages. We don't send email or text alerts for new messages, so check back here or in Messages for replies.";
+  "Only you and the LEVR team can see these messages. When your agent replies, we'll email you a link — the message itself stays here.";
+const CUSTOMER_PRIVACY_LINE_EMAIL_OFF =
+  "Only you and the LEVR team can see these messages. Email notifications are off in your account settings, so check back here or in Messages for replies.";
 
 /**
  * Send box for an offer thread. The server action is authoritative about
@@ -20,10 +25,13 @@ export function OfferMessageComposer({
   offerId,
   sender,
   seenActivityAt = null,
+  emailAlerts = true,
 }: {
   offerId: string;
   sender: "customer" | "agent";
   seenActivityAt?: string | null;
+  /** Customer's notify_by_email -- picks which privacy line is true for them. */
+  emailAlerts?: boolean;
 }) {
   const router = useRouter();
   const [draft, setDraft] = useState("");
@@ -58,7 +66,13 @@ export function OfferMessageComposer({
         className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
       />
       <div className="mt-1 flex items-start justify-between gap-3 text-xs text-zinc-500">
-        <span>{sender === "customer" ? CUSTOMER_PRIVACY_LINE : "The customer sees your first name."}</span>
+        <span>
+          {sender === "customer"
+            ? emailAlerts
+              ? CUSTOMER_PRIVACY_LINE
+              : CUSTOMER_PRIVACY_LINE_EMAIL_OFF
+            : "The customer sees your first name."}
+        </span>
         <span className="shrink-0">
           {draft.length}/{MESSAGE_MAX_LENGTH.toLocaleString()}
         </span>
