@@ -55,27 +55,24 @@ A snapshot of work that is mid-flight right now. Verify against `git log`/`git s
    - Follow-up still owed **after the deploy**: a small migration that re-runs the note-to-message copy, then drops `qualifying_offers.customer_note`, `customer_note_updated_at` and their length constraint.
    - Verified 2026-09-26 on a disposable customer plus a scratch agent, both cleaned up. Two bugs were found and fixed before the commit: the header unread dot lagged by one page view, and the `?offer=` deep link rendered its portal during server rendering.
 
-2. **Pickup range, per-offer pickup/delivery, out-of-range flag and offer sorting: BUILT, UNCOMMITTED, being verified.**
-   - Plan: `docs/plans/pickup-delivery-plan.md`, approved 2026-09-26 with decisions recorded at its top.
-   - Migration: `20260926130000_pickup_travel_and_handoff.sql`.
-   - Migration status is **unresolved**. Brett re-ran it and confirmed the columns in the SQL Editor (2026-09-26), but the app's project (`couiovhducwytlckfgvo`) still returns Postgres 42703 for `pickup_travel_choice` and `handoff_method`, while the email migration's column does exist. Either PostgREST's schema cache is stale (fix: `notify pgrst, 'reload schema';`), or the run rolled back.
-   - The agent-message email migration (`20260926140000_offer_message_email.sql`, adding `message_email_sent_at`) is also applied.
-   - Commit only after verification passes.
-   - When done, `deal_progress.delivery_method` (retired) needs the same post-deploy drop migration as the customer note.
+2. **`e1596c6`: pickup range, per-offer pickup/delivery, out-of-range flag and offer sorting. Committed and verified, NOT pushed.**
+   - Plan: `docs/plans/pickup-delivery-plan.md`. Migration `20260926130000` is applied.
+   - That migration needed three attempts: two runs didn't land in `couiovhducwytlckfgvo`. **Always confirm a migration from the app's side**, e.g. with an RPC that returns a whole row, not just an SQL Editor query.
+   - Follow-up owed after deploy: drop the retired `deal_progress.delivery_method`.
 
-3. **Agent-message email: APPROVED 2026-09-26, not built.**
-   - Plan: `docs/plans/message-email-plan.md`.
-   - Decisions: send regardless of the daily-digest setting; one email per thread until the customer opens it; use the email-off variant of the privacy line; all copy approved.
-   - Build it after pickup/delivery is verified.
+3. **`27ab440`: agent-message email. Committed and verified, NOT pushed.**
+   - One content-free email per thread until the customer opens it; skipped when `notify_by_email` is off. Includes the email-off privacy-line variant and an All / Unread filter on Messages.
+   - Migration `20260926140000` is applied.
+   - Real delivery has not been tested: every test used a suppressed `@levrauto-test.invalid` address.
 
-4. **Map view on Your Deal: APPROVED 2026-09-26, not built.**
-   - Plan: `docs/plans/offer-map-plan.md`, with a List | Map toggle next to "Sort by" defaulting to List. Section 7 copy is approved; the legend reads "Declined or withdrawn".
-   - **Provider: Mapbox GL JS**, because Supabase stays on Free and its 50 MB file cap rules out self-hosting a US basemap. All provider code stays in one module (`src/lib/map/` plus one client component), so it can move to MapLibre + a self-hosted Protomaps basemap if Supabase is upgraded.
-   - Mapbox draws its required attribution itself: its logo plus "© Mapbox © OpenStreetMap Improve this map".
-   - **Tokens are set by Brett (2026-09-26) and never pasted into chat:**
-     - `NEXT_PUBLIC_MAPBOX_TOKEN` in `.env.local` is an unrestricted dev token. It has to be unrestricted because verification runs on `127.0.0.1` and Mapbox URL restrictions don't accept IP addresses.
-     - Vercel Production has a prod token restricted to `levrauto.com`, so preview deployments won't load the map.
-   - Build it after the agent-message email.
+4. **`66ffed7`: List | Map view on Your Deal (Mapbox). Committed and verified, NOT pushed.**
+   - Plan and build notes: `docs/plans/offer-map-plan.md`, including two small deviations for Brett to review: the highlighted pin is an amber outline, and the no-location note uses proper singular/plural.
+   - Provider code lives only in `src/lib/map/config.ts` and `src/components/offer-map.tsx`.
+   - **Tokens are set by Brett and never pasted into chat:**
+     - `NEXT_PUBLIC_MAPBOX_TOKEN` in `.env.local` is an unrestricted dev token.
+     - Vercel Production has a prod token restricted to `levrauto.com`, so previews won't load the map.
+   - Not verified in automation: two-finger touch gestures and real frame rate. They need a phone check.
+   - `next build` hasn't been run locally, because it would rewrite `.next` under the live dev server. The first Vercel build is the production-build check.
 
 5. **Verification-environment note.** Brett's shared Chrome is usually signed in to the review account on `localhost`, so browser verification runs on `127.0.0.1`, which has its own cookie jar. That needs `allowedDevOrigins: ["127.0.0.1"]` in `next.config.ts`, added only with Brett's OK and reverted afterward. Never sign his localhost session out without asking.
 
