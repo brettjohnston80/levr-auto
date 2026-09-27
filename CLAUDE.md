@@ -47,24 +47,23 @@ This file exists so any Claude Code session (yours, your collaborator's, or a fu
 
 A snapshot of work that is mid-flight right now. Verify against `git log`/`git status` before acting on it, and rewrite this section once these items are resolved. **Nothing gets pushed without Brett's sign-off.**
 
-**Everything is pushed and live.** `origin/main` is at `3e59c50` (pushed 2026-09-26). The Vercel production deploy built successfully and is aliased to www.levrauto.com. That push included:
+**Everything is pushed and live.** `origin/main` is at `72e08e2`. The feature work deployed at `3e59c50` (2026-09-26); Vercel built it successfully and it's aliased to www.levrauto.com. That work was:
 - `ca0c3d0` offer message threads
 - `e1596c6` pickup range, per-offer pickup/delivery, out-of-range flag and offer sorting
 - `27ab440` agent-message email
 - `66ffed7` List | Map view (Mapbox)
-- CLAUDE.md updates
 
-Every migration they need is applied: `20260926120000`, `20260926130000` and `20260926140000`.
+Every migration is applied, through `20260926140000`.
 
-1. **Post-deploy cleanup migration: being prepared, NOT run.**
-   - It drops `qualifying_offers.customer_note`, `customer_note_updated_at` and their length constraint, which were replaced by offer message threads. It also drops `deal_progress.delivery_method`, replaced by `qualifying_offers.handoff_method`.
-   - Before either drop, it re-runs the idempotent copy.
-   - **Supabase Free has no automatic backups and dropping columns can't be undone**, so Brett reviews production row counts before running it.
+1. **Post-deploy cleanup: DONE (2026-09-27).**
+   - Migration `20260927120000_drop_retired_note_and_delivery_columns.sql` ran in `couiovhducwytlckfgvo`; the file is committed as `72e08e2`.
+   - It dropped `qualifying_offers.customer_note`, `customer_note_updated_at` and their length constraint, plus `deal_progress.delivery_method`.
+   - Confirmed from the app's side: all three columns return 42703.
+   - **The backup table `public._backup_20260927_retired_columns` still exists**, holding 3 rows: the review account's note, and tester5's and tester7's delivery answers. **Brett drops it himself around 2026-10-04** (`drop table public._backup_20260927_retired_columns;`). Don't drop it or write to it.
 
-2. **Real-world checks still open:**
-   - the map's two-finger touch gestures and real-frame-rate smoothness on a phone;
-   - the map with the production token (restricted to `levrauto.com`) once signed in on production;
-   - a real inbox delivery of the agent-message email. Every test so far used suppressed `@levrauto-test.invalid` addresses.
+2. **Open real-world checks:**
+   - **Phone map check:** on a real phone, test the map's two-finger touch gestures and real-frame-rate smoothness, and the map with the production token (restricted to `levrauto.com`) when signed in on production. Automation couldn't cover these.
+   - **Real-inbox email check:** a real delivery of the agent-message email. Every test so far used suppressed `@levrauto-test.invalid` addresses.
 
 3. **Verification-environment note.** Brett's shared Chrome is usually signed in to the review account on `localhost`, so browser verification runs on `127.0.0.1`, which has its own cookie jar. That needs `allowedDevOrigins: ["127.0.0.1"]` in `next.config.ts`, added only with Brett's OK and reverted afterward. Never sign his localhost session out without asking.
 
