@@ -1,5 +1,6 @@
 "use server";
 
+import { travelFromValue, travelToColumns } from "./pickup-travel";
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { getAuthorizedAgent } from "./agent-auth";
@@ -940,6 +941,8 @@ export async function finalizeUndecidedSearch(
     trim: string;
     colors: string[];
     requiredOptions: string[];
+    /** Pickup-range tile value, asked on the consultation call (2026-09-26). */
+    pickupTravel: string | null;
   }
 ): Promise<FinalizeUndecidedSearchResult> {
   const agent = await getAuthorizedAgent();
@@ -962,6 +965,12 @@ export async function finalizeUndecidedSearch(
   }
   if (!(await isOfferedModelYear(make, model, input.modelYear))) {
     return { ok: false, error: "Pick a make, model, and model year from the list." };
+  }
+  // Required here because this path skipped intake's question entirely --
+  // the search can't start without it.
+  const travel = travelFromValue(input.pickupTravel);
+  if (!travel) {
+    return { ok: false, error: "Choose how far the customer would drive to pick up the car." };
   }
 
   // Zero-inventory block, no agent exemption. An undecided search has no
@@ -991,6 +1000,8 @@ export async function finalizeUndecidedSearch(
       trim: input.trim,
       colors: input.colors,
       required_options: input.requiredOptions,
+      ...travelToColumns(travel),
+      pickup_travel_set_at: new Date().toISOString(),
       finalized_at: new Date().toISOString(),
       search_status: "pending_refinement",
     })

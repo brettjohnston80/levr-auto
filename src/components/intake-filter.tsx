@@ -15,6 +15,8 @@ import {
 import { clearMatchmakerPrefill, readMatchmakerPrefill } from "@/lib/matchmaker-prefill";
 import { createCheckoutSession } from "@/lib/payment-actions";
 import { AuthGateModal } from "@/components/auth-gate-modal";
+import { PickupTravelTiles } from "@/components/pickup-travel-tiles";
+import { PICKUP_TRAVEL_INTAKE_HELPER, PICKUP_TRAVEL_MISSING_ERROR, PICKUP_TRAVEL_QUESTION } from "@/lib/pickup-travel";
 
 // Make/model/zip only -- trim, color, and options are collected post-payment
 // during finalization (/finalize/[searchId]), matching the pending pivot's
@@ -40,10 +42,14 @@ function emptyVehicle(): Vehicle {
 const PENDING_INTAKE_KEY = "levr_pending_intake";
 const PENDING_INTAKE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
-type PendingIntake = { vehicle: Vehicle; zip: string; savedAt: number };
+// pickupTravel added 2026-09-26. A stash written before then has none; its
+// resume reaches saveIntakeSearch without one and is refused with a visible
+// error and the form restored -- never saved without an answer (same
+// precedent as modelYear).
+type PendingIntake = { vehicle: Vehicle; zip: string; pickupTravel?: string; savedAt: number };
 
-function stashPendingIntake(vehicle: Vehicle, zip: string) {
-  const payload: PendingIntake = { vehicle, zip, savedAt: Date.now() };
+function stashPendingIntake(vehicle: Vehicle, zip: string, pickupTravel: string) {
+  const payload: PendingIntake = { vehicle, zip, pickupTravel, savedAt: Date.now() };
   window.localStorage.setItem(PENDING_INTAKE_KEY, JSON.stringify(payload));
 }
 
@@ -260,6 +266,7 @@ export function IntakeFilter({
   const soleYear = (make: string, model: string) => soleYearForModel(modelYearOptions, make, model);
   const [vehicle, setVehicle] = useState<Vehicle>(emptyVehicle());
   const [zip, setZip] = useState("");
+  const [pickupTravel, setPickupTravel] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [authGateOpen, setAuthGateOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -280,7 +287,7 @@ export function IntakeFilter({
   const zipTouched = zip.length > 0;
   const zipValid = /^\d{5}$/.test(zip);
   const vehicleComplete = Boolean(vehicle.make && vehicle.model && vehicle.modelYear);
-  const canSubmit = vehicleComplete && zipValid;
+  const canSubmit = vehicleComplete && zipValid && pickupTravel !== "";
 
   const [matchCount, setMatchCount] = useState<number | null>(null);
   const [matchLoading, setMatchLoading] = useState(false);
@@ -321,6 +328,7 @@ export function IntakeFilter({
   async function performSave(
     vehicleToSave: Vehicle,
     zipToSave: string,
+    travelToSave: string,
     matchmakerToSave?: MatchmakerContext
   ) {
     setSaving(true);
@@ -333,6 +341,7 @@ export function IntakeFilter({
         modelYear: vehicleToSave.modelYear ? Number(vehicleToSave.modelYear) : null,
       },
       zipToSave,
+      travelToSave || null,
       matchmakerToSave
     );
 
@@ -340,7 +349,7 @@ export function IntakeFilter({
 
     if (!result.ok) {
       if (result.requiresAuth) {
-        stashPendingIntake(vehicleToSave, zipToSave);
+        stashPendingIntake(vehicleToSave, zipToSave, travelToSave);
         setAuthGateOpen(true);
       } else {
         setSaveError(result.error);
@@ -479,14 +488,15 @@ export function IntakeFilter({
         };
         setVehicle(resumed);
         setZip(pending.zip);
-        performSave(resumed, pending.zip);
+        setPickupTravel(pending.pickupTravel ?? "");
+        performSave(resumed, pending.zip, pending.pickupTravel ?? "");
       }
     });
   }, []);
 
   async function handleContinue() {
     if (!canSubmit || saving) return;
-    await performSave(vehicle, zip, matchmakerContext ?? undefined);
+    await performSave(vehicle, zip, pickupTravel, matchmakerContext ?? undefined);
   }
 
   function handleUndecidedClick() {
@@ -499,7 +509,7 @@ export function IntakeFilter({
     if (hasPendingUndecidedIntake()) {
       performUndecidedSave();
     } else {
-      performSave(vehicle, zip, matchmakerContext ?? undefined);
+      performSave(vehicle, zip, pickupTravel, matchmakerContext ?? undefined);
     }
   }
 
@@ -510,6 +520,7 @@ export function IntakeFilter({
   function startOver() {
     setVehicle(emptyVehicle());
     setZip("");
+    setPickupTravel("");
     setSubmitted(false);
     setSaveError(null);
     setSearchId(null);
@@ -691,6 +702,14 @@ export function IntakeFilter({
             )}
           </label>
 
+          <div className="mt-8">
+            <p className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">{PICKUP_TRAVEL_QUESTION}</p>
+            <p className="mt-1 text-xs text-zinc-500">{PICKUP_TRAVEL_INTAKE_HELPER}</p>
+            <div className="mt-3">
+              <PickupTravelTiles value={pickupTravel} onChange={setPickupTravel} />
+            </div>
+          </div>
+
           <div className="mt-8 flex flex-col items-center justify-between gap-4 border-t border-white/10 pt-6 sm:flex-row">
             <div>
               <p className="text-2xl font-semibold text-white">${FLAT_PRICE} total</p>
@@ -713,9 +732,11 @@ export function IntakeFilter({
               {saving ? "Saving…" : "Continue"}
             </button>
           </div>
-          {!canSubmit && (
+          {!canSubmit && !saveError && (
             <p className="mt-3 text-right text-xs text-zinc-500">
-              Select a make, model, and model year and enter a valid zip code to continue.
+              {vehicleComplete && zipValid
+                ? PICKUP_TRAVEL_MISSING_ERROR
+                : "Select a make, model, and model year and enter a valid zip code to continue."}
             </p>
           )}
           {saveError && (

@@ -1,5 +1,6 @@
 "use server";
 
+import { HANDOFF_REQUIRED_ERROR, isHandoffMethod, type HandoffMethod } from "./pickup-travel";
 import { revalidatePath } from "next/cache";
 import { createClient } from "./supabase/server";
 import { createAdminClient } from "./supabase/admin";
@@ -38,8 +39,16 @@ function alreadyAcceptedMessage(dealerName: string): string {
  */
 export async function respondToOffer(
   offerId: string,
-  response: "accepted" | "declined"
+  response: "accepted" | "declined",
+  /** Required when accepting (2026-09-26): the customer confirms pickup vs.
+   *  delivery in the accept view, written in the same update so an accept
+   *  can never land without it. Ignored on decline. */
+  handoffMethod: HandoffMethod | null = null
 ): Promise<RespondToOfferResult> {
+  if (response === "accepted" && !isHandoffMethod(handoffMethod)) {
+    return { ok: false, error: HANDOFF_REQUIRED_ERROR };
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -101,6 +110,7 @@ export async function respondToOffer(
       customer_responded_at: respondedAt,
       status: newStatus,
       ...(response === "declined" ? { customer_activity_at: respondedAt } : {}),
+      ...(response === "accepted" ? { handoff_method: handoffMethod, handoff_method_set_at: respondedAt } : {}),
     })
     .eq("id", offerId)
     .eq("status", "pending")

@@ -13,6 +13,9 @@ import { deriveSearchTimeline, type SearchTimelineBannerTone } from "@/lib/searc
 import { SEARCH_STATUS_COPY, getPausedResumeInfo, getStatusCopy, getStatusBadge } from "@/lib/search-status-copy";
 import { formatCents } from "@/lib/dashboard-format";
 import { GetStartedButton } from "@/components/get-started-button";
+import { PickupRangeControl } from "@/components/pickup-range-control";
+import { OFFER_SORT_LABEL, OFFER_SORT_OPTIONS, parseOfferSort, sortOffers } from "@/lib/offer-sort";
+import { travelToValue } from "@/lib/pickup-travel";
 
 export const metadata: Metadata = {
   title: "Your Deal — LEVR Auto",
@@ -30,9 +33,10 @@ const TERMINAL_STATUSES = ["switched", "cancelled", "closed"];
 export default async function DealPage({
   searchParams,
 }: {
-  searchParams: Promise<{ searchId?: string; offer?: string }>;
+  searchParams: Promise<{ searchId?: string; offer?: string; sort?: string }>;
 }) {
-  const { searchId: requestedSearchId, offer: openOfferId } = await searchParams;
+  const { searchId: requestedSearchId, offer: openOfferId, sort: sortParam } = await searchParams;
+  const sort = parseOfferSort(sortParam);
   const supabase = await createClient();
   const {
     data: { user },
@@ -187,6 +191,7 @@ export default async function DealPage({
             {acceptedOffer && (
               <ul className="mt-5 space-y-3">
                 <OfferCard
+                  searchId={deal.searchId}
                   offer={acceptedOffer}
                   make={deal.make}
                   model={deal.model}
@@ -220,15 +225,39 @@ export default async function DealPage({
               <p className="mt-3 text-sm text-zinc-400">{getStatusCopy(deal)}</p>
             )}
 
+            <PickupRangeControl searchId={deal.searchId} value={travelToValue(deal.pickupTravel)} />
+
             <div className="mt-5">
-              <h2 className="text-sm font-semibold text-zinc-300">
-                {deal.offers.length > 0 ? `Offers (${deal.offers.length})` : "No offers yet"}
-              </h2>
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="text-sm font-semibold text-zinc-300">
+                  {deal.offers.length > 0 ? `Offers (${deal.offers.length})` : "No offers yet"}
+                </h2>
+                {deal.offers.length > 1 && (
+                  <nav aria-label={OFFER_SORT_LABEL} className="flex items-center gap-2 text-xs">
+                    <span className="text-zinc-500">{OFFER_SORT_LABEL}</span>
+                    {OFFER_SORT_OPTIONS.map((opt) => (
+                      <Link
+                        key={opt.value}
+                        href={`/account/deal?searchId=${deal.searchId}&sort=${opt.value}`}
+                        aria-current={sort === opt.value ? "true" : undefined}
+                        className={`rounded-full px-2.5 py-1 ${
+                          sort === opt.value
+                            ? "bg-white/10 font-semibold text-white"
+                            : "text-zinc-400 hover:text-white"
+                        }`}
+                      >
+                        {opt.label}
+                      </Link>
+                    ))}
+                  </nav>
+                )}
+              </div>
               {deal.offers.length > 0 && (
                 <ul className="mt-3 space-y-3">
-                  {deal.offers.map((offer) => (
+                  {sortOffers(deal.offers, sort).map((offer) => (
                     <OfferCard
                       key={offer.id}
+                      searchId={deal.searchId}
                       offer={offer}
                       make={deal.make}
                       model={deal.model}

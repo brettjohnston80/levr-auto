@@ -13,6 +13,7 @@ import { haversineMiles } from "./geo";
 import { listingPhotoUrls } from "./listing-photos";
 import { hasUnreadForCustomer, loadMessagesForOffers } from "./offer-messages";
 import { threadIsOpen, type OfferMessage } from "./offer-messages-shared";
+import { travelFromColumns, type HandoffMethod, type PickupTravel } from "./pickup-travel";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -33,7 +34,6 @@ export interface DashboardDealProgress {
   financingDownPaymentCents: number | null;
   financingDesiredTermMonths: number | null;
   financingProofUploadedAt: string | null;
-  deliveryMethod: string | null;
 }
 
 export interface DashboardOffer {
@@ -86,6 +86,12 @@ export interface DashboardOffer {
   messages: OfferMessage[];
   threadOpen: boolean;
   hasUnreadMessages: boolean;
+  /** Pickup vs. delivery for THIS offer (2026-09-26) -- the one source of
+   *  truth; replaced deal_progress.delivery_method. Required to accept. */
+  handoffMethod: HandoffMethod | null;
+  /** The search's pickup range, copied onto each offer so the detail view
+   *  can pre-fill the accept confirmation and flag out-of-range offers. */
+  pickupTravel: PickupTravel | null;
   /** Copied onto the offer at log time (pre-filled from a linked listing
    *  when one was chosen). Any of these can be null -- most offers today
    *  have none of them. Dealer phone/email/listing link are deliberately
@@ -167,7 +173,10 @@ export interface DashboardSearch {
 async function loadOffersBySearchId(
   supabase: AdminClient,
   searchIds: string[],
-  makeModelBySearchId: Map<string, { make: string | null; model: string | null; searchStatus: string }>,
+  makeModelBySearchId: Map<
+    string,
+    { make: string | null; model: string | null; searchStatus: string; pickupTravel?: PickupTravel | null }
+  >,
   detail?: { customerZipBySearchId: Map<string, string | null> },
 ): Promise<Map<string, DashboardOffer[]>> {
   const offersBySearchId = new Map<string, DashboardOffer[]>();
@@ -176,7 +185,7 @@ async function loadOffersBySearchId(
   const { data: offers, error: offersError } = await supabase
     .from("qualifying_offers")
     .select(
-      "id, customer_search_id, listing_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at, withdrawn_at, vehicle_trim, vehicle_exterior_color, customer_highlighted_at, last_agent_message_at, customer_messages_read_at, dealer_street, dealer_city, dealer_state, dealer_zip, vin, stock_number"
+      "id, customer_search_id, listing_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at, withdrawn_at, vehicle_trim, vehicle_exterior_color, customer_highlighted_at, last_agent_message_at, customer_messages_read_at, handoff_method, dealer_street, dealer_city, dealer_state, dealer_zip, vin, stock_number"
     )
     .in("customer_search_id", searchIds)
     .order("received_at", { ascending: false });
@@ -222,7 +231,7 @@ async function loadOffersBySearchId(
         supabase
           .from("deal_progress")
           .select(
-            "qualifying_offer_id, availability_reconfirmed_at, deposit_amount_cents, deposit_confirmed_at, financing_choice, financing_income_range, financing_down_payment_cents, financing_desired_term_months, delivery_method"
+            "qualifying_offer_id, availability_reconfirmed_at, deposit_amount_cents, deposit_confirmed_at, financing_choice, financing_income_range, financing_down_payment_cents, financing_desired_term_months"
           )
           .in("qualifying_offer_id", offerIds),
         supabase
@@ -279,7 +288,6 @@ async function loadOffersBySearchId(
         financingDownPaymentCents: row.financing_down_payment_cents,
         financingDesiredTermMonths: row.financing_desired_term_months,
         financingProofUploadedAt: latestUploadByOfferId.get(row.qualifying_offer_id) ?? null,
-        deliveryMethod: row.delivery_method,
       });
     }
   }
@@ -356,10 +364,11 @@ async function loadOffersBySearchId(
   };
 
   for (const offer of offers ?? []) {
-    const { make, model, searchStatus } = makeModelBySearchId.get(offer.customer_search_id) ?? {
+    const { make, model, searchStatus, pickupTravel } = makeModelBySearchId.get(offer.customer_search_id) ?? {
       make: null,
       model: null,
       searchStatus: "",
+      pickupTravel: null,
     };
     const listingDetail = offer.listing_id ? listingDetailById.get(offer.listing_id) : undefined;
     const list = offersBySearchId.get(offer.customer_search_id) ?? [];
@@ -387,6 +396,8 @@ async function loadOffersBySearchId(
       messages: messagesByOfferId.get(offer.id) ?? [],
       threadOpen: threadIsOpen(offer.status, searchStatus),
       hasUnreadMessages: hasUnreadForCustomer(offer.last_agent_message_at, offer.customer_messages_read_at),
+      handoffMethod: (offer.handoff_method as HandoffMethod | null) ?? null,
+      pickupTravel: pickupTravel ?? null,
       dealerStreet: offer.dealer_street,
       dealerCity: offer.dealer_city,
       dealerState: offer.dealer_state,
@@ -548,6 +559,8 @@ export interface DealDetails {
    * customer_accepted offer for that old-data case.
    */
   purchasedQualifyingOfferId: string | null;
+  /** The customer's pickup range (2026-09-26); null = never answered. */
+  pickupTravel: PickupTravel | null;
   survey: { id: string; submittedAt: string | null } | null;
   offers: DashboardOffer[];
 }
@@ -576,7 +589,7 @@ export async function getDealDetails(searchId: string, customerId: string): Prom
   const { data: search, error: searchError } = await supabase
     .from("customer_searches")
     .select(
-      "id, make, model, trim, zip, search_status, paid_at, solidified_at, paused_at, purchased_qualifying_offer_id"
+      "id, make, model, trim, zip, search_status, paid_at, solidified_at, paused_at, purchased_qualifying_offer_id, pickup_travel_choice, pickup_travel_miles"
     )
     .eq("id", searchId)
     .eq("customer_id", customerId)
@@ -597,8 +610,12 @@ export async function getDealDetails(searchId: string, customerId: string): Prom
     throw new Error(`Failed to load post-deal survey: ${surveyError.message}`);
   }
 
+  const pickupTravel = travelFromColumns(
+    search.pickup_travel_choice as string | null,
+    search.pickup_travel_miles as number | null,
+  );
   const makeModelBySearchId = new Map([
-    [searchId, { make: search.make, model: search.model, searchStatus: search.search_status as string }],
+    [searchId, { make: search.make, model: search.model, searchStatus: search.search_status as string, pickupTravel }],
   ]);
   const offersBySearchId = await loadOffersBySearchId(supabase, [searchId], makeModelBySearchId, {
     customerZipBySearchId: new Map([[searchId, (search.zip as string | null) ?? null]]),
@@ -614,6 +631,7 @@ export async function getDealDetails(searchId: string, customerId: string): Prom
     solidifiedAt: search.solidified_at,
     pausedAt: search.paused_at,
     purchasedQualifyingOfferId: search.purchased_qualifying_offer_id,
+    pickupTravel,
     survey: surveyRow ? { id: surveyRow.id, submittedAt: surveyRow.submitted_at } : null,
     offers: offersBySearchId.get(searchId) ?? [],
   };

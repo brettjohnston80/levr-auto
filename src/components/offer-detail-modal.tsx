@@ -14,6 +14,18 @@ import { OfferMessageComposer } from "@/components/offer-message-composer";
 import { markThreadReadByCustomer } from "@/lib/offer-message-actions";
 import { announceUnreadChanged } from "@/components/unread-count-refresh";
 import { frozenThreadCopy } from "@/lib/offer-messages-shared";
+import { HandoffChoice } from "@/components/handoff-choice";
+import { setOfferHandoff } from "@/lib/handoff-actions";
+import {
+  HANDOFF_ACCEPT_DISABLED_HINT,
+  HANDOFF_ACCEPT_PROMPT,
+  HANDOFF_HELPER,
+  HANDOFF_QUESTION,
+  defaultHandoff,
+  isBeyondPickupRange,
+  outOfRangeCopy,
+  type HandoffMethod,
+} from "@/lib/pickup-travel";
 import type { DashboardOffer } from "@/lib/customer-dashboard";
 
 // Approved copy (2026-09-25). "refundable" deliberately removed.
@@ -58,6 +70,16 @@ export function OfferDetailModal({
   const [error, setError] = useState<string | null>(null);
 
   const isPending = offer.status === "pending";
+  // Pickup vs. delivery (2026-09-26). The body picker saves immediately; the
+  // accept confirmation starts from the saved answer, else from the intake
+  // range (defaultHandoff), and is written together with the accept.
+  const handoffEditable = offer.threadOpen && (isPending || offer.status === "customer_accepted");
+  const [acceptHandoff, setAcceptHandoff] = useState<HandoffMethod | null>(
+    offer.handoffMethod ?? defaultHandoff(offer.pickupTravel, offer.distanceMiles),
+  );
+  const [handoffSaving, setHandoffSaving] = useState(false);
+  const [handoffError, setHandoffError] = useState<string | null>(null);
+  const beyondRange = isBeyondPickupRange(offer.pickupTravel, offer.distanceMiles, offer.handoffMethod);
   const savings = computeOfferSavings(offer);
   const vehicleName = [make, model].filter(Boolean).join(" ");
 
@@ -90,13 +112,26 @@ export function OfferDetailModal({
   async function respond(response: "accepted" | "declined") {
     setSubmitting(response);
     setError(null);
-    const res = await respondToOffer(offer.id, response);
+    const res = await respondToOffer(offer.id, response, response === "accepted" ? acceptHandoff : null);
     setSubmitting(null);
     if (!res.ok) {
       setError(res.error ?? "Something went wrong.");
       return;
     }
     onClose();
+    router.refresh();
+  }
+
+  async function saveHandoff(method: HandoffMethod) {
+    setAcceptHandoff(method);
+    setHandoffSaving(true);
+    setHandoffError(null);
+    const res = await setOfferHandoff(offer.id, method);
+    setHandoffSaving(false);
+    if (!res.ok) {
+      setHandoffError(res.error ?? "Something went wrong.");
+      return;
+    }
     router.refresh();
   }
 
@@ -172,6 +207,11 @@ export function OfferDetailModal({
                     About {miles} {miles === 1 ? "mile" : "miles"} from you.
                   </p>
                 )}
+                {beyondRange && offer.pickupTravel?.choice === "distance" && offer.distanceMiles !== null && (
+                  <p className="mt-2 text-sm text-amber-300">
+                    {outOfRangeCopy(offer.distanceMiles, offer.pickupTravel.miles)}
+                  </p>
+                )}
               </Section>
             )}
 
@@ -214,12 +254,26 @@ export function OfferDetailModal({
               </a>
             )}
 
-            {isPending && (
+            {(isPending || handoffEditable) && (
               <Section title="Tell your agent">
-                <HighlightToggle offerId={offer.id} highlighted={!!offer.customerHighlightedAt} />
-                <p className="mt-2 text-xs text-zinc-500">
-                  Interested but not ready to accept? Highlight it so your agent knows.
-                </p>
+                {isPending && (
+                  <>
+                    <HighlightToggle offerId={offer.id} highlighted={!!offer.customerHighlightedAt} />
+                    <p className="mt-2 text-xs text-zinc-500">
+                      Interested but not ready to accept? Highlight it so your agent knows.
+                    </p>
+                  </>
+                )}
+                {handoffEditable && (
+                  <div className={isPending ? "mt-4" : ""}>
+                    <p className="text-sm text-zinc-300">{HANDOFF_QUESTION}</p>
+                    <div className="mt-2">
+                      <HandoffChoice value={offer.handoffMethod} onChange={saveHandoff} disabled={handoffSaving} />
+                    </div>
+                    <p className="mt-2 text-xs text-zinc-500">{HANDOFF_HELPER}</p>
+                    {handoffError && <p className="mt-1 text-xs text-red-400">{handoffError}</p>}
+                  </div>
+                )}
               </Section>
             )}
 
@@ -253,7 +307,13 @@ export function OfferDetailModal({
               visibly underneath the footer. */}
           <div className="sticky -bottom-8 rounded-b-3xl border-t border-white/10 bg-zinc-950/95 p-5 pb-13 backdrop-blur sm:px-8">
             {isPending && !anotherOfferAccepted && (
-              <p className="mb-3 text-xs text-zinc-400">{ACCEPT_EXPLANATION}</p>
+              <>
+                <p className="mb-3 text-xs text-zinc-400">{ACCEPT_EXPLANATION}</p>
+                <p className="mb-2 text-xs font-semibold text-zinc-300">{HANDOFF_ACCEPT_PROMPT}</p>
+                <div className="mb-3">
+                  <HandoffChoice value={acceptHandoff} onChange={setAcceptHandoff} disabled={submitting !== null} />
+                </div>
+              </>
             )}
             {isPending && anotherOfferAccepted && (
               <p className="mb-3 text-xs text-zinc-500">You&apos;ve already accepted another offer on this search.</p>
@@ -262,7 +322,8 @@ export function OfferDetailModal({
               {isPending && !anotherOfferAccepted && (
                 <button
                   type="button"
-                  disabled={submitting !== null}
+                  disabled={submitting !== null || acceptHandoff === null}
+                  title={acceptHandoff === null ? HANDOFF_ACCEPT_DISABLED_HINT : undefined}
                   onClick={() => respond("accepted")}
                   className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-zinc-950 disabled:opacity-50"
                 >
@@ -288,6 +349,9 @@ export function OfferDetailModal({
                 </button>
               )}
             </div>
+            {isPending && !anotherOfferAccepted && acceptHandoff === null && (
+              <p className="mt-2 text-xs text-zinc-500">{HANDOFF_ACCEPT_DISABLED_HINT}</p>
+            )}
             {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
           </div>
         </div>

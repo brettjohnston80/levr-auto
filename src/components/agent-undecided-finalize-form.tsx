@@ -10,6 +10,8 @@ import {
 import type { MakeModelOptions, ModelYearOptions } from "@/lib/intake-vehicle-options";
 import { soleYearForModel, yearsForModel } from "@/lib/model-year-select";
 import { finalizeUndecidedSearch } from "@/lib/outreach-actions";
+import { PickupTravelTiles } from "@/components/pickup-travel-tiles";
+import { PICKUP_TRAVEL_QUESTION } from "@/lib/pickup-travel";
 
 function toggleInArray(list: string[], value: string): string[] {
   return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
@@ -52,6 +54,7 @@ export function AgentUndecidedFinalizeForm({
   const [trim, setTrim] = useState("");
   const [colors, setColors] = useState<string[]>([]);
   const [options, setOptions] = useState<string[]>([]);
+  const [pickupTravel, setPickupTravel] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -65,6 +68,10 @@ export function AgentUndecidedFinalizeForm({
       setError("Choose a model year for this vehicle.");
       return;
     }
+    if (!pickupTravel) {
+      setError("Choose how far the customer would drive to pick up the car.");
+      return;
+    }
     setSaving(true);
     setError(null);
     const result = await finalizeUndecidedSearch(searchId, {
@@ -74,6 +81,7 @@ export function AgentUndecidedFinalizeForm({
       trim,
       colors,
       requiredOptions: options,
+      pickupTravel,
     });
     setSaving(false);
     if (!result.ok) {
@@ -147,6 +155,13 @@ export function AgentUndecidedFinalizeForm({
               </option>
             ))}
           </select>
+        </div>
+      </div>
+
+      <div>
+        <p className="text-xs font-semibold text-zinc-400 uppercase">{PICKUP_TRAVEL_QUESTION} (ask the customer)</p>
+        <div className="mt-1.5">
+          <PickupTravelTiles value={pickupTravel} onChange={setPickupTravel} />
         </div>
       </div>
 

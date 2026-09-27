@@ -14,7 +14,7 @@ export interface UpdateAccountSettingsResult {
  * Updates a customer's own profile + notification preferences from the new
  * /account settings section. Same auth-then-admin-client pattern as every
  * other customer-initiated write in this app (submitFinancingChoice,
- * submitDeliveryPreference, etc.) -- verify the signed-in user via the
+ * setOfferHandoff, etc.) -- verify the signed-in user via the
  * regular client, then write via the admin client scoped to that user's id.
  */
 export async function updateAccountSettings(formData: FormData): Promise<UpdateAccountSettingsResult> {

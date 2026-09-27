@@ -11,6 +11,46 @@ import { RESUME_WINDOW_DAYS } from "./vehicle-data";
 import { isTestEmail } from "./test-accounts";
 import { loadMessagesForOffers } from "./offer-messages";
 import { threadIsOpen, type OfferMessage } from "./offer-messages-shared";
+import { haversineMiles } from "./geo";
+import {
+  isBeyondPickupRange,
+  roundMiles,
+  travelFromColumns,
+  type HandoffMethod,
+  type PickupTravel,
+} from "./pickup-travel";
+
+type ZipCoord = { lat: number; lon: number };
+
+/** 5-digit part of a stored ZIP (listings sometimes carry ZIP+4). */
+function zip5(zip: string | null | undefined): string | null {
+  const m = /^(\d{5})/.exec((zip ?? "").trim());
+  return m ? m[1] : null;
+}
+
+/** ZIP-centroid coordinates for the given zips, chunked to keep URLs short. */
+async function loadZipCoords(
+  supabase: ReturnType<typeof createAdminClient>,
+  zips: (string | null | undefined)[],
+): Promise<Map<string, ZipCoord>> {
+  const unique = [...new Set(zips.map(zip5).filter((z): z is string => !!z))];
+  const out = new Map<string, ZipCoord>();
+  for (let i = 0; i < unique.length; i += 200) {
+    const { data, error } = await supabase
+      .from("zip_coordinates")
+      .select("zip, latitude, longitude")
+      .in("zip", unique.slice(i, i + 200));
+    if (error) throw new Error(`Failed to load zip coordinates: ${error.message}`);
+    for (const c of data ?? []) out.set(c.zip as string, { lat: c.latitude as number, lon: c.longitude as number });
+  }
+  return out;
+}
+
+function zipDistance(coords: Map<string, ZipCoord>, fromZip: string | null, toZip: string | null): number | null {
+  const a = coords.get(zip5(fromZip) ?? "");
+  const b = coords.get(zip5(toZip) ?? "");
+  return a && b ? haversineMiles(a.lat, a.lon, b.lat, b.lon) : null;
+}
 
 export interface OutreachDealer {
   name: string;
@@ -19,6 +59,11 @@ export interface OutreachDealer {
   city: string | null;
   state: string | null;
   listingCount: number;
+  /** ZIP-centroid miles from the customer's search zip; null if unknown. */
+  distanceMiles: number | null;
+  /** Inside the customer's pickup range; null when they gave no distance
+   *  (or the distance is unknown). In-range dealers sort first. */
+  withinRange: boolean | null;
 }
 
 export interface OutreachListing {
@@ -220,7 +265,6 @@ export interface OutreachDealProgress {
   financingDownPaymentCents: number | null;
   financingDesiredTermMonths: number | null;
   financingProofUrl: string | null;
-  deliveryMethod: string | null;
 }
 
 export interface OutreachOffer {
@@ -243,6 +287,11 @@ export interface OutreachOffer {
   /** The offer's customer <-> agent thread, oldest first (replaced the
    *  single customer note, 2026-09-25). */
   messages: OfferMessage[];
+  /** Pickup vs. delivery chosen by the customer (2026-09-26). */
+  handoffMethod: HandoffMethod | null;
+  distanceMiles: number | null;
+  /** Same rule the customer sees (isBeyondPickupRange). */
+  beyondRange: boolean;
   addons: OutreachAddon[];
   dealProgress: OutreachDealProgress | null;
   serviceAgreementSignedAt: string | null;
@@ -258,6 +307,8 @@ export interface OutreachSearch {
   customerEmail: string | null;
   /** Tester-program row -- flagged, never hidden. See isTest note below. */
   isTest: boolean;
+  /** Customer's pickup range (2026-09-26); null = not answered yet. */
+  pickupTravel: PickupTravel | null;
   dealers: OutreachDealer[];
   listings: OutreachListing[];
   offers: OutreachOffer[];
@@ -297,7 +348,7 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
 
   const { data: searches, error: searchesError } = await supabase
     .from("customer_searches")
-    .select("id, make, model, trim, colors, zip, customer_id")
+    .select("id, make, model, trim, colors, zip, customer_id, pickup_travel_choice, pickup_travel_miles")
     .eq("search_status", "searching")
     .order("created_at", { ascending: true });
 
@@ -332,7 +383,7 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
     supabase
       .from("qualifying_offers")
       .select(
-        "id, customer_search_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at, vehicle_sold_at, withdrawn_at, withdrawn_by_agent_id, withdrawal_reason, customer_highlighted_at"
+        "id, customer_search_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at, vehicle_sold_at, withdrawn_at, withdrawn_by_agent_id, withdrawal_reason, customer_highlighted_at, handoff_method, dealer_zip"
       )
       .in("customer_search_id", searchIds),
   ]);
@@ -390,7 +441,7 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
         supabase
           .from("deal_progress")
           .select(
-            "qualifying_offer_id, availability_reconfirmed_at, deposit_amount_cents, deposit_confirmed_at, financing_choice, financing_income_range, financing_down_payment_cents, financing_desired_term_months, delivery_method"
+            "qualifying_offer_id, availability_reconfirmed_at, deposit_amount_cents, deposit_confirmed_at, financing_choice, financing_income_range, financing_down_payment_cents, financing_desired_term_months"
           )
           .in("qualifying_offer_id", offerIds),
         supabase
@@ -443,7 +494,6 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
         financingDownPaymentCents: row.financing_down_payment_cents,
         financingDesiredTermMonths: row.financing_desired_term_months,
         financingProofUrl: signedUrlByOfferId.get(row.qualifying_offer_id) ?? null,
-        deliveryMethod: row.delivery_method,
       });
     }
   }
@@ -567,8 +617,25 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
     "agent",
   );
 
+  // Pickup range + distances (2026-09-26): ZIP-centroid miles from each
+  // search's zip to every offer's and matching dealer's zip.
+  const travelBySearchId = new Map(
+    searches.map((s) => [
+      s.id as string,
+      travelFromColumns(s.pickup_travel_choice as string | null, s.pickup_travel_miles as number | null),
+    ]),
+  );
+  const zipBySearchId = new Map(searches.map((s) => [s.id as string, (s.zip as string | null) ?? null]));
+  const zipCoords = await loadZipCoords(supabase, [
+    ...searches.map((s) => s.zip as string | null),
+    ...(offers ?? []).map((o) => o.dealer_zip as string | null),
+    ...listingsByPair.flatMap((p) => p.listings.map((l) => l.dealer_zip as string | null)),
+  ]);
+
   const offersBySearchId = new Map<string, OutreachOffer[]>();
   for (const offer of offers ?? []) {
+    const offerDistance = zipDistance(zipCoords, zipBySearchId.get(offer.customer_search_id) ?? null, offer.dealer_zip);
+    const handoffMethod = (offer.handoff_method as HandoffMethod | null) ?? null;
     const list = offersBySearchId.get(offer.customer_search_id) ?? [];
     list.push({
       id: offer.id,
@@ -588,6 +655,9 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
       withdrawalReason: offer.withdrawal_reason,
       customerHighlightedAt: offer.customer_highlighted_at,
       messages: messagesByOfferId.get(offer.id) ?? [],
+      handoffMethod,
+      distanceMiles: offerDistance,
+      beyondRange: isBeyondPickupRange(travelBySearchId.get(offer.customer_search_id) ?? null, offerDistance, handoffMethod),
       addons: addonsByOfferId.get(offer.id) ?? [],
       dealProgress: dealProgressByOfferId.get(offer.id) ?? null,
       serviceAgreementSignedAt: serviceAgreementSignedAtByOfferId.get(offer.id) ?? null,
@@ -598,12 +668,16 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
   return searches.map((search) => {
     const rawListings = listingsByMakeModel.get(`${search.make}::${search.model}`) ?? [];
 
+    const travel = travelBySearchId.get(search.id) ?? null;
     const dealerMap = new Map<string, OutreachDealer>();
     for (const listing of rawListings) {
       if (!listing.dealer_name) continue;
       const existing = dealerMap.get(listing.dealer_name);
       if (existing) {
         existing.listingCount += 1;
+        if (existing.distanceMiles === null) {
+          existing.distanceMiles = zipDistance(zipCoords, search.zip, listing.dealer_zip);
+        }
       } else {
         dealerMap.set(listing.dealer_name, {
           name: listing.dealer_name,
@@ -612,10 +686,21 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
           city: listing.dealer_city,
           state: listing.dealer_state,
           listingCount: 1,
+          distanceMiles: zipDistance(zipCoords, search.zip, listing.dealer_zip),
+          withinRange: null,
         });
       }
     }
-    const dealers = [...dealerMap.values()].sort((a, b) => b.listingCount - a.listingCount);
+    for (const d of dealerMap.values()) {
+      d.withinRange =
+        travel?.choice === "distance" && d.distanceMiles !== null ? roundMiles(d.distanceMiles) <= travel.miles : null;
+    }
+    // In-range dealers first when the customer gave a distance (Brett,
+    // 2026-09-26); nothing is hidden -- a great deal just outside the range
+    // may still be worth a call. Then by listing count, as before.
+    const dealers = [...dealerMap.values()].sort(
+      (a, b) => Number(b.withinRange === true) - Number(a.withinRange === true) || b.listingCount - a.listingCount,
+    );
 
     return {
       id: search.id,
@@ -626,6 +711,7 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
       zip: search.zip,
       customerEmail: customerEmailById.get(search.customer_id) ?? null,
       isTest: isTestEmail(customerEmailById.get(search.customer_id) ?? null),
+      pickupTravel: travel,
       dealers,
       listings: rawListings.map((l) => ({
         id: l.id,
@@ -1193,6 +1279,11 @@ export interface CustomerOfferActivityItem {
   /** Whole thread, for context under the new messages. */
   messages: OfferMessage[];
   threadOpen: boolean;
+  /** Pickup vs. delivery (2026-09-26) -- changing it counts as activity. */
+  handoffMethod: HandoffMethod | null;
+  distanceMiles: number | null;
+  beyondRange: boolean;
+  pickupTravel: PickupTravel | null;
   /** Echoed back by "Mark reviewed" so a change the agent hasn't seen yet
    *  can't be marked reviewed from a stale page. */
   customerActivityAt: string;
@@ -1228,6 +1319,8 @@ export async function getCustomerOfferActivityQueue(): Promise<CustomerOfferActi
     status: string;
     customer_responded_at: string | null;
     customer_highlighted_at: string | null;
+    handoff_method: string | null;
+    dealer_zip: string | null;
     customer_activity_at: string;
     agent_reviewed_at: string | null;
   }[] = [];
@@ -1235,7 +1328,7 @@ export async function getCustomerOfferActivityQueue(): Promise<CustomerOfferActi
     const { data, error } = await supabase
       .from("qualifying_offers")
       .select(
-        "id, customer_search_id, dealer_name, offer_price_cents, status, customer_responded_at, customer_highlighted_at, customer_activity_at, agent_reviewed_at"
+        "id, customer_search_id, dealer_name, offer_price_cents, status, customer_responded_at, customer_highlighted_at, handoff_method, dealer_zip, customer_activity_at, agent_reviewed_at"
       )
       .not("customer_activity_at", "is", null)
       .order("id")
@@ -1253,7 +1346,7 @@ export async function getCustomerOfferActivityQueue(): Promise<CustomerOfferActi
   const searchIds = [...new Set(unreviewed.map((o) => o.customer_search_id))];
   const { data: searches, error: searchError } = await supabase
     .from("customer_searches")
-    .select("id, customer_id, make, model, search_status")
+    .select("id, customer_id, make, model, search_status, zip, pickup_travel_choice, pickup_travel_miles")
     .in("id", searchIds)
     .in("search_status", ACTIVITY_SEARCH_STATUSES);
   if (searchError) throw new Error(`Failed to load searches for offer activity: ${searchError.message}`);
@@ -1270,6 +1363,10 @@ export async function getCustomerOfferActivityQueue(): Promise<CustomerOfferActi
     unreviewed.filter((o) => searchById.has(o.customer_search_id)).map((o) => o.id),
     "agent",
   );
+  const zipCoords = await loadZipCoords(supabase, [
+    ...(searches ?? []).map((s) => s.zip as string | null),
+    ...unreviewed.map((o) => o.dealer_zip),
+  ]);
 
   return unreviewed
     .filter((o) => searchById.has(o.customer_search_id))
@@ -1299,6 +1396,20 @@ export async function getCustomerOfferActivityQueue(): Promise<CustomerOfferActi
         ),
         messages: messagesByOfferId.get(o.id) ?? [],
         threadOpen: threadIsOpen(o.status, search.search_status as string),
+        ...(() => {
+          const pickupTravel = travelFromColumns(
+            search.pickup_travel_choice as string | null,
+            search.pickup_travel_miles as number | null,
+          );
+          const distanceMiles = zipDistance(zipCoords, search.zip as string | null, o.dealer_zip);
+          const handoffMethod = (o.handoff_method as HandoffMethod | null) ?? null;
+          return {
+            pickupTravel,
+            distanceMiles,
+            handoffMethod,
+            beyondRange: isBeyondPickupRange(pickupTravel, distanceMiles, handoffMethod),
+          };
+        })(),
         customerActivityAt: o.customer_activity_at,
       };
     })

@@ -25,6 +25,7 @@ import { AgentOfferThread } from "@/components/agent-offer-thread";
 import { OfferMessageList } from "@/components/offer-message-list";
 import { OfferMessageComposer } from "@/components/offer-message-composer";
 import { threadIsOpen } from "@/lib/offer-messages-shared";
+import { handoffAgentLabel, roundMiles, travelAgentLabel } from "@/lib/pickup-travel";
 import { MarkOfferActivityReviewedButton } from "@/components/mark-offer-activity-reviewed-button";
 import { AddOfferAddonForm } from "@/components/add-offer-addon-form";
 import { ResolveAddonRemovalForm } from "@/components/resolve-addon-removal-form";
@@ -426,7 +427,7 @@ export default async function OutreachQueuePage() {
             Customer activity on offers ({offerActivityQueue.length})
           </h2>
           <p className="mt-1 text-sm text-zinc-400">
-            Highlights, messages and declines from customers, newest first. Each stays here until you mark it
+            Highlights, messages, pickup/delivery choices and declines from customers, newest first. Each stays here until you mark it
             reviewed, and comes back if the customer changes it again.
           </p>
           {offerActivityQueue.length === 0 ? (
@@ -470,6 +471,13 @@ export default async function OutreachQueuePage() {
                     {item.customerHighlightedAt && (
                       <p className="text-amber-300">★ Highlighted {formatDate(item.customerHighlightedAt)}</p>
                     )}
+                    {item.handoffMethod && <p className="text-zinc-300">{handoffAgentLabel(item.handoffMethod)}</p>}
+                    {item.beyondRange && item.distanceMiles !== null && item.pickupTravel?.choice === "distance" && (
+                      <p className="text-amber-400">
+                        {roundMiles(item.distanceMiles)} mi from customer — beyond customer&apos;s{" "}
+                        {item.pickupTravel.miles}-mile range
+                      </p>
+                    )}
                     {item.newCustomerMessages.length > 0 && (
                       <div className="pt-1">
                         <p className="text-xs font-semibold text-zinc-400">
@@ -480,9 +488,12 @@ export default async function OutreachQueuePage() {
                         </div>
                       </div>
                     )}
-                    {item.status === "pending" && !item.customerHighlightedAt && item.newCustomerMessages.length === 0 && (
-                      <p className="text-zinc-500">Customer removed their highlight.</p>
-                    )}
+                    {item.status === "pending" &&
+                      !item.customerHighlightedAt &&
+                      !item.handoffMethod &&
+                      item.newCustomerMessages.length === 0 && (
+                        <p className="text-zinc-500">Customer removed their highlight.</p>
+                      )}
                   </div>
                   {item.threadOpen && (
                     <div className="mt-3 max-w-xl">
@@ -802,6 +813,12 @@ export default async function OutreachQueuePage() {
                     <p className="mt-1 text-sm text-zinc-500">Colors: {search.colors.join(", ")}</p>
                   )}
                   {search.zip && <p className="text-sm text-zinc-500">Zip: {search.zip}</p>}
+                  <p className="text-sm text-zinc-500">
+                    Pickup range:{" "}
+                    <span className={search.pickupTravel ? "text-zinc-300" : "text-amber-400"}>
+                      {travelAgentLabel(search.pickupTravel)}
+                    </span>
+                  </p>
 
                   {/* Sits above the dealer list on purpose: it describes
                       WHAT to look for, which an agent needs before working
@@ -825,6 +842,17 @@ export default async function OutreachQueuePage() {
                             {offer.dealerName} — ${(offer.offerPriceCents / 100).toLocaleString()}
                             {offer.isBelowMsrp ? " (below MSRP)" : " (at/above MSRP)"} —{" "}
                             <OfferStatusLabel status={offer.status} respondedAt={offer.customerRespondedAt} />
+                            {offer.distanceMiles !== null && (
+                              <span className={`ml-2 text-xs ${offer.beyondRange ? "text-amber-400" : "text-zinc-500"}`}>
+                                {roundMiles(offer.distanceMiles)} mi from customer
+                                {offer.beyondRange && search.pickupTravel?.choice === "distance"
+                                  ? ` — beyond customer's ${search.pickupTravel.miles}-mile range`
+                                  : ""}
+                              </span>
+                            )}
+                            {offer.handoffMethod && (
+                              <span className="ml-2 text-xs text-zinc-400">· {handoffAgentLabel(offer.handoffMethod)}</span>
+                            )}
                             {offer.vehicleSoldAt ? (
                               <span className="ml-2 text-amber-400">sold to another buyer</span>
                             ) : (
@@ -938,9 +966,9 @@ export default async function OutreachQueuePage() {
                                 </div>
 
                                 <div className="mt-2 text-xs text-zinc-400">
-                                  {offer.dealProgress?.deliveryMethod === "pickup"
+                                  {offer.handoffMethod === "pickup"
                                     ? "Pickup"
-                                    : offer.dealProgress?.deliveryMethod === "delivery"
+                                    : offer.handoffMethod === "delivery"
                                     ? "Delivery"
                                     : "Delivery preference not yet selected"}
                                 </div>
@@ -983,6 +1011,14 @@ export default async function OutreachQueuePage() {
                           <li key={dealer.name}>
                             {dealer.name} — {dealer.phone ?? "no phone"} — {dealer.city ?? "?"}, {dealer.state ?? "?"} (
                             {dealer.listingCount} listing{dealer.listingCount === 1 ? "" : "s"})
+                            {dealer.distanceMiles !== null && (
+                              <span className="ml-2 text-zinc-500">{roundMiles(dealer.distanceMiles)} mi</span>
+                            )}
+                            {dealer.withinRange === true && (
+                              <span className="ml-2 rounded-full border border-emerald-500/30 px-2 py-0.5 text-xs text-emerald-400">
+                                within range
+                              </span>
+                            )}
                           </li>
                         ))}
                       </ul>

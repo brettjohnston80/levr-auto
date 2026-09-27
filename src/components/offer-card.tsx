@@ -2,11 +2,17 @@ import { OfferCardActions } from "@/components/offer-card-actions";
 import { OfferPhoto } from "@/components/offer-photo";
 import { AddonRemovalButton } from "@/components/addon-removal-button";
 import { FinancingCaptureForm } from "@/components/financing-capture-form";
-import { DeliveryPreferenceForm } from "@/components/delivery-preference-form";
 import { ServiceAgreementSigning } from "@/components/service-agreement-signing";
 import { computeOfferSavings } from "@/lib/offer-comparison";
 import { formatCents, formatDate } from "@/lib/dashboard-format";
 import type { DashboardOffer } from "@/lib/customer-dashboard";
+import {
+  DELIVERY_EXPLANATION,
+  HANDOFF_QUESTION,
+  handoffNextStepsCopy,
+  isBeyondPickupRange,
+  outOfRangeCopy,
+} from "@/lib/pickup-travel";
 
 const ADDON_REMOVAL_STATUS_COPY: Record<string, string> = {
   pending: "Removal requested — waiting on the dealer",
@@ -22,6 +28,7 @@ const ADDON_REREQUESTABLE_STATUSES = ["none", "dealer_declined", "dealer_counter
 // two copies of this would be exactly the kind of thing that drifts (a
 // future fix to one card shape not making it to the other).
 export function OfferCard({
+  searchId,
   offer,
   make,
   model,
@@ -29,6 +36,8 @@ export function OfferCard({
   anotherOfferAccepted,
   initiallyOpen = false,
 }: {
+  /** For the "Change" link back into this offer's detail view. */
+  searchId: string;
   offer: DashboardOffer;
   make: string | null;
   model: string | null;
@@ -45,6 +54,8 @@ export function OfferCard({
   // accepted -- showing that date next to "withdrawn" would misdate the
   // release, so it uses withdrawn_at instead.
   const statusDate = offer.status === "withdrawn" ? offer.withdrawnAt : offer.customerRespondedAt;
+  const beyondRange = isBeyondPickupRange(offer.pickupTravel, offer.distanceMiles, offer.handoffMethod);
+  const changeHandoffHref = `/account/deal?searchId=${searchId}&offer=${offer.id}`;
 
   return (
     <li
@@ -93,6 +104,11 @@ export function OfferCard({
             Delivered {formatDate(offer.deliveredAt)} — status: {offer.status.replace(/_/g, " ")}
             {statusDate && ` on ${formatDate(statusDate)}`}
           </p>
+          {beyondRange && offer.pickupTravel?.choice === "distance" && offer.distanceMiles !== null && (
+            <p className="mt-1 text-sm text-amber-300">
+              {outOfRangeCopy(offer.distanceMiles, offer.pickupTravel.miles)}
+            </p>
+          )}
           {offer.offerSheetUrl && (
             <a
               href={offer.offerSheetUrl}
@@ -158,7 +174,18 @@ export function OfferCard({
 
           <FinancingCaptureForm offerId={offer.id} existing={offer.dealProgress} />
 
-          <DeliveryPreferenceForm offerId={offer.id} existing={offer.dealProgress} />
+          {/* Pickup vs. delivery (2026-09-26): asked in the detail view and
+              confirmed at accept, so this only reports it -- one question,
+              one place (qualifying_offers.handoff_method). */}
+          <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-4 text-xs text-zinc-300">
+            <p>
+              {offer.handoffMethod ? handoffNextStepsCopy(offer.handoffMethod) : HANDOFF_QUESTION}{" "}
+              <a href={changeHandoffHref} className="text-emerald-400 underline hover:text-emerald-300">
+                Change
+              </a>
+            </p>
+            {offer.handoffMethod === "delivery" && <p className="mt-2 text-zinc-500">{DELIVERY_EXPLANATION}</p>}
+          </div>
 
           <ServiceAgreementSigning offerId={offer.id} initiallySigned={!!offer.serviceAgreementSignedAt} />
         </div>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getIntakeModelYearOptions } from "@/lib/intake-vehicle-options";
 import { TEST_EMAIL_SUFFIX, isTestEmail } from "@/lib/test-accounts";
+import { travelFromValue, travelToColumns, type PickupTravel } from "@/lib/pickup-travel";
 
 // Durable seeding for the external tester program.
 //
@@ -159,12 +160,24 @@ async function seedState(
   state: State,
   make: string,
   model: string,
-  modelYear: number
+  modelYear: number,
+  pickupTravel: PickupTravel
 ): Promise<Record<string, unknown>> {
   // model_year on every seeded search (2026-09-14): a year is required for
   // real customers, so a tester seeded without one would be testing a state
   // no real customer can reach.
-  const base = { customer_id: customerId, make, model, model_year: modelYear, zip: DEFAULT_ZIP };
+  // Pickup range (2026-09-26): required for real new searches, so seeded
+  // ones carry an answer too -- "case by case" unless the caller picks one,
+  // so tester accounts don't all land on the Your Deal "add it" prompt.
+  const base = {
+    customer_id: customerId,
+    make,
+    model,
+    model_year: modelYear,
+    zip: DEFAULT_ZIP,
+    ...travelToColumns(pickupTravel),
+    pickup_travel_set_at: new Date().toISOString(),
+  };
 
   const insertSearch = async (extra: Record<string, unknown>) => {
     const { data, error } = await admin
@@ -190,6 +203,10 @@ async function seedState(
         msrp_cents: 3_400_000,
         received_at: hoursAgo(6),
         delivered_at: hoursAgo(5),
+        // Accepting requires a pickup/delivery answer since 2026-09-26, so an
+        // accepted seeded offer carries one (qualifying_offers.handoff_method
+        // replaced deal_progress.delivery_method).
+        ...(extra.status === "customer_accepted" ? { handoff_method: "pickup", handoff_method_set_at: hoursAgo(5) } : {}),
         ...extra,
       })
       .select("id, status, is_below_msrp, delivered_at")
@@ -265,7 +282,6 @@ async function seedState(
           financing_income_range: "100k-150k",
           financing_down_payment_cents: 500_000,
           financing_desired_term_months: 60,
-          delivery_method: "pickup",
         })
         .select("id, availability_reconfirmed_at, deposit_confirmed_at, financing_choice")
         .single();
@@ -306,7 +322,6 @@ async function seedState(
         deposit_amount_cents: 50_000,
         deposit_confirmed_at: daysAgo(4),
         financing_choice: "own",
-        delivery_method: "delivery",
       });
       if (progressError) throw new Error(`deal_progress insert failed: ${progressError.message}`);
 
@@ -349,6 +364,8 @@ export async function POST(req: NextRequest) {
     make?: string;
     model?: string;
     model_year?: number;
+    /** Pickup-range tile value (see PICKUP_TRAVEL_OPTIONS); defaults to case_by_case. */
+    pickup_travel?: string;
     reset?: boolean;
   };
   const email = (body.email ?? "").trim();
@@ -390,6 +407,16 @@ export async function POST(req: NextRequest) {
   // year for a two-year model -- the caller says which one.
   const make = body.make ?? DEFAULT_MAKE;
   const model = body.model ?? DEFAULT_MODEL;
+  // Validated before any reset, like model_year, so a bad request never
+  // wipes a tester's current state.
+  const pickupTravel: PickupTravel | null =
+    body.pickup_travel == null ? { choice: "case_by_case" } : travelFromValue(body.pickup_travel);
+  if (!pickupTravel) {
+    return NextResponse.json(
+      { error: "pickup_travel must be 25, 50, 100, 250, 500, prefer_delivery or case_by_case" },
+      { status: 400 }
+    );
+  }
   let modelYear: number | null = null;
   if (!(body.reset && !body.state)) {
     const offered = (await getIntakeModelYearOptions())[make]?.[model] ?? [];
@@ -442,7 +469,8 @@ export async function POST(req: NextRequest) {
       state,
       make,
       model,
-      modelYear as number
+      modelYear as number,
+      pickupTravel
     );
     return NextResponse.json({ ok: true, email, state, created });
   } catch (e) {

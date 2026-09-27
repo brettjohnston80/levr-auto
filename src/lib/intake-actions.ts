@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { isOfferedModelYear } from "@/lib/intake-vehicle-options";
+import { PICKUP_TRAVEL_MISSING_ERROR, travelFromValue, travelToColumns } from "@/lib/pickup-travel";
 
 export type IntakeVehicle = {
   make: string;
@@ -47,6 +48,11 @@ export type MatchmakerContext = {
 export async function saveIntakeSearch(
   vehicle: IntakeVehicle,
   zip: string,
+  /** The pickup-range tile value (see PICKUP_TRAVEL_OPTIONS). Required for
+   *  every new vehicle-picked search since 2026-09-26; typed as a plain
+   *  string so a resumed pre-sign-in stash written before this field
+   *  existed reaches the check below and gets a visible error. */
+  pickupTravel: string | null,
   matchmaker?: MatchmakerContext
 ): Promise<SaveIntakeResult> {
   const supabase = await createClient();
@@ -73,6 +79,11 @@ export async function saveIntakeSearch(
     return { ok: false, error: "Choose a model year for this vehicle." };
   }
 
+  const travel = travelFromValue(pickupTravel);
+  if (!travel) {
+    return { ok: false, error: PICKUP_TRAVEL_MISSING_ERROR };
+  }
+
   const { data, error } = await supabase
     .from("customer_searches")
     .insert({
@@ -81,6 +92,8 @@ export async function saveIntakeSearch(
       model: vehicle.model,
       model_year: modelYear,
       zip: zip || null,
+      ...travelToColumns(travel),
+      pickup_travel_set_at: new Date().toISOString(),
       // Explicit nulls rather than omitted keys, so a search that did not
       // come from a Matchmaker card is recorded as definitively having no
       // Matchmaker context rather than merely unset.
