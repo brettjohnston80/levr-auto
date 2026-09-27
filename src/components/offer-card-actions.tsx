@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { respondToOffer } from "@/lib/offer-response-actions";
 import { HighlightToggle } from "@/components/offer-highlight-controls";
 import { OfferDetailModal } from "@/components/offer-detail-modal";
+import { OPEN_OFFER_EVENT } from "@/components/offer-map-view";
 import type { DashboardOffer } from "@/lib/customer-dashboard";
 
 /**
@@ -49,6 +50,15 @@ export function OfferCardActions({
   const [error, setError] = useState<string | null>(null);
   const close = useCallback(() => setOpen(false), []);
   const isClient = useIsClient();
+
+  // A map pin's "View details" (Your Deal's Map view) opens this offer.
+  useEffect(() => {
+    function onOpen(e: Event) {
+      if ((e as CustomEvent<{ offerId: string }>).detail?.offerId === offer.id) setOpen(true);
+    }
+    window.addEventListener(OPEN_OFFER_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_OFFER_EVENT, onOpen);
+  }, [offer.id]);
 
   const isPending = offer.status === "pending";
 

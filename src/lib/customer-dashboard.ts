@@ -112,6 +112,10 @@ export interface DashboardOffer {
   inTransit: boolean;
   /** ZIP-centroid distance in miles; null when either zip is unknown. */
   distanceMiles: number | null;
+  /** Map pin (2026-09-26, detail view only): the linked listing's dealer
+   *  coordinates when available, else the dealer ZIP's centroid (flagged
+   *  approximate), else null -- no pin. */
+  mapLocation: { lat: number; lng: number; approximate: boolean } | null;
 }
 
 export interface DashboardSearch {
@@ -318,7 +322,10 @@ async function loadOffersBySearchId(
   }
 
   // Detail-view-only: linked-listing photos/in-transit, and ZIP distances.
-  const listingDetailById = new Map<string, { photoUrls: string[]; inTransit: boolean }>();
+  const listingDetailById = new Map<
+    string,
+    { photoUrls: string[]; inTransit: boolean; lat: number | null; lng: number | null }
+  >();
   const coordByZip = new Map<string, { lat: number; lon: number }>();
   if (detail) {
     const listingIds = [
@@ -328,15 +335,22 @@ async function loadOffersBySearchId(
       // Only the two sub-objects needed -- never the whole raw_data payload.
       const { data: listingRows, error: listingError } = await supabase
         .from("listings")
-        .select("id, media:raw_data->media, in_transit:raw_data->in_transit")
+        .select(
+          "id, media:raw_data->media, in_transit:raw_data->in_transit, dealer_lat:raw_data->dealer->>latitude, dealer_lng:raw_data->dealer->>longitude",
+        )
         .in("id", listingIds);
       if (listingError) {
         throw new Error(`Failed to load linked listings: ${listingError.message}`);
       }
       for (const row of listingRows ?? []) {
+        const lat = Number(row.dealer_lat);
+        const lng = Number(row.dealer_lng);
+        const valid = row.dealer_lat != null && row.dealer_lng != null && Number.isFinite(lat) && Number.isFinite(lng);
         listingDetailById.set(row.id as string, {
           photoUrls: listingPhotoUrls(row.media),
           inTransit: row.in_transit === true,
+          lat: valid ? lat : null,
+          lng: valid ? lng : null,
         });
       }
     }
@@ -362,6 +376,18 @@ async function loadOffersBySearchId(
       }
     }
   }
+
+  const mapLocationFor = (
+    listingDetail: { lat: number | null; lng: number | null } | undefined,
+    dealerZip: string | null,
+  ): DashboardOffer["mapLocation"] => {
+    if (!detail) return null;
+    if (listingDetail?.lat != null && listingDetail.lng != null) {
+      return { lat: listingDetail.lat, lng: listingDetail.lng, approximate: false };
+    }
+    const c = dealerZip ? coordByZip.get(dealerZip) : undefined;
+    return c ? { lat: c.lat, lng: c.lon, approximate: true } : null;
+  };
 
   const distanceFor = (searchId: string, dealerZip: string | null): number | null => {
     if (!detail || !dealerZip) return null;
@@ -418,6 +444,7 @@ async function loadOffersBySearchId(
       listingPhotoUrls: listingDetail?.photoUrls ?? [],
       inTransit: listingDetail?.inTransit ?? false,
       distanceMiles: distanceFor(offer.customer_search_id, offer.dealer_zip),
+      mapLocation: mapLocationFor(listingDetail, offer.dealer_zip),
     });
     offersBySearchId.set(offer.customer_search_id, list);
   }
@@ -572,6 +599,9 @@ export interface DealDetails {
   purchasedQualifyingOfferId: string | null;
   /** The customer's pickup range (2026-09-26); null = never answered. */
   pickupTravel: PickupTravel | null;
+  /** Map "Your area" point: the search ZIP's centroid -- never an address
+   *  (none is collected). Null when the ZIP isn't in zip_coordinates. */
+  customerLocation: { lat: number; lng: number } | null;
   survey: { id: string; submittedAt: string | null } | null;
   offers: DashboardOffer[];
 }
@@ -626,6 +656,10 @@ export async function getDealDetails(searchId: string, customerId: string): Prom
     .select("notify_by_email")
     .eq("id", customerId)
     .maybeSingle();
+  const { data: zipRow } = search.zip
+    ? await supabase.from("zip_coordinates").select("latitude, longitude").eq("zip", search.zip).maybeSingle()
+    : { data: null };
+  const customerLocation = zipRow ? { lat: zipRow.latitude as number, lng: zipRow.longitude as number } : null;
   const pickupTravel = travelFromColumns(
     search.pickup_travel_choice as string | null,
     search.pickup_travel_miles as number | null,
@@ -657,6 +691,7 @@ export async function getDealDetails(searchId: string, customerId: string): Prom
     pausedAt: search.paused_at,
     purchasedQualifyingOfferId: search.purchased_qualifying_offer_id,
     pickupTravel,
+    customerLocation,
     survey: surveyRow ? { id: surveyRow.id, submittedAt: surveyRow.submitted_at } : null,
     offers: offersBySearchId.get(searchId) ?? [],
   };

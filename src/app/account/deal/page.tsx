@@ -15,7 +15,10 @@ import { formatCents } from "@/lib/dashboard-format";
 import { GetStartedButton } from "@/components/get-started-button";
 import { PickupRangeControl } from "@/components/pickup-range-control";
 import { OFFER_SORT_LABEL, OFFER_SORT_OPTIONS, parseOfferSort, sortOffers } from "@/lib/offer-sort";
-import { travelToValue } from "@/lib/pickup-travel";
+import { isBeyondPickupRange, travelToValue } from "@/lib/pickup-travel";
+import { mapAvailable } from "@/lib/map/config";
+import { MAP_COPY, pinStatus, type OfferMapData } from "@/lib/map/pins";
+import { OfferMapView } from "@/components/offer-map-view";
 
 export const metadata: Metadata = {
   title: "Your Deal — LEVR Auto",
@@ -33,9 +36,9 @@ const TERMINAL_STATUSES = ["switched", "cancelled", "closed"];
 export default async function DealPage({
   searchParams,
 }: {
-  searchParams: Promise<{ searchId?: string; offer?: string; sort?: string }>;
+  searchParams: Promise<{ searchId?: string; offer?: string; sort?: string; view?: string }>;
 }) {
-  const { searchId: requestedSearchId, offer: openOfferId, sort: sortParam } = await searchParams;
+  const { searchId: requestedSearchId, offer: openOfferId, sort: sortParam, view: viewParam } = await searchParams;
   const sort = parseOfferSort(sortParam);
   const supabase = await createClient();
   const {
@@ -159,6 +162,39 @@ export default async function DealPage({
   const otherOffers = acceptedOffer ? deal.offers.filter((o) => o.id !== acceptedOffer.id) : [];
   const otherOffersSummary = summarizeOfferPrices(otherOffers);
 
+  // List | Map toggle (2026-09-26): shown when there's at least one offer and
+  // a Mapbox token is configured; List is the default. Both choices live in
+  // the URL alongside sort.
+  const canMap = mapAvailable() && deal.offers.length > 0;
+  const showMap = canMap && viewParam === "map";
+  const dealHref = (next: { sort?: string; view?: string }) => {
+    const params = new URLSearchParams({ searchId: deal.searchId, sort: next.sort ?? sort });
+    if ((next.view ?? (showMap ? "map" : "list")) === "map") params.set("view", "map");
+    return `/account/deal?${params.toString()}`;
+  };
+  const mapData: OfferMapData | null = showMap
+    ? {
+        pins: deal.offers
+          .filter((o) => o.mapLocation)
+          .map((o) => ({
+            offerId: o.id,
+            lat: o.mapLocation!.lat,
+            lng: o.mapLocation!.lng,
+            approximate: o.mapLocation!.approximate,
+            status: pinStatus(o.status),
+            highlighted: o.status === "pending" && !!o.customerHighlightedAt,
+            beyondRange: isBeyondPickupRange(deal.pickupTravel, o.distanceMiles, o.handoffMethod),
+            dealerName: o.dealerName,
+            priceCents: o.offerPriceCents,
+            distanceMiles: o.distanceMiles,
+            photoUrl: o.listingPhotoUrls[0] ?? o.photoUrl,
+          })),
+        unplacedCount: deal.offers.filter((o) => !o.mapLocation).length,
+        customer: deal.customerLocation,
+        rangeMiles: deal.pickupTravel?.choice === "distance" ? deal.pickupTravel.miles : null,
+      }
+    : null;
+
   return (
     <section className="bg-zinc-950 py-24">
       <div className="mx-auto max-w-2xl px-6">
@@ -232,13 +268,30 @@ export default async function DealPage({
                 <h2 className="text-sm font-semibold text-zinc-300">
                   {deal.offers.length > 0 ? `Offers (${deal.offers.length})` : "No offers yet"}
                 </h2>
+                <div className="flex flex-wrap items-center gap-3">
+                {canMap && (
+                  <nav aria-label="View" className="flex items-center gap-1 text-xs">
+                    {(["list", "map"] as const).map((v) => (
+                      <Link
+                        key={v}
+                        href={dealHref({ view: v })}
+                        aria-current={(v === "map") === showMap ? "true" : undefined}
+                        className={`rounded-full px-2.5 py-1 ${
+                          (v === "map") === showMap ? "bg-white/10 font-semibold text-white" : "text-zinc-400 hover:text-white"
+                        }`}
+                      >
+                        {v === "map" ? MAP_COPY.toggleMap : MAP_COPY.toggleList}
+                      </Link>
+                    ))}
+                  </nav>
+                )}
                 {deal.offers.length > 1 && (
                   <nav aria-label={OFFER_SORT_LABEL} className="flex items-center gap-2 text-xs">
                     <span className="text-zinc-500">{OFFER_SORT_LABEL}</span>
                     {OFFER_SORT_OPTIONS.map((opt) => (
                       <Link
                         key={opt.value}
-                        href={`/account/deal?searchId=${deal.searchId}&sort=${opt.value}`}
+                        href={dealHref({ sort: opt.value })}
                         aria-current={sort === opt.value ? "true" : undefined}
                         className={`rounded-full px-2.5 py-1 ${
                           sort === opt.value
@@ -251,9 +304,13 @@ export default async function DealPage({
                     ))}
                   </nav>
                 )}
+                </div>
               </div>
+              {mapData && <OfferMapView data={mapData} />}
               {deal.offers.length > 0 && (
-                <ul className="mt-3 space-y-3">
+                // Kept mounted (hidden) in Map view so a pin's "View details"
+                // can open the card's own detail view.
+                <ul className={`mt-3 space-y-3 ${showMap ? "hidden" : ""}`}>
                   {sortOffers(deal.offers, sort).map((offer) => (
                     <OfferCard
                       key={offer.id}
