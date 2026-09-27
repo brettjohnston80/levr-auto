@@ -61,9 +61,13 @@ Every migration is applied, through `20260926140000`.
    - Confirmed from the app's side: all three columns return 42703.
    - **The backup table `public._backup_20260927_retired_columns` still exists**, holding 3 rows: the review account's note, and tester5's and tester7's delivery answers. **Brett drops it himself around 2026-10-04** (`drop table public._backup_20260927_retired_columns;`). Don't drop it or write to it.
 
-2. **Open real-world checks:**
-   - **Phone map check:** on a real phone, test the map's two-finger touch gestures and real-frame-rate smoothness, and the map with the production token (restricted to `levrauto.com`) when signed in on production. Automation couldn't cover these.
-   - **Real-inbox email check:** a real delivery of the agent-message email. Every test so far used suppressed `@levrauto-test.invalid` addresses.
+2. **Real-world checks:**
+   - **Phone map check: DONE (2026-09-27).** Brett set the production Mapbox token in Vercel (restricted to `levrauto.com`), redeployed, and confirmed the map works on his phone.
+   - **Real-inbox email check: still open.** The agent-message email has never been delivered to a real inbox; every test used suppressed `@levrauto-test.invalid` addresses.
+     - Planned approach: a new, short-lived account on an address that reaches Brett's own inbox (preferably a new `@levrauto.com` alias), named "EMAIL TEST / NOT A REAL CUSTOMER". It gets one recently seeded `searching` Toyota Camry search with a pending below-sticker offer. Brett replies as the agent from production `/internal/outreach`, and the account is deleted the same day.
+     - **Waiting on Brett to pick and confirm the address.** Create nothing before that.
+
+   **Follow-up (not started):** the "Which deal?" picker on `/account/deal` labels searches by make and model only, so two searches for the same vehicle look identical (the review account's two "Honda Civic" searches, for example). Add the trim and/or search status to each label so they can be told apart. That's customer-facing copy, so it needs Brett's sign-off.
 
 3. **Verification-environment note.** Brett's shared Chrome is usually signed in to the review account on `localhost`, so browser verification runs on `127.0.0.1`, which has its own cookie jar. That needs `allowedDevOrigins: ["127.0.0.1"]` in `next.config.ts`, added only with Brett's OK and reverted afterward. Never sign his localhost session out without asking.
 
