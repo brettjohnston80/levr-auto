@@ -45,38 +45,30 @@ This file exists so any Claude Code session (yours, your collaborator's, or a fu
 
 ## ⚠ IN-FLIGHT STATE — read before doing anything (updated 2026-09-26)
 
-A snapshot of work that is mid-flight right now. Verify against `git log`/`git status` before acting on it, and delete or rewrite this section once these items are resolved. **Nothing gets pushed until Brett signs off.**
+A snapshot of work that is mid-flight right now. Verify against `git log`/`git status` before acting on it, and rewrite this section once these items are resolved. **Nothing gets pushed without Brett's sign-off.**
 
-**Pushed:** `origin/main` is at `596f362`. That includes `fa339be` (one accepted offer per search), `ecbb602` and `8f05d3c` (offer highlight, detail view and agent activity queue); Brett pushed these 2026-09-25.
+**Everything is pushed and live.** `origin/main` is at `3e59c50` (pushed 2026-09-26). The Vercel production deploy built successfully and is aliased to www.levrauto.com. That push included:
+- `ca0c3d0` offer message threads
+- `e1596c6` pickup range, per-offer pickup/delivery, out-of-range flag and offer sorting
+- `27ab440` agent-message email
+- `66ffed7` List | Map view (Mapbox)
+- CLAUDE.md updates
 
-1. **`ca0c3d0` — offer message threads. Committed and verified, NOT pushed.**
-   - Each offer has a customer ↔ agent thread; it replaced the single customer note. Plan: `docs/plans/offer-messages-plan.md`.
-   - Migration `20260926120000_offer_messages.sql` **has been applied** to the shared Supabase project. The live site ignores the new table until the push.
-   - Follow-up still owed **after the deploy**: a small migration that re-runs the note-to-message copy, then drops `qualifying_offers.customer_note`, `customer_note_updated_at` and their length constraint.
-   - Verified 2026-09-26 on a disposable customer plus a scratch agent, both cleaned up. Two bugs were found and fixed before the commit: the header unread dot lagged by one page view, and the `?offer=` deep link rendered its portal during server rendering.
+Every migration they need is applied: `20260926120000`, `20260926130000` and `20260926140000`.
 
-2. **`e1596c6`: pickup range, per-offer pickup/delivery, out-of-range flag and offer sorting. Committed and verified, NOT pushed.**
-   - Plan: `docs/plans/pickup-delivery-plan.md`. Migration `20260926130000` is applied.
-   - That migration needed three attempts: two runs didn't land in `couiovhducwytlckfgvo`. **Always confirm a migration from the app's side**, e.g. with an RPC that returns a whole row, not just an SQL Editor query.
-   - Follow-up owed after deploy: drop the retired `deal_progress.delivery_method`.
+1. **Post-deploy cleanup migration: being prepared, NOT run.**
+   - It drops `qualifying_offers.customer_note`, `customer_note_updated_at` and their length constraint, which were replaced by offer message threads. It also drops `deal_progress.delivery_method`, replaced by `qualifying_offers.handoff_method`.
+   - Before either drop, it re-runs the idempotent copy.
+   - **Supabase Free has no automatic backups and dropping columns can't be undone**, so Brett reviews production row counts before running it.
 
-3. **`27ab440`: agent-message email. Committed and verified, NOT pushed.**
-   - One content-free email per thread until the customer opens it; skipped when `notify_by_email` is off. Includes the email-off privacy-line variant and an All / Unread filter on Messages.
-   - Migration `20260926140000` is applied.
-   - Real delivery has not been tested: every test used a suppressed `@levrauto-test.invalid` address.
+2. **Real-world checks still open:**
+   - the map's two-finger touch gestures and real-frame-rate smoothness on a phone;
+   - the map with the production token (restricted to `levrauto.com`) once signed in on production;
+   - a real inbox delivery of the agent-message email. Every test so far used suppressed `@levrauto-test.invalid` addresses.
 
-4. **`66ffed7`: List | Map view on Your Deal (Mapbox). Committed and verified, NOT pushed.**
-   - Plan and build notes: `docs/plans/offer-map-plan.md`, including two small deviations for Brett to review: the highlighted pin is an amber outline, and the no-location note uses proper singular/plural.
-   - Provider code lives only in `src/lib/map/config.ts` and `src/components/offer-map.tsx`.
-   - **Tokens are set by Brett and never pasted into chat:**
-     - `NEXT_PUBLIC_MAPBOX_TOKEN` in `.env.local` is an unrestricted dev token.
-     - Vercel Production has a prod token restricted to `levrauto.com`, so previews won't load the map.
-   - Not verified in automation: two-finger touch gestures and real frame rate. They need a phone check.
-   - `next build` hasn't been run locally, because it would rewrite `.next` under the live dev server. The first Vercel build is the production-build check.
+3. **Verification-environment note.** Brett's shared Chrome is usually signed in to the review account on `localhost`, so browser verification runs on `127.0.0.1`, which has its own cookie jar. That needs `allowedDevOrigins: ["127.0.0.1"]` in `next.config.ts`, added only with Brett's OK and reverted afterward. Never sign his localhost session out without asking.
 
-5. **Verification-environment note.** Brett's shared Chrome is usually signed in to the review account on `localhost`, so browser verification runs on `127.0.0.1`, which has its own cookie jar. That needs `allowedDevOrigins: ["127.0.0.1"]` in `next.config.ts`, added only with Brett's OK and reverted afterward. Never sign his localhost session out without asking.
-
-6. **The persistent review account `brett-deal-review@levrauto-test.invalid` has 3 searches** (customer id `00cc0f70-9e4b-4ba7-b9b1-242f8a4aea40`). See its own bullet under "Approach & patterns"; never clean it up or write to it without Brett's explicit request.
+4. **The persistent review account `brett-deal-review@levrauto-test.invalid` has 3 searches** (customer id `00cc0f70-9e4b-4ba7-b9b1-242f8a4aea40`). See its own bullet under "Approach & patterns"; never clean it up or write to it without Brett's explicit request.
    - `7c337ac2-d1d7-4903-a35b-2dc6bc65077d`: Toyota Camry XSE, `searching`. Sunrise Toyota $32,000 accepted; Lakeside Toyota $31,200 and Metro Toyota $33,500 pending.
    - `886a1f19-f270-4056-bab8-fbd3093d9909`: Honda Civic Sport Touring, `purchased` (Capital Honda $26,800).
    - `f90b0dc7-e51d-490e-add9-afe8ce3cc95c`: Honda Civic Sport, `searching`.
