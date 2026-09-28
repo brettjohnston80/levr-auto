@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { pauseSearchByAdmin, resumeSearchByAdmin, type AdminSearchRow } from "@/lib/admin-actions";
+import type { AdminSearchRow } from "@/lib/admin-actions";
 
 const STATUS_OPTIONS = [
   "All",
@@ -26,87 +26,15 @@ function formatDate(iso: string | null): string {
   });
 }
 
-// Inline notes-required action, shared shape for both Pause and Resume --
-// click reveals a required textarea + confirm/cancel, mirroring the
-// required-reason pattern already used by AgentCancellationResolutionForm/
-// AgentBypassLookup, just lighter (no reason-category picker, just notes).
-function AdminLifecycleAction({
-  label,
-  confirmLabel,
-  onSubmit,
-}: {
-  label: string;
-  confirmLabel: string;
-  onSubmit: (notes: string) => Promise<{ ok: boolean; error?: string }>;
-}) {
-  const [open, setOpen] = useState(false);
-  const [notes, setNotes] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
-
-  if (done) {
-    return <span className="text-xs text-emerald-400">{confirmLabel}</span>;
-  }
-
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="rounded border border-white/15 px-2 py-0.5 text-xs text-zinc-300 hover:bg-white/5"
-      >
-        {label}
-      </button>
-    );
-  }
-
-  async function handleSubmit() {
-    setSubmitting(true);
-    setError(null);
-    const result = await onSubmit(notes);
-    setSubmitting(false);
-    if (!result.ok) {
-      setError(result.error ?? "Something went wrong.");
-      return;
-    }
-    setDone(true);
-  }
-
-  return (
-    <div className="w-56 rounded border border-white/15 bg-zinc-900 p-2">
-      <textarea
-        value={notes}
-        onChange={(e) => setNotes(e.target.value)}
-        placeholder="Notes (required)"
-        rows={2}
-        className="w-full rounded border border-white/10 bg-zinc-950 px-2 py-1 text-xs text-white placeholder:text-zinc-600 focus:border-emerald-500 focus:outline-none"
-      />
-      {error && <p className="mt-1 text-xs text-red-400">{error}</p>}
-      <div className="mt-1.5 flex justify-end gap-1.5">
-        <button
-          type="button"
-          onClick={() => {
-            setOpen(false);
-            setError(null);
-            setNotes("");
-          }}
-          className="rounded px-2 py-0.5 text-xs text-zinc-500 hover:text-zinc-300"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={submitting || notes.trim() === ""}
-          className="rounded bg-emerald-500 px-2 py-0.5 text-xs font-semibold text-zinc-950 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400"
-        >
-          {submitting ? "Saving…" : label}
-        </button>
-      </div>
-    </div>
-  );
-}
+// The manual Pause/Resume buttons that lived here were removed 2026-09-27
+// (Brett): the admin pause had no defined use, was never used in production,
+// and didn't move the Day-30 guarantee or Day-60 deadline clocks (Resume on a
+// Day-60 pause left the deadline in the past, so the next nightly run re-paused
+// or auto-renew-charged it). Day-60-paused searches resume through the
+// customer's paid extension or the agent extension bypass, which both move the
+// deadline. admin_action_log and the admin_pause_search/admin_resume_search DB
+// functions are kept for their history. Customer-requested holds (with clock
+// extensions) are a recorded future item.
 
 export function AdminSearchesTable({ searches }: { searches: AdminSearchRow[] }) {
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_OPTIONS)[number]>("All");
@@ -148,7 +76,6 @@ export function AdminSearchesTable({ searches }: { searches: AdminSearchRow[] })
                 <th className="px-4 py-3 font-medium">Paid</th>
                 <th className="px-4 py-3 font-medium">Deadline</th>
                 <th className="px-4 py-3 font-medium">Paused</th>
-                <th className="px-4 py-3 font-medium">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
@@ -176,22 +103,6 @@ export function AdminSearchesTable({ searches }: { searches: AdminSearchRow[] })
                   <td className="px-4 py-3 text-zinc-400">{formatDate(row.paidAt)}</td>
                   <td className="px-4 py-3 text-zinc-400">{formatDate(row.searchDeadlineAt)}</td>
                   <td className="px-4 py-3 text-zinc-400">{formatDate(row.pausedAt)}</td>
-                  <td className="px-4 py-3">
-                    {row.searchStatus === "searching" && (
-                      <AdminLifecycleAction
-                        label="Pause"
-                        confirmLabel="Paused"
-                        onSubmit={(notes) => pauseSearchByAdmin(row.id, notes)}
-                      />
-                    )}
-                    {row.searchStatus === "paused" && (
-                      <AdminLifecycleAction
-                        label="Resume"
-                        confirmLabel="Resumed"
-                        onSubmit={(notes) => resumeSearchByAdmin(row.id, notes)}
-                      />
-                    )}
-                  </td>
                 </tr>
               ))}
             </tbody>

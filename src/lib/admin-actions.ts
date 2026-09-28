@@ -1,7 +1,6 @@
 "use server";
 
 import "server-only";
-import { revalidatePath } from "next/cache";
 import { getAuthorizedAgent } from "./agent-auth";
 import { createAdminClient } from "./supabase/admin";
 import { isTestEmail } from "./test-accounts";
@@ -115,68 +114,4 @@ export async function getAdminSearches(): Promise<AdminSearchRow[]> {
       pausedAt: search.paused_at,
     };
   });
-}
-
-interface AdminActionResult {
-  ok: boolean;
-  error?: string;
-}
-
-function validateNotes(notes: string): string | null {
-  if (!notes || notes.trim() === "") {
-    return "Notes are required.";
-  }
-  return null;
-}
-
-export async function pauseSearchByAdmin(searchId: string, notes: string): Promise<AdminActionResult> {
-  const agent = await getAuthorizedAgent();
-  if (!agent) {
-    return { ok: false, error: "Not authorized." };
-  }
-
-  const notesError = validateNotes(notes);
-  if (notesError) {
-    return { ok: false, error: notesError };
-  }
-
-  const admin = createAdminClient();
-  const { error } = await admin.rpc("admin_pause_search", {
-    p_search_id: searchId,
-    p_agent_id: agent.id,
-    p_notes: notes.trim(),
-  });
-
-  if (error) {
-    return { ok: false, error: error.message };
-  }
-
-  revalidatePath("/internal/admin");
-  return { ok: true };
-}
-
-export async function resumeSearchByAdmin(searchId: string, notes: string): Promise<AdminActionResult> {
-  const agent = await getAuthorizedAgent();
-  if (!agent) {
-    return { ok: false, error: "Not authorized." };
-  }
-
-  const notesError = validateNotes(notes);
-  if (notesError) {
-    return { ok: false, error: notesError };
-  }
-
-  const admin = createAdminClient();
-  const { error } = await admin.rpc("admin_resume_search", {
-    p_search_id: searchId,
-    p_agent_id: agent.id,
-    p_notes: notes.trim(),
-  });
-
-  if (error) {
-    return { ok: false, error: error.message };
-  }
-
-  revalidatePath("/internal/admin");
-  return { ok: true };
 }

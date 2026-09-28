@@ -21,8 +21,7 @@ export default async function AdminPage() {
           Signed in as {agent.name} ({agent.email})
         </p>
         <p className="mt-1 text-sm text-zinc-500">
-          Every customer search. Pause/Resume here are manual overrides, separate from the Day-60
-          extension flow — deadlines are untouched by either action.
+          Every customer search.
         </p>
 
         <div className="mt-8">
