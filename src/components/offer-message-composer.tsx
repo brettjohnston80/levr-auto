@@ -12,6 +12,8 @@ import { MESSAGE_MAX_LENGTH } from "@/lib/offer-messages-shared";
 
 // Approved copy (2026-09-25; privacy line revised by Brett).
 const CUSTOMER_PLACEHOLDER = "e.g. Would they do $31,000? Is the sunroof included?";
+// General thread (approved 2026-09-27).
+const CUSTOMER_GENERAL_PLACEHOLDER = "e.g. How's my search going?";
 // Revised 2026-09-27 (approved): agent replies no longer email per reply;
 // they're listed in the daily update. Customers with email notifications off
 // get the variant, so the line stays true for everyone.
@@ -76,9 +78,13 @@ export function OfferMessageComposer({
         onChange={(e) => setDraft(e.target.value)}
         maxLength={MESSAGE_MAX_LENGTH}
         rows={3}
-        // The customer placeholder is offer-specific, so the general thread
-        // has none.
-        placeholder={sender === "customer" ? (offerId ? CUSTOMER_PLACEHOLDER : undefined) : "Reply to the customer…"}
+        placeholder={
+          sender === "customer"
+            ? offerId
+              ? CUSTOMER_PLACEHOLDER
+              : CUSTOMER_GENERAL_PLACEHOLDER
+            : "Reply to the customer…"
+        }
         aria-label={sender === "customer" ? "Message your agent" : "Message the customer"}
         className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
       />
