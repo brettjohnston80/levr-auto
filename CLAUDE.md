@@ -43,22 +43,24 @@ This file exists so any Claude Code session (yours, your collaborator's, or a fu
   - **⚠ THE ONE QUERY IT DOES CONTAMINATE: a bare `select count(*) from customers`.** There is **no `is_test` flag anywhere in this schema** — confirmed by grep, no such column and no naming convention checked in code — so nothing excludes it automatically. **Any future "how many real customers do we have" check must subtract it** (or filter `email not like '%@levrauto.invalid'`). Searches, paid searches and payments are all unaffected, so the pre-launch "zero real money has moved" checks stay valid as-is: at the time of writing `customers = 3` (Brett's two accounts plus this one) while `customer_searches = 0`, `paid searches = 0` and `payments = 0`.
   - **Discipline when Brett uses it himself:** create whatever searches/rows a verification needs, then delete them afterwards and confirm by count. Leave the account itself in place — it is meant to persist. If a proper `is_test` flag is ever wanted, that is a migration plus edits to each enumeration surface, and should be its own reviewed change rather than a column nothing reads.
 
-## ⚠ IN-FLIGHT STATE — read before doing anything (updated 2026-09-26)
+## ⚠ IN-FLIGHT STATE — read before doing anything (updated 2026-09-28)
 
 A snapshot of work that is mid-flight right now. Verify against `git log`/`git status` before acting on it, and rewrite this section once these items are resolved. **Nothing gets pushed without Brett's sign-off.**
 
-**⚠ UNPUSHED, awaiting Brett's sign-off (2026-09-27):** `1bf7615` (admin Pause/Resume removed) and the guarantee timeline / progress notes / general thread / highlights / daily update commit on top of it. Plan: `docs/plans/guarantee-progress-notifications-plan.md`. Migration `20260928120000_general_thread_and_daily_update.sql` has already been run and confirmed from the app side, and it must stay ahead of this deploy.
-- Verified on disposable accounts (cleaned up, confirmed by count). Screenshots are in `~/Downloads/levr-guarantee-messaging-verification-2026-09-27/`.
-- Post-deploy cleanup, not yet written: drop `qualifying_offers.message_email_sent_at` and `customers.communication_frequency` (neither is read or written any more).
-- `sendNotificationDigests({ onlyCustomerIds })` exists for scoped verification. Never run the unscoped function against production data by hand, because it emails real customers.
+**Everything is pushed and live.** `origin/main` is at `00f6c20`, deployed 2026-09-28. Vercel built it successfully and it's aliased to www.levrauto.com. The latest work was:
+- `2b01ab2` Day-30 guarantee check skips cancelled searches
+- `1bf7615` admin Pause/Resume buttons removed. `admin_action_log` and the `admin_pause_search`/`admin_resume_search` DB functions are kept for history.
+- `65a0b0d` guarantee timeline, automatic progress notes, the general message thread, highlight emails and the daily update. Plan: `docs/plans/guarantee-progress-notifications-plan.md`.
+  - Verified on disposable accounts, cleaned up and confirmed by count. Screenshots: `~/Downloads/levr-guarantee-messaging-verification-2026-09-27/`.
+  - Highlights (new offer, offer released, availability, deposit, purchase, Day-30 guarantee result) are now emailed immediately to every customer with email on. The daily update goes out at the 13:00 UTC digest cron and replaced the per-reply agent-message email.
+  - `sendNotificationDigests({ onlyCustomerIds })` exists for scoped verification. Never run the unscoped function against production data by hand, because it emails real customers.
+- `00f6c20` general-thread placeholder "e.g. How's my search going?"
 
-**Everything is pushed and live.** `origin/main` is at `72e08e2`. The feature work deployed at `3e59c50` (2026-09-26); Vercel built it successfully and it's aliased to www.levrauto.com. That work was:
-- `ca0c3d0` offer message threads
-- `e1596c6` pickup range, per-offer pickup/delivery, out-of-range flag and offer sorting
-- `27ab440` agent-message email
-- `66ffed7` List | Map view (Mapbox)
+The earlier feature work deployed at `3e59c50` (2026-09-26): `ca0c3d0` offer message threads, `e1596c6` pickup/delivery, `27ab440` agent-message email (since replaced by the daily update), `66ffed7` List | Map view.
 
-Every migration is applied, through `20260926140000`.
+Every migration is applied, through `20260928120000_general_thread_and_daily_update.sql`.
+
+**To-do: post-deploy cleanup migration (not written yet).** Drop `qualifying_offers.message_email_sent_at` and `customers.communication_frequency`. Neither is read or written by the live code any more. Write it, have Brett review and run it, then confirm from the app's side as always.
 
 1. **Post-deploy cleanup: DONE (2026-09-27).**
    - Migration `20260927120000_drop_retired_note_and_delivery_columns.sql` ran in `couiovhducwytlckfgvo`; the file is committed as `72e08e2`.
@@ -68,7 +70,7 @@ Every migration is applied, through `20260926140000`.
 
 2. **Real-world checks:**
    - **Phone map check: DONE (2026-09-27).** Brett set the production Mapbox token in Vercel (restricted to `levrauto.com`), redeployed, and confirmed the map works on his phone.
-   - **Real-inbox email check: still open.** The agent-message email has never been delivered to a real inbox; every test used suppressed `@levrauto-test.invalid` addresses.
+   - **Real-inbox email check: still open.** No customer notification email has ever been delivered to a real inbox; every test used suppressed `@levrauto-test.invalid` addresses. Since 2026-09-28 the emails to check are the highlight emails and the daily update (the per-reply agent-message email no longer exists). An agent reply now reaches the customer only through the next 13:00 UTC daily update.
      - Planned approach: a new, short-lived account on an address that reaches Brett's own inbox (preferably a new `@levrauto.com` alias), named "EMAIL TEST / NOT A REAL CUSTOMER". It gets one recently seeded `searching` Toyota Camry search with a pending below-sticker offer. Brett replies as the agent from production `/internal/outreach`, and the account is deleted the same day.
      - **Waiting on Brett to pick and confirm the address.** Create nothing before that.
 
