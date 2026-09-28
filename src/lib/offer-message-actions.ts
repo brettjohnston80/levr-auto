@@ -5,7 +5,6 @@ import { createClient } from "./supabase/server";
 import { createAdminClient } from "./supabase/admin";
 import { getAuthorizedAgent } from "./agent-auth";
 import { getCustomerUnreadThreadCount } from "./offer-messages";
-import { emailCustomerAboutAgentMessage } from "./message-email";
 import { CLOSED_SEND_ERROR, threadIsOpen, validateMessageBody } from "./offer-messages-shared";
 
 export interface OfferMessageResult {
@@ -114,8 +113,9 @@ export async function getMyUnreadThreadCount(): Promise<number> {
 }
 
 /**
- * Agent posts to an offer's thread (reply or a new thread), then emails the
- * customer a content-free "you have a new message" link (message-email.ts). When sent from
+ * Agent posts to an offer's thread (reply or a new thread). No email goes out
+ * per reply any more (2026-09-27): unread threads are listed in the
+ * customer's daily update instead (notification-digest.ts). When sent from
  * the activity section, `seenActivityAt` is the customer_activity_at that item
  * was rendered with: replying then also marks it reviewed -- but only if the
  * customer hasn't changed anything since, the same stale-page guard as
@@ -151,10 +151,6 @@ export async function sendAgentMessage(
     .eq("id", offerId);
   if (stateError) console.error("sendAgentMessage: thread state update failed", stateError.message);
 
-  // One "you have a new message" email per thread until the customer opens
-  // it (2026-09-26). Never throws; the message above is already saved.
-  await emailCustomerAboutAgentMessage(admin, offerId);
-
   if (seenActivityAt) {
     await admin
       .from("qualifying_offers")
@@ -164,5 +160,111 @@ export async function sendAgentMessage(
   }
 
   revalidate();
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// General thread (2026-09-27): one per customer, not tied to any offer, and
+// always open. Messages are offer_messages rows with qualifying_offer_id
+// NULL; per-customer unread/review state lives on general_threads.
+// ---------------------------------------------------------------------------
+
+/** Customer posts to their general thread. Surfaces in the agent's activity
+ *  section via customer_activity_at; also marks the thread read for them. */
+export async function sendCustomerGeneralMessage(body: string): Promise<OfferMessageResult> {
+  const valid = validateMessageBody(body);
+  if (!valid.ok) return valid;
+
+  const userId = await currentCustomerId();
+  if (!userId) return { ok: false, error: "Not signed in." };
+
+  const admin = createAdminClient();
+  const { data: inserted, error } = await admin
+    .from("offer_messages")
+    .insert({ customer_id: userId, author_type: "customer", author_customer_id: userId, body: valid.text })
+    .select("created_at")
+    .single();
+  if (error || !inserted) return { ok: false, error: `Failed to send: ${error?.message ?? "unknown error"}` };
+
+  const at = inserted.created_at as string;
+  // Upsert merges only the columns given, so the agent-side columns survive.
+  const { error: stateError } = await admin
+    .from("general_threads")
+    .upsert(
+      { customer_id: userId, last_message_at: at, customer_activity_at: at, customer_messages_read_at: at },
+      { onConflict: "customer_id" },
+    );
+  if (stateError) console.error("sendCustomerGeneralMessage: thread state update failed", stateError.message);
+
+  revalidate();
+  return { ok: true };
+}
+
+/**
+ * Agent posts to a customer's general thread. Same stale-page guard as the
+ * offer version: `seenActivityAt` (from the activity section) also marks it
+ * reviewed, but only if the customer hasn't written since the page loaded.
+ */
+export async function sendAgentGeneralMessage(
+  customerId: string,
+  body: string,
+  seenActivityAt: string | null = null,
+): Promise<OfferMessageResult> {
+  const valid = validateMessageBody(body);
+  if (!valid.ok) return valid;
+
+  const agent = await getAuthorizedAgent();
+  if (!agent) return { ok: false, error: "Not authorized." };
+
+  const admin = createAdminClient();
+  const { data: customer } = await admin.from("customers").select("id").eq("id", customerId).maybeSingle();
+  if (!customer) return { ok: false, error: "That customer no longer exists." };
+
+  const { data: inserted, error } = await admin
+    .from("offer_messages")
+    .insert({ customer_id: customerId, author_type: "agent", author_agent_id: agent.id, body: valid.text })
+    .select("created_at")
+    .single();
+  if (error || !inserted) return { ok: false, error: `Failed to send: ${error?.message ?? "unknown error"}` };
+
+  const at = inserted.created_at as string;
+  const { error: stateError } = await admin
+    .from("general_threads")
+    .upsert({ customer_id: customerId, last_message_at: at, last_agent_message_at: at }, { onConflict: "customer_id" });
+  if (stateError) console.error("sendAgentGeneralMessage: thread state update failed", stateError.message);
+
+  if (seenActivityAt) {
+    await admin
+      .from("general_threads")
+      .update({ agent_reviewed_at: new Date().toISOString() })
+      .eq("customer_id", customerId)
+      .eq("customer_activity_at", seenActivityAt);
+  }
+
+  revalidate();
+  return { ok: true };
+}
+
+/** "Mark reviewed" on a general-thread item in the agent activity section. */
+export async function markGeneralActivityReviewed(
+  customerId: string,
+  seenActivityAt: string,
+): Promise<OfferMessageResult> {
+  const agent = await getAuthorizedAgent();
+  if (!agent) return { ok: false, error: "Not authorized." };
+
+  const admin = createAdminClient();
+  const { data: updated, error } = await admin
+    .from("general_threads")
+    .update({ agent_reviewed_at: new Date().toISOString() })
+    .eq("customer_id", customerId)
+    .eq("customer_activity_at", seenActivityAt)
+    .select("customer_id")
+    .maybeSingle();
+  if (error) return { ok: false, error: `Failed to mark reviewed: ${error.message}` };
+  if (!updated) {
+    return { ok: false, error: "The customer changed this since the page loaded — refresh to see the latest." };
+  }
+  revalidatePath("/internal/outreach");
   return { ok: true };
 }

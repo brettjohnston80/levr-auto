@@ -19,6 +19,10 @@ import { isBeyondPickupRange, travelToValue } from "@/lib/pickup-travel";
 import { mapAvailable } from "@/lib/map/config";
 import { MAP_COPY, pinStatus, type OfferMapData } from "@/lib/map/pins";
 import { OfferMapView } from "@/components/offer-map-view";
+import { GuaranteeTimeline } from "@/components/guarantee-timeline";
+import { deriveGuaranteeTimeline } from "@/lib/guarantee-timeline";
+import { deriveProgressNote } from "@/lib/progress-note";
+import { GENERAL_THREAD_COPY } from "@/lib/offer-messages-shared";
 
 export const metadata: Metadata = {
   title: "Your Deal — LEVR Auto",
@@ -145,6 +149,10 @@ export default async function DealPage({
     return { tone: timelineInfo.bannerTone, text: SEARCH_STATUS_COPY[timelineInfo.bannerTone] };
   })();
   const suppressStatusParagraph = timelineBanner !== null;
+  // A searching search gets an automatic progress note (2026-09-27) in place
+  // of the old fixed "Actively searching…" line; other statuses keep theirs.
+  const statusLine = deriveProgressNote(deal) ?? getStatusCopy(deal);
+  const guaranteeTimeline = deriveGuaranteeTimeline(deal);
   const bestOfferId = bestValueOfferId(deal.offers);
   // At most one offer per search can be customer_accepted (2026-09-24), so
   // while one is, every pending card offers only Decline.
@@ -220,6 +228,12 @@ export default async function DealPage({
           />
         )}
 
+        {deal.searchStatus !== "purchased" && !suppressStatusParagraph && (
+          <p className="mt-3 text-sm text-zinc-400">{statusLine}</p>
+        )}
+
+        {guaranteeTimeline && <GuaranteeTimeline info={guaranteeTimeline} />}
+
         {deal.searchStatus === "purchased" && deal.make && deal.model ? (
           <>
             <PurchasedCelebration make={deal.make} model={deal.model} trim={deal.trim} />
@@ -257,10 +271,6 @@ export default async function DealPage({
           </>
         ) : (
           <>
-            {!suppressStatusParagraph && (
-              <p className="mt-3 text-sm text-zinc-400">{getStatusCopy(deal)}</p>
-            )}
-
             <PickupRangeControl searchId={deal.searchId} value={travelToValue(deal.pickupTravel)} />
 
             <div className="mt-5">
@@ -306,6 +316,14 @@ export default async function DealPage({
                 )}
                 </div>
               </div>
+              {deal.offers.length === 0 && (
+                <Link
+                  href="/account/messages/general"
+                  className="mt-2 inline-block text-sm text-emerald-400 underline hover:text-emerald-300"
+                >
+                  {GENERAL_THREAD_COPY.dealLink}
+                </Link>
+              )}
               {mapData && <OfferMapView data={mapData} />}
               {deal.offers.length > 0 && (
                 // Kept mounted (hidden) in Map view so a pin's "View details"

@@ -14,6 +14,8 @@ import { listingPhotoUrls } from "./listing-photos";
 import { hasUnreadForCustomer, loadMessagesForOffers } from "./offer-messages";
 import { threadIsOpen, type OfferMessage } from "./offer-messages-shared";
 import { travelFromColumns, type HandoffMethod, type PickupTravel } from "./pickup-travel";
+import { evaluateOfferGuaranteeContribution } from "./guarantee";
+import { effectiveDeadline } from "./day60-extension";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -93,7 +95,8 @@ export interface DashboardOffer {
    *  can pre-fill the accept confirmation and flag out-of-range offers. */
   pickupTravel: PickupTravel | null;
   /** Customer's notify_by_email, so the send box shows the privacy line
-   *  that's true for them (agent replies email them only when it's on). */
+   *  that's true for them (agent replies reach them via the daily update
+   *  only when it's on). */
   customerEmailAlerts: boolean;
   /** Copied onto the offer at log time (pre-filled from a linked listing
    *  when one was chosen). Any of these can be null -- most offers today
@@ -604,6 +607,15 @@ export interface DealDetails {
   customerLocation: { lat: number; lng: number } | null;
   survey: { id: string; submittedAt: string | null } | null;
   offers: DashboardOffer[];
+  /** Guarantee timeline inputs (2026-09-27). guaranteeStatus is locked in by
+   *  the Day-30 job; guaranteeDeliveredAt is the earliest delivered_at among
+   *  offers that currently count (evaluateOfferGuaranteeContribution, the
+   *  same rule that job uses), or null. searchDeadline is effectiveDeadline()
+   *  as ISO, null until solidified. */
+  guaranteeStatus: string;
+  guaranteeResolvedAt: string | null;
+  guaranteeDeliveredAt: string | null;
+  searchDeadline: string | null;
 }
 
 /**
@@ -630,7 +642,7 @@ export async function getDealDetails(searchId: string, customerId: string): Prom
   const { data: search, error: searchError } = await supabase
     .from("customer_searches")
     .select(
-      "id, make, model, trim, zip, search_status, paid_at, solidified_at, paused_at, purchased_qualifying_offer_id, pickup_travel_choice, pickup_travel_miles"
+      "id, make, model, trim, zip, search_status, paid_at, solidified_at, paused_at, purchased_qualifying_offer_id, pickup_travel_choice, pickup_travel_miles, guarantee_status, guarantee_resolved_at, search_deadline_at"
     )
     .eq("id", searchId)
     .eq("customer_id", customerId)
@@ -680,6 +692,28 @@ export async function getDealDetails(searchId: string, customerId: string): Prom
     customerZipBySearchId: new Map([[searchId, (search.zip as string | null) ?? null]]),
   });
 
+  // After loadOffersBySearchId, which stamps delivered_at on first view.
+  // vehicle_sold_at is deliberately not on DashboardOffer, so it's read here.
+  const { data: guaranteeRows, error: guaranteeError } = await supabase
+    .from("qualifying_offers")
+    .select("is_below_msrp, delivered_at, customer_responded_at, vehicle_sold_at")
+    .eq("customer_search_id", searchId);
+  if (guaranteeError) {
+    throw new Error(`Failed to load offers for the guarantee: ${guaranteeError.message}`);
+  }
+  const countingDeliveries = (guaranteeRows ?? [])
+    .filter(
+      (o) =>
+        evaluateOfferGuaranteeContribution({
+          isBelowMsrp: o.is_below_msrp,
+          deliveredAt: o.delivered_at,
+          customerRespondedAt: o.customer_responded_at,
+          vehicleSoldAt: o.vehicle_sold_at,
+        }) === "counts",
+    )
+    .map((o) => o.delivered_at as string)
+    .sort();
+
   return {
     searchId: search.id,
     make: search.make,
@@ -694,6 +728,15 @@ export async function getDealDetails(searchId: string, customerId: string): Prom
     customerLocation,
     survey: surveyRow ? { id: surveyRow.id, submittedAt: surveyRow.submitted_at } : null,
     offers: offersBySearchId.get(searchId) ?? [],
+    guaranteeStatus: search.guarantee_status as string,
+    guaranteeResolvedAt: (search.guarantee_resolved_at as string | null) ?? null,
+    guaranteeDeliveredAt: countingDeliveries[0] ?? null,
+    searchDeadline: search.solidified_at
+      ? effectiveDeadline({
+          solidified_at: search.solidified_at as string,
+          search_deadline_at: (search.search_deadline_at as string | null) ?? null,
+        }).toISOString()
+      : null,
   };
 }
 

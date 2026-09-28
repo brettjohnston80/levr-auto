@@ -52,3 +52,11 @@ export function validateMessageBody(body: string): { ok: true; text: string } | 
 }
 
 export const CLOSED_SEND_ERROR = "This conversation is closed, so new messages can't be sent.";
+
+// General thread copy (approved 2026-09-27).
+export const GENERAL_THREAD_COPY = {
+  title: "Your LEVR agent",
+  listPreviewEmpty: "Questions about your search? Message your agent.",
+  emptyState: "No messages yet. Ask your agent anything about your search — they'll reply here.",
+  dealLink: "Message your agent",
+} as const;

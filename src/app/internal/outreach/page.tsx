@@ -3,6 +3,7 @@ import { requireAgent } from "@/lib/agent-auth";
 import {
   getOutreachQueue,
   getCustomerOfferActivityQueue,
+  getGeneralThreadActivityQueue,
   getFinalizationQueue,
   getSwitchCallQueue,
   getOverdueFollowUpQueue,
@@ -362,6 +363,7 @@ export default async function OutreachQueuePage() {
     notificationCallbackQueue,
     inventoryBlockedQueue,
     offerActivityQueue,
+    generalActivityQueue,
   ] = await Promise.all([
     getOutreachQueue(),
     getFinalizationQueue(),
@@ -373,7 +375,9 @@ export default async function OutreachQueuePage() {
     getNotificationCallbackQueue(),
     getInventoryBlockedQueue(),
     getCustomerOfferActivityQueue(),
+    getGeneralThreadActivityQueue(),
   ]);
+  const activityCount = offerActivityQueue.length + generalActivityQueue.length;
 
   const callbackRequests = notificationCallbackQueue.filter((e) => e.reason === "callback_requested");
   const undeliverableFlags = notificationCallbackQueue.filter((e) => e.reason === "no_deliverable_channel");
@@ -423,17 +427,67 @@ export default async function OutreachQueuePage() {
             card anywhere else on this page, so this is the only place to
             reply to their threads). Stays until "Mark reviewed". */}
         <div className="mt-10">
-          <h2 className="text-lg font-semibold text-white">
-            Customer activity on offers ({offerActivityQueue.length})
-          </h2>
+          <h2 className="text-lg font-semibold text-white">Customer activity ({activityCount})</h2>
           <p className="mt-1 text-sm text-zinc-400">
-            Highlights, messages, pickup/delivery choices and declines from customers, newest first. Each stays here until you mark it
-            reviewed, and comes back if the customer changes it again.
+            General messages, then highlights, offer messages, pickup/delivery choices and declines, newest first. Each stays
+            here until you mark it reviewed, and comes back if the customer changes it again.
           </p>
-          {offerActivityQueue.length === 0 ? (
+          {activityCount === 0 ? (
             <p className="mt-3 text-sm text-zinc-400">No unreviewed customer activity.</p>
           ) : (
             <ul className="mt-4 space-y-3">
+              {/* General-thread messages (2026-09-27): not about any offer. */}
+              {generalActivityQueue.map((item) => (
+                <li key={`general-${item.customerId}`} className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.03] p-4">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="text-sm font-semibold text-white">
+                      {item.customerName ?? item.customerEmail ?? "unknown customer"}
+                      <TestBadge isTest={item.isTest} />
+                      <span className="ml-2 rounded-full border border-white/15 px-2 py-0.5 text-xs font-normal text-zinc-400">
+                        general message
+                      </span>
+                    </span>
+                    <span className="text-xs text-zinc-500">{formatDate(item.customerActivityAt)}</span>
+                  </div>
+                  {item.newCustomerMessages.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-xs font-semibold text-zinc-400">
+                        New message{item.newCustomerMessages.length === 1 ? "" : "s"} from the customer:
+                      </p>
+                      <div className="mt-1">
+                        <OfferMessageList messages={item.newCustomerMessages} viewer="agent" />
+                      </div>
+                    </div>
+                  )}
+                  <div className="mt-3 max-w-xl">
+                    <OfferMessageComposer
+                      offerId={null}
+                      customerId={item.customerId}
+                      sender="agent"
+                      seenActivityAt={item.customerActivityAt}
+                    />
+                    <p className="mt-1 text-xs text-zinc-500">Replying also marks this reviewed.</p>
+                  </div>
+                  {item.messages.length > item.newCustomerMessages.length && (
+                    <details className="mt-2 text-sm">
+                      <summary className="cursor-pointer text-xs text-zinc-400 hover:text-white">
+                        Full thread ({item.messages.length})
+                      </summary>
+                      <div className="mt-2 max-w-xl">
+                        <OfferMessageList messages={item.messages} viewer="agent" />
+                      </div>
+                    </details>
+                  )}
+                  <div className="mt-2 flex items-center gap-3 text-xs">
+                    {item.searchingSearchId && (
+                      <a href={`#search-${item.searchingSearchId}`} className="text-emerald-400 underline hover:text-emerald-300">
+                        Go to this customer&apos;s search
+                      </a>
+                    )}
+                    <MarkOfferActivityReviewedButton customerId={item.customerId} seenActivityAt={item.customerActivityAt} />
+                  </div>
+                </li>
+              ))}
               {offerActivityQueue.map((item) => (
                 <li key={item.offerId} className="rounded-2xl border border-amber-500/20 bg-amber-500/[0.03] p-4">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -809,6 +863,8 @@ export default async function OutreachQueuePage() {
                     </h2>
                     <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}<TestBadge isTest={search.isTest} /></span>
                   </div>
+                  {/* General thread (2026-09-27): always open, not tied to an offer. */}
+                  <AgentOfferThread offerId={null} customerId={search.customerId} messages={search.generalMessages} open />
                   {search.colors.length > 0 && (
                     <p className="mt-1 text-sm text-zinc-500">Colors: {search.colors.join(", ")}</p>
                   )}

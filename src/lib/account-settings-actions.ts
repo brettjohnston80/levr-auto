@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { CommunicationFrequency } from "./communication-preferences";
 
 export interface UpdateAccountSettingsResult {
   ok: boolean;
@@ -33,7 +32,6 @@ export async function updateAccountSettings(formData: FormData): Promise<UpdateA
   const notifyByEmail = formData.get("notify_by_email") === "on";
   const notifyByText = formData.get("notify_by_text") === "on";
   const notifyByAgentCallback = formData.get("notify_by_agent_callback") === "on";
-  const frequency = formData.get("communication_frequency") as CommunicationFrequency;
 
   if (!firstName || !lastName) {
     return { ok: false, error: "First and last name are both required." };
@@ -70,7 +68,6 @@ export async function updateAccountSettings(formData: FormData): Promise<UpdateA
       notify_by_email: notifyByEmail,
       notify_by_text: notifyByText,
       notify_by_agent_callback: notifyByAgentCallback,
-      communication_frequency: frequency,
     })
     .eq("id", user.id);
 

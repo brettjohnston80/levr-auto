@@ -2,15 +2,19 @@
 
 import { useState } from "react";
 import { markOfferActivityReviewed } from "@/lib/outreach-actions";
+import { markGeneralActivityReviewed } from "@/lib/offer-message-actions";
 
 // Same shape as ResolveNotificationCallbackButton. seenActivityAt is echoed
 // back so a customer change made after this page loaded can't be marked
-// reviewed without the agent seeing it.
+// reviewed without the agent seeing it. Pass `customerId` instead of
+// `offerId` for a general-thread item (2026-09-27).
 export function MarkOfferActivityReviewedButton({
   offerId,
+  customerId,
   seenActivityAt,
 }: {
-  offerId: string;
+  offerId?: string;
+  customerId?: string;
   seenActivityAt: string;
 }) {
   const [submitting, setSubmitting] = useState(false);
@@ -20,7 +24,9 @@ export function MarkOfferActivityReviewedButton({
     setSubmitting(true);
     setError(null);
 
-    const res = await markOfferActivityReviewed(offerId, seenActivityAt);
+    const res = offerId
+      ? await markOfferActivityReviewed(offerId, seenActivityAt)
+      : await markGeneralActivityReviewed(customerId ?? "", seenActivityAt);
     if (!res.ok) {
       setError(res.error ?? "Something went wrong.");
       setSubmitting(false);

@@ -13,3 +13,8 @@ export function formatDate(iso: string): string {
     minute: "2-digit",
   });
 }
+
+/** "October 4, 2026" -- the same long form the Day-60 emails use. */
+export function formatLongDate(iso: string | Date): string {
+  return new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+}

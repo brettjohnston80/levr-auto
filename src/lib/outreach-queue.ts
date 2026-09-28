@@ -9,7 +9,7 @@ import {
 } from "./inventory-block";
 import { RESUME_WINDOW_DAYS } from "./vehicle-data";
 import { isTestEmail } from "./test-accounts";
-import { loadMessagesForOffers } from "./offer-messages";
+import { loadGeneralMessages, loadMessagesForOffers } from "./offer-messages";
 import { threadIsOpen, type OfferMessage } from "./offer-messages-shared";
 import { haversineMiles } from "./geo";
 import {
@@ -334,6 +334,9 @@ export interface OutreachSearch {
    * elsewhere.
    */
   combinationPreferences: OutreachCombinationPreference[];
+  /** The customer's general thread (2026-09-27), oldest first. */
+  customerId: string;
+  generalMessages: OfferMessage[];
 }
 
 /**
@@ -611,11 +614,14 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
   const listingsByMakeModel = new Map(
     listingsByPair.map(({ make, model, listings }) => [`${make}::${model}`, listings])
   );
-  const messagesByOfferId = await loadMessagesForOffers(
-    supabase,
-    (offers ?? []).map((o) => o.id as string),
-    "agent",
-  );
+  const [messagesByOfferId, generalByCustomerId] = await Promise.all([
+    loadMessagesForOffers(
+      supabase,
+      (offers ?? []).map((o) => o.id as string),
+      "agent",
+    ),
+    loadGeneralMessages(supabase, customerIds, "agent"),
+  ]);
 
   // Pickup range + distances (2026-09-26): ZIP-centroid miles from each
   // search's zip to every offer's and matching dealer's zip.
@@ -711,6 +717,8 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
       zip: search.zip,
       customerEmail: customerEmailById.get(search.customer_id) ?? null,
       isTest: isTestEmail(customerEmailById.get(search.customer_id) ?? null),
+      customerId: search.customer_id,
+      generalMessages: generalByCustomerId.get(search.customer_id) ?? [],
       pickupTravel: travel,
       dealers,
       listings: rawListings.map((l) => ({
@@ -1411,6 +1419,79 @@ export async function getCustomerOfferActivityQueue(): Promise<CustomerOfferActi
           };
         })(),
         customerActivityAt: o.customer_activity_at,
+      };
+    })
+    .sort((a, b) => new Date(b.customerActivityAt).getTime() - new Date(a.customerActivityAt).getTime());
+}
+
+export interface GeneralThreadActivityItem {
+  customerId: string;
+  customerEmail: string | null;
+  customerName: string | null;
+  isTest: boolean;
+  /** Customer messages newer than agent_reviewed_at, oldest first. */
+  newCustomerMessages: OfferMessage[];
+  messages: OfferMessage[];
+  /** A searching search to jump to, if the customer has one. */
+  searchingSearchId: string | null;
+  /** Echoed back by "Mark reviewed" / reply (stale-page guard). */
+  customerActivityAt: string;
+}
+
+/**
+ * General-thread items for the agent activity section (2026-09-27): every
+ * customer whose general thread has customer activity newer than
+ * agent_reviewed_at. Same unreviewed rule and pagination as
+ * getCustomerOfferActivityQueue. Not scoped by search status -- the thread
+ * isn't tied to a search, so it can't age out with one.
+ */
+export async function getGeneralThreadActivityQueue(): Promise<GeneralThreadActivityItem[]> {
+  const supabase = createAdminClient();
+  const PAGE = 1000;
+  const rows: { customer_id: string; customer_activity_at: string; agent_reviewed_at: string | null }[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from("general_threads")
+      .select("customer_id, customer_activity_at, agent_reviewed_at")
+      .not("customer_activity_at", "is", null)
+      .order("customer_id")
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(`Failed to load general-thread activity: ${error.message}`);
+    rows.push(...((data ?? []) as typeof rows));
+    if (!data || data.length < PAGE) break;
+  }
+
+  const unreviewed = rows.filter(
+    (r) => !r.agent_reviewed_at || new Date(r.customer_activity_at) > new Date(r.agent_reviewed_at),
+  );
+  if (unreviewed.length === 0) return [];
+
+  const customerIds = unreviewed.map((r) => r.customer_id);
+  const [{ data: customers }, { data: searching }, messagesByCustomer] = await Promise.all([
+    supabase.from("customers").select("id, email, first_name, last_name").in("id", customerIds),
+    supabase.from("customer_searches").select("id, customer_id").in("customer_id", customerIds).eq("search_status", "searching"),
+    loadGeneralMessages(supabase, customerIds, "agent"),
+  ]);
+  const customerById = new Map((customers ?? []).map((c) => [c.id as string, c]));
+  const searchingByCustomer = new Map((searching ?? []).map((s) => [s.customer_id as string, s.id as string]));
+
+  return unreviewed
+    .map((r) => {
+      const customer = customerById.get(r.customer_id);
+      const email = (customer?.email as string | undefined) ?? null;
+      const messages = messagesByCustomer.get(r.customer_id) ?? [];
+      return {
+        customerId: r.customer_id,
+        customerEmail: email,
+        customerName: [customer?.first_name, customer?.last_name].filter(Boolean).join(" ") || null,
+        isTest: isTestEmail(email),
+        newCustomerMessages: messages.filter(
+          (m) =>
+            m.authorType === "customer" && (!r.agent_reviewed_at || new Date(m.createdAt) > new Date(r.agent_reviewed_at)),
+        ),
+        messages,
+        searchingSearchId: searchingByCustomer.get(r.customer_id) ?? null,
+        customerActivityAt: r.customer_activity_at,
       };
     })
     .sort((a, b) => new Date(b.customerActivityAt).getTime() - new Date(a.customerActivityAt).getTime());

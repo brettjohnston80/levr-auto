@@ -151,7 +151,7 @@ export default async function AccountPage({
   const { data: customer } = await supabase
     .from("customers")
     .select(
-      "id, email, first_name, last_name, phone, notify_by_email, notify_by_text, notify_by_agent_callback, communication_frequency"
+      "id, email, first_name, last_name, phone, notify_by_email, notify_by_text, notify_by_agent_callback"
     )
     .eq("id", user.id)
     .single();
@@ -203,7 +203,6 @@ export default async function AccountPage({
             notifyByEmail: customer?.notify_by_email ?? true,
             notifyByText: customer?.notify_by_text ?? false,
             notifyByAgentCallback: customer?.notify_by_agent_callback ?? false,
-            communicationFrequency: customer?.communication_frequency ?? "real_time",
           }}
         />
 

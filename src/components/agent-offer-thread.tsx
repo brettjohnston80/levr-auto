@@ -9,13 +9,17 @@ import type { OfferMessage } from "@/lib/offer-messages-shared";
  * Agent view of one offer's customer thread, collapsed to a "Messages (N)"
  * toggle (or "Message customer" when empty) so a search card with several
  * offers stays scannable. Frozen threads stay readable with no send box.
+ * With `offerId` null it's the customer's general thread (2026-09-27), which
+ * is always open and labelled "General messages".
  */
 export function AgentOfferThread({
   offerId,
+  customerId = null,
   messages,
   open,
 }: {
-  offerId: string;
+  offerId: string | null;
+  customerId?: string | null;
   messages: OfferMessage[];
   open: boolean;
 }) {
@@ -30,13 +34,17 @@ export function AgentOfferThread({
         aria-expanded={expanded}
         className="text-xs text-emerald-400 underline hover:text-emerald-300"
       >
-        {messages.length > 0 ? `Messages (${messages.length})` : "Message customer"}
+        {offerId === null
+          ? `General messages (${messages.length})`
+          : messages.length > 0
+            ? `Messages (${messages.length})`
+            : "Message customer"}
       </button>
       {expanded && (
         <div className="mt-2 max-w-xl space-y-3 rounded-xl border border-white/10 bg-black/20 p-3">
           {messages.length > 0 && <OfferMessageList messages={messages} viewer="agent" />}
           {open ? (
-            <OfferMessageComposer offerId={offerId} sender="agent" />
+            <OfferMessageComposer offerId={offerId} customerId={customerId} sender="agent" />
           ) : (
             <p className="text-xs text-zinc-500">Thread closed (offer released or search ended) — read only.</p>
           )}

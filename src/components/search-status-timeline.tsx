@@ -6,13 +6,29 @@ import type { SearchTimelineBannerTone, SearchTimelineStage } from "@/lib/search
 // case before trusting it here: 3 stages, current index 1 ("Day 30") ->
 // dotInset 16.67%, trackSpan 66.66%, fillWidth 66.66% * (1/2) = 33.33%,
 // matching guarantee.tsx's hardcoded "width: 33.33%" exactly.
-function timelineGeometry(stageCount: number, currentStageIndex: number) {
+function timelineGeometry(stageCount: number, currentStageIndex: number, fillFraction?: number) {
   const dotInsetPercent = 100 / (stageCount * 2);
   const trackSpanPercent = 100 - dotInsetPercent * 2;
   const segments = stageCount - 1;
-  const fillWidthPercent = segments > 0 ? trackSpanPercent * (currentStageIndex / segments) : 0;
+  const fraction = fillFraction ?? (segments > 0 ? currentStageIndex / segments : 0);
+  const fillWidthPercent = trackSpanPercent * fraction;
   return { dotInsetPercent, fillWidthPercent };
 }
+
+/** Per-marker override (guarantee timeline, 2026-09-27): "muted" is the
+ *  neutral colour a refunded Day 30 gets. */
+export type TimelineMarkerState = "reached" | "muted" | "upcoming";
+
+const MARKER_DOT: Record<TimelineMarkerState, string> = {
+  reached: "bg-emerald-500",
+  muted: "bg-zinc-400",
+  upcoming: "bg-white/15",
+};
+const MARKER_LABEL: Record<TimelineMarkerState, string> = {
+  reached: "text-zinc-200",
+  muted: "text-zinc-400",
+  upcoming: "text-zinc-500",
+};
 
 // Paused reuses the same amber treatment already established for the
 // reminder/extend banners elsewhere on this page (account/page.tsx). No
@@ -29,12 +45,19 @@ export function SearchStatusTimeline({
   stages,
   currentStageIndex,
   banner,
+  fillFraction,
+  stageStates,
 }: {
-  stages: SearchTimelineStage[];
+  stages: { key: string; label: string }[] | SearchTimelineStage[];
   currentStageIndex: number;
   banner: { tone: SearchTimelineBannerTone; text: string } | null;
+  /** 0..1 along the track; overrides the fill derived from currentStageIndex
+   *  (the guarantee timeline fills continuously up to today). */
+  fillFraction?: number;
+  /** Overrides each marker's reached/upcoming state from currentStageIndex. */
+  stageStates?: TimelineMarkerState[];
 }) {
-  const { dotInsetPercent, fillWidthPercent } = timelineGeometry(stages.length, currentStageIndex);
+  const { dotInsetPercent, fillWidthPercent } = timelineGeometry(stages.length, currentStageIndex, fillFraction);
 
   return (
     <div className="mt-5">
@@ -52,17 +75,11 @@ export function SearchStatusTimeline({
           style={{ gridTemplateColumns: `repeat(${stages.length}, minmax(0, 1fr))` }}
         >
           {stages.map((stage, i) => {
-            const reached = i <= currentStageIndex;
+            const state: TimelineMarkerState = stageStates?.[i] ?? (i <= currentStageIndex ? "reached" : "upcoming");
             return (
               <div key={stage.key} className="flex flex-col items-center">
-                <span
-                  className={`h-3.5 w-3.5 rounded-full ${reached ? "bg-emerald-500" : "bg-white/15"}`}
-                />
-                <span
-                  className={`mt-2 text-center text-[11px] leading-tight font-medium ${
-                    reached ? "text-zinc-200" : "text-zinc-500"
-                  }`}
-                >
+                <span className={`h-3.5 w-3.5 rounded-full ${MARKER_DOT[state]}`} />
+                <span className={`mt-2 text-center text-[11px] leading-tight font-medium ${MARKER_LABEL[state]}`}>
                   {stage.label}
                 </span>
               </div>

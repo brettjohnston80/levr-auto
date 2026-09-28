@@ -2,7 +2,6 @@
 
 import { useState, type FormEvent } from "react";
 import { updateAccountSettings } from "@/lib/account-settings-actions";
-import type { CommunicationFrequency } from "@/lib/communication-preferences";
 
 export interface AccountSettingsExisting {
   firstName: string | null;
@@ -11,20 +10,14 @@ export interface AccountSettingsExisting {
   notifyByEmail: boolean;
   notifyByText: boolean;
   notifyByAgentCallback: boolean;
-  communicationFrequency: CommunicationFrequency;
 }
 
-/**
- * The three real values of customers.communication_frequency. 'both' means
- * the per-event email AND the daily rollup -- notifications.ts and
- * notification-digest.ts each have to recognise it, or selecting it would
- * silently mean "no notifications at all".
- */
-const FREQUENCY_OPTIONS: { value: CommunicationFrequency; label: string }[] = [
-  { value: "real_time", label: "Real-time updates" },
-  { value: "daily_digest", label: "Daily digest" },
-  { value: "both", label: "Both" },
-];
+// The frequency chooser (real-time / daily digest / both) was removed
+// 2026-09-27: important updates always go out right away and everything else
+// in one daily update (notifications.ts, notification-digest.ts).
+// communication_frequency is no longer written here and is dropped later.
+const NOTIFICATION_RHYTHM_HELPER =
+  "We send important updates right away, and everything else in one daily update.";
 
 const CHANNEL_FLOOR_HINT =
   "Add another way to reach you before turning this one off — we need at least one.";
@@ -45,7 +38,6 @@ export function AccountSettingsForm({ existing }: { existing: AccountSettingsExi
   // real customer runs text-only today.
   const channelsOn = [notifyByEmail, notifyByText, notifyByAgentCallback].filter(Boolean).length;
   const locks = (on: boolean) => on && channelsOn === 1;
-  const [frequency, setFrequency] = useState<CommunicationFrequency>(existing.communicationFrequency);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -63,10 +55,6 @@ export function AccountSettingsForm({ existing }: { existing: AccountSettingsExi
     formData.set("notify_by_email", notifyByEmail ? "on" : "off");
     formData.set("notify_by_text", notifyByText ? "on" : "off");
     formData.set("notify_by_agent_callback", notifyByAgentCallback ? "on" : "off");
-    // frequency is a button-toggle pair, not a native form control, so it
-    // never lands in FormData on its own -- set it explicitly, same as the
-    // checkboxes above.
-    formData.set("communication_frequency", frequency);
 
     const res = await updateAccountSettings(formData);
     setSubmitting(false);
@@ -184,33 +172,7 @@ export function AccountSettingsForm({ existing }: { existing: AccountSettingsExi
         {channelsOn === 1 && (
           <p className="mt-2 text-xs text-zinc-500">{CHANNEL_FLOOR_HINT}</p>
         )}
-      </div>
-
-      <div className="mt-4">
-        <p className="text-xs text-zinc-400">How often?</p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {/* Driven off a list rather than three hand-written buttons, so
-              the set of options and the stored values cannot drift apart --
-              the previous pair repeated the same markup twice with the
-              value inlined in each copy. 'both' requires migration
-              20260913120000; without it the DB check constraint rejects
-              the write. */}
-          {FREQUENCY_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => setFrequency(option.value)}
-              aria-pressed={frequency === option.value}
-              className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-                frequency === option.value
-                  ? "bg-emerald-500 text-zinc-950"
-                  : "border border-white/10 text-zinc-400"
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
+        <p className="mt-2 text-xs text-zinc-500">{NOTIFICATION_RHYTHM_HELPER}</p>
       </div>
 
       <div className="mt-4 flex items-center gap-3">

@@ -2,32 +2,41 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { sendAgentMessage, sendCustomerMessage } from "@/lib/offer-message-actions";
+import {
+  sendAgentGeneralMessage,
+  sendAgentMessage,
+  sendCustomerGeneralMessage,
+  sendCustomerMessage,
+} from "@/lib/offer-message-actions";
 import { MESSAGE_MAX_LENGTH } from "@/lib/offer-messages-shared";
 
 // Approved copy (2026-09-25; privacy line revised by Brett).
 const CUSTOMER_PLACEHOLDER = "e.g. Would they do $31,000? Is the sunroof included?";
-// Revised 2026-09-26 when agent replies started emailing the customer: the
-// default line says so; customers with email notifications off get the
-// variant, so the line stays true for everyone.
+// Revised 2026-09-27 (approved): agent replies no longer email per reply;
+// they're listed in the daily update. Customers with email notifications off
+// get the variant, so the line stays true for everyone.
 const CUSTOMER_PRIVACY_LINE =
-  "Only you and the LEVR team can see these messages. When your agent replies, we'll email you a link — the message itself stays here.";
+  "Only you and the LEVR team can see these messages. New replies from your agent are included in your daily update email.";
 const CUSTOMER_PRIVACY_LINE_EMAIL_OFF =
   "Only you and the LEVR team can see these messages. Email notifications are off in your account settings, so check back here or in Messages for replies.";
 
 /**
- * Send box for an offer thread. The server action is authoritative about
- * whether the thread is open; callers only render this for an open thread.
- * Agent sends from the activity section pass `seenActivityAt`, so the reply
- * also marks that item reviewed (stale-page guarded server-side).
+ * Send box for an offer thread, or for the general thread when `offerId` is
+ * null (2026-09-27; an agent then also passes `customerId`). The server
+ * action is authoritative about whether the thread is open; callers only
+ * render this for an open thread. Agent sends from the activity section pass
+ * `seenActivityAt`, so the reply also marks that item reviewed (stale-page
+ * guarded server-side).
  */
 export function OfferMessageComposer({
   offerId,
+  customerId = null,
   sender,
   seenActivityAt = null,
   emailAlerts = true,
 }: {
-  offerId: string;
+  offerId: string | null;
+  customerId?: string | null;
   sender: "customer" | "agent";
   seenActivityAt?: string | null;
   /** Customer's notify_by_email -- picks which privacy line is true for them. */
@@ -43,8 +52,14 @@ export function OfferMessageComposer({
     setError(null);
     const res =
       sender === "customer"
-        ? await sendCustomerMessage(offerId, draft)
-        : await sendAgentMessage(offerId, draft, seenActivityAt);
+        ? offerId
+          ? await sendCustomerMessage(offerId, draft)
+          : await sendCustomerGeneralMessage(draft)
+        : offerId
+          ? await sendAgentMessage(offerId, draft, seenActivityAt)
+          : customerId
+            ? await sendAgentGeneralMessage(customerId, draft, seenActivityAt)
+            : { ok: false, error: "No customer for this thread." };
     setSending(false);
     if (!res.ok) {
       setError(res.error ?? "Something went wrong.");
@@ -61,7 +76,9 @@ export function OfferMessageComposer({
         onChange={(e) => setDraft(e.target.value)}
         maxLength={MESSAGE_MAX_LENGTH}
         rows={3}
-        placeholder={sender === "customer" ? CUSTOMER_PLACEHOLDER : "Reply to the customer…"}
+        // The customer placeholder is offer-specific, so the general thread
+        // has none.
+        placeholder={sender === "customer" ? (offerId ? CUSTOMER_PLACEHOLDER : undefined) : "Reply to the customer…"}
         aria-label={sender === "customer" ? "Message your agent" : "Message the customer"}
         className="w-full rounded-lg border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
       />

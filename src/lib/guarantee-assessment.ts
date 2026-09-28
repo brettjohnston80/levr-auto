@@ -1,6 +1,8 @@
 import "server-only";
 import { createAdminClient } from "./supabase/admin";
 import { evaluateOfferGuaranteeContribution } from "./guarantee";
+import { effectiveDeadline } from "./day60-extension";
+import { logNotificationEvent } from "./notifications";
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -102,14 +104,30 @@ export async function assessSearch(searchId: string): Promise<AssessmentOutcome 
     // Re-checked at write time: a cancellation that lands between the
     // due-search read and this write must still win.
     .neq("search_status", "cancelled")
-    .select("id")
+    .select("id, solidified_at, search_deadline_at")
     .maybeSingle();
 
   if (updateError) {
     throw new Error(`Failed to set guarantee_status for search ${searchId}: ${updateError.message}`);
   }
+  if (!updated) return null;
 
-  return updated ? outcome : null;
+  // Highlight (2026-09-27), sent only by the run that actually resolved the
+  // row. The date is the search deadline, which the met/refunded emails
+  // both promise to keep searching through. Never throws.
+  await logNotificationEvent({
+    customerSearchId: searchId,
+    eventType: "guarantee_resolved",
+    eventData: {
+      outcome,
+      searchContinuesThrough: effectiveDeadline({
+        solidified_at: updated.solidified_at as string,
+        search_deadline_at: (updated.search_deadline_at as string | null) ?? null,
+      }).toISOString(),
+    },
+  });
+
+  return outcome;
 }
 
 export interface Day30AssessmentSummary {

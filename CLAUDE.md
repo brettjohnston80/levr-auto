@@ -47,6 +47,11 @@ This file exists so any Claude Code session (yours, your collaborator's, or a fu
 
 A snapshot of work that is mid-flight right now. Verify against `git log`/`git status` before acting on it, and rewrite this section once these items are resolved. **Nothing gets pushed without Brett's sign-off.**
 
+**⚠ UNPUSHED, awaiting Brett's sign-off (2026-09-27):** `1bf7615` (admin Pause/Resume removed) and the guarantee timeline / progress notes / general thread / highlights / daily update commit on top of it. Plan: `docs/plans/guarantee-progress-notifications-plan.md`. Migration `20260928120000_general_thread_and_daily_update.sql` has already been run and confirmed from the app side, and it must stay ahead of this deploy.
+- Verified on disposable accounts (cleaned up, confirmed by count). Screenshots are in `~/Downloads/levr-guarantee-messaging-verification-2026-09-27/`.
+- Post-deploy cleanup, not yet written: drop `qualifying_offers.message_email_sent_at` and `customers.communication_frequency` (neither is read or written any more).
+- `sendNotificationDigests({ onlyCustomerIds })` exists for scoped verification. Never run the unscoped function against production data by hand, because it emails real customers.
+
 **Everything is pushed and live.** `origin/main` is at `72e08e2`. The feature work deployed at `3e59c50` (2026-09-26); Vercel built it successfully and it's aliased to www.levrauto.com. That work was:
 - `ca0c3d0` offer message threads
 - `e1596c6` pickup range, per-offer pickup/delivery, out-of-range flag and offer sorting

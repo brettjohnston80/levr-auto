@@ -432,7 +432,7 @@ export async function withdrawAcceptedOffer(offerId: string, reason: string): Pr
 
   const { data: offer, error: offerError } = await admin
     .from("qualifying_offers")
-    .select("id, customer_search_id, status")
+    .select("id, customer_search_id, status, dealer_name")
     .eq("id", offerId)
     .maybeSingle();
 
@@ -478,6 +478,14 @@ export async function withdrawAcceptedOffer(offerId: string, reason: string): Pr
   if (!updated) {
     return { ok: false, error: "This offer is no longer accepted." };
   }
+
+  // Highlight (2026-09-27): before this the customer was told nothing when
+  // their accepted offer was released. The agent's reason stays agent-only.
+  await logNotificationEvent({
+    customerSearchId: offer.customer_search_id as string,
+    eventType: "offer_withdrawn",
+    eventData: { dealerName: (offer.dealer_name as string | null) ?? "the dealership" },
+  });
 
   revalidatePath("/internal/outreach");
   revalidatePath("/account");
