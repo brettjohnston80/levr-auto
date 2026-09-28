@@ -19,10 +19,18 @@ const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
  * appears here once, and if a run is missed it's simply caught by the next
  * one instead of being lost.
  *
- * No search_status filter — a row that was later switched to a different
- * make/model already solidified and collected its fee, and still owes its
- * own Day-30 resolution based on whatever offers arrived on it before the
- * switch.
+ * One search_status exclusion: cancelled (2026-09-27, Brett). Cancellation
+ * is final and self-service cancellation is no-refund by policy, so a
+ * cancelled search must never be resolved to 'refunded' -- that would put it
+ * on /internal/refunds-due, where an agent could refund money the policy says
+ * not to. Agent-mediated refunds on cancellation already happen at
+ * cancellation time (resolveCancellation). A cancelled search simply stays
+ * guarantee_status = 'pending'.
+ *
+ * Every other status is still assessed: a row that was later switched to a
+ * different make/model already solidified and collected its fee, and still
+ * owes its own Day-30 resolution based on whatever offers arrived on it
+ * before the switch.
  */
 export async function getDueSearches(): Promise<{ id: string }[]> {
   const admin = createAdminClient();
@@ -32,6 +40,7 @@ export async function getDueSearches(): Promise<{ id: string }[]> {
     .from("customer_searches")
     .select("id")
     .eq("guarantee_status", "pending")
+    .neq("search_status", "cancelled")
     .not("solidified_at", "is", null)
     .lte("solidified_at", cutoff);
 
@@ -90,6 +99,9 @@ export async function assessSearch(searchId: string): Promise<AssessmentOutcome 
     .update({ guarantee_status: outcome, guarantee_resolved_at: new Date().toISOString() })
     .eq("id", searchId)
     .eq("guarantee_status", "pending")
+    // Re-checked at write time: a cancellation that lands between the
+    // due-search read and this write must still win.
+    .neq("search_status", "cancelled")
     .select("id")
     .maybeSingle();
 
