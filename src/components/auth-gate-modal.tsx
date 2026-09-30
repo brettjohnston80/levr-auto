@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { loginInline, signupInline } from "@/lib/auth-actions";
 
 type Mode = "login" | "signup";
@@ -22,6 +23,62 @@ export function AuthGateModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [signupComplete, setSignupComplete] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
+  // The caller passes a fresh onClose each render; reading it through a ref
+  // keeps the effect below from re-running (and re-grabbing focus) then.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  // While open (2026-09-30): lock page scroll, Escape closes, Tab stays
+  // inside the dialog, the email field gets focus, and focus returns to
+  // whatever opened it (intake's Continue button) on close. Hooks run
+  // before the early return below so their order never changes.
+  useEffect(() => {
+    if (!open) return;
+    const opener = document.activeElement as HTMLElement | null;
+    emailRef.current?.focus();
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        onCloseRef.current();
+        return;
+      }
+      if (e.key !== "Tab" || !dialogRef.current) return;
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
+        )
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    // Both elements: this page scrolls on <html>, and hiding overflow on
+    // <body> alone was measured NOT to stop mouse-wheel scrolling behind the
+    // dialog (2026-09-30).
+    const html = document.documentElement;
+    const previous = { html: html.style.overflow, body: document.body.style.overflow };
+    html.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      html.style.overflow = previous.html;
+      document.body.style.overflow = previous.body;
+      opener?.focus?.();
+    };
+  }, [open]);
 
   if (!open) return null;
 
@@ -61,9 +118,23 @@ export function AuthGateModal({
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/70 px-6 py-12 backdrop-blur-sm">
-      <div className="relative w-full max-w-sm rounded-3xl border border-white/10 bg-zinc-950 p-6 shadow-2xl shadow-black/60 sm:p-8">
+  // Portaled to <body>: rendered inside the page, `position: fixed` was
+  // positioned against drive-transition-provider's will-change-transform
+  // wrapper (the whole page) instead of the screen, so the dialog landed
+  // mid-page. Same fix as mobile-nav-menu.tsx and vehicle-detail-modal.tsx.
+  // The backdrop scrolls and an inner min-h-full layer centres, so a dialog
+  // taller than the screen (a phone with the keyboard up) keeps its top
+  // reachable -- centring and scrolling on one element pushes it off-screen.
+  return createPortal(
+    <div className="fixed inset-0 z-[100] overflow-y-auto overscroll-contain bg-black/70 backdrop-blur-sm">
+      <div className="flex min-h-full items-center justify-center px-6 py-12">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="auth-gate-title"
+        className="relative w-full max-w-sm rounded-3xl border border-white/10 bg-zinc-950 p-6 shadow-2xl shadow-black/60 sm:p-8"
+      >
         <button
           type="button"
           onClick={onClose}
@@ -85,7 +156,7 @@ export function AuthGateModal({
             <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500 text-2xl font-bold text-zinc-950">
               ✓
             </span>
-            <h2 className="mt-6 text-xl font-semibold text-white">Check your email</h2>
+            <h2 id="auth-gate-title" className="mt-6 text-xl font-semibold text-white">Check your email</h2>
             <p className="mt-3 text-sm leading-relaxed text-zinc-400">
               We sent a confirmation link to <span className="text-zinc-200">{email}</span>. Your
               search is saved — confirm your account and come back to this page to finish.
@@ -100,7 +171,7 @@ export function AuthGateModal({
           </div>
         ) : (
           <>
-            <h2 className="text-center text-xl font-semibold text-white">
+            <h2 id="auth-gate-title" className="text-center text-xl font-semibold text-white">
               {mode === "login" ? "Log in to continue" : "Create an account to continue"}
             </h2>
             <p className="mt-2 text-center text-sm text-zinc-400">
@@ -140,6 +211,7 @@ export function AuthGateModal({
                   Email
                 </span>
                 <input
+                  ref={emailRef}
                   type="email"
                   required
                   value={email}
@@ -206,6 +278,8 @@ export function AuthGateModal({
           </>
         )}
       </div>
-    </div>
+      </div>
+    </div>,
+    document.body
   );
 }
