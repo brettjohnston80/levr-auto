@@ -43,11 +43,84 @@ This file exists so any Claude Code session (yours, your collaborator's, or a fu
   - **⚠ THE ONE QUERY IT DOES CONTAMINATE: a bare `select count(*) from customers`.** There is **no `is_test` flag anywhere in this schema** — confirmed by grep, no such column and no naming convention checked in code — so nothing excludes it automatically. **Any future "how many real customers do we have" check must subtract it** (or filter `email not like '%@levrauto.invalid'`). Searches, paid searches and payments are all unaffected, so the pre-launch "zero real money has moved" checks stay valid as-is: at the time of writing `customers = 3` (Brett's two accounts plus this one) while `customer_searches = 0`, `paid searches = 0` and `payments = 0`.
   - **Discipline when Brett uses it himself:** create whatever searches/rows a verification needs, then delete them afterwards and confirm by count. Leave the account itself in place — it is meant to persist. If a proper `is_test` flag is ever wanted, that is a migration plus edits to each enumeration surface, and should be its own reviewed change rather than a column nothing reads.
 
-## ⚠ IN-FLIGHT STATE — read before doing anything (updated 2026-09-28, later)
+## ⚠ IN-FLIGHT STATE — read before doing anything (updated 2026-09-30, work PAUSED)
 
 A snapshot of work that is mid-flight right now. Verify against `git log`/`git status` before acting on it, and rewrite this section once these items are resolved. **Nothing gets pushed without Brett's sign-off.**
 
-**Everything is pushed and live.** `origin/main` is at `00f6c20`, deployed 2026-09-28. Vercel built it successfully and it's aliased to www.levrauto.com. The latest work was:
+### ⏸ PAUSED 2026-09-30: start here
+
+**1. Production journey test: paused before step 15 (Mark as purchased).**
+- **Test account:** `emailtest@levrauto.com` (a Zoho alias on Brett's mailbox, a real address, so emails really send). Customer id `72a3252a-32a0-444e-b177-7a3129edd077`.
+- **Live search:** `1a02ccad-9ea9-48b7-ab91-4dfc3ff05fa7`, a Toyota Camry 2026 SE at ZIP 67212. Paid with Stripe's **test** card: `payments` row `search_fee`, `pi_3ULQXj…`. Went live 2026-09-30 17:00:45 UTC.
+- **Its offers:** "tester" $31,000 against a $35,000 sticker, accepted with pickup, availability and a $500 deposit confirmed. Stevenson-hendrick $42,519, declined.
+- **Its messages:** 2 offer-thread and 2 general-thread messages.
+- **⚠ This account and its searches stay in place on purpose until the test finishes. No automated cleanup, sweep or verification may touch them**, and none of its data is to be reused for other checks.
+- **Remaining steps, in order:**
+  1. Brett marks the search purchased on `/internal/outreach`. Expect the "Congratulations on your new Toyota Camry!" email; Your Deal shows the celebration and "Guarantee delivered September 30, 2026."
+  2. Move `purchased_at` back 49 hours, then let the 12:00 UTC post-deal-survey job send "How was your experience?" (or Brett triggers it with `curl` and the production `CRON_SECRET`). Don't run the survey job locally: it covers every customer.
+  3. Brett submits the survey; check it's saved and locked.
+  4. Full cleanup, confirmed by count. Delete the account and everything on it: all 3 searches, including the two extra **unpaid** ones (`0a6f801f-d20b-446c-8eb4-84c87f4a764e`, `7be58963-0c7e-4405-a92f-c0efa04d0429`); offers, deal progress, messages, the general thread, notification events, the payment row, the survey, and any new dealer-alias row. Delete the auth user, and confirm everything is at 0.
+  5. Delete the unsent PandaDoc draft from the sandbox workspace (Brett, in PandaDoc).
+- **Confirmed by the test so far:** sign-up email, test-mode Stripe payment, `www` Stripe webhook delivery, finalize, the call-request agent email, the hourly job starting the search, new-offer highlight emails, messages both ways with no per-reply emails, two scoped daily updates (conversation links, then receipts), availability and deposit highlight emails.
+- **Found by the test:**
+  - intake loses a customer who confirms their email elsewhere (the sign-up-to-payment fix below);
+  - each intake save creates another unpaid search;
+  - Decline can be clicked again after it succeeds;
+  - an offer can be logged above sticker by mistake;
+  - Stripe sends no receipt in test mode;
+  - the PandaDoc key is sandbox.
+
+**2. Unpushed local commits (waiting for the journey test to finish; don't push before then):**
+- `c137170` **Sign-up pop-up:** fixed to the centre of the screen, scroll lock, focus handling.
+- `9ebc989` **Pickup-range fuel gauge** with the "any distance" (`unlimited`) choice.
+  - Its migration `20260930120000_pickup_travel_unlimited.sql` is **already run in production** and confirmed from the app. Only widened checks, so the code live today is unaffected.
+- Both were checked on 127.0.0.1 at desktop width on intake: tap, drag, keyboard, "any distance" saving, and the pop-up's position, focus and Escape.
+- **Still to check before pushing:**
+  - the gauge on Your Deal's prompt and Change control, and on the agent's undecided form;
+  - both components at phone widths (390px and 360px, using the same-origin iframe method);
+  - a real mouse-wheel check that the pop-up's scroll lock holds (the test tool's scroll moves the page by script).
+- **This CLAUDE.md update** is committed separately and is also unpushed.
+
+**3. Next build after the test: the sign-up-to-payment fix (approved, TOP priority, ahead of anything else).**
+- **What it is:**
+  - save the unpaid search on the server at sign-up;
+  - one unpaid search per customer, with intake reusing it;
+  - a "Review and pay" view in Your Car (make, model, year, ZIP and pickup editable, inventory counts, "Continue to payment — $699");
+  - server-side payment checks on every finalize and call-request action;
+  - the undecided path gets no automatic Stripe redirect;
+  - the admin table and agent lookups label or hide unpaid searches;
+  - rule: a "real customer" = a paid search.
+- **Unpaid reminder emails:** 24h and 72h after the search is saved, at most 2, stopping on payment; confirmed, non-test addresses only; a one-click signed unsubscribe (`UNSUBSCRIBE_SECRET` is set in Vercel Production); only unpaid searches created after the feature deploys.
+- **Migration:** `unpaid_reminder_1/2_sent_at`, `customers.unpaid_reminders_unsubscribed_at`, a partial index on unpaid `created_at`. Drafted and approved in chat 2026-09-30 **but not yet written to a file**. No unique index: two customers already hold more than one unpaid search.
+- **All wording approved 2026-09-30:**
+  - Review and pay page, `/account` card, unpaid list line, pop-up line;
+  - agent/admin "unpaid" labels;
+  - both reminder emails, the footer and the unsubscribe page;
+  - **the guarantee start-point wording everywhere.** "…within 30 days of your search going live" goes on the homepage section and Day 0 marker, the FAQ (which also drops the wrong "automatically"), the switch screens and account FAQ ("when your new search goes live", which fixes the wrong "from today"), the guarantee-met and refund emails, the timeline's refunded line, and the article generator prompts. The exact before/after table is in the 2026-09-30 chat. Only the markups article's sentence has been changed so far.
+  - The general-thread placeholder "e.g. How's my search going?" is already shipped (`00f6c20`).
+- **⚠ The reminder emails need `REMINDER_MAILING_ADDRESS` set before they can send.** The job must send nothing while it's unset.
+- Brett pasted an `openssl rand -hex 32` value in chat; if that value became `UNSUBSCRIBE_SECRET`, he was advised to regenerate it without pasting.
+
+**4. Decisions pending (Brett):**
+- **E-sign provider.** The PandaDoc key is confirmed **sandbox** (403 on sending outside the organization), so customer e-signing doesn't work in production. SignWell is recommended: first 25 documents a month free, then $0.85 each, in-page signing and webhooks included. Switching is about a day across 4 files, with no migration. Alternatives: Dropbox Sign $75/mo, DocuSign (in-page signing only from $480/mo), or a PandaDoc production quote.
+- **A real mailing address for the reminder emails:** a PO box, virtual mailbox or registered-agent address. No test or made-up address goes into real email.
+
+**5. Follow-ups (not started):**
+- Decline button fix: disable after the first click and show "Declined" straight away (details below).
+- A warning in the agent's Log Offer form when the price is above the sticker. In the journey test a listing's pre-filled price was saved above a hand-typed sticker by mistake.
+- Customer name shown prominently on agent cards, or a "Log offer for {name}?" confirmation (details below).
+- "Which deal?" picker labels (trim and/or status).
+- Cleanup migration dropping `qualifying_offers.message_email_sent_at` and `customers.communication_frequency`.
+- The daily-update run shouldn't abort for everyone on one failed query; retry or skip per customer.
+- The header still shows "Log In" after logging in through the intake pop-up, until the next page load.
+- An automated end-to-end journey test, once Preview and Production have separate databases.
+- Stripe live-mode switch: live keys, a live-mode webhook at the `www` URL, the "Successful payments" receipts setting, and a real payment and refund verified end to end (see the launch item under "Pre-launch to-dos").
+
+---
+
+**Last pushed state.** `origin/main` is at `fd0ab35` (CLAUDE.md only). The last code deploy was `00f6c20` on 2026-09-28; since then production has only had redeploys to pick up new variables. Details from before the pause follow.
+
+**Deployed 2026-09-28 (`00f6c20`).** Vercel built it successfully and it's aliased to www.levrauto.com. The latest work was:
 - `2b01ab2` Day-30 guarantee check skips cancelled searches
 - `1bf7615` admin Pause/Resume buttons removed. `admin_action_log` and the `admin_pause_search`/`admin_resume_search` DB functions are kept for history.
 - `65a0b0d` guarantee timeline, automatic progress notes, the general message thread, highlight emails and the daily update. Plan: `docs/plans/guarantee-progress-notifications-plan.md`.
@@ -58,7 +131,7 @@ A snapshot of work that is mid-flight right now. Verify against `git log`/`git s
 
 The earlier feature work deployed at `3e59c50` (2026-09-26): `ca0c3d0` offer message threads, `e1596c6` pickup/delivery, `27ab440` agent-message email (since replaced by the daily update), `66ffed7` List | Map view.
 
-Every migration is applied, through `20260928120000_general_thread_and_daily_update.sql`.
+Every migration is applied, through `20260930120000_pickup_travel_unlimited.sql` (run early on 2026-09-30; its code is unpushed in `9ebc989`).
 
 **⚠ Production keys were missing until 2026-09-27 (found during the real-inbox test).** `ZEPTOMAIL_API_KEY`/`ZEPTOMAIL_FROM_EMAIL`, `ANTHROPIC_API_KEY` and `PANDADOC_API_KEY` existed only in `.env.local`, never in Vercel Production. So in production every app-sent email failed before reaching ZeptoMail (new-offer and other notifications, Day-60/resume reminders, auto-renew confirmations, post-deal surveys, agent call alerts, article reminders; Supabase auth emails were unaffected), and AI offer parsing, article/social generation and PandaDoc e-sign could not have worked. Brett set all of them on 2026-09-27 and production was redeployed (`levr-auto-45pe0zjfz`, Ready). `ZEPTOMAIL_FROM_NAME` is unset everywhere, so the code default "LEVR Auto" is used.
 - Lesson: after adding a Vercel variable, a redeploy is needed, and a page loaded before the redeploy keeps sending its form submissions (server actions) to the OLD deployment. Reload before re-testing. Compare `.env.local` names against `vercel env ls production` when anything works locally but not in production; the `VERCEL_*`, `TURBO_*` and `NX_DAEMON` names in `.env.local` came from `vercel env pull` and are supplied by Vercel itself.
@@ -73,6 +146,8 @@ Every migration is applied, through `20260928120000_general_thread_and_daily_upd
 - **Check whether `PANDADOC_API_KEY` in production is a sandbox or production PandaDoc key:** to be learned from the journey test (a watermarked document means sandbox). See the PandaDoc launch item under "Pre-launch to-dos"; `PANDADOC_WEBHOOK_SECRET` is intentionally unset.
 
 **Follow-up (not started):** on `/internal/outreach` search cards, show the customer's name more prominently, or confirm "Log offer for {name}?" before saving. During the real-inbox test an offer was logged on the wrong one of five identical-looking Toyota Camry cards (it landed on tester3's search and had to be deleted). The page is agent-facing, but the confirm wording still needs Brett's OK.
+
+**Follow-up (recorded 2026-09-30, Brett; not started): make Decline one-click-safe on offer cards and the offer detail view.** Disable the button after the first click and show "Declined" straight away. In the journey test the first clicks didn't reach the server at all, and after the one that worked, two more clicks were sent while the card still showed Decline. The server refused them ("You've already responded to this offer."), so no duplicate receipts were created. The fix is UI only.
 
 **Articles follow-ups (recorded 2026-09-30, Brett; not started):**
 - **Approved articles can't be edited from `/internal/articles`** (it lists drafts only), so an approved or published article can't be corrected without a direct database change. Needed on 2026-09-30 to replace the "How Dealer Markups Actually Work" captions after approval.
@@ -899,7 +974,7 @@ Discovery only, nothing built yet.
 - **⚠ LAUNCH ITEM (recorded 2026-09-30, Brett): switch Stripe to live mode before real customers pay.** Set live keys in Vercel Production, create a **live-mode** webhook endpoint (`checkout.session.completed`) at **`https://www.levrauto.com/api/stripe/webhook`** with its live signing secret in `STRIPE_WEBHOOK_SECRET`, redeploy, then verify end to end: a real payment, the webhook delivered (200 in Stripe's event log), `paid_at` set and a `payments` row written, then a refund.
   - **Every webhook URL must use `www`.** `https://levrauto.com/...` answers with a 308 redirect to `https://www.levrauto.com/...`, and Stripe (like most webhook senders) doesn't follow redirects, so it treats the delivery as failed.
   - **The test-mode endpoint was fixed 2026-09-30.** `we_1U2cbg8FQdYEFttXePzCHvX8` in the "LEVR Auto sandbox" account pointed at the bare domain. It was changed via the Stripe API to `https://www.levrauto.com/api/stripe/webhook`; its signing secret is unchanged. Production test payments before that date could not have been marked paid by the webhook.
-- **⚠ LAUNCH ITEM (recorded 2026-09-30, Brett): decide on PandaDoc production API access, or an alternative e-sign option.** The current `PANDADOC_API_KEY` may be a sandbox or trial key (to be confirmed by the journey test: a watermarked document means sandbox), and production API access has a cost.
+- **⚠ LAUNCH ITEM (recorded 2026-09-30, Brett): e-signing to customers does NOT work in production. Get PandaDoc production API access, or switch e-sign providers, before real customers reach that step.** **Confirmed sandbox key (2026-09-30 journey test):** "Review & sign" on production failed with PandaDoc 403 "You are not allowed to send documents outside of your organization." So the production `PANDADOC_API_KEY` can only send to addresses inside the PandaDoc organization. Every real customer's service agreement would fail the same way. No `documents` row is written on that failure (the insert happens only after a successful send). PandaDoc may still hold an unsent draft from the upload step, which can be deleted in PandaDoc's dashboard. Marking a search purchased does not require a signed agreement (only availability and deposit), so the rest of the journey is unaffected.
   - **`PANDADOC_WEBHOOK_SECRET` is intentionally unset for now.** The PandaDoc webhook is a paid add-on ($40/month). Until it's set, `/api/pandadoc/webhook` rejects every call (401). A signature is recorded only when the agent clicks **Check signing status** on the accepted offer. If the webhook is ever added, register `https://www.levrauto.com/api/pandadoc/webhook` (with `www`) for the "Document state changed" event.
 
 - **Preview deployments point at the same production Supabase project as live** (same DB, same auth users — no separate staging/test project exists yet). Fine for now since there's no real customer data, but this needs a proper split — a separate Supabase project for Preview, or branch-aware config — before real launch, so a test PR can never touch live customer data.
