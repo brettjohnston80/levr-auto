@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { PickupTravelTiles } from "@/components/pickup-travel-tiles";
+import { PickupTravelGauge } from "@/components/pickup-travel-gauge";
 import { setSearchPickupTravel } from "@/lib/handoff-actions";
 import {
   PICKUP_TRAVEL_PROMPT_BODY,
@@ -43,7 +43,7 @@ export function PickupRangeControl({ searchId, value }: { searchId: string; valu
         <p className="text-sm font-semibold text-white">{PICKUP_TRAVEL_QUESTION}</p>
         <p className="mt-1 text-xs text-zinc-400">{PICKUP_TRAVEL_PROMPT_BODY}</p>
         <div className="mt-3">
-          <PickupTravelTiles value="" onChange={choose} disabled={saving} />
+          <PickupTravelGauge value="" onChange={choose} disabled={saving} />
         </div>
         {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
       </div>
@@ -62,7 +62,7 @@ export function PickupRangeControl({ searchId, value }: { searchId: string; valu
       </button>
       {editing && (
         <div className="mt-3">
-          <PickupTravelTiles value={value} onChange={choose} disabled={saving} />
+          <PickupTravelGauge value={value} onChange={choose} disabled={saving} />
         </div>
       )}
       {error && <p className="mt-2 text-xs text-red-400">{error}</p>}

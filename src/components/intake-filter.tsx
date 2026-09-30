@@ -15,7 +15,7 @@ import {
 import { clearMatchmakerPrefill, readMatchmakerPrefill } from "@/lib/matchmaker-prefill";
 import { createCheckoutSession } from "@/lib/payment-actions";
 import { AuthGateModal } from "@/components/auth-gate-modal";
-import { PickupTravelTiles } from "@/components/pickup-travel-tiles";
+import { PickupTravelGauge } from "@/components/pickup-travel-gauge";
 import { PICKUP_TRAVEL_INTAKE_HELPER, PICKUP_TRAVEL_MISSING_ERROR, PICKUP_TRAVEL_QUESTION } from "@/lib/pickup-travel";
 
 // Make/model/zip only -- trim, color, and options are collected post-payment
@@ -706,7 +706,7 @@ export function IntakeFilter({
             <p className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">{PICKUP_TRAVEL_QUESTION}</p>
             <p className="mt-1 text-xs text-zinc-500">{PICKUP_TRAVEL_INTAKE_HELPER}</p>
             <div className="mt-3">
-              <PickupTravelTiles value={pickupTravel} onChange={setPickupTravel} />
+              <PickupTravelGauge value={pickupTravel} onChange={setPickupTravel} />
             </div>
           </div>
 

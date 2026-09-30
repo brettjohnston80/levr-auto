@@ -10,7 +10,7 @@ import {
 import type { MakeModelOptions, ModelYearOptions } from "@/lib/intake-vehicle-options";
 import { soleYearForModel, yearsForModel } from "@/lib/model-year-select";
 import { finalizeUndecidedSearch } from "@/lib/outreach-actions";
-import { PickupTravelTiles } from "@/components/pickup-travel-tiles";
+import { PickupTravelGauge } from "@/components/pickup-travel-gauge";
 import { PICKUP_TRAVEL_QUESTION } from "@/lib/pickup-travel";
 
 function toggleInArray(list: string[], value: string): string[] {
@@ -161,7 +161,7 @@ export function AgentUndecidedFinalizeForm({
       <div>
         <p className="text-xs font-semibold text-zinc-400 uppercase">{PICKUP_TRAVEL_QUESTION} (ask the customer)</p>
         <div className="mt-1.5">
-          <PickupTravelTiles value={pickupTravel} onChange={setPickupTravel} />
+          <PickupTravelGauge value={pickupTravel} onChange={setPickupTravel} />
         </div>
       </div>
 

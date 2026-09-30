@@ -10,7 +10,10 @@ export type PickupTravelMiles = (typeof PICKUP_TRAVEL_MILES)[number];
 export type PickupTravel =
   | { choice: "distance"; miles: PickupTravelMiles }
   | { choice: "prefer_delivery" }
-  | { choice: "case_by_case" };
+  | { choice: "case_by_case" }
+  // "I'd drive any distance" (fuel-gauge redesign, 2026-09-30). Carries no
+  // miles, so it is never out of range and draws no map circle.
+  | { choice: "unlimited" };
 
 export type HandoffMethod = "pickup" | "delivery";
 
@@ -21,15 +24,30 @@ export const PICKUP_TRAVEL_PROMPT_BODY =
   "This helps us focus on the right dealers and flag offers that are farther away.";
 export const PICKUP_TRAVEL_MISSING_ERROR = "Please choose how far you'd drive to pick up your car.";
 
-/** Form values: a distance as its number, or the two non-distance choices. */
+/** Form values: a distance as its number, or the three non-distance choices. */
 export const PICKUP_TRAVEL_OPTIONS: { value: string; label: string }[] = [
   ...PICKUP_TRAVEL_MILES.map((m) => ({ value: String(m), label: `Up to ${m} miles` })),
   { value: "prefer_delivery", label: "I'd rather have it delivered" },
+  { value: "unlimited", label: "I'd drive any distance" },
   { value: "case_by_case", label: "It depends — case by case" },
 ];
 
+/** The fuel gauge's stops, empty (left) to full (right). Case by case is a
+ *  separate button, not a stop. Short labels approved 2026-09-30. */
+export const PICKUP_TRAVEL_GAUGE_STOPS: { value: string; shortLabel: string }[] = [
+  { value: "prefer_delivery", shortLabel: "Delivery" },
+  ...PICKUP_TRAVEL_MILES.map((m) => ({ value: String(m), shortLabel: String(m) })),
+  { value: "unlimited", shortLabel: "Any" },
+];
+export const PICKUP_TRAVEL_GAUGE_HINT = "Drag or tap to choose";
+
+/** Full wording for a form value (the gauge's centre text). */
+export function travelValueLabel(value: string): string | null {
+  return PICKUP_TRAVEL_OPTIONS.find((o) => o.value === value)?.label ?? null;
+}
+
 export function travelFromValue(value: string | null | undefined): PickupTravel | null {
-  if (value === "prefer_delivery" || value === "case_by_case") return { choice: value };
+  if (value === "prefer_delivery" || value === "case_by_case" || value === "unlimited") return { choice: value };
   const miles = Number(value);
   return (PICKUP_TRAVEL_MILES as readonly number[]).includes(miles)
     ? { choice: "distance", miles: miles as PickupTravelMiles }
@@ -44,7 +62,7 @@ export function travelToValue(travel: PickupTravel | null): string {
 /** From the two customer_searches columns. Anything inconsistent reads as unanswered. */
 export function travelFromColumns(choice: string | null, miles: number | null): PickupTravel | null {
   if (choice === "distance") return travelFromValue(String(miles));
-  if (choice === "prefer_delivery" || choice === "case_by_case") return { choice };
+  if (choice === "prefer_delivery" || choice === "case_by_case" || choice === "unlimited") return { choice };
   return null;
 }
 
@@ -60,6 +78,7 @@ export function travelToColumns(travel: PickupTravel): { pickup_travel_choice: s
 export function travelSummary(travel: PickupTravel): string {
   if (travel.choice === "distance") return `Pickup range: up to ${travel.miles} miles`;
   if (travel.choice === "prefer_delivery") return "Pickup range: you'd rather have it delivered";
+  if (travel.choice === "unlimited") return "Pickup range: any distance";
   return "Pickup range: case by case";
 }
 
@@ -67,6 +86,7 @@ export function travelSummary(travel: PickupTravel): string {
 export function travelAgentLabel(travel: PickupTravel | null): string {
   if (!travel) return "Not answered yet";
   if (travel.choice === "distance") return `Up to ${travel.miles} miles`;
+  if (travel.choice === "unlimited") return "Any distance";
   return travel.choice === "prefer_delivery" ? "Prefers delivery" : "Case by case";
 }
 
@@ -98,12 +118,14 @@ export function outOfRangeCopy(distanceMiles: number, travelMiles: number): stri
 
 /**
  * What the accept confirmation pre-selects when the offer has no answer yet:
- * pickup when within range (or distance unknown), delivery when beyond it or
- * when they said they'd rather have it delivered, nothing otherwise.
+ * pickup when within range (or distance unknown) or when they'd drive any
+ * distance (approved 2026-09-30), delivery when beyond it or when they said
+ * they'd rather have it delivered, nothing otherwise.
  */
 export function defaultHandoff(travel: PickupTravel | null, distanceMiles: number | null): HandoffMethod | null {
   if (!travel || travel.choice === "case_by_case") return null;
   if (travel.choice === "prefer_delivery") return "delivery";
+  if (travel.choice === "unlimited") return "pickup";
   if (distanceMiles != null && roundMiles(distanceMiles) > travel.miles) return "delivery";
   return "pickup";
 }
