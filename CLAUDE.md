@@ -69,6 +69,11 @@ Every migration is applied, through `20260928120000_general_thread_and_daily_upd
 
 **Follow-up (not started):** on `/internal/outreach` search cards, show the customer's name more prominently, or confirm "Log offer for {name}?" before saving. During the real-inbox test an offer was logged on the wrong one of five identical-looking Toyota Camry cards (it landed on tester3's search and had to be deleted). The page is agent-facing, but the confirm wording still needs Brett's OK.
 
+**Articles follow-ups (recorded 2026-09-30, Brett; not started):**
+- **Approved articles can't be edited from `/internal/articles`** (it lists drafts only), so an approved or published article can't be corrected without a direct database change. Needed on 2026-09-30 to replace the "How Dealer Markups Actually Work" captions after approval.
+- **Approving overwrites the draft with no version history.** `approveArticle` writes the form's content and captions over the stored draft; nothing earlier is kept, so there's no way to compare or roll back.
+- **Article generator content rules.** AI drafts should avoid legal and statistical claims that aren't verified. For example, the markups article's generated LinkedIn caption asserted specific FTC CARS Rule dates. Drafts must also describe the guarantee accurately: an offer below Total SRP within 30 days, otherwise the $699 is refunded, processed by an agent, not automatically. The fix is a change to the approved system prompts in `src/lib/article-generation.ts`, which needs Brett's sign-off first.
+
 **To-do: post-deploy cleanup migration (not written yet).** Drop `qualifying_offers.message_email_sent_at` and `customers.communication_frequency`. Neither is read or written by the live code any more. Write it, have Brett review and run it, then confirm from the app's side as always.
 
 1. **Post-deploy cleanup: DONE (2026-09-27).**
