@@ -9,7 +9,9 @@ import { CAPTIONS_TOOL, extractCaptions, type PlatformCaptions } from "@/lib/cap
 export type GenerateArticleDraftResult = { ok: true } | { ok: false; error: string };
 
 /**
- * System prompt reviewed and approved by Brett verbatim -- do not edit the
+ * System prompt reviewed and approved by Brett verbatim (revised and
+ * re-approved 2026-09-30: guarantee wording, no unverified legal/statistical
+ * claims, shorter plain-language drafts) -- do not edit the
  * wording without going back through review, per the "the app is generating
  * real content with no one watching until review" standard this phase was
  * built to.
@@ -19,13 +21,13 @@ function buildGenerationSystemPrompt(styleRefs: { title: string; content: string
     .map((a) => `---\nTitle: ${a.title}\n\n${a.content}\n---`)
     .join("\n\n");
 
-  return `You are writing a blog article for LEVR Auto's public website (levrauto.com/articles). LEVR Auto is a nationwide car-buying negotiation service: a customer picks one exact new-vehicle make and model, pays a flat $699 fee, and LEVR sources matching dealer inventory nationwide and negotiates on their behalf. Offers land in the customer's dashboard for them to accept or decline — no obligation. LEVR's guarantee: if it can't bring the customer at least one real offer below MSRP within 30 days, the $699 is refunded automatically. LEVR takes no commission or markup and never processes the vehicle payment itself. Use these facts about LEVR exactly as given if you reference the business — do not search the web for information about LEVR Auto itself, and do not invent details about how it works beyond what's stated here.
+  return `You are writing a blog article for LEVR Auto's public website (levrauto.com/articles). LEVR Auto is a nationwide car-buying negotiation service: a customer picks one exact new-vehicle make and model, pays a flat $699 fee, and LEVR sources matching dealer inventory nationwide and negotiates on their behalf. Offers land in the customer's dashboard for them to accept or decline — no obligation. LEVR's guarantee: if LEVR doesn't bring the customer at least one real offer below Total Suggested Retail Price within 30 days, the $699 is refunded. A LEVR agent processes the refund; it is not automatic or instant, so never describe it that way. When you mention the guarantee, call the price "Total Suggested Retail Price", not "MSRP" or "sticker price". LEVR takes no commission or markup and never processes the vehicle payment itself. Dealer offers are itemized; the customer can ask for any dealer add-on to be removed, and their LEVR agent takes that to the dealer. Do not claim LEVR negotiates doc fees or other specific dealer fees. Use these facts about LEVR exactly as given if you reference the business — do not search the web for information about LEVR Auto itself, and do not invent details about how it works beyond what's stated here.
 
-You have a web_search tool. Use it to find current, accurate, real information for the article's actual subject matter — pricing data, rankings, dates, statistics, dealer practices, whatever the topic requires. Never state a specific number, ranking, date, or statistic you haven't actually found via search; if you can't verify something, write around it rather than guessing.
+Do not mention laws, regulations, court rulings or government rules, or their dates or status. Do not give statistics, percentages, averages, rankings, survey results or market figures, even if you believe them to be true. Don't make blanket statements about what laws or governments do or don't regulate; say rules vary by location instead. Explain how things generally work instead. Write every sentence in your own words; never copy wording from any source. The only numbers you may use are LEVR's own facts above, or a simple example introduced with 'say' or 'for example' (for instance, "say a car's sticker price is $35,000"). Never attribute claims to a named source, and never invent quotes or testimonials.
 
-Style: match the tone of LEVR Auto's other published articles, provided below as reference. Plain, direct, no hype-filled marketing language, no fabricated quotes or testimonials. Explain the actual mechanics of whatever the topic is the way a knowledgeable friend would, not a sales pitch. It's fine, and expected, to end with a short, natural tie back to LEVR's own pitch where it's relevant to the topic — but don't force it into every paragraph.
+Style: write for someone who has never bought a new car. Use short sentences and everyday words, and explain any industry term (like "invoice price" or "market adjustment") the first time you use it. Keep the calm, direct tone of LEVR Auto's other published articles, provided below as reference — no hype or sales pitch. Explain how the topic actually works, the way a knowledgeable friend would. End with one or two sentences tying back to LEVR where it fits naturally — don't force it into the rest of the article.
 
-Formatting: respond with the article body only, in Markdown. Do not include the title as a heading (it's rendered separately) — start directly with the opening paragraph. Use "## " for section headers where they help the piece (2 to 4 sections is typical), and never use a single "#". Avoid bullet lists and bold text except where they genuinely aid readability — the reference articles below use almost none. Aim for roughly 500–900 words.
+Formatting: respond with the article body only, in Markdown. Do not include the title as a heading (it's rendered separately) — start directly with the opening paragraph. Use "## " for section headers (2 or 3 sections), and never use a single "#". Avoid bullet lists and bold text except where they genuinely aid readability — the reference articles below use almost none. Aim for 400 to 600 words, and never go over 650.
 
 Reference articles (match this voice):
 
@@ -89,8 +91,8 @@ async function cleanArticleBody(rawContent: string): Promise<string> {
 }
 
 /**
- * System prompt reviewed and approved by Brett verbatim -- same standard as
- * buildGenerationSystemPrompt above.
+ * System prompt reviewed and approved by Brett verbatim (claim/guarantee rule
+ * added 2026-09-30) -- same standard as buildGenerationSystemPrompt above.
  */
 const CAPTIONS_SYSTEM_PROMPT =
   "You write social media captions announcing a new LEVR Auto blog article, one caption per " +
@@ -102,7 +104,11 @@ const CAPTIONS_SYSTEM_PROMPT =
   "LinkedIn — more professional, can be a bit longer, frame around the practical takeaway. None " +
   "should sound like generic marketing copy — write like a real person sharing something " +
   "genuinely useful, matching LEVR Auto's plain, direct voice. No hype, no exclamation-point " +
-  "stacking. Always respond by calling the generate_social_captions tool.";
+  "stacking. Use only facts stated in the article. Don't mention laws, regulations, court rulings " +
+  "or statistics, and don't add numbers the article doesn't contain. Only use a number from the " +
+  "article if the article presents it as a fact; never turn an example into a claim. If a caption mentions LEVR's " +
+  "guarantee, describe it only as an offer below Total Suggested Retail Price within 30 days or the " +
+  "$699 is refunded — never as automatic. Always respond by calling the generate_social_captions tool.";
 
 async function generateArticleBody(title: string, topic: string): Promise<string> {
   const styleRefs = (await getPublishedArticles()).slice(0, 3);
@@ -111,7 +117,8 @@ async function generateArticleBody(title: string, topic: string): Promise<string
     model: "claude-sonnet-5",
     max_tokens: 8000,
     system: buildGenerationSystemPrompt(styleRefs),
-    tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 8 }],
+    // Web search turned off 2026-09-30 (Brett): with it on, drafts kept
+    // copying source wording and quoting figures as fact despite the prompt.
     messages: [{ role: "user", content: `Title: "${title}"\nTopic: "${topic}"` }],
   });
 
@@ -126,6 +133,12 @@ async function generateArticleBody(title: string, topic: string): Promise<string
   // leaks that commentary into the saved content. The real final answer is
   // whatever text follows the last server_tool_use/web_search_tool_result
   // block, whether or not it happens to be split across multiple blocks.
+  //
+  // Joined with "" (2026-09-30): the API splits the answer into a new text
+  // block at every web-search citation, often mid-sentence (e.g. "…purchase
+  // — " / "administrative work…" / ". In other words…"). Joining with "\n\n"
+  // turned each cited fragment into its own paragraph, which read as stray
+  // repeated sentences. The blocks are one continuous stream.
   const lastToolIndex = message.content.reduce(
     (last, block, i) => (block.type === "server_tool_use" || block.type === "web_search_tool_result" ? i : last),
     -1
@@ -135,7 +148,7 @@ async function generateArticleBody(title: string, topic: string): Promise<string
     .slice(lastToolIndex + 1)
     .filter((block): block is Anthropic.TextBlock => block.type === "text")
     .map((block) => block.text)
-    .join("\n\n")
+    .join("")
     .trim();
 
   if (!text) {
