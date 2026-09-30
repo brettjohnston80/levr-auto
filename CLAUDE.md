@@ -64,7 +64,12 @@ Every migration is applied, through `20260928120000_general_thread_and_daily_upd
 - Lesson: after adding a Vercel variable, a redeploy is needed, and a page loaded before the redeploy keeps sending its form submissions (server actions) to the OLD deployment. Reload before re-testing. Compare `.env.local` names against `vercel env ls production` when anything works locally but not in production; the `VERCEL_*`, `TURBO_*` and `NX_DAEMON` names in `.env.local` came from `vercel env pull` and are supplied by Vercel itself.
 
 **Open items:**
-- **Check the first production daily update:** the 13:00 UTC run on 2026-09-28 is the first with the ZeptoMail key. Read its log (`vercel logs --environment production --json`) for `ZeptoMail send failed` or other errors.
+- **First production daily updates: CHECKED 2026-09-30.**
+  - 2026-09-28 13:00 UTC run crashed (500) with `Failed to load general threads: JWT issued at future`, a one-off clock-skew rejection from Supabase. Nothing was sent or stamped, so nothing was lost.
+  - The 2026-09-29 run caught up: one daily update, to the review account, suppressed as a test address.
+  - The 2026-09-30 run had nothing to send.
+  - No other production errors since the key fix. So far only test accounts have had agent replies, so no real customer has received a daily update yet.
+  - Possible hardening, not done: one failed query aborts the whole run for everyone; it could retry or skip per customer.
 - **Check whether `PANDADOC_API_KEY` in production is a sandbox or production PandaDoc key.**
 
 **Follow-up (not started):** on `/internal/outreach` search cards, show the customer's name more prominently, or confirm "Log offer for {name}?" before saving. During the real-inbox test an offer was logged on the wrong one of five identical-looking Toyota Camry cards (it landed on tester3's search and had to be deleted). The page is agent-facing, but the confirm wording still needs Brett's OK.
@@ -72,7 +77,15 @@ Every migration is applied, through `20260928120000_general_thread_and_daily_upd
 **Articles follow-ups (recorded 2026-09-30, Brett; not started):**
 - **Approved articles can't be edited from `/internal/articles`** (it lists drafts only), so an approved or published article can't be corrected without a direct database change. Needed on 2026-09-30 to replace the "How Dealer Markups Actually Work" captions after approval.
 - **Approving overwrites the draft with no version history.** `approveArticle` writes the form's content and captions over the stored draft; nothing earlier is kept, so there's no way to compare or roll back.
-- **Article generator content rules.** AI drafts should avoid legal and statistical claims that aren't verified. For example, the markups article's generated LinkedIn caption asserted specific FTC CARS Rule dates. Drafts must also describe the guarantee accurately: an offer below Total SRP within 30 days, otherwise the $699 is refunded, processed by an agent, not automatically. The fix is a change to the approved system prompts in `src/lib/article-generation.ts`, which needs Brett's sign-off first.
+- **Article generator: DONE 2026-09-30 (`8a80dc2`, pushed and live).** The generation and captions prompts in `src/lib/article-generation.ts` were revised and re-approved by Brett:
+  - the guarantee is described accurately (an offer below Total Suggested Retail Price within 30 days, or the $699 is refunded by a LEVR agent, never "automatic");
+  - no laws, regulations, statistics or figures; rules "vary by location"; own words only; example numbers must be introduced with "say" or "for example";
+  - a fees fact: offers are itemized and the customer can ask for any dealer add-on to be removed, and drafts must not claim LEVR negotiates doc fees or other specific dealer fees;
+  - plain language, 400–600 words, 2–3 sections; captions use only facts from the article and never turn an example into a claim.
+  - **Web search is OFF for article generation.** With it on, test drafts copied source sentences word for word and quoted figures as fact despite the rules. Turning it back on means revisiting both problems.
+  - **Text-joining fix:** the API splits a web-search answer into a new text block at every citation, often mid-sentence. The code used to join blocks with blank lines, which made stray one-sentence paragraphs that looked like repeats. It now joins them with nothing. Checked: neither the published MSRP article nor the approved markups article had the problem.
+  - Verified with scratch-row test drafts (deleted, 0 remaining). The first real draft under the new rules is November's.
+- ~~**Article generator content rules.**~~ Superseded by the entry above. The original note: AI drafts should avoid legal and statistical claims that aren't verified. For example, the markups article's generated LinkedIn caption asserted specific FTC CARS Rule dates. Drafts must also describe the guarantee accurately: an offer below Total SRP within 30 days, otherwise the $699 is refunded, processed by an agent, not automatically. The fix is a change to the approved system prompts in `src/lib/article-generation.ts`, which needs Brett's sign-off first.
 
 **To-do: post-deploy cleanup migration (not written yet).** Drop `qualifying_offers.message_email_sent_at` and `customers.communication_frequency`. Neither is read or written by the live code any more. Write it, have Brett review and run it, then confirm from the app's side as always.
 
