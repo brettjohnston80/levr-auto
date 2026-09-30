@@ -91,12 +91,13 @@ A snapshot of work that is mid-flight right now. Verify against `git log`/`git s
   - the admin table and agent lookups label or hide unpaid searches;
   - rule: a "real customer" = a paid search.
 - **Unpaid reminder emails:** 24h and 72h after the search is saved, at most 2, stopping on payment; confirmed, non-test addresses only; a one-click signed unsubscribe (`UNSUBSCRIBE_SECRET` is set in Vercel Production); only unpaid searches created after the feature deploys.
-- **Migration:** `unpaid_reminder_1/2_sent_at`, `customers.unpaid_reminders_unsubscribed_at`, a partial index on unpaid `created_at`. Drafted and approved in chat 2026-09-30 **but not yet written to a file**. No unique index: two customers already hold more than one unpaid search.
+- **Migration:** `unpaid_reminder_1/2_sent_at`, `customers.unpaid_reminders_unsubscribed_at`, a partial index on unpaid `created_at`. Approved 2026-09-30. The full SQL is in **`docs/plans/signup-to-payment-plan.md`** (move it into `supabase/migrations/` at build time). No unique index: two customers already hold more than one unpaid search.
+- **The full plan, the approved wording (including the guarantee start-point table) and the migration are all in `docs/plans/signup-to-payment-plan.md`.**
 - **All wording approved 2026-09-30:**
   - Review and pay page, `/account` card, unpaid list line, pop-up line;
   - agent/admin "unpaid" labels;
   - both reminder emails, the footer and the unsubscribe page;
-  - **the guarantee start-point wording everywhere.** "…within 30 days of your search going live" goes on the homepage section and Day 0 marker, the FAQ (which also drops the wrong "automatically"), the switch screens and account FAQ ("when your new search goes live", which fixes the wrong "from today"), the guarantee-met and refund emails, the timeline's refunded line, and the article generator prompts. The exact before/after table is in the 2026-09-30 chat. Only the markups article's sentence has been changed so far.
+  - **the guarantee start-point wording everywhere.** "…within 30 days of your search going live" goes on the homepage section and Day 0 marker, the FAQ (which also drops the wrong "automatically"), the switch screens and account FAQ ("when your new search goes live", which fixes the wrong "from today"), the guarantee-met and refund emails, the timeline's refunded line, and the article generator prompts. The exact wording table is in `docs/plans/signup-to-payment-plan.md`. Only the markups article's sentence has been changed so far.
   - The general-thread placeholder "e.g. How's my search going?" is already shipped (`00f6c20`).
 - **⚠ The reminder emails need `REMINDER_MAILING_ADDRESS` set before they can send.** The job must send nothing while it's unset.
 - Brett pasted an `openssl rand -hex 32` value in chat; if that value became `UNSUBSCRIBE_SECRET`, he was advised to regenerate it without pasting.
