@@ -35,8 +35,8 @@ export function AccountFaqSection({ customerEmail }: { customerEmail: string }) 
         <div className="mt-4 space-y-3 text-sm text-zinc-400">
           <p>
             Switching to a different make/model is handled by your LEVR agent, not self-service — it
-            closes out your current search and starts a fresh 30-day guarantee window on the new
-            vehicle (a $100 fee applies).
+            closes out your current search and starts a fresh 30-day guarantee window when the new
+            search goes live (a $100 fee applies).
           </p>
           <p>Email us and we&apos;ll take care of it:</p>
           <a

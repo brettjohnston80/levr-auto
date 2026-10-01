@@ -132,11 +132,11 @@ export function composeEventEmail(
       return d.outcome === "met"
         ? {
             subject: "Your LEVR guarantee was delivered",
-            html: `<p>You received an offer below Total SRP within 30 days — your guarantee is met. We'll keep working your search through ${through}.</p>`,
+            html: `<p>You received an offer below Total SRP within 30 days of your search going live — your guarantee is met. We'll keep working your search through ${through}.</p>`,
           }
         : {
             subject: "Your $699 is being refunded",
-            html: `<p>We didn't find an offer below Total SRP within 30 days, so we're refunding your $699. We'll keep searching through ${through} at no cost.</p>`,
+            html: `<p>We didn't find an offer below Total SRP within 30 days of your search going live, so we're refunding your $699. We'll keep searching through ${through} at no cost.</p>`,
           };
     }
   }

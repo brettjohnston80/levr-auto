@@ -124,7 +124,7 @@ export function SwitchChoice({
         </p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-300">
           <li>Charge a $100 switch fee</li>
-          <li>Restart your 30-day and 60-day guarantee clocks from today</li>
+          <li>Restart your 30-day and 60-day guarantee clocks when your new search goes live</li>
           <li>
             Not carry over any offer already found on your current vehicle — the guarantee starts
             clean against your new pick
@@ -160,7 +160,8 @@ export function SwitchChoice({
       <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6">
         <p className="text-sm text-zinc-200">
           You&apos;re within your free switch window, so this won&apos;t cost anything. It will
-          still restart your 30-day and 60-day guarantee clocks, and any offer already found on
+          still restart your 30-day and 60-day guarantee clocks when your new search goes live, and
+          any offer already found on
           your current vehicle won&apos;t carry over.
         </p>
 

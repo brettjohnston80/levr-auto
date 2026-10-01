@@ -35,7 +35,7 @@ const FAQS: FaqItem[] = [
   },
   {
     q: "What if you can't get me a deal below Total SRP?",
-    a: "You get your full $699 back, automatically, at the end of your 30-day guarantee window. No need to ask for it.",
+    a: "You get your full $699 back. Your 30-day guarantee window starts when your search goes live, and if it ends without a qualifying offer, we process your refund — no need to ask for it.",
   },
   {
     q: "Why not just use a cheaper subscription tool instead?",
@@ -47,7 +47,7 @@ const FAQS: FaqItem[] = [
   },
   {
     q: "How long does the process take?",
-    a: "You're guaranteed at least one real offer below Total SRP within 30 days. If you need more time to decide, your search stays open at no extra cost through day 60.",
+    a: "You're guaranteed at least one real offer below Total SRP within 30 days of your search going live. If you need more time to decide, your search stays open at no extra cost through day 60.",
   },
   {
     q: "Will I have to negotiate with a dealer myself?",
@@ -67,7 +67,7 @@ const FAQS: FaqItem[] = [
   },
   {
     q: "What if I change my mind about the car I want?",
-    a: "You can switch to a different make/model for a $100 fee, which restarts your 30-day guarantee window on the new vehicle.",
+    a: "You can switch to a different make/model for a $100 fee, which restarts your 30-day guarantee window once your new search goes live.",
   },
   {
     q: "Is LEVR Auto available in my state?",

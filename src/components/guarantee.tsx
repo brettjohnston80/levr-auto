@@ -1,8 +1,8 @@
 const TIMELINE = [
   {
     day: "Day 0",
-    title: "You tell us the car",
-    body: "Make, model, trim, color — we get to work right away.",
+    title: "Your search goes live",
+    body: "Once your vehicle details are locked in, we get to work.",
   },
   {
     day: "Day 30",
@@ -26,7 +26,7 @@ export function Guarantee() {
         <p className="mt-6 text-lg leading-relaxed text-zinc-900/80">
           If we can&apos;t bring you at least one real offer below Total SRP — the
           full sticker price, including destination, before tax, title, and
-          fees — within 30 days, you get your $699 back. No
+          fees — within 30 days of your search going live, you get your $699 back. No
           questions asked. And you&apos;re never obligated to buy anything, even if we do find
           you a great deal.
         </p>

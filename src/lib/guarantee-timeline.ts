@@ -91,7 +91,7 @@ export function deriveGuaranteeTimeline(
         : [];
   } else if (refunded) {
     lines = [
-      `We didn't find an offer below Total SRP within 30 days, so your $699 is being refunded. We'll keep searching through ${through}.`,
+      `We didn't find an offer below Total SRP within 30 days of your search going live, so your $699 is being refunded. We'll keep searching through ${through}.`,
     ];
   } else if (deliveredAt) {
     lines = [deliveredLine(deliveredAt), `Your search continues through ${through}.`];
