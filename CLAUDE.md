@@ -43,13 +43,13 @@ This file exists so any Claude Code session (yours, your collaborator's, or a fu
   - **⚠ THE ONE QUERY IT DOES CONTAMINATE: a bare `select count(*) from customers`.** There is **no `is_test` flag anywhere in this schema** — confirmed by grep, no such column and no naming convention checked in code — so nothing excludes it automatically. **Any future "how many real customers do we have" check must subtract it** (or filter `email not like '%@levrauto.invalid'`). Searches, paid searches and payments are all unaffected, so the pre-launch "zero real money has moved" checks stay valid as-is: at the time of writing `customers = 3` (Brett's two accounts plus this one) while `customer_searches = 0`, `paid searches = 0` and `payments = 0`.
   - **Discipline when Brett uses it himself:** create whatever searches/rows a verification needs, then delete them afterwards and confirm by count. Leave the account itself in place — it is meant to persist. If a proper `is_test` flag is ever wanted, that is a migration plus edits to each enumeration surface, and should be its own reviewed change rather than a column nothing reads.
 
-## ⚠ IN-FLIGHT STATE — read before doing anything (updated 2026-09-30, work PAUSED)
+## ⚠ IN-FLIGHT STATE — read before doing anything (updated 2026-10-01)
 
 A snapshot of work that is mid-flight right now. Verify against `git log`/`git status` before acting on it, and rewrite this section once these items are resolved. **Nothing gets pushed without Brett's sign-off.**
 
 ### ⏸ PAUSED 2026-09-30: start here
 
-**1. Production journey test: paused before step 15 (Mark as purchased).**
+**1. Production journey test: at the post-deal survey step.** Marked purchased 2026-10-01 02:56 UTC; `purchased_at` moved back 49h to 2026-09-29T01:56:41Z. Waiting on the 12:00 UTC post-deal-survey cron (or Brett's `curl`). Steps 1 and 2 below are done; 3–5 remain.
 - **Test account:** `emailtest@levrauto.com` (a Zoho alias on Brett's mailbox, a real address, so emails really send). Customer id `72a3252a-32a0-444e-b177-7a3129edd077`.
 - **Live search:** `1a02ccad-9ea9-48b7-ab91-4dfc3ff05fa7`, a Toyota Camry 2026 SE at ZIP 67212. Paid with Stripe's **test** card: `payments` row `search_fee`, `pi_3ULQXj…`. Went live 2026-09-30 17:00:45 UTC.
 - **Its offers:** "tester" $31,000 against a $35,000 sticker, accepted with pickup, availability and a $500 deposit confirmed. Stevenson-hendrick $42,519, declined.
@@ -76,26 +76,30 @@ A snapshot of work that is mid-flight right now. Verify against `git log`/`git s
 - Its migration `20260930120000_pickup_travel_unlimited.sql` was already run in production beforehand.
 - **Checked before pushing**, on 127.0.0.1 with disposable accounts (deleted after): the gauge on intake, Your Deal's prompt and Change control, and the agent's undecided form; tap, drag, keyboard and "any distance" saving; both components at 390px and 360px (same-origin iframe method); the pop-up's position, focus, Escape and scroll lock.
 - **Left to Brett:** a real trackpad/mouse-wheel check on the live pop-up (the test tool's scroll moves the page by script, so it can't prove the scroll lock against real wheel input).
+- **Gauge default, PUSHED AND LIVE 2026-10-01 (`b872c98`, deploy `levr-auto-dbos6tqzl`, Ready).** Brett's call: on homepage intake and Your Deal's no-answer prompt the needle starts at 100 miles (`PICKUP_TRAVEL_DEFAULT`) and counts as the answer if left. Your Deal's prompt gained a "Save" button (approved) that stores whatever the needle shows; tapping a stop still saves at once. The agent's undecided form keeps no default and is the only place showing "Drag or tap to choose". Checked desktop + 390/360px on disposable accounts.
 
-**3. Next build after the test: the sign-up-to-payment fix (approved, TOP priority, ahead of anything else).**
-- **What it is:**
-  - save the unpaid search on the server at sign-up;
-  - one unpaid search per customer, with intake reusing it;
-  - a "Review and pay" view in Your Car (make, model, year, ZIP and pickup editable, inventory counts, "Continue to payment — $699");
-  - server-side payment checks on every finalize and call-request action;
-  - the undecided path gets no automatic Stripe redirect;
-  - the admin table and agent lookups label or hide unpaid searches;
-  - rule: a "real customer" = a paid search.
-- **Unpaid reminder emails:** 24h and 72h after the search is saved, at most 2, stopping on payment; confirmed, non-test addresses only; a one-click signed unsubscribe (`UNSUBSCRIBE_SECRET` is set in Vercel Production); only unpaid searches created after the feature deploys.
-- **Migration:** `unpaid_reminder_1/2_sent_at`, `customers.unpaid_reminders_unsubscribed_at`, a partial index on unpaid `created_at`. Approved 2026-09-30. The full SQL is in **`docs/plans/signup-to-payment-plan.md`** (move it into `supabase/migrations/` at build time). No unique index: two customers already hold more than one unpaid search.
-- **The full plan, the approved wording (including the guarantee start-point table) and the migration are all in `docs/plans/signup-to-payment-plan.md`.**
-- **All wording approved 2026-09-30:**
-  - Review and pay page, `/account` card, unpaid list line, pop-up line;
-  - agent/admin "unpaid" labels;
-  - both reminder emails, the footer and the unsubscribe page;
-  - **the guarantee start-point wording everywhere.** "…within 30 days of your search going live" goes on the homepage section and Day 0 marker, the FAQ (which also drops the wrong "automatically"), the switch screens and account FAQ ("when your new search goes live", which fixes the wrong "from today"), the guarantee-met and refund emails, the timeline's refunded line, and the article generator prompts. The exact wording table is in `docs/plans/signup-to-payment-plan.md`. Only the markups article's sentence has been changed so far.
-  - The general-thread placeholder "e.g. How's my search going?" is already shipped (`00f6c20`).
-- **⚠ The reminder emails need `REMINDER_MAILING_ADDRESS` set before they can send.** The job must send nothing while it's unset.
+**3. Sign-up-to-payment fix: IN PROGRESS, local only (committed, NOT pushed, NOT deployed). Stopped at the migration, 2026-10-01 ~04:00 UTC.**
+- **Plan, approved wording and SQL:** `docs/plans/signup-to-payment-plan.md` (all wording approved 2026-09-30). Brett said: commit locally as you go, don't push or deploy; when the migration is reached, paste it and stop; disposable accounts only, deleted after.
+- **Local commits on top of `b872c98` (origin/main):**
+  - `0aeb5e6` the core build (details below);
+  - `7889eb7` guarantee start-point wording everywhere ("within 30 days of your search going live" etc., the plan's table), clock unchanged;
+  - plus the commit carrying this CLAUDE.md update and the migration file.
+- **Built and verified in `0aeb5e6`** (127.0.0.1 with disposable accounts, deleted after, confirmed 0 by count):
+  - `src/lib/unpaid-search.ts` (server-only): the ONE place an unpaid search is saved or edited. `saveUnpaidSearch` reuses the customer's latest unpaid row (paid_at-null guard) instead of inserting; `updateOwnUnpaidSearch` edits it (keeps Matchmaker context unless make/model changed); `getLatestUnpaidSearch`, `customerHasPaidSearch`. Types live in `src/lib/intake-choices.ts`. **⚠ A `"use server"` file must not re-export types** (`export type { X }` of an imported type): Next treats it as a server action and the save crashed at runtime with "MatchmakerContext is not defined". tsc does not catch it.
+  - Intake (signed in) and undecided intake save through it and land on `/account/vehicle?searchId=…`; the old saved/"Proceed to Payment" screen and the undecided auto-redirect to Stripe are gone. Verified: intake reused the existing unpaid row; undecided reused it too; nothing reached Stripe without a click.
+  - `signupInline` (pop-up sign-up) takes the intake and saves it for the NEW account only (`identities` non-empty; an existing email's stand-in user is ignored). The pop-up then shows "We've saved your search. After you confirm your email, you can review it and pay from your account." Confirmation link lands on `/account`. **NOT verified end to end:** a disposable `.invalid` address can't receive the Supabase confirmation email, so signUp can't succeed with one. Needs a real-inbox sign-up (Brett, or an address he provides) after deploy: sign up in the pop-up, confirm on another device, pay from Your Car.
+  - Your Car (`/account/vehicle`): "Review your search" (`src/components/review-and-pay.tsx`) for the latest unpaid search, when requested by `?searchId` or when there's no paid search. Rows with "Change", inline edit (Save/Cancel; gauge defaults to 100 miles if empty), approved inventory lines, "What's included", next-step line, lock note, "Continue to payment — $699" via `createCheckoutSession` (cancel_url returns here). Undecided variant verified. Verified: edit saved ZIP + pickup; pay button reached a test-mode Stripe Checkout.
+  - `/account`: "Finish starting your search" card + "Review and pay"; unpaid line "Not paid yet — this search starts once you complete payment." with "Review and pay"; older duplicate unpaid rows hidden. Verified. The status badge still reads "checkout incomplete" (not in the approved list; left as is).
+  - Payment required on the server: `requestFinalizationCall`, `finalizeSelfService`, `finalizeSearchByAgent`, `finalizeUndecidedSearch` refuse unpaid searches (check + write guard). Verified the call request: "This search hasn't been paid for yet.", nothing written; `/finalize` redirects for unpaid.
+  - Agents/admin: `/internal/admin` "Unpaid (checkout not completed)" filter, unpaid hidden from All; "unpaid" in the three customer lookups (`agentSearchStatusLabel`); "unpaid" tag on general-thread activity for customers with no paid search. All verified. (Lookups show an undecided search with a blank vehicle name, as before.)
+- **Migration written, NOT run:** `supabase/migrations/20261001120000_unpaid_reminders.sql` (the approved SQL). Pasted to Brett 2026-10-01; he runs it in the morning. Confirm from the app's side after.
+- **Still to build after the migration runs:**
+  1. `src/lib/unpaid-reminders.ts` + hourly cron (`vercel.json`): candidates = unpaid, no paid search, email confirmed, not `isTestEmail`, not unsubscribed, created after a deploy cutoff (a constant set at deploy, no backlog), 24h → reminder 1, 72h → reminder 2, at most two. Re-check `paid_at` right before each send; stamp only after a successful send. **Sends nothing while `REMINDER_MAILING_ADDRESS` is unset** (log and move on). Approved email copy and footer are in the plan doc; links go to `/account/vehicle?searchId=…`.
+  2. Signed unsubscribe (HMAC with `UNSUBSCRIBE_SECRET`): page + route with the approved copy, sets `customers.unpaid_reminders_unsubscribed_at`; `List-Unsubscribe` header (extend `sendEmail`, which has no custom-headers support yet).
+  3. Verify the job scoped to a disposable customer (`onlyCustomerIds`-style), never unscoped against production.
+  4. CLAUDE.md: the real-customer rule (= a paid search), the new flow, one unpaid search per customer.
+  5. Brett's sign-off, then push + deploy, then the real-inbox sign-up check above.
+- **⚠ REMINDER_MAILING_ADDRESS** must be a real postal address (PO box, virtual mailbox or registered agent) before reminders can send. No test or made-up address in real email.
 - Brett pasted an `openssl rand -hex 32` value in chat; if that value became `UNSUBSCRIBE_SECRET`, he was advised to regenerate it without pasting.
 
 **4. Decisions pending (Brett):**
