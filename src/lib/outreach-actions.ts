@@ -864,7 +864,7 @@ export async function finalizeSearchByAgent(
 
   const { data: search, error: fetchError } = await admin
     .from("customer_searches")
-    .select("make, model, model_year, search_status")
+    .select("make, model, model_year, search_status, paid_at")
     .eq("id", searchId)
     .maybeSingle();
   if (fetchError || !search) {
@@ -872,6 +872,10 @@ export async function finalizeSearchByAgent(
   }
   if (search.search_status !== "awaiting_finalization") {
     return { ok: false, error: "This search is no longer awaiting finalization." };
+  }
+  // Payment before finalizing (2026-09-30), enforced here too.
+  if (!search.paid_at) {
+    return { ok: false, error: "This search hasn't been paid for yet." };
   }
 
   // Year is required from 2026-09-14. A search that predates that has none,
@@ -910,6 +914,7 @@ export async function finalizeSearchByAgent(
     })
     .eq("id", searchId)
     .eq("search_status", "awaiting_finalization")
+    .not("paid_at", "is", null)
     .select("id")
     .maybeSingle();
 
@@ -1015,6 +1020,9 @@ export async function finalizeUndecidedSearch(
     })
     .eq("id", searchId)
     .is("make", null) // guard: only ever applies to a genuinely undecided row
+    // ...that's paid and still waiting to be finalized (2026-09-30).
+    .eq("search_status", "awaiting_finalization")
+    .not("paid_at", "is", null)
     .select("id");
 
   if (error) {
@@ -1026,7 +1034,7 @@ export async function finalizeUndecidedSearch(
   if (!updated || updated.length === 0) {
     return {
       ok: false,
-      error: "Nothing was saved — this search already has a vehicle or no longer exists. Refresh the queue.",
+      error: "Nothing was saved — this search already has a vehicle, isn't paid for, or no longer exists. Refresh the queue.",
     };
   }
 

@@ -3,8 +3,20 @@
 import { useMemo, useState } from "react";
 import type { AdminSearchRow } from "@/lib/admin-actions";
 
+// "unpaid" is not a search_status: it's an awaiting_finalization row with no
+// paid_at (sign-up-to-payment fix, 2026-09-30). Unpaid rows are hidden from
+// every other option, "All" included, and shown only under their own
+// filter -- they aren't real customers yet (real customer = paid search).
+const UNPAID = "unpaid";
+const UNPAID_LABEL = "Unpaid (checkout not completed)";
+
+function isUnpaidRow(row: AdminSearchRow): boolean {
+  return row.searchStatus === "awaiting_finalization" && !row.paidAt;
+}
+
 const STATUS_OPTIONS = [
   "All",
+  UNPAID,
   "awaiting_finalization",
   "pending_refinement",
   "searching",
@@ -40,8 +52,10 @@ export function AdminSearchesTable({ searches }: { searches: AdminSearchRow[] })
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_OPTIONS)[number]>("All");
 
   const filtered = useMemo(() => {
-    if (statusFilter === "All") return searches;
-    return searches.filter((s) => s.searchStatus === statusFilter);
+    if (statusFilter === UNPAID) return searches.filter(isUnpaidRow);
+    const paidOnly = searches.filter((s) => !isUnpaidRow(s));
+    if (statusFilter === "All") return paidOnly;
+    return paidOnly.filter((s) => s.searchStatus === statusFilter);
   }, [searches, statusFilter]);
 
   return (
@@ -55,7 +69,7 @@ export function AdminSearchesTable({ searches }: { searches: AdminSearchRow[] })
         >
           {STATUS_OPTIONS.map((s) => (
             <option key={s} value={s}>
-              {s === "All" ? "All" : s}
+              {s === UNPAID ? UNPAID_LABEL : s}
             </option>
           ))}
         </select>

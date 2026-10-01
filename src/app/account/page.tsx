@@ -15,6 +15,7 @@ import { AutoRenewOffLink } from "@/components/auto-renew-off-link";
 import { CancellationChoice } from "@/components/cancellation-choice";
 import { getPausedResumeInfo, getStatusCopy, getStatusBadge } from "@/lib/search-status-copy";
 import { formatDate } from "@/lib/dashboard-format";
+import { FLAT_PRICE } from "@/lib/vehicle-data";
 import {
   getIntakeMakeModelOptions,
   getIntakeModelYearOptions,
@@ -156,7 +157,14 @@ export default async function AccountPage({
     .eq("id", user.id)
     .single();
 
-  const searches = await getCustomerDashboard(user.id);
+  const allSearches = await getCustomerDashboard(user.id);
+  // One unpaid search per customer (sign-up-to-payment fix, 2026-09-30):
+  // only the latest unpaid row is in play. Older duplicate unpaid rows from
+  // before the fix are left in the database but not shown. The dashboard
+  // is ordered oldest first, so the latest unpaid row is the last one.
+  const unpaidSearches = allSearches.filter((s) => isUnpaid(s));
+  const latestUnpaid = unpaidSearches.at(-1) ?? null;
+  const searches = allSearches.filter((s) => !isUnpaid(s) || s.id === latestUnpaid?.id);
 
   // Only fetched when a search is actually in its edit window -- this
   // paginates the whole live vehicle dataset, and /account is force-dynamic,
@@ -194,6 +202,8 @@ export default async function AccountPage({
             {message}
           </p>
         )}
+
+        {latestUnpaid && <FinishStartingCard search={latestUnpaid} />}
 
         <AccountSettingsForm
           existing={{
@@ -237,6 +247,31 @@ export default async function AccountPage({
         </form>
       </div>
     </section>
+  );
+}
+
+function isUnpaid(search: DashboardSearch): boolean {
+  return search.searchStatus === "awaiting_finalization" && !search.paidAt;
+}
+
+// Top-of-page card for the saved, unpaid search (approved 2026-09-30).
+function FinishStartingCard({ search }: { search: DashboardSearch }) {
+  const vehicle = [search.modelYear, search.make, search.model].filter(Boolean).join(" ");
+  return (
+    <div className="mt-8 rounded-2xl border border-emerald-500/30 bg-emerald-500/[0.06] p-6">
+      <h2 className="text-lg font-semibold text-white">Finish starting your search</h2>
+      <p className="mt-2 text-sm text-zinc-300">
+        {search.make && search.model
+          ? `Your ${vehicle} search is saved. Review it and pay the flat $${FLAT_PRICE} fee to start.`
+          : `Your search is saved. Review it and pay the flat $${FLAT_PRICE} fee to start.`}
+      </p>
+      <Link
+        href={`/account/vehicle?searchId=${search.id}`}
+        className="mt-4 inline-flex min-h-11 items-center justify-center rounded-full bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400"
+      >
+        Review and pay
+      </Link>
+    </div>
   );
 }
 
@@ -296,10 +331,13 @@ function SearchCard({
         <AutoRenewToggle searchId={search.id} />
       )}
 
-      {search.searchStatus === "awaiting_finalization" && !search.paidAt && (
+      {isUnpaid(search) && (
         <div className="mt-4 border-t border-white/5 pt-4">
-          <Link href="/" className="text-sm text-emerald-400 underline hover:text-emerald-300">
-            Head back to the homepage to try again
+          <Link
+            href={`/account/vehicle?searchId=${search.id}`}
+            className="text-sm text-emerald-400 underline hover:text-emerald-300"
+          >
+            Review and pay
           </Link>
         </div>
       )}

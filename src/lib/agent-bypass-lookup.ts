@@ -91,6 +91,8 @@ export interface CustomerSearchSummary {
   make: string;
   model: string;
   searchStatus: string;
+  /** Paid for? Unpaid searches are tagged "unpaid" for agents (2026-09-30). */
+  paid: boolean;
 }
 
 export type GetCustomerSearchesResult = CustomerSearchSummary[] | { error: string };
@@ -105,7 +107,7 @@ export async function getCustomerSearchesForBypass(customerId: string): Promise<
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("customer_searches")
-    .select("id, make, model, search_status")
+    .select("id, make, model, search_status, paid_at")
     .eq("customer_id", customerId)
     .order("created_at", { ascending: false });
 
@@ -118,5 +120,6 @@ export async function getCustomerSearchesForBypass(customerId: string): Promise<
     make: s.make,
     model: s.model,
     searchStatus: s.search_status,
+    paid: s.paid_at !== null,
   }));
 }

@@ -34,13 +34,19 @@ async function getOwnedAwaitingFinalizationSearch(searchId: string) {
 
   const { data: search, error } = await supabase
     .from("customer_searches")
-    .select("id, search_status, make, model, model_year")
+    .select("id, search_status, make, model, model_year, paid_at")
     .eq("id", searchId)
     .eq("customer_id", user.id)
     .maybeSingle();
 
   if (error || !search) {
     return { ok: false as const, error: "That search doesn't exist." };
+  }
+  // Payment comes before anything that commits to a car (2026-09-30): the
+  // /finalize page already turns unpaid visitors away, but this action must
+  // refuse an unpaid search on its own, not rely on the page.
+  if (!search.paid_at) {
+    return { ok: false as const, error: "This search hasn't been paid for yet." };
   }
   if (search.search_status !== "awaiting_finalization") {
     return { ok: false as const, error: "This search has already been finalized." };
@@ -93,6 +99,7 @@ export async function requestFinalizationCall(searchId: string): Promise<Finaliz
     .update({ call_requested_at: new Date().toISOString() })
     .eq("id", searchId)
     .eq("search_status", "awaiting_finalization")
+    .not("paid_at", "is", null)
     .is("call_requested_at", null)
     .select("id");
 
@@ -1243,7 +1250,8 @@ export async function finalizeSelfService(
       search_status: "pending_refinement",
     })
     .eq("id", searchId)
-    .eq("search_status", "awaiting_finalization");
+    .eq("search_status", "awaiting_finalization")
+    .not("paid_at", "is", null);
 
   if (error) {
     return { ok: false, error: `Failed to finalize: ${error.message}` };

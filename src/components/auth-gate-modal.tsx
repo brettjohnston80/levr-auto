@@ -3,6 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { loginInline, signupInline } from "@/lib/auth-actions";
+import type { IntakeChoices } from "@/lib/intake-choices";
+
+// Approved 2026-09-30 (sign-up-to-payment fix): shown once sign-up has saved
+// the search on the server.
+const SEARCH_SAVED_LINE =
+  "We've saved your search. After you confirm your email, you can review it and pay from your account.";
 
 type Mode = "login" | "signup";
 
@@ -10,10 +16,17 @@ export function AuthGateModal({
   open,
   onClose,
   onAuthenticated,
+  intake,
+  onSignedUp,
 }: {
   open: boolean;
   onClose: () => void;
   onAuthenticated: () => void;
+  /** The intake to save as the new account's unpaid search at sign-up. */
+  intake?: IntakeChoices;
+  /** Called after a successful sign-up; `searchSaved` says whether the
+   *  server saved the intake (so the caller can drop its browser stash). */
+  onSignedUp?: (searchSaved: boolean) => void;
 }) {
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
@@ -23,6 +36,7 @@ export function AuthGateModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [signupComplete, setSignupComplete] = useState(false);
+  const [searchSaved, setSearchSaved] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   // The caller passes a fresh onClose each render; reading it through a ref
@@ -108,13 +122,15 @@ export function AuthGateModal({
       }
       onAuthenticated();
     } else {
-      const result = await signupInline(email, password, phone.trim() || undefined);
+      const result = await signupInline(email, password, phone.trim() || undefined, intake);
       setLoading(false);
       if (!result.ok) {
         setError(result.error ?? "Something went wrong.");
         return;
       }
+      setSearchSaved(result.searchSaved);
       setSignupComplete(true);
+      onSignedUp?.(result.searchSaved);
     }
   }
 
@@ -158,8 +174,10 @@ export function AuthGateModal({
             </span>
             <h2 id="auth-gate-title" className="mt-6 text-xl font-semibold text-white">Check your email</h2>
             <p className="mt-3 text-sm leading-relaxed text-zinc-400">
-              We sent a confirmation link to <span className="text-zinc-200">{email}</span>. Your
-              search is saved — confirm your account and come back to this page to finish.
+              We sent a confirmation link to <span className="text-zinc-200">{email}</span>.{" "}
+              {searchSaved
+                ? SEARCH_SAVED_LINE
+                : "Your search is saved — confirm your account and come back to this page to finish."}
             </p>
             <button
               type="button"

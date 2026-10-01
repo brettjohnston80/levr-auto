@@ -44,8 +44,10 @@ export const SEARCH_STATUS_COPY: Record<string, string> = {
   purchased: "This search is complete — you purchased your vehicle.",
 };
 
-export const UNPAID_AWAITING_FINALIZATION_COPY =
-  "Checkout wasn't completed — this search hasn't been paid for, so it hasn't started.";
+// Approved 2026-09-30 (sign-up-to-payment fix), replacing "Checkout wasn't
+// completed -- this search hasn't been paid for, so it hasn't started." --
+// unpaid is now a normal saved state, reviewed and paid from Your Car.
+export const UNPAID_AWAITING_FINALIZATION_COPY = "Not paid yet — this search starts once you complete payment.";
 
 export const PAUSED_EXPIRED_COPY = "This search has ended. To continue, you'll need to start a new search.";
 
@@ -106,5 +108,15 @@ export function getStatusBadge(search: SearchStatusFields): string {
   if (search.searchStatus === "awaiting_finalization" && !search.paidAt) {
     return "checkout incomplete";
   }
+  return search.searchStatus.replace(/_/g, " ");
+}
+
+/**
+ * A search's status as agents see it in customer lookups: "unpaid" for a
+ * saved search the customer hasn't paid for yet (sign-up-to-payment fix,
+ * 2026-09-30), otherwise the raw status with spaces.
+ */
+export function agentSearchStatusLabel(search: { searchStatus: string; paid: boolean }): string {
+  if (search.searchStatus === "awaiting_finalization" && !search.paid) return "unpaid";
   return search.searchStatus.replace(/_/g, " ");
 }

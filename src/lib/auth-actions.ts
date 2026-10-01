@@ -2,6 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { saveUnpaidSearch } from "@/lib/unpaid-search";
+import type { IntakeChoices } from "@/lib/intake-choices";
 
 async function attemptLogin(email: string, password: string) {
   const supabase = await createClient();
@@ -16,7 +19,7 @@ async function attemptSignup(email: string, password: string, redirectPath: stri
   const metadata: Record<string, string> = {};
   if (phone) metadata.phone = phone;
 
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
@@ -25,7 +28,11 @@ async function attemptSignup(email: string, password: string, redirectPath: stri
     },
   });
 
-  return { ok: !error, error: error?.message };
+  // For an email that already has an account, Supabase returns a stand-in
+  // user with no identities instead of an error (so sign-up can't be used to
+  // probe which emails exist). That id is not a real new account.
+  const newUserId = !error && data.user && (data.user.identities?.length ?? 0) > 0 ? data.user.id : null;
+  return { ok: !error, error: error?.message, newUserId };
 }
 
 // Form-action versions — used by the standalone /login and /signup pages.
@@ -184,12 +191,33 @@ export async function loginInline(email: string, password: string) {
   return attemptLogin(email, password);
 }
 
-export async function signupInline(email: string, password: string, phone?: string) {
-  // Sends confirmed users back to the homepage (where the intake flow lives)
-  // rather than /account, so the pending-search resume logic can pick up.
-  // Neither name nor notification preferences are collected here anymore --
-  // both live in account settings now, and default/stay null via the DB
-  // trigger/column defaults the same way any signup path that omits them
-  // always has.
-  return attemptSignup(email, password, `/auth/callback?next=${encodeURIComponent("/")}`, phone);
+export async function signupInline(
+  email: string,
+  password: string,
+  phone?: string,
+  /** The intake the customer just filled in (sign-up-to-payment fix,
+   *  2026-09-30). Saved on the server as their unpaid search the moment the
+   *  account exists, so it survives confirming the email on another device
+   *  or browser. Optional: the pop-up also serves plain sign-ups. */
+  intake?: IntakeChoices,
+): Promise<{ ok: boolean; error?: string; searchSaved: boolean }> {
+  // Name and notification preferences aren't collected here; they live in
+  // account settings and stay at their defaults until then.
+  const result = await attemptSignup(email, password, `/auth/callback?next=${encodeURIComponent("/account")}`, phone);
+  if (!result.ok) return { ok: false, error: result.error, searchSaved: false };
+
+  let searchSaved = false;
+  if (intake && result.newUserId) {
+    // The new account's customers row is created by the handle_new_user
+    // trigger in the same transaction as the auth user, so it exists here.
+    const saved = await saveUnpaidSearch(createAdminClient(), result.newUserId, intake);
+    if (saved.ok) {
+      searchSaved = true;
+    } else {
+      // The account is created either way; the browser stash still lets the
+      // same browser resume, so this is logged rather than failing sign-up.
+      console.error("signupInline: could not save the unpaid search", saved.error);
+    }
+  }
+  return { ok: true, searchSaved };
 }

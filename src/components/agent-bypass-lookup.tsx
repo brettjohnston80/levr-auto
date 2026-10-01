@@ -9,6 +9,7 @@ import {
 } from "@/lib/agent-bypass-lookup";
 import { grantExtensionBypass } from "@/lib/agent-bypass-actions";
 import { BYPASS_REASON_CATEGORIES } from "@/lib/agent-bypass-reasons";
+import { agentSearchStatusLabel } from "@/lib/search-status-copy";
 
 type Mode = "search" | "results" | "searches" | "bypass-form" | "done";
 
@@ -119,7 +120,7 @@ export function AgentBypassLookup() {
         <p className="text-sm text-zinc-400">
           Granting a +30 day extension to {selectedCustomer.fullName ?? selectedCustomer.email}&rsquo;s{" "}
           {selectedSearch.make} {selectedSearch.model} search (currently{" "}
-          {selectedSearch.searchStatus.replace(/_/g, " ")}).
+          {agentSearchStatusLabel(selectedSearch)}).
         </p>
 
         <div>
@@ -190,7 +191,7 @@ export function AgentBypassLookup() {
                 onClick={() => handlePickSearch(search)}
                 className="block w-full rounded-lg border border-white/10 px-4 py-2 text-left text-sm text-white hover:bg-white/5"
               >
-                {search.make} {search.model} — {search.searchStatus.replace(/_/g, " ")}
+                {search.make} {search.model} — {agentSearchStatusLabel(search)}
               </button>
             ))}
           </div>

@@ -8,6 +8,7 @@ import {
   type CustomerSearchSummary,
 } from "@/lib/agent-bypass-lookup";
 import { AgentCancellationResolutionForm } from "@/components/agent-cancellation-resolution-form";
+import { agentSearchStatusLabel } from "@/lib/search-status-copy";
 
 type Mode = "search" | "results" | "searches" | "resolve";
 
@@ -73,7 +74,7 @@ export function AgentCancellationLookup() {
         <p className="text-sm text-zinc-400">
           Resolving cancellation for {selectedCustomer.fullName ?? selectedCustomer.email}&rsquo;s{" "}
           {selectedSearch.make} {selectedSearch.model} search (currently{" "}
-          {selectedSearch.searchStatus.replace(/_/g, " ")}).
+          {agentSearchStatusLabel(selectedSearch)}).
         </p>
         <AgentCancellationResolutionForm searchId={selectedSearch.id} customerId={selectedCustomer.id} />
         <button type="button" onClick={reset} className="mt-3 text-sm text-zinc-400 underline hover:text-white">
@@ -103,7 +104,7 @@ export function AgentCancellationLookup() {
                 }}
                 className="block w-full rounded-lg border border-white/10 px-4 py-2 text-left text-sm text-white hover:bg-white/5"
               >
-                {search.make} {search.model} — {search.searchStatus.replace(/_/g, " ")}
+                {search.make} {search.model} — {agentSearchStatusLabel(search)}
               </button>
             ))}
           </div>

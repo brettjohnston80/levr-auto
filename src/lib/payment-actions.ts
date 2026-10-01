@@ -63,7 +63,8 @@ export async function createCheckoutSession(searchId: string): Promise<CreateChe
       customer_search_id: searchId,
     },
     success_url: `${siteUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${siteUrl}/#get-started`,
+    // Cancelling Checkout returns to Review and pay (2026-09-30).
+    cancel_url: `${siteUrl}/account/vehicle?searchId=${searchId}`,
   });
 
   if (!session.url) {

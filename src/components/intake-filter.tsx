@@ -7,13 +7,9 @@ import { soleYearForModel, yearsForModel } from "@/lib/model-year-select";
 import { countNearbyInventory } from "@/lib/inventory-count";
 import { INVENTORY_RADIUS_MILES } from "@/lib/inventory-radius";
 import { createClient } from "@/lib/supabase/client";
-import {
-  saveIntakeSearch,
-  saveUndecidedIntakeSearch,
-  type MatchmakerContext,
-} from "@/lib/intake-actions";
+import { saveIntakeSearch, saveUndecidedIntakeSearch } from "@/lib/intake-actions";
+import type { IntakeChoices, MatchmakerContext } from "@/lib/intake-choices";
 import { clearMatchmakerPrefill, readMatchmakerPrefill } from "@/lib/matchmaker-prefill";
-import { createCheckoutSession } from "@/lib/payment-actions";
 import { AuthGateModal } from "@/components/auth-gate-modal";
 import { PickupTravelGauge } from "@/components/pickup-travel-gauge";
 import {
@@ -273,13 +269,12 @@ export function IntakeFilter({
   const [zip, setZip] = useState("");
   // Starts at the 100-mile default, which counts as the answer if left.
   const [pickupTravel, setPickupTravel] = useState(PICKUP_TRAVEL_DEFAULT);
-  const [submitted, setSubmitted] = useState(false);
   const [authGateOpen, setAuthGateOpen] = useState(false);
+  // What the sign-up pop-up saves as the new account's unpaid search
+  // (sign-up-to-payment fix, 2026-09-30), set when the pop-up is opened.
+  const [gateIntake, setGateIntake] = useState<IntakeChoices | undefined>(undefined);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [searchId, setSearchId] = useState<string | null>(null);
-  const [payingNow, setPayingNow] = useState(false);
-  const [payError, setPayError] = useState<string | null>(null);
   const [savingUndecided, setSavingUndecided] = useState(false);
   const [undecidedError, setUndecidedError] = useState<string | null>(null);
   // Display/reference-only context from a Matchmaker card, when the
@@ -351,11 +346,22 @@ export function IntakeFilter({
       matchmakerToSave
     );
 
-    setSaving(false);
-
     if (!result.ok) {
+      setSaving(false);
       if (result.requiresAuth) {
+        // The stash still lets THIS browser resume after sign-in; the pop-up
+        // additionally saves it on the server at sign-up, so a customer who
+        // confirms their email elsewhere doesn't lose it.
         stashPendingIntake(vehicleToSave, zipToSave, travelToSave);
+        setGateIntake({
+          kind: "vehicle",
+          make: vehicleToSave.make,
+          model: vehicleToSave.model,
+          modelYear: vehicleToSave.modelYear ? Number(vehicleToSave.modelYear) : null,
+          zip: zipToSave,
+          pickupTravel: travelToSave || null,
+          matchmaker: matchmakerToSave,
+        });
         setAuthGateOpen(true);
       } else {
         setSaveError(result.error);
@@ -364,30 +370,15 @@ export function IntakeFilter({
     }
 
     clearPendingIntake();
-    setSearchId(result.searchId);
-    setSubmitted(true);
+    // Review and pay lives in Your Car (2026-09-30): the one place a saved,
+    // unpaid search is reviewed, edited and paid for. `saving` stays on
+    // while the page changes.
+    window.location.href = `/account/vehicle?searchId=${result.searchId}`;
   }
 
-  async function handleCheckout() {
-    if (!searchId) return;
-    setPayingNow(true);
-    setPayError(null);
-
-    const result = await createCheckoutSession(searchId);
-
-    if (!result.ok) {
-      setPayingNow(false);
-      setPayError(result.error);
-      return;
-    }
-
-    window.location.href = result.url;
-  }
-
-  // One action, zero fields: save the undecided search, then go straight to
-  // Stripe -- same performSave-then-handleCheckout sequence as the normal
-  // path, just skipping vehicle/zip and the intermediate "submitted" review
-  // screen entirely.
+  // One action, zero fields: save the undecided search, then go to Review
+  // and pay. Never straight to Stripe (2026-09-30): every payment now needs
+  // its own click.
   async function performUndecidedSave() {
     setSavingUndecided(true);
     setUndecidedError(null);
@@ -398,6 +389,7 @@ export function IntakeFilter({
       setSavingUndecided(false);
       if (result.requiresAuth) {
         stashPendingUndecidedIntake();
+        setGateIntake({ kind: "undecided" });
         setAuthGateOpen(true);
       } else {
         setUndecidedError(result.error);
@@ -406,15 +398,7 @@ export function IntakeFilter({
     }
 
     clearPendingUndecidedIntake();
-
-    const checkoutResult = await createCheckoutSession(result.searchId);
-    if (!checkoutResult.ok) {
-      setSavingUndecided(false);
-      setUndecidedError(checkoutResult.error);
-      return;
-    }
-
-    window.location.href = checkoutResult.url;
+    window.location.href = `/account/vehicle?searchId=${result.searchId}`;
   }
 
   // Matchmaker pre-fill ("choose this car", steps 4-5). A SEPARATE effect
@@ -464,8 +448,11 @@ export function IntakeFilter({
 
   // Resume-after-email-confirmation: if a pending intake (vehicle-based or
   // undecided) was stashed before a signup and the user is now signed in
-  // (e.g. they clicked the confirmation link and landed back here), finish
-  // whichever one was in flight automatically.
+  // (e.g. they clicked the confirmation link and landed back here), save
+  // whichever one was in flight and go to Review and pay. Never to Stripe:
+  // payment always needs the customer's own click. Saving reuses their
+  // unpaid search, so this can't create a duplicate of one the pop-up's
+  // sign-up already saved.
   useEffect(() => {
     if (resumeChecked.current) return;
     resumeChecked.current = true;
@@ -523,72 +510,6 @@ export function IntakeFilter({
     setVehicle((prev) => ({ ...prev, ...patch }));
   }
 
-  function startOver() {
-    setVehicle(emptyVehicle());
-    setZip("");
-    setPickupTravel(PICKUP_TRAVEL_DEFAULT);
-    setSubmitted(false);
-    setSaveError(null);
-    setSearchId(null);
-    setPayError(null);
-  }
-
-  if (submitted) {
-    return (
-      <section id="get-started" className="bg-zinc-900 py-24">
-        <div className="mx-auto max-w-2xl px-6">
-          <div className="rounded-3xl border border-emerald-500/30 bg-emerald-500/10 p-10 text-center">
-            <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500 text-2xl font-bold text-zinc-950">
-              ✓
-            </span>
-            <h2 className="mt-6 text-2xl font-semibold text-white">
-              Nice pick — your search is saved.
-            </h2>
-            <div className="mt-6 rounded-xl border border-white/10 bg-white/[0.04] p-4 text-left text-sm text-zinc-300">
-              <span className="font-semibold text-white">
-                {vehicle.modelYear} {vehicle.make} {vehicle.model}
-              </span>
-            </div>
-            <p className="mt-6 text-lg font-semibold text-white">
-              Total: ${FLAT_PRICE} for zip {zip}
-            </p>
-            <p className="mt-2 text-sm text-zinc-400">
-              {matchCount === null
-                ? "Outreach begins right after checkout."
-                : matchCount === 0
-                  ? `0 matching listings tracked near you right now — our nationwide outreach can still source it.`
-                  : `${matchCount.toLocaleString()} ${matchCount === 1 ? "vehicle" : "vehicles"} within ${INVENTORY_RADIUS_MILES} miles currently match this search.`}
-            </p>
-            <p className="mt-4 text-sm text-zinc-400">
-              Nothing has been charged yet. Once you check out, you&apos;ll pick trim, color, and
-              options — either yourself or on a call with your agent — before we start reaching
-              out to dealers.
-            </p>
-            {payError && (
-              <p className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-                {payError}
-              </p>
-            )}
-            <button
-              onClick={handleCheckout}
-              disabled={payingNow}
-              className="mt-8 w-full rounded-full bg-emerald-500 px-8 py-3.5 text-base font-semibold text-zinc-950 transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400 sm:w-auto"
-            >
-              {payingNow ? "Redirecting to checkout…" : `Proceed to Payment — $${FLAT_PRICE}`}
-            </button>
-            <div>
-              <button
-                onClick={startOver}
-                className="mt-4 rounded-full border border-white/20 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
-              >
-                Start Over
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-    );
-  }
 
   return (
     <section id="get-started" className="bg-zinc-900 py-24">
@@ -755,6 +676,15 @@ export function IntakeFilter({
         open={authGateOpen}
         onClose={() => setAuthGateOpen(false)}
         onAuthenticated={handleAuthenticated}
+        intake={gateIntake}
+        onSignedUp={(searchSaved) => {
+          // Saved on the server: the browser stash is no longer needed, and
+          // keeping it would only re-save the same intake later.
+          if (searchSaved) {
+            clearPendingIntake();
+            clearPendingUndecidedIntake();
+          }
+        }}
       />
     </section>
   );

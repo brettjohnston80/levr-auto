@@ -8,6 +8,11 @@ import { getFinalizeChoiceData } from "@/lib/finalize-choice-data";
 import { FinalizeChoice } from "@/components/finalize-choice";
 import { Section } from "@/components/trim-detail-modal";
 import { GetStartedButton } from "@/components/get-started-button";
+import { ReviewAndPay } from "@/components/review-and-pay";
+import { getLatestUnpaidSearch, type UnpaidSearchSummary } from "@/lib/unpaid-search";
+import { getIntakeMakeModelOptions, getIntakeModelYearOptions } from "@/lib/intake-vehicle-options";
+import { countNationwideInventory, countNearbyInventory } from "@/lib/inventory-count";
+import { travelFromColumns, travelToValue } from "@/lib/pickup-travel";
 
 export const metadata: Metadata = {
   title: "Your Car — LEVR Auto",
@@ -20,6 +25,39 @@ export const dynamic = "force-dynamic";
 // that search's vehicle is exactly what a customer would want this tab to
 // keep showing (their permanent record of what they bought).
 const TERMINAL_STATUSES = ["switched", "cancelled", "closed"];
+
+// "Review and pay" (sign-up-to-payment fix, 2026-09-30): the customer's
+// saved, unpaid search, editable until they pay. Counts are the existing
+// approved inventory lines; a failed count is simply not shown.
+async function ReviewAndPayView({ unpaid }: { unpaid: UnpaidSearchSummary }) {
+  const decided = Boolean(unpaid.make && unpaid.model);
+  const [makeModelOptions, modelYearOptions, nationwide, nearby] = await Promise.all([
+    getIntakeMakeModelOptions(),
+    getIntakeModelYearOptions(),
+    decided ? countNationwideInventory(unpaid.make!, unpaid.model!) : null,
+    decided && unpaid.zip ? countNearbyInventory(unpaid.make!, unpaid.model!, unpaid.zip) : null,
+  ]);
+  return (
+    <section className="bg-zinc-950 py-24">
+      <div className="mx-auto max-w-2xl px-6">
+        <ReviewAndPay
+          search={{
+            id: unpaid.id,
+            make: unpaid.make,
+            model: unpaid.model,
+            modelYear: unpaid.modelYear,
+            zip: unpaid.zip,
+            pickupTravel: travelToValue(travelFromColumns(unpaid.pickupTravelChoice, unpaid.pickupTravelMiles)),
+          }}
+          makeModelOptions={makeModelOptions}
+          modelYearOptions={modelYearOptions}
+          nationwideCount={nationwide?.ok ? nationwide.count : null}
+          nearbyCount={nearby?.ok ? nearby.count : null}
+        />
+      </div>
+    </section>
+  );
+}
 
 function ExcludedNames({ names }: { names: string[] }) {
   if (names.length === 0) return null;
@@ -61,6 +99,15 @@ export default async function VehiclePage({
   const nonTerminal = (candidateSearches ?? []).filter(
     (s) => !TERMINAL_STATUSES.includes(s.search_status as string),
   );
+
+  // The customer's one unpaid search in play (older duplicate unpaid rows
+  // from before the fix are never shown). Shown when asked for by id --
+  // the /account card, sign-up, intake and reminder links all pass it --
+  // or when there's no paid search to show instead.
+  const unpaid = await getLatestUnpaidSearch(admin, user.id);
+  if (unpaid && (requestedSearchId === unpaid.id || nonTerminal.length === 0)) {
+    return <ReviewAndPayView unpaid={unpaid} />;
+  }
 
   // No bounce to /account -- this tab is meant to be a stable, revisitable
   // destination (that's the whole point of it existing separately from the

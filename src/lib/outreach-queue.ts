@@ -1434,6 +1434,9 @@ export interface GeneralThreadActivityItem {
   messages: OfferMessage[];
   /** A searching search to jump to, if the customer has one. */
   searchingSearchId: string | null;
+  /** No paid search yet, so not a real customer (2026-09-30): the general
+   *  thread stays open before payment, labelled "unpaid" for the agent. */
+  unpaid: boolean;
   /** Echoed back by "Mark reviewed" / reply (stale-page guard). */
   customerActivityAt: string;
 }
@@ -1467,11 +1470,13 @@ export async function getGeneralThreadActivityQueue(): Promise<GeneralThreadActi
   if (unreviewed.length === 0) return [];
 
   const customerIds = unreviewed.map((r) => r.customer_id);
-  const [{ data: customers }, { data: searching }, messagesByCustomer] = await Promise.all([
+  const [{ data: customers }, { data: searching }, { data: paid }, messagesByCustomer] = await Promise.all([
     supabase.from("customers").select("id, email, first_name, last_name").in("id", customerIds),
     supabase.from("customer_searches").select("id, customer_id").in("customer_id", customerIds).eq("search_status", "searching"),
+    supabase.from("customer_searches").select("customer_id").in("customer_id", customerIds).not("paid_at", "is", null),
     loadGeneralMessages(supabase, customerIds, "agent"),
   ]);
+  const paidCustomers = new Set((paid ?? []).map((s) => s.customer_id as string));
   const customerById = new Map((customers ?? []).map((c) => [c.id as string, c]));
   const searchingByCustomer = new Map((searching ?? []).map((s) => [s.customer_id as string, s.id as string]));
 
@@ -1491,6 +1496,7 @@ export async function getGeneralThreadActivityQueue(): Promise<GeneralThreadActi
         ),
         messages,
         searchingSearchId: searchingByCustomer.get(r.customer_id) ?? null,
+        unpaid: !paidCustomers.has(r.customer_id),
         customerActivityAt: r.customer_activity_at,
       };
     })

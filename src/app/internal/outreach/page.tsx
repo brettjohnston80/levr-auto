@@ -446,6 +446,11 @@ export default async function OutreachQueuePage() {
                       <span className="ml-2 rounded-full border border-white/15 px-2 py-0.5 text-xs font-normal text-zinc-400">
                         general message
                       </span>
+                      {item.unpaid && (
+                        <span className="ml-2 rounded-full border border-white/15 px-2 py-0.5 text-xs font-normal text-zinc-400">
+                          unpaid
+                        </span>
+                      )}
                     </span>
                     <span className="text-xs text-zinc-500">{formatDate(item.customerActivityAt)}</span>
                   </div>
