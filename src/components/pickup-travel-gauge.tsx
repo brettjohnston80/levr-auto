@@ -238,7 +238,7 @@ export function PickupTravelGauge({
             setPending(null);
             if (value !== "case_by_case") onChange("case_by_case");
           }}
-          className={`rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors disabled:opacity-50 ${
+          className={`min-h-11 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors disabled:opacity-50 ${
             isCaseByCase
               ? "border-emerald-400 bg-emerald-500/15 text-emerald-200"
               : "border-white/10 bg-zinc-950/60 text-zinc-300 hover:border-white/25"
