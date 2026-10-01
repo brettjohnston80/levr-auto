@@ -14,9 +14,12 @@ import {
  *
  * Seven stops on a half circle, empty (left: "I'd rather have it
  * delivered") to full (right: "I'd drive any distance"), with "It depends —
- * case by case" as a separate button. It always snaps to a stop. Nothing is
- * selected until the customer chooses -- a default would be an answer
- * nobody gave.
+ * case by case" as a separate button. It always snaps to a stop. The
+ * starting position is the caller's `value`: intake and Your Deal's prompt
+ * start at PICKUP_TRAVEL_DEFAULT (100 miles, Brett 2026-10-01); the agent's
+ * undecided form passes "" so nothing is selected until the agent records
+ * the customer's real answer. The "Drag or tap to choose" hint shows only
+ * in that empty state.
  *
  * Input: drag anywhere on the gauge (not just a small handle -- a missed
  * handle on a phone scrolls the page instead), tap a stop's label, or use

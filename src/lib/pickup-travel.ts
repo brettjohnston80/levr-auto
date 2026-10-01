@@ -32,6 +32,15 @@ export const PICKUP_TRAVEL_OPTIONS: { value: string; label: string }[] = [
   { value: "case_by_case", label: "It depends — case by case" },
 ];
 
+/**
+ * Where the customer's gauge starts (Brett, 2026-10-01): 100 miles, the
+ * middle stop, and it counts as their answer if they leave it -- so intake's
+ * Continue works straight away. Used by intake and Your Deal's no-answer
+ * prompt only. The agent's undecided-vehicle form deliberately has NO
+ * default: the agent records what the customer actually said.
+ */
+export const PICKUP_TRAVEL_DEFAULT = "100";
+
 /** The fuel gauge's stops, empty (left) to full (right). Case by case is a
  *  separate button, not a stop. Short labels approved 2026-09-30. */
 export const PICKUP_TRAVEL_GAUGE_STOPS: { value: string; shortLabel: string }[] = [

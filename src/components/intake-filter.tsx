@@ -16,7 +16,12 @@ import { clearMatchmakerPrefill, readMatchmakerPrefill } from "@/lib/matchmaker-
 import { createCheckoutSession } from "@/lib/payment-actions";
 import { AuthGateModal } from "@/components/auth-gate-modal";
 import { PickupTravelGauge } from "@/components/pickup-travel-gauge";
-import { PICKUP_TRAVEL_INTAKE_HELPER, PICKUP_TRAVEL_MISSING_ERROR, PICKUP_TRAVEL_QUESTION } from "@/lib/pickup-travel";
+import {
+  PICKUP_TRAVEL_DEFAULT,
+  PICKUP_TRAVEL_INTAKE_HELPER,
+  PICKUP_TRAVEL_MISSING_ERROR,
+  PICKUP_TRAVEL_QUESTION,
+} from "@/lib/pickup-travel";
 
 // Make/model/zip only -- trim, color, and options are collected post-payment
 // during finalization (/finalize/[searchId]), matching the pending pivot's
@@ -266,7 +271,8 @@ export function IntakeFilter({
   const soleYear = (make: string, model: string) => soleYearForModel(modelYearOptions, make, model);
   const [vehicle, setVehicle] = useState<Vehicle>(emptyVehicle());
   const [zip, setZip] = useState("");
-  const [pickupTravel, setPickupTravel] = useState("");
+  // Starts at the 100-mile default, which counts as the answer if left.
+  const [pickupTravel, setPickupTravel] = useState(PICKUP_TRAVEL_DEFAULT);
   const [submitted, setSubmitted] = useState(false);
   const [authGateOpen, setAuthGateOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -520,7 +526,7 @@ export function IntakeFilter({
   function startOver() {
     setVehicle(emptyVehicle());
     setZip("");
-    setPickupTravel("");
+    setPickupTravel(PICKUP_TRAVEL_DEFAULT);
     setSubmitted(false);
     setSaveError(null);
     setSearchId(null);
