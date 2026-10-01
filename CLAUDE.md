@@ -70,16 +70,12 @@ A snapshot of work that is mid-flight right now. Verify against `git log`/`git s
   - Stripe sends no receipt in test mode;
   - the PandaDoc key is sandbox.
 
-**2. Unpushed local commits (waiting for the journey test to finish; don't push before then):**
-- `c137170` **Sign-up pop-up:** fixed to the centre of the screen, scroll lock, focus handling.
-- `9ebc989` **Pickup-range fuel gauge** with the "any distance" (`unlimited`) choice.
-  - Its migration `20260930120000_pickup_travel_unlimited.sql` is **already run in production** and confirmed from the app. Only widened checks, so the code live today is unaffected.
-- Both were checked on 127.0.0.1 at desktop width on intake: tap, drag, keyboard, "any distance" saving, and the pop-up's position, focus and Escape.
-- **Still to check before pushing:**
-  - the gauge on Your Deal's prompt and Change control, and on the agent's undecided form;
-  - both components at phone widths (390px and 360px, using the same-origin iframe method);
-  - a real mouse-wheel check that the pop-up's scroll lock holds (the test tool's scroll moves the page by script).
-- **This CLAUDE.md update** is committed separately and is also unpushed.
+**2. Pop-up fix and fuel gauge: PUSHED AND LIVE 2026-10-01 (Brett's call to ship ahead of the journey test's end).**
+- Pushed `fd0ab35..18d8cb9`: `c137170` sign-up pop-up (pinned to the screen, scroll lock, focus handling), `9ebc989` pickup-range fuel gauge with the "any distance" (`unlimited`) choice, `35aa88c` this file's pause notes, `50e7990` the sign-up-to-payment plan, `18d8cb9` the gauge's case-by-case button raised to a 44px minimum height (found during the checks).
+- Production deploy `levr-auto-ot897imxv` (built from `18d8cb9`) is Ready and aliased to www.levrauto.com.
+- Its migration `20260930120000_pickup_travel_unlimited.sql` was already run in production beforehand.
+- **Checked before pushing**, on 127.0.0.1 with disposable accounts (deleted after): the gauge on intake, Your Deal's prompt and Change control, and the agent's undecided form; tap, drag, keyboard and "any distance" saving; both components at 390px and 360px (same-origin iframe method); the pop-up's position, focus, Escape and scroll lock.
+- **Left to Brett:** a real trackpad/mouse-wheel check on the live pop-up (the test tool's scroll moves the page by script, so it can't prove the scroll lock against real wheel input).
 
 **3. Next build after the test: the sign-up-to-payment fix (approved, TOP priority, ahead of anything else).**
 - **What it is:**
@@ -119,7 +115,7 @@ A snapshot of work that is mid-flight right now. Verify against `git log`/`git s
 
 ---
 
-**Last pushed state.** `origin/main` is at `fd0ab35` (CLAUDE.md only). The last code deploy was `00f6c20` on 2026-09-28; since then production has only had redeploys to pick up new variables. Details from before the pause follow.
+**Last pushed state.** `origin/main` is at `18d8cb9` and later (see item 2 above; the pop-up fix and fuel gauge deployed 2026-10-01). Before that, the last code deploy was `00f6c20` on 2026-09-28. Details from before the pause follow.
 
 **Deployed 2026-09-28 (`00f6c20`).** Vercel built it successfully and it's aliased to www.levrauto.com. The latest work was:
 - `2b01ab2` Day-30 guarantee check skips cancelled searches
@@ -132,7 +128,7 @@ A snapshot of work that is mid-flight right now. Verify against `git log`/`git s
 
 The earlier feature work deployed at `3e59c50` (2026-09-26): `ca0c3d0` offer message threads, `e1596c6` pickup/delivery, `27ab440` agent-message email (since replaced by the daily update), `66ffed7` List | Map view.
 
-Every migration is applied, through `20260930120000_pickup_travel_unlimited.sql` (run early on 2026-09-30; its code is unpushed in `9ebc989`).
+Every migration is applied, through `20260930120000_pickup_travel_unlimited.sql` (run early on 2026-09-30; its code shipped in `9ebc989`, deployed 2026-10-01).
 
 **⚠ Production keys were missing until 2026-09-27 (found during the real-inbox test).** `ZEPTOMAIL_API_KEY`/`ZEPTOMAIL_FROM_EMAIL`, `ANTHROPIC_API_KEY` and `PANDADOC_API_KEY` existed only in `.env.local`, never in Vercel Production. So in production every app-sent email failed before reaching ZeptoMail (new-offer and other notifications, Day-60/resume reminders, auto-renew confirmations, post-deal surveys, agent call alerts, article reminders; Supabase auth emails were unaffected), and AI offer parsing, article/social generation and PandaDoc e-sign could not have worked. Brett set all of them on 2026-09-27 and production was redeployed (`levr-auto-45pe0zjfz`, Ready). `ZEPTOMAIL_FROM_NAME` is unset everywhere, so the code default "LEVR Auto" is used.
 - Lesson: after adding a Vercel variable, a redeploy is needed, and a page loaded before the redeploy keeps sending its form submissions (server actions) to the OLD deployment. Reload before re-testing. Compare `.env.local` names against `vercel env ls production` when anything works locally but not in production; the `VERCEL_*`, `TURBO_*` and `NX_DAEMON` names in `.env.local` came from `vercel env pull` and are supplied by Vercel itself.
