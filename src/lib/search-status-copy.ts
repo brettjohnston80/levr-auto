@@ -102,11 +102,12 @@ export function getStatusCopy(search: SearchStatusFields): string {
 
 // The raw search_status badge says "awaiting finalization" even when
 // paid_at is null, which visually contradicts getStatusCopy's accurate body
-// text for that same unpaid case ("hasn't been paid for, so it hasn't
-// started"). This branches the badge the same way.
+// text for that same unpaid case. This branches the badge the same way:
+// "Not paid yet" (Brett, 2026-10-01; was "checkout incomplete"), shown
+// uppercase by the badge's CSS like every other status.
 export function getStatusBadge(search: SearchStatusFields): string {
   if (search.searchStatus === "awaiting_finalization" && !search.paidAt) {
-    return "checkout incomplete";
+    return "not paid yet";
   }
   return search.searchStatus.replace(/_/g, " ");
 }

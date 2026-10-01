@@ -8,6 +8,8 @@ export interface SendEmailParams {
   subject: string;
   html: string;
   toName?: string;
+  /** Extra MIME headers, e.g. List-Unsubscribe (ZeptoMail's mime_headers). */
+  headers?: Record<string, string>;
 }
 
 /**
@@ -26,7 +28,7 @@ export interface SendEmailParams {
  * can actually send mail. ZEPTOMAIL_FROM_NAME is optional, defaults to
  * "LEVR Auto".
  */
-export async function sendEmail({ to, subject, html, toName }: SendEmailParams): Promise<void> {
+export async function sendEmail({ to, subject, html, toName, headers }: SendEmailParams): Promise<void> {
   // Tester-program suppression, and it is FIRST in this function on purpose.
   //
   // This is the single chokepoint every business email in the app passes
@@ -85,6 +87,7 @@ export async function sendEmail({ to, subject, html, toName }: SendEmailParams):
       ],
       subject,
       htmlbody: html,
+      ...(headers ? { mime_headers: headers } : {}),
     }),
   });
 
