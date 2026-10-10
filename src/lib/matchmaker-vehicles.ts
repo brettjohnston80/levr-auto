@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isNotOfferedModel } from "@/lib/not-offered-models";
 import type { VehicleType } from "./matchmaker-data";
 import {
   SCORE_COLUMN_TO_LABEL,
@@ -176,5 +177,6 @@ export async function getLiveVehicles(): Promise<MatchmakerVehicle[]> {
     .maybeSingle();
   if (error) throw new Error(`getLiveVehicles: ${error.message}`);
   if (!liveBatch) return [];
-  return getVehiclesForBatch(liveBatch.id);
+  // Models no longer offered (Ford Escape) never reach Matchmaker either.
+  return (await getVehiclesForBatch(liveBatch.id)).filter((v) => !isNotOfferedModel(v.make, v.model));
 }

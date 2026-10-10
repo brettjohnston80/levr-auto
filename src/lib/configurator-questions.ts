@@ -247,8 +247,16 @@ export async function getConfiguratorQuestionsForTrims(
     byTrim.set(r.trim_id, list);
   }
 
+  const twins = await loadDrivetrainTwins(admin, ids);
   const build = (trimId: string): ConfiguratorQuestions =>
-    buildConfiguratorQuestions(trimId, byTrim.get(trimId) ?? [], make, model, bodyStyleById.get(trimId) ?? null);
+    buildConfiguratorQuestions(
+      trimId,
+      byTrim.get(trimId) ?? [],
+      make,
+      model,
+      bodyStyleById.get(trimId) ?? null,
+      twins.get(trimId) ?? null,
+    );
 
   for (const [optionId, result] of results) {
     if (result.outcome.matched) {
@@ -276,6 +284,7 @@ function buildConfiguratorQuestions(
   make: string,
   model: string,
   bodyStyle: string | null,
+  twin: DrivetrainTwin | null = null,
 ): ConfiguratorQuestions {
   const pick = (category: string, allowed: Set<string>) => {
     const choices = rows
@@ -342,7 +351,16 @@ function buildConfiguratorQuestions(
   // real per-category data shape this was built against.
   const wheels = pick("wheels", CHOICE_AVAILABILITY);
   const roof = pick("roof", CHOICE_AVAILABILITY);
-  const drivetrain = pick("drivetrain", CHOICE_AVAILABILITY);
+  // Drivetrain twins: every twin's drivetrain lines, not just this row's.
+  const drivetrain = twin
+    ? [
+        ...new Map(
+          [...rows.filter((r) => r.category === "drivetrain"), ...twin.drivetrainRows]
+            .filter((r) => CHOICE_AVAILABILITY.has(r.availability))
+            .map((r) => [r.name, toChoice(r)] as const),
+        ).values(),
+      ].sort(sortChoices)
+    : pick("drivetrain", CHOICE_AVAILABILITY);
 
   return {
     configuratorTrimId: trimId,
@@ -361,7 +379,119 @@ function buildConfiguratorQuestions(
     wheels,
     roof,
     drivetrain,
+    drivetrainTwins: twin ? twin.labels : null,
   };
+}
+
+interface DrivetrainTwin {
+  /** Drive layouts of this build and its twins, e.g. ["FWD", "AWD"]. */
+  labels: string[];
+  /** The twins' own drivetrain option rows. */
+  drivetrainRows: OptionRow[];
+}
+
+const DRIVE_ORDER = ["FWD", "RWD", "2WD", "AWD", "4WD"];
+
+type TwinTrimRow = {
+  id: string;
+  batch_id: string;
+  make: string;
+  model: string;
+  trim: string;
+  model_year: number;
+  fuel_type: string | null;
+  body_style: string | null;
+  drivetrain: string | null;
+};
+
+/**
+ * For each given configurator trim, its drivetrain twins (2026-10-10): other
+ * trims in the same batch with the same make, model, trim name, year, fuel
+ * type and body style whose options are identical apart from the
+ * drivetrain line -- the pairs pickDrivetrainTwin treats as one match.
+ * Trims with no twin are absent from the map.
+ */
+async function loadDrivetrainTwins(
+  admin: ReturnType<typeof createAdminClient>,
+  trimIds: string[],
+): Promise<Map<string, DrivetrainTwin>> {
+  const out = new Map<string, DrivetrainTwin>();
+  if (trimIds.length === 0) return out;
+
+  const cols = "id, batch_id, make, model, trim, model_year, fuel_type, body_style, drivetrain";
+  const { data: own } = await admin.from("configurator_trims").select(cols).in("id", trimIds);
+  const groupKey = (t: TwinTrimRow) =>
+    [t.batch_id, t.make, t.model, normalizeTrimForMatch(t.trim), t.model_year, t.fuel_type ?? "", t.body_style ?? ""].join("|");
+
+  // Same-name siblings for each requested trim.
+  const groups = new Map<string, TwinTrimRow[]>();
+  for (const t of (own ?? []) as TwinTrimRow[]) {
+    const key = groupKey(t);
+    if (groups.has(key)) continue;
+    const { data: sibs } = await admin
+      .from("configurator_trims")
+      .select(cols)
+      .eq("batch_id", t.batch_id)
+      .eq("make", t.make)
+      .eq("model", t.model)
+      .eq("model_year", t.model_year);
+    groups.set(key, ((sibs ?? []) as TwinTrimRow[]).filter((s) => groupKey(s) === key));
+  }
+
+  const multi = [...groups.values()].filter((g) => g.length > 1);
+  if (multi.length === 0) return out;
+  const ids = multi.flat().map((t) => t.id);
+  const rowsByTrim = new Map<string, OptionRow[]>();
+  for (let i = 0; i < ids.length; i += ID_CHUNK) {
+    const chunk = ids.slice(i, i + ID_CHUNK);
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error } = await admin
+        .from("configurator_options")
+        .select(
+          "id, trim_id, category, name, availability, price_cents, price_is_included, package_name, package_price_cents, package_contents",
+        )
+        .in("trim_id", chunk)
+        .order("id")
+        .range(from, from + PAGE_SIZE - 1);
+      if (error) return out;
+      for (const r of (data ?? []) as unknown as OptionRow[]) {
+        const list = rowsByTrim.get(r.trim_id) ?? [];
+        list.push(r);
+        rowsByTrim.set(r.trim_id, list);
+      }
+      if (!data || data.length < PAGE_SIZE) break;
+    }
+  }
+  const signature = (id: string) =>
+    (rowsByTrim.get(id) ?? [])
+      .filter((r) => r.category !== "drivetrain")
+      .map((r) => [r.category, r.name, r.availability, r.price_cents, r.package_name, r.package_price_cents].join("|"))
+      .sort()
+      .join("\n");
+  const driveRank = (label: string) => {
+    const i = DRIVE_ORDER.indexOf(label);
+    return i === -1 ? 99 : i;
+  };
+
+  for (const group of multi) {
+    for (const t of group) {
+      if (!trimIds.includes(t.id)) continue;
+      const sig = signature(t.id);
+      const twins = group.filter((g) => signature(g.id) === sig);
+      if (twins.length < 2) continue;
+      const labels = [...new Set(twins.map((g) => (g.drivetrain ?? "").trim()).filter(Boolean))].sort(
+        (a, b) => driveRank(a) - driveRank(b) || a.localeCompare(b),
+      );
+      if (labels.length < 2) continue;
+      out.set(t.id, {
+        labels,
+        drivetrainRows: twins
+          .filter((g) => g.id !== t.id)
+          .flatMap((g) => (rowsByTrim.get(g.id) ?? []).filter((r) => r.category === "drivetrain")),
+      });
+    }
+  }
+  return out;
 }
 
 /**
@@ -426,6 +556,7 @@ export async function getConfiguratorQuestionsForResolvedTrimIds(
     byTrim.set(r.trim_id, list);
   }
 
+  const twins = await loadDrivetrainTwins(admin, trimIds);
   for (const trimId of trimIds) {
     result[trimId] = buildConfiguratorQuestions(
       trimId,
@@ -433,6 +564,7 @@ export async function getConfiguratorQuestionsForResolvedTrimIds(
       make,
       model,
       bodyStyleById.get(trimId) ?? null,
+      twins.get(trimId) ?? null,
     );
   }
   return result;

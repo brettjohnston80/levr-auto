@@ -285,6 +285,11 @@ export function summarizeRoof(q: ConfiguratorQuestions | undefined): ComparisonC
  * misleading. Full text is only ever shown in the detail modal.
  */
 export function summarizeDrivetrain(q: ConfiguratorQuestions | undefined): ComparisonCell {
+  // Drivetrain twins: the car could be any of them, so name them all
+  // rather than one that may be wrong. Wording pending Brett's sign-off.
+  if (q?.drivetrainTwins && q.drivetrainTwins.length > 1) {
+    return { text: q.drivetrainTwins.join(" or "), tone: "free" };
+  }
   if (!q || q.drivetrain.length === 0) return DASH;
   const priced = q.drivetrain.find((c) => c.availability !== "standard");
   if (priced) return priceCellFor(priced);

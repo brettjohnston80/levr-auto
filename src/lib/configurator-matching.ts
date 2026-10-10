@@ -407,6 +407,14 @@ export interface ConfiguratorQuestions {
   wheels: ConfiguratorChoice[];
   roof: ConfiguratorChoice[];
   drivetrain: ConfiguratorChoice[];
+  /**
+   * Drivetrain twins (2026-10-10): when this build was matched as one of
+   * several same-name trims that differ only in drivetrain (Equinox FWD /
+   * AWD), the drive layouts of all of them, e.g. ["FWD", "AWD"]. The car
+   * could be either, so the summary shows "FWD or AWD" and `drivetrain`
+   * above holds every twin's drivetrain lines. Null otherwise.
+   */
+  drivetrainTwins?: string[] | null;
 }
 
 export function hasAnyQuestion(q: ConfiguratorQuestions): boolean {

@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isNotOfferedModel } from "@/lib/not-offered-models";
 
 /**
  * Make -> models map powering the intake form's two cascading selects.
@@ -100,19 +101,11 @@ const loadLiveVehicleRows = cache(
   unstable_cache(fetchLiveVehicleRows, ["live-vehicle-rows"], { revalidate: 900, tags: [LIVE_VEHICLE_ROWS_TAG] }),
 );
 
-/**
- * Make/models customers can no longer choose, even though the researched
- * dataset still has them. Ford Escape (Brett, 2026-10-10): Ford is
- * discontinuing it and it can't be bought in CA, MA, OR, NY, WA or VT.
- * Applied after the cache, so a change here takes effect on the next deploy
- * rather than waiting for the 15-minute cache. Every picker that uses these
- * options (intake, the switch forms, the agent forms) and the server-side
- * year check drop them together.
- */
-const NOT_OFFERED_MODELS = new Set(["Ford|Escape"]);
-
+// Models no longer offered (not-offered-models.ts), dropped after the cache
+// so a change takes effect on the next deploy rather than up to 15 minutes
+// later.
 const loadOfferedVehicleRows = async (): Promise<LiveRow[]> =>
-  (await loadLiveVehicleRows()).filter((r) => !NOT_OFFERED_MODELS.has(`${r.make}|${r.model}`));
+  (await loadLiveVehicleRows()).filter((r) => !isNotOfferedModel(r.make, r.model));
 
 export async function getIntakeMakeModelOptions(): Promise<MakeModelOptions> {
   const rows = await loadOfferedVehicleRows();
