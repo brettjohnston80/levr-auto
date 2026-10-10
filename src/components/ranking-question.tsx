@@ -204,15 +204,30 @@ export function RankingQuestion({
                       ) : null}
                     </span>
                     {item.detail}
+                    {/* Phones: Remove sits under the label so only the arrow
+                        column is on the right (2026-10-10). Same button as
+                        the sm+ one beside the arrows. */}
+                    <button
+                      type="button"
+                      onClick={() => removeFromOrder(item.id)}
+                      aria-label={`Remove ${item.label}`}
+                      className="mt-2 min-h-9 rounded-full border border-white/15 px-3 text-xs font-semibold text-zinc-300 transition-colors hover:border-white/35 sm:hidden"
+                    >
+                      Remove
+                    </button>
                   </span>
                 </span>
 
                 {/* Arrow buttons are not decoration: they are the only
                     reorder path for keyboard and assistive-tech users, and
                     a real fallback on a device where the drag misbehaves. */}
+                {/* Up above down (2026-10-10, Brett's iPhone walkthrough):
+                    side by side, the two 56px arrows plus Remove took so
+                    much of a phone-width row that they crowded the label. */}
                 <span className="flex shrink-0 items-center gap-1 pr-1.5">
-                  <MiniButton
-                    label="Move up"
+                  <span className="flex flex-col">
+                    <MiniButton
+                      label="Move up"
                     disabled={index === 0}
                     onClick={() => {
                       const next = [...ranked];
@@ -233,6 +248,7 @@ export function RankingQuestion({
                   >
                     ↓
                   </MiniButton>
+                  </span>
                   {/* Labeled text, not a bare icon (2026-09-19) -- and
                       deliberately "Remove", not "Exclude": this button
                       calls removeFromOrder, which for every category today
@@ -246,7 +262,7 @@ export function RankingQuestion({
                     type="button"
                     onClick={() => removeFromOrder(item.id)}
                     aria-label={`Remove ${item.label}`}
-                    className="ml-1 shrink-0 rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-zinc-300 transition-colors hover:border-white/35"
+                    className="ml-1 hidden shrink-0 rounded-full border border-white/15 px-3 py-1 text-xs font-semibold text-zinc-300 transition-colors hover:border-white/35 sm:inline-flex"
                   >
                     Remove
                   </button>

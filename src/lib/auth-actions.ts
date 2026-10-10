@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { saveUnpaidSearch } from "@/lib/unpaid-search";
 import type { IntakeChoices } from "@/lib/intake-choices";
+import { passwordProblem } from "@/lib/password-rules";
 
 async function attemptLogin(email: string, password: string) {
   const supabase = await createClient();
@@ -67,6 +68,10 @@ export async function login(formData: FormData) {
 
 export async function signup(formData: FormData) {
   const phone = (formData.get("phone") as string)?.trim();
+  const passwordError = passwordProblem(formData.get("password") as string);
+  if (passwordError) {
+    redirect(`/signup?error=${encodeURIComponent(passwordError)}`);
+  }
 
   const result = await attemptSignup(
     formData.get("email") as string,
@@ -119,8 +124,9 @@ export async function requestPasswordReset(formData: FormData) {
 export async function updatePasswordFromRecovery(formData: FormData) {
   const password = formData.get("password") as string;
 
-  if (!password || password.length < 8) {
-    return { ok: false, error: "Password must be at least 8 characters." };
+  const passwordError = passwordProblem(password);
+  if (passwordError) {
+    return { ok: false, error: passwordError };
   }
 
   const supabase = await createClient();
@@ -155,8 +161,9 @@ export async function updateAccountPassword(formData: FormData) {
   const currentPassword = formData.get("current_password") as string;
   const newPassword = formData.get("new_password") as string;
 
-  if (!newPassword || newPassword.length < 8) {
-    return { ok: false, error: "New password must be at least 8 characters." };
+  const newPasswordError = passwordProblem(newPassword);
+  if (newPasswordError) {
+    return { ok: false, error: newPasswordError };
   }
 
   const supabase = await createClient();
@@ -203,6 +210,8 @@ export async function signupInline(
 ): Promise<{ ok: boolean; error?: string; searchSaved: boolean }> {
   // Name and notification preferences aren't collected here; they live in
   // account settings and stay at their defaults until then.
+  const passwordError = passwordProblem(password);
+  if (passwordError) return { ok: false, error: passwordError, searchSaved: false };
   const result = await attemptSignup(email, password, `/auth/callback?next=${encodeURIComponent("/account")}`, phone);
   if (!result.ok) return { ok: false, error: result.error, searchSaved: false };
 

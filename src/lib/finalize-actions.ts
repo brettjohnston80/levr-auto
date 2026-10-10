@@ -1257,8 +1257,12 @@ export async function finalizeSelfService(
     return { ok: false, error: `Failed to finalize: ${error.message}` };
   }
 
-  revalidatePath("/account");
-  revalidatePath(`/finalize/${searchId}`);
+  // No revalidatePath here (2026-10-10). Any revalidatePath in a server
+  // action also re-renders the page the customer is on, and /finalize
+  // redirects a finalized search to /account, so the "You're all set"
+  // screen (and its "Make changes") vanished the moment it appeared. Every
+  // page showing this search (/finalize, /account, /account/vehicle,
+  // /internal/outreach) is force-dynamic, so the next visit renders fresh.
   return { ok: true };
 }
 
@@ -1383,6 +1387,7 @@ export async function updateFinalizedSearch(
     return { ok: false, error: `Failed to save changes: ${error.message}` };
   }
 
-  revalidatePath("/account");
+  // No revalidatePath, same reason as finalizeSelfService: it would
+  // re-render (and on /finalize, redirect away from) the summary screen.
   return { ok: true };
 }

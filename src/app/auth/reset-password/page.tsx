@@ -4,6 +4,7 @@ import { useState, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { updatePasswordFromRecovery } from "@/lib/auth-actions";
+import { PASSWORD_REQUIREMENTS, passwordProblem } from "@/lib/password-rules";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -70,6 +71,11 @@ export default function ResetPasswordPage() {
     e.preventDefault();
     setError(null);
 
+    const problem = passwordProblem(password);
+    if (problem) {
+      setError(problem);
+      return;
+    }
     if (password !== confirmPassword) {
       setError("Passwords don't match.");
       return;
@@ -135,7 +141,7 @@ export default function ResetPasswordPage() {
               onChange={(e) => setPassword(e.target.value)}
               className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900/80 px-4 py-3 text-sm font-medium text-white shadow-inner shadow-black/20 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
             />
-            <span className="mt-2 block text-xs text-zinc-500">At least 8 characters.</span>
+            <span className="mt-2 block text-xs text-zinc-500">{PASSWORD_REQUIREMENTS}</span>
           </label>
           <label className="block">
             <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">

@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { COLORS, OPTIONS } from "@/lib/vehicle-data";
-import { finalizeSelfService } from "@/lib/finalize-actions";
+import { finalizeSelfService, updateFinalizedSearch } from "@/lib/finalize-actions";
+import type { FinalizeInitial } from "@/lib/finalize-initial";
 import type { TrimOption } from "@/lib/finalize-trims";
 import {
   categoryHasRealChoiceAcrossTrims,
@@ -82,7 +83,16 @@ export function FinalizeSelfService({
   trimOptions,
   configuratorQuestions,
   modelYear,
+  initial,
+  onCancel,
 }: {
+  /** "Make changes" during the 24h window (2026-10-10): the search's saved
+   *  answers. When present the flow opens on Review with every step
+   *  reachable, and saves through updateFinalizedSearch (which never
+   *  touches finalized_at, so the 24h countdown keeps running). */
+  initial?: FinalizeInitial;
+  /** Leave "Make changes" without saving. */
+  onCancel?: () => void;
   searchId: string;
   make: string;
   model: string;
@@ -95,15 +105,25 @@ export function FinalizeSelfService({
    */
   modelYear: number | null;
 }) {
-  const [step, setStep] = useState<Step>("trim");
+  const [step, setStep] = useState<Step>(initial ? "review" : "trim");
   // Trim is RANKED now, like every other category. Ids are TrimOption.id
   // (trim+year), not trim names, because two options can share a name
   // across model years and they are genuinely different cars.
-  const [rankedTrimIds, setRankedTrimIds] = useState<string[]>([]);
-  const [excludedTrimIds, setExcludedTrimIds] = useState<string[]>([]);
-  const [colors, setColors] = useState<string[]>([]);
-  const [options, setOptions] = useState<string[]>([]);
-  const [selections, setSelections] = useState<ConfiguratorSelection[]>([]);
+  // Saved ids that no longer match a current trim option are dropped, the
+  // same way the flow treats any trim that's gone from inventory.
+  const [rankedTrimIds, setRankedTrimIds] = useState<string[]>(
+    () => initial?.rankedTrimIds.filter((id) => trimOptions.some((o) => o.id === id)) ?? [],
+  );
+  const [excludedTrimIds, setExcludedTrimIds] = useState<string[]>(
+    () => initial?.excludedTrimIds.filter((id) => trimOptions.some((o) => o.id === id)) ?? [],
+  );
+  const [colors, setColors] = useState<string[]>(initial?.colors ?? []);
+  const [options, setOptions] = useState<string[]>(initial?.options ?? []);
+  const [selections, setSelections] = useState<ConfiguratorSelection[]>(initial?.selections ?? []);
+  // Already finalized (opened via "Make changes", or confirmed once in this
+  // session and reopened from the summary screen): saves go through
+  // updateFinalizedSearch instead of finalizing again.
+  const [alreadyFinalized, setAlreadyFinalized] = useState(Boolean(initial));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -111,8 +131,8 @@ export function FinalizeSelfService({
   // writeCombinationPreferences as of 2026-09-19) -- local UI state here,
   // built from and saved back through buildCombinationPreferences() in
   // handleConfirm below.
-  const [combinationRanked, setCombinationRanked] = useState<string[]>([]);
-  const [combinationExcluded, setCombinationExcluded] = useState<string[]>([]);
+  const [combinationRanked, setCombinationRanked] = useState<string[]>(initial?.combinationRanked ?? []);
+  const [combinationExcluded, setCombinationExcluded] = useState<string[]>(initial?.combinationExcluded ?? []);
   const [showAllCombinations, setShowAllCombinations] = useState(false);
   // Trim comparison view (2026-09-19) -- purely local UI state, same as
   // every other modal-open flag in this component. `detailTrimId` doubles
@@ -435,7 +455,8 @@ export function FinalizeSelfService({
   // written during the render body at all under this lint config). A plain
   // setState call from a click handler is the idiomatic shape for "a user
   // action changed some derived state."
-  const [maxIndexReached, setMaxIndexReached] = useState(0);
+  // Reopened for changes: every step was already visited, so all are reachable.
+  const [maxIndexReached, setMaxIndexReached] = useState(initial ? Number.MAX_SAFE_INTEGER : 0);
   function navigateToStep(s: Step) {
     const i = Math.max(0, steps.indexOf(s));
     setMaxIndexReached((prev) => Math.max(prev, i));
@@ -620,7 +641,8 @@ export function FinalizeSelfService({
     // drift out of rank order or quietly include an excluded colour. The
     // generic path still sends its own, because it has no ranked rows to
     // derive anything from.
-    const result = await finalizeSelfService(searchId, {
+    const save = alreadyFinalized ? updateFinalizedSearch : finalizeSelfService;
+    const result = await save(searchId, {
       trim: effectiveTrim,
       colors,
       requiredOptions: options,
@@ -633,6 +655,7 @@ export function FinalizeSelfService({
       setError(result.error);
       return;
     }
+    setAlreadyFinalized(true);
     setDone(true);
   }
 
@@ -648,18 +671,43 @@ export function FinalizeSelfService({
           wanting to change something, now&apos;s the time — you have 24 hours to edit this from
           your account.
         </p>
-        <a
-          href="/account"
-          className="mt-8 inline-flex items-center justify-center rounded-full bg-emerald-500 px-8 py-3.5 text-base font-semibold text-zinc-950 transition-colors hover:bg-emerald-400"
-        >
-          View My Account
-        </a>
+        <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <a
+            href="/account"
+            className="inline-flex min-h-11 items-center justify-center rounded-full bg-emerald-500 px-8 py-3.5 text-base font-semibold text-zinc-950 transition-colors hover:bg-emerald-400"
+          >
+            View My Account
+          </a>
+          {/* Back to Review with every answer intact; saving again goes
+              through updateFinalizedSearch (2026-10-10). */}
+          <button
+            type="button"
+            onClick={() => {
+              setDone(false);
+              navigateToStep("review");
+            }}
+            className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/20 px-8 py-3.5 text-base font-semibold text-white transition-colors hover:bg-white/10"
+          >
+            Make changes
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-6 shadow-xl shadow-black/20 sm:p-8">
+      {onCancel && (
+        <div className="mb-4 flex justify-end">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="min-h-11 rounded-full border border-white/15 px-4 text-sm font-semibold text-zinc-300 transition-colors hover:bg-white/10"
+          >
+            Cancel — keep my current choices
+          </button>
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2 text-xs font-semibold tracking-wide text-zinc-500 uppercase">
         {steps.map((s, i) => {
           // Only ALREADY-VISITED steps (furthest ever reached, not just
@@ -1143,7 +1191,15 @@ export function FinalizeSelfService({
               disabled={saving}
               className="rounded-full bg-emerald-500 px-8 py-3.5 text-base font-semibold text-zinc-950 transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400"
             >
-              {saving ? "Confirming…" : "Confirm & Start My Search"}
+              {/* Editing an already-finalized search saves changes; it doesn't
+                  start anything (2026-10-10). */}
+              {alreadyFinalized
+                ? saving
+                  ? "Saving…"
+                  : "Save changes"
+                : saving
+                  ? "Confirming…"
+                  : "Confirm & Start My Search"}
             </button>
           </div>
         </div>

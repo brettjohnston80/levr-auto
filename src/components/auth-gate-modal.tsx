@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { loginInline, signupInline } from "@/lib/auth-actions";
+import { PASSWORD_REQUIREMENTS, passwordProblem } from "@/lib/password-rules";
 import type { IntakeChoices } from "@/lib/intake-choices";
 
 // Approved 2026-09-30 (sign-up-to-payment fix): shown once sign-up has saved
@@ -106,9 +107,16 @@ export function AuthGateModal({
     e.preventDefault();
     setError(null);
 
-    if (mode === "signup" && password !== confirmPassword) {
-      setError("Passwords don't match.");
-      return;
+    if (mode === "signup") {
+      const problem = passwordProblem(password);
+      if (problem) {
+        setError(problem);
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError("Passwords don't match.");
+        return;
+      }
     }
 
     setLoading(true);
@@ -252,7 +260,7 @@ export function AuthGateModal({
                   className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900/80 px-4 py-3 text-sm font-medium text-white shadow-inner shadow-black/20 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
                 />
                 {mode === "signup" && (
-                  <span className="mt-2 block text-xs text-zinc-500">At least 8 characters.</span>
+                  <span className="mt-2 block text-xs text-zinc-500">{PASSWORD_REQUIREMENTS}</span>
                 )}
               </label>
               {mode === "signup" && (

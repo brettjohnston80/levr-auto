@@ -43,9 +43,16 @@ import { useSignedIn } from "@/lib/use-signed-in";
 // (desktop) and MobileNavMenu (mobile) both render directly, so the two
 // surfaces cannot drift on behavior the way two hand-built copies could.
 export function HeaderAccountLink({
+  placement,
   className,
   onNavigate,
 }: {
+  /** "header": the header bar itself -- the initials button (every width)
+   *  when signed in, the Log In link (desktop only) when signed out.
+   *  "mobileMenu": inside the hamburger's overlay -- Log In when signed out,
+   *  nothing when signed in (the account menu lives on the initials button,
+   *  keeping the site menu and the account menu separate; Brett 2026-10-10). */
+  placement: "header" | "mobileMenu";
   className: string;
   /** Called when the customer picks a menu item (Account settings or Log
    *  out) -- MobileNavMenu passes its own `close` here so choosing either
@@ -55,7 +62,7 @@ export function HeaderAccountLink({
    *  so SiteHeader simply omits it. */
   onNavigate?: () => void;
 }) {
-  const [firstName, setFirstName] = useState<string | null>(null);
+  const [name, setName] = useState<{ first: string | null; last: string | null } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -104,10 +111,14 @@ export function HeaderAccountLink({
       if (!userId) return;
       const { data: customer } = await supabase
         .from("customers")
-        .select("first_name")
+        .select("first_name, last_name")
         .eq("id", userId)
         .maybeSingle();
-      if (active) setFirstName((customer?.first_name as string | null) ?? null);
+      if (active)
+        setName({
+          first: (customer?.first_name as string | null) ?? null,
+          last: (customer?.last_name as string | null) ?? null,
+        });
     });
 
     return () => {
@@ -118,7 +129,7 @@ export function HeaderAccountLink({
   useEffect(() => {
     if (!menuOpen) return;
 
-    function onPointerDown(e: MouseEvent) {
+    function onPointerDown(e: PointerEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setMenuOpen(false);
       }
@@ -129,10 +140,10 @@ export function HeaderAccountLink({
         triggerRef.current?.focus();
       }
     }
-    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
     return () => {
-      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [menuOpen]);
@@ -145,12 +156,25 @@ export function HeaderAccountLink({
   // Unknown yet -- render nothing rather than guess wrong in either
   // direction.
   if (signedIn === null) {
-    return <span className={className} aria-hidden="true" />;
+    return placement === "header" ? <span className="h-9 w-9" aria-hidden="true" /> : null;
   }
 
+  if (signedIn && placement === "mobileMenu") return null;
+
+  // Initials from the account-settings name; a person icon until we have
+  // one (first and last name are collected after sign-up).
+  const initials = [name?.first, name?.last]
+    .map((n) => n?.trim().charAt(0).toUpperCase() ?? "")
+    .join("");
+  const displayName = [name?.first, name?.last].filter(Boolean).join(" ");
+
   if (!signedIn) {
+    // onNavigate closes the mobile menu's full-screen overlay. Without it,
+    // tapping Log In there navigated underneath an overlay that stayed
+    // open, so the tap looked like it did nothing (Brett's iPhone
+    // walkthrough, 2026-10-10).
     return (
-      <Link href="/login" className={className}>
+      <Link href="/login" onClick={onNavigate} className={className}>
         Log In
       </Link>
     );
@@ -158,44 +182,28 @@ export function HeaderAccountLink({
 
   return (
     <div ref={containerRef} className="relative">
-      {/* `className` here is the EXACT prop passed in, untouched -- for
-          desktop that's "hidden ... sm:block". Real bug caught in
-          verification: an earlier version prepended "inline-flex" onto
-          this same string to lay out the name + chevron, which put two
-          conflicting `display` utilities (that one and `hidden`) on the
-          same element -- Tailwind resolves that by each utility's
-          position in the COMPILED stylesheet, not by order in the class
-          list, and inline-flex happened to win, silently defeating
-          `hidden sm:block` and showing this trigger on mobile too. The
-          icon layout now lives on an inner span instead, so this button's
-          own display is controlled by nothing but the caller's classes,
-          exactly like the signed-out <Link> above it. */}
       <button
         ref={triggerRef}
         type="button"
         onClick={() => setMenuOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={menuOpen}
-        className={className}
+        aria-label={`Account menu${displayName ? ` for ${displayName}` : ""}${unreadThreads > 0 ? ", new messages" : ""}`}
+        className="relative flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-sm font-semibold text-white ring-1 ring-white/15 transition-colors hover:bg-white/15"
       >
-        <span className="inline-flex items-center gap-1">
-          {firstName ? firstName : "My Account"}
-          {unreadThreads > 0 && (
-            <span className="h-2 w-2 rounded-full bg-emerald-400" aria-label="New messages" role="img" />
-          )}
-          <svg
-            viewBox="0 0 20 20"
-            fill="currentColor"
-            aria-hidden="true"
-            className={`h-3.5 w-3.5 transition-transform ${menuOpen ? "rotate-180" : ""}`}
-          >
-            <path
-              fillRule="evenodd"
-              d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"
-              clipRule="evenodd"
-            />
+        {initials ? (
+          <span aria-hidden="true">{initials}</span>
+        ) : (
+          <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" className="h-5 w-5 text-zinc-300">
+            <path d="M10 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 1 1 14 0H3Z" />
           </svg>
-        </span>
+        )}
+        {unreadThreads > 0 && (
+          <span
+            className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-zinc-950"
+            aria-hidden="true"
+          />
+        )}
       </button>
 
       {/* Always mounted, visibility toggled via `hidden` rather than a

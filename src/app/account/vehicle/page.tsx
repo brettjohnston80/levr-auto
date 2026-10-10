@@ -13,6 +13,8 @@ import { getLatestUnpaidSearch, type UnpaidSearchSummary } from "@/lib/unpaid-se
 import { getIntakeMakeModelOptions, getIntakeModelYearOptions } from "@/lib/intake-vehicle-options";
 import { countNationwideInventory, countNearbyInventory } from "@/lib/inventory-count";
 import { travelFromColumns, travelToValue } from "@/lib/pickup-travel";
+import { FinalizeWindowEdit } from "@/components/finalize-window-edit";
+import { getFinalizeInitial } from "@/lib/finalize-edit-data";
 
 export const metadata: Metadata = {
   title: "Your Car — LEVR Auto",
@@ -72,9 +74,9 @@ function ExcludedNames({ names }: { names: string[] }) {
 export default async function VehiclePage({
   searchParams,
 }: {
-  searchParams: Promise<{ searchId?: string }>;
+  searchParams: Promise<{ searchId?: string; edit?: string }>;
 }) {
-  const { searchId: requestedSearchId } = await searchParams;
+  const { searchId: requestedSearchId, edit } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -176,7 +178,7 @@ export default async function VehiclePage({
 
   const { data: search } = await supabase
     .from("customer_searches")
-    .select("id, make, model, model_year, trim, search_status, call_requested_at")
+    .select("id, make, model, model_year, trim, search_status, call_requested_at, finalized_at, solidified_at")
     .eq("id", targetId)
     .eq("customer_id", user.id)
     .maybeSingle();
@@ -218,13 +220,16 @@ export default async function VehiclePage({
     redirect("/account");
   }
 
-  return (
-    <section className="bg-zinc-950 py-24">
-      <div className="mx-auto max-w-2xl px-6">
-        <Link href="/account" className="text-sm text-zinc-400 hover:text-white">
-          ← Back to your account
-        </Link>
+  // 24h window after finalizing (finalized, not yet live): countdown and
+  // "Make changes", which reopens the finalize flow pre-filled (2026-10-10).
+  const inEditWindow =
+    search.search_status === "pending_refinement" && !!search.finalized_at && !search.solidified_at && !!search.make && !!search.model;
+  const editData = inEditWindow
+    ? await Promise.all([getFinalizeChoiceData(search), getFinalizeInitial(search.id)])
+    : null;
 
+  const specView = (
+    <>
         <h1 className="mt-4 text-2xl font-semibold text-white">
           {details.make} {details.model}
           {details.trim ? <span className="text-zinc-400"> — {details.trim}</span> : null}
@@ -266,6 +271,33 @@ export default async function VehiclePage({
               No specific preferences on file — any trim, color, or option is fine.
             </p>
           )}
+    </>
+  );
+
+  return (
+    <section className="bg-zinc-950 py-24">
+      <div className="mx-auto max-w-2xl px-6">
+        <Link href="/account" className="text-sm text-zinc-400 hover:text-white">
+          ← Back to your account
+        </Link>
+
+        {editData ? (
+          <FinalizeWindowEdit
+            searchId={search.id}
+            finalizedAt={search.finalized_at as string}
+            make={search.make as string}
+            model={search.model as string}
+            modelYear={(search.model_year as number | null) ?? null}
+            trimOptions={editData[0].trimOptions}
+            configuratorQuestions={editData[0].configuratorQuestions}
+            initial={editData[1]}
+            openOnLoad={edit === "1"}
+          >
+            {specView}
+          </FinalizeWindowEdit>
+        ) : (
+          specView
+        )}
       </div>
     </section>
   );

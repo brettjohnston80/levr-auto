@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { updateAccountPassword } from "@/lib/auth-actions";
+import { PASSWORD_REQUIREMENTS, passwordProblem } from "@/lib/password-rules";
 
 /**
  * Password change for a signed-in customer, from /account. A separate form
@@ -27,6 +28,11 @@ export function ChangePasswordForm() {
     setError(null);
     setSuccess(false);
 
+    const problem = passwordProblem(newPassword);
+    if (problem) {
+      setError(problem);
+      return;
+    }
     if (newPassword !== confirmPassword) {
       setError("New passwords don't match.");
       return;
@@ -82,7 +88,7 @@ export function ChangePasswordForm() {
               onChange={(e) => setNewPassword(e.target.value)}
               className="mt-1 w-full rounded-md border border-white/10 bg-zinc-900 px-2 py-1.5 text-sm text-white"
             />
-            <span className="mt-1 block text-xs text-zinc-500">At least 8 characters.</span>
+            <span className="mt-1 block text-xs text-zinc-500">{PASSWORD_REQUIREMENTS}</span>
           </label>
           <label className="block">
             <span className="text-xs text-zinc-400">Confirm new password</span>

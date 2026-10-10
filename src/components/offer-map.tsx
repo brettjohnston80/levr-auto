@@ -25,8 +25,32 @@ const asPinFeature = (f: unknown) => f as PinFeature;
 const EMERALD = "#10b981";
 const AMBER = "#f59e0b";
 
-export default function OfferMap({ data, onOpenOffer }: { data: OfferMapData; onOpenOffer: (offerId: string) => void }) {
+function rangeFeature(center: { lat: number; lng: number }, miles: number | null): GeoJSON.Feature | GeoJSON.FeatureCollection {
+  return miles
+    ? { type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [circleRing(center, miles)] } }
+    : { type: "FeatureCollection", features: [] };
+}
+
+function customerLabel(miles: number | null): string {
+  return miles ? `${MAP_COPY.yourArea}\n${MAP_COPY.rangeLabel(miles)}` : MAP_COPY.yourArea;
+}
+
+export default function OfferMap({
+  data,
+  onOpenOffer,
+  rangeMiles,
+}: {
+  data: OfferMapData;
+  onOpenOffer: (offerId: string) => void;
+  /** The circle to draw: the saved range, or the slider's unsaved preview
+   *  (2026-10-10). Null draws none (delivery, any distance, case by case). */
+  rangeMiles: number | null;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<MapboxMap | null>(null);
+  // Read by the map's load handler, so the first draw uses the current
+  // preview without the map being rebuilt whenever it changes.
+  const rangeRef = useRef(rangeMiles);
   const [selected, setSelected] = useState<OfferPin | null>(null);
   const [clusterList, setClusterList] = useState<OfferPin[] | null>(null);
   useEffect(() => {
@@ -52,16 +76,12 @@ export default function OfferMap({ data, onOpenOffer }: { data: OfferMapData; on
 
       map.on("load", () => {
         if (!map) return;
+        mapRef.current = map;
 
-        if (data.customer && data.rangeMiles) {
-          map.addSource("range", {
-            type: "geojson",
-            data: {
-              type: "Feature",
-              properties: {},
-              geometry: { type: "Polygon", coordinates: [circleRing(data.customer, data.rangeMiles)] },
-            },
-          });
+        // Always present when we know the customer's area, so the slider's
+        // preview can redraw it in place (setData) instead of rebuilding the map.
+        if (data.customer) {
+          map.addSource("range", { type: "geojson", data: rangeFeature(data.customer, rangeRef.current) });
           map.addLayer({ id: "range-fill", type: "fill", source: "range", paint: { "fill-color": EMERALD, "fill-opacity": 0.07 } });
           map.addLayer({
             id: "range-line",
@@ -77,7 +97,7 @@ export default function OfferMap({ data, onOpenOffer }: { data: OfferMapData; on
             data: {
               type: "Feature",
               properties: {
-                label: data.rangeMiles ? `${MAP_COPY.yourArea}\n${MAP_COPY.rangeLabel(data.rangeMiles)}` : MAP_COPY.yourArea,
+                label: customerLabel(rangeRef.current),
               },
               geometry: { type: "Point", coordinates: [data.customer.lng, data.customer.lat] },
             },
@@ -110,7 +130,6 @@ export default function OfferMap({ data, onOpenOffer }: { data: OfferMapData; on
                 offerId: p.offerId,
                 status: p.status,
                 highlighted: p.highlighted,
-                beyondRange: p.beyondRange,
                 // Declined/withdrawn drawn beneath everything else.
                 sortKey: p.status === "inactive" ? 0 : p.status === "pending" ? 1 : 2,
               },
@@ -133,13 +152,6 @@ export default function OfferMap({ data, onOpenOffer }: { data: OfferMapData; on
           filter: ["has", "point_count"],
           layout: { "text-field": ["get", "point_count_abbreviated"], "text-size": 12 },
           paint: { "text-color": "#ffffff" },
-        });
-        map.addLayer({
-          id: "offer-range-ring",
-          type: "circle",
-          source: "offers",
-          filter: ["all", ["!", ["has", "point_count"]], ["==", ["get", "beyondRange"], true]],
-          paint: { "circle-radius": 13, "circle-color": "rgba(0,0,0,0)", "circle-stroke-color": AMBER, "circle-stroke-width": 2 },
         });
         map.addLayer({
           id: "offer-pins",
@@ -238,9 +250,24 @@ export default function OfferMap({ data, onOpenOffer }: { data: OfferMapData; on
 
     return () => {
       cancelled = true;
+      mapRef.current = null;
       map?.remove();
     };
   }, [data]);
+
+  // Slider preview (and the saved value after a save): redraw the circle and
+  // the "Your area" label in place.
+  useEffect(() => {
+    rangeRef.current = rangeMiles;
+    const map = mapRef.current;
+    if (!map || !data.customer) return;
+    (map.getSource("range") as GeoJSONSource | undefined)?.setData(rangeFeature(data.customer, rangeMiles));
+    (map.getSource("customer") as GeoJSONSource | undefined)?.setData({
+      type: "Feature",
+      properties: { label: customerLabel(rangeMiles) },
+      geometry: { type: "Point", coordinates: [data.customer.lng, data.customer.lat] },
+    });
+  }, [rangeMiles, data.customer]);
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-white/10">

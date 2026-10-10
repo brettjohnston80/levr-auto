@@ -15,7 +15,7 @@ import { formatCents } from "@/lib/dashboard-format";
 import { GetStartedButton } from "@/components/get-started-button";
 import { PickupRangeControl } from "@/components/pickup-range-control";
 import { OFFER_SORT_LABEL, OFFER_SORT_OPTIONS, parseOfferSort, sortOffers } from "@/lib/offer-sort";
-import { isBeyondPickupRange, travelToValue } from "@/lib/pickup-travel";
+import { travelToValue } from "@/lib/pickup-travel";
 import { mapAvailable } from "@/lib/map/config";
 import { MAP_COPY, pinStatus, type OfferMapData } from "@/lib/map/pins";
 import { OfferMapView } from "@/components/offer-map-view";
@@ -191,7 +191,6 @@ export default async function DealPage({
             approximate: o.mapLocation!.approximate,
             status: pinStatus(o.status),
             highlighted: o.status === "pending" && !!o.customerHighlightedAt,
-            beyondRange: isBeyondPickupRange(deal.pickupTravel, o.distanceMiles, o.handoffMethod),
             dealerName: o.dealerName,
             priceCents: o.offerPriceCents,
             distanceMiles: o.distanceMiles,
@@ -295,7 +294,9 @@ export default async function DealPage({
                     ))}
                   </nav>
                 )}
-                {deal.offers.length > 1 && (
+                {/* Hidden in Map view (2026-10-10): sorting only reorders the
+                    list cards, which the map hides, so it would do nothing. */}
+                {deal.offers.length > 1 && !showMap && (
                   <nav aria-label={OFFER_SORT_LABEL} className="flex items-center gap-2 text-xs">
                     <span className="text-zinc-500">{OFFER_SORT_LABEL}</span>
                     {OFFER_SORT_OPTIONS.map((opt) => (
@@ -324,7 +325,14 @@ export default async function DealPage({
                   {GENERAL_THREAD_COPY.dealLink}
                 </Link>
               )}
-              {mapData && <OfferMapView data={mapData} />}
+              {mapData && (
+                <OfferMapView
+                  data={mapData}
+                  searchId={deal.searchId}
+                  pickupValue={travelToValue(deal.pickupTravel)}
+                  canEditRange
+                />
+              )}
               {deal.offers.length > 0 && (
                 // Kept mounted (hidden) in Map view so a pin's "View details"
                 // can open the card's own detail view.

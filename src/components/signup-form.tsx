@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { signup } from "@/lib/auth-actions";
+import { PASSWORD_REQUIREMENTS, passwordProblem } from "@/lib/password-rules";
 
 // Extracted from /signup so a client-side password-confirmation check can
 // run before the native form submission -- the signup Server Action itself
@@ -13,6 +14,12 @@ export function SignupForm() {
   const [mismatchError, setMismatchError] = useState<string | null>(null);
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    const problem = passwordProblem(password);
+    if (problem) {
+      e.preventDefault();
+      setMismatchError(problem);
+      return;
+    }
     if (password !== confirmPassword) {
       e.preventDefault();
       setMismatchError("Passwords don't match.");
@@ -45,7 +52,7 @@ export function SignupForm() {
           autoComplete="new-password"
           className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900/80 px-4 py-3 text-sm font-medium text-white shadow-inner shadow-black/20 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
         />
-        <span className="mt-2 block text-xs text-zinc-500">At least 8 characters.</span>
+        <span className="mt-2 block text-xs text-zinc-500">{PASSWORD_REQUIREMENTS}</span>
       </label>
       <label className="block">
         <span className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">Confirm password</span>

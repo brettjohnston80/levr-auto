@@ -28,7 +28,10 @@ export function SiteHeader() {
         </nav>
         <div className="flex items-center gap-4 sm:gap-6">
           <MobileNavMenu />
-          <HeaderAccountLink className="hidden text-sm font-medium text-zinc-300 transition-colors hover:text-white sm:block" />
+          <HeaderAccountLink
+            placement="header"
+            className="hidden text-sm font-medium text-zinc-300 transition-colors hover:text-white sm:block"
+          />
           <HeaderGetStartedButton className="rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400">
             Get Started
           </HeaderGetStartedButton>

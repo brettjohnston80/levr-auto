@@ -11,7 +11,6 @@ export interface OfferPin {
   approximate: boolean;
   status: OfferPinStatus;
   highlighted: boolean;
-  beyondRange: boolean;
   dealerName: string;
   priceCents: number;
   distanceMiles: number | null;
@@ -44,7 +43,13 @@ export const MAP_COPY = {
     accepted: "Accepted",
     highlighted: "Highlighted",
     inactive: "Declined or withdrawn",
-    beyondRange: "Beyond your pickup range",
+  },
+  // PENDING BRETT'S SIGN-OFF (2026-10-10): the map's pickup-range slider.
+  // The value itself reuses the gauge's approved labels (travelValueLabel).
+  rangeSlider: {
+    label: "Pickup range",
+    save: "Save",
+    cancel: "Cancel",
   },
   milesAway: (miles: number) => `${miles} miles away`,
   approximate: "Approximate location",

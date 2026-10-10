@@ -114,7 +114,11 @@ export function AccountSettingsForm({ existing }: { existing: AccountSettingsExi
 
       <div className="mt-4">
         <p className="text-xs text-zinc-400">How should we reach you?</p>
-        <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:gap-6">
+        {/* Each row is a full 44px tap target (2026-10-10): on Brett's iPhone
+            the Text and Phone call boxes didn't respond until a reload; small
+            16px boxes in 20px rows are easy to miss, especially while iOS is
+            zoomed in on a focused field. */}
+        <div className="mt-1 flex flex-col sm:flex-row sm:gap-6">
           {/*
             Email is the FLOOR, not a fixed value. It can be switched off in
             favour of text or a callback -- a real customer does exactly that
@@ -124,7 +128,7 @@ export function AccountSettingsForm({ existing }: { existing: AccountSettingsExi
             out of the way otherwise.
           */}
           <label
-            className={`flex items-center gap-2 text-sm ${
+            className={`flex min-h-11 cursor-pointer items-center gap-2.5 text-sm ${
               locks(notifyByEmail) ? "text-zinc-400" : "text-zinc-300"
             }`}
             title={locks(notifyByEmail) ? CHANNEL_FLOOR_HINT : undefined}
@@ -134,12 +138,12 @@ export function AccountSettingsForm({ existing }: { existing: AccountSettingsExi
               checked={notifyByEmail}
               disabled={locks(notifyByEmail)}
               onChange={(e) => setNotifyByEmail(e.target.checked)}
-              className="h-4 w-4 rounded border-white/20 bg-zinc-900 text-emerald-500 focus:ring-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-60"
+              className="h-5 w-5 rounded border-white/20 bg-zinc-900 text-emerald-500 focus:ring-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-60"
             />
             Email
           </label>
           <label
-            className={`flex items-center gap-2 text-sm ${
+            className={`flex min-h-11 cursor-pointer items-center gap-2.5 text-sm ${
               locks(notifyByText) ? "text-zinc-400" : "text-zinc-300"
             }`}
             title={locks(notifyByText) ? CHANNEL_FLOOR_HINT : undefined}
@@ -149,12 +153,12 @@ export function AccountSettingsForm({ existing }: { existing: AccountSettingsExi
               checked={notifyByText}
               disabled={locks(notifyByText)}
               onChange={(e) => setNotifyByText(e.target.checked)}
-              className="h-4 w-4 rounded border-white/20 bg-zinc-900 text-emerald-500 focus:ring-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-60"
+              className="h-5 w-5 rounded border-white/20 bg-zinc-900 text-emerald-500 focus:ring-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-60"
             />
             Text
           </label>
           <label
-            className={`flex items-center gap-2 text-sm ${
+            className={`flex min-h-11 cursor-pointer items-center gap-2.5 text-sm ${
               locks(notifyByAgentCallback) ? "text-zinc-400" : "text-zinc-300"
             }`}
             title={locks(notifyByAgentCallback) ? CHANNEL_FLOOR_HINT : undefined}
@@ -164,7 +168,7 @@ export function AccountSettingsForm({ existing }: { existing: AccountSettingsExi
               checked={notifyByAgentCallback}
               disabled={locks(notifyByAgentCallback)}
               onChange={(e) => setNotifyByAgentCallback(e.target.checked)}
-              className="h-4 w-4 rounded border-white/20 bg-zinc-900 text-emerald-500 focus:ring-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-60"
+              className="h-5 w-5 rounded border-white/20 bg-zinc-900 text-emerald-500 focus:ring-emerald-500/40 disabled:cursor-not-allowed disabled:opacity-60"
             />
             Phone call
           </label>

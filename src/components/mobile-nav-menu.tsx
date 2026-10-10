@@ -6,10 +6,11 @@ import Link from "next/link";
 import { HeaderAccountLink } from "@/components/header-account-link";
 import { HeaderGetStartedButton } from "@/components/header-get-started-button";
 
-// Log In is NOT in this list -- it is rendered by HeaderAccountLink below,
-// which resolves the real session so a signed-in customer sees their name
-// instead. Leaving a hardcoded /login entry here would reproduce, on
-// mobile, exactly the bug this fixes on desktop.
+// Site pages only. Log In (signed out) is rendered by HeaderAccountLink
+// below, which resolves the real session. Signed in, the account menu is
+// NOT in this overlay: it lives on the initials button next to the
+// hamburger, so the site menu and the account menu stay separate (Brett,
+// 2026-10-10).
 const NAV_LINKS = [
   { href: "/#how-it-works", label: "How It Works" },
   { href: "/matchmaker", label: "Matchmaker" },
@@ -100,13 +101,9 @@ export function MobileNavMenu() {
                   {link.label}
                 </Link>
               ))}
-              {/* No wrapping onClick={close} here, unlike every other item
-                  in this list -- HeaderAccountLink is now a dropdown
-                  trigger when signed in, and a blanket onClick would close
-                  this whole overlay the instant it's tapped, before the
-                  menu ever opens. It closes this overlay itself, via
-                  onNavigate, only when a menu item is actually chosen. */}
-              <HeaderAccountLink className="transition-colors hover:text-white" onNavigate={close} />
+              {/* Log In when signed out (closes this overlay on tap);
+                  nothing when signed in. */}
+              <HeaderAccountLink placement="mobileMenu" className="transition-colors hover:text-white" onNavigate={close} />
             </nav>
 
             <HeaderGetStartedButton

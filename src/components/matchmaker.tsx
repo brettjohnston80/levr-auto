@@ -609,15 +609,13 @@ function PriorityRanker({ order, onChange }: { order: string[]; onChange: (next:
               <div className="text-sm font-semibold text-white">{dimensionDisplayName(priority.label)}</div>
               <div className="text-xs text-zinc-500">{priority.clarifier}</div>
             </div>
-            {/* Side-by-side at EVERY width (2026-09-07). Mobile already
-                worked this way; desktop used to stack them (sm:flex-col),
-                and that was the single biggest driver of desktop row
-                height -- two 44px buttons stacked = 88px, which with the
-                old py-3 and borders produced exactly the measured 114px
-                row. Content itself only needs ~36px. Unstacking them is
-                most of the height reduction in the compact-card restyle.
-                Both buttons remain full 44x44 targets. */}
-            <div className="flex shrink-0 flex-row">
+            {/* Stacked, up above down, at every width (Brett, 2026-10-10,
+                iPhone walkthrough): side by side, the two 44px arrows took
+                88px of a phone-width row and crowded the label. This
+                reverses the 2026-09-07 compact-card choice (side by side
+                to cut desktop row height); rows are taller again, about
+                88px, by design. Both buttons stay full 44x44 targets. */}
+            <div className="flex shrink-0 flex-col">
               <button
                 type="button"
                 aria-label={`Move ${dimensionDisplayName(priority.label)} up`}
