@@ -1978,7 +1978,7 @@ function CompareBar({ count, onClick }: { count: number; onClick: () => void }) 
         onClick={onClick}
         className="rounded-full bg-emerald-500 px-6 py-3.5 text-sm font-semibold text-zinc-950 shadow-xl shadow-black/40 transition-colors hover:bg-emerald-400"
       >
-        Compare ({count} interested)
+        Compare ({count})
       </button>
     </div>,
     document.body,

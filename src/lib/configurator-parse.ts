@@ -172,7 +172,7 @@ export function parsePrice(
  * notes to us, not contents a customer can use (Brett, 2026-10-10).
  */
 const CONTENTS_NOTE =
-  /\bnot (\w+ ){0,2}(disclosed|itemi[sz]ed|detailed|confirmed|published|listed|opened)\b|\bunconfirmed\b|\bsources? (checked|consulted)\b|\bsourced pages?\b|\bper (GM|Ford|Toyota|Honda)\b|\border guide\b|\bprice not\b|\bdiscount available\b|\bprerequisite\b|\brequired for\b|\brequires an eligible\b|\bexact (item|items|feature|contents)\b|\b(full|other) contents\b|\bcontents (beyond|modal)\b|\blikely (includes|additional)\b|\bflagged\b|\bBuild & Price\b|\binferred\b|\bapproximate\b|\btypically\b|\bAdditional Change/i;
+  /\bnot (\w+ ){0,2}(disclosed|itemi[sz]ed|detailed|confirmed|published|listed|opened)\b|\bunconfirmed\b|\bsources? (checked|consulted)\b|\bsourced pages?\b|\bper (GM|Ford|Toyota|Honda)\b|\border guide\b|\bprice not\b|\bdiscount available\b|\bprerequisite\b|\brequired for\b|\brequires an eligible\b|\bexact (item|items|feature|contents)\b|\b(full|other) contents\b|\bcontents (beyond|modal)\b|\blikely (includes|additional)\b|\bflagged\b|\bBuild & Price\b|\binferred\b|\bapproximate\b|\btypically\b|\bAdditional Change|\bre-?itemi[sz]ed\b|\bconfirmed via\b|\bidentically[- ]priced\b|\bprice match(es)?\b|\bcarried forward\b|\bcross-reference\b|\bcaveat\b|\bunknown\b|\bprior\b.*\bcontent\b|\bthis pass\b/i;
 
 /** Splits on `sep` where it is not inside parentheses. */
 function splitTopLevel(text: string, sep: string): string[] {

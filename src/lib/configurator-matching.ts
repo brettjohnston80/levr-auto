@@ -125,6 +125,12 @@ const TRIM_EQUIVALENTS: Record<string, Record<string, string[]>> = {
   "kia|seltos": { sx: ["x line sx"] }, // version "X-Line SX AWD"
   "nissan|kicks": { "s awd": ["s"], "sv awd": ["sv"], "sr awd": ["sr"] },
   "jeep|compass": { "85th anniversary": ["85th anniversary edition"] },
+  // Ram (2026-10-10): MarketCheck combines trims. Lone Star is Ram's
+  // Texas-market name for the Big Horn, so the combined trim maps to the
+  // national row (the 2500 research has only Lone Star). Real Warlocks are
+  // listed separately as "Warlock"; the combined name maps to Tradesman.
+  "ram|1500": { "big horn lone star": ["big horn"], "tradesman warlock": ["tradesman"] },
+  "ram|2500": { "big horn lone star": ["lone star"], "tradesman warlock": ["tradesman"] },
 };
 
 /**
@@ -157,6 +163,9 @@ function equivalentTrims(make: string, model: string, normalizedTrim: string): s
  */
 export function listingPowertrainClass(powertrainType: string | null | undefined): PowertrainClass {
   const p = (powertrainType ?? "").trim().toLowerCase();
+  // Mild hybrid (Ram eTorque, "MHEV") is a gas engine with a belt
+  // starter-generator, not a hybrid build (Brett, 2026-10-10).
+  if (p.includes("mhev") || p.includes("mild")) return "GAS";
   if (p.includes("phev") || p.includes("plug")) return "PHEV";
   if (p.includes("hev") || p.includes("hybrid")) return "HYBRID";
   if (p.includes("fcev") || p.includes("hydrogen")) return "FCEV";
