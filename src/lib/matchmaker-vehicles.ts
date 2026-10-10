@@ -180,3 +180,20 @@ export async function getLiveVehicles(): Promise<MatchmakerVehicle[]> {
   // Models no longer offered (Ford Escape) never reach Matchmaker either.
   return (await getVehiclesForBatch(liveBatch.id)).filter((v) => !isNotOfferedModel(v.make, v.model));
 }
+
+/**
+ * When the live vehicle data last changed: the promotion date of the live
+ * batch (falling back to its import date). Shown on Matchmaker as "Vehicle
+ * data last updated {Month YYYY}" (Cruz's tester feedback #4, 2026-10-10).
+ * /matchmaker is static, so this is read at build time -- the same moment
+ * the vehicles themselves are, so the two always agree.
+ */
+export async function getLiveVehicleDataUpdatedAt(): Promise<string | null> {
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("vehicle_dataset_batches")
+    .select("promoted_at, imported_at")
+    .eq("is_live", true)
+    .maybeSingle();
+  return (data?.promoted_at as string | null) ?? (data?.imported_at as string | null) ?? null;
+}

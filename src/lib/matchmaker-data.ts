@@ -160,6 +160,32 @@ export function defaultPriorityOrder(vehicleType: VehicleType | ""): string[] {
   return [...SHARED_PRIORITY_LABELS, ninth];
 }
 
+// Multi-type versions (2026-10-10). With types that disagree on the 9th
+// priority (a Truck and a Sedan), the list carries BOTH Resale Value and
+// Towing & Payload; each type's ranked list scores on the 9 that apply to
+// it (prioritiesForType, matchmaker-explain.ts).
+function ninthPrioritiesForTypes(types: VehicleType[]): string[] {
+  const towing = types.some((t) => TOWING_PAYLOAD_VEHICLE_TYPES.includes(t));
+  const resale = types.length === 0 || types.some((t) => !TOWING_PAYLOAD_VEHICLE_TYPES.includes(t));
+  return [...(resale ? ["Resale Value"] : []), ...(towing ? ["Towing & Payload"] : [])];
+}
+
+export function defaultPriorityOrderForTypes(types: VehicleType[]): string[] {
+  return [...SHARED_PRIORITY_LABELS, ...ninthPrioritiesForTypes(types)];
+}
+
+/** Keeps the customer's order; drops a 9th priority no selected type uses and appends one newly needed. */
+export function retargetPriorityOrderForTypes(order: string[], types: VehicleType[]): string[] {
+  const needed = ninthPrioritiesForTypes(types);
+  const kept = order.filter((label) => SHARED_PRIORITY_LABELS.includes(label) || needed.includes(label));
+  return [...kept, ...needed.filter((label) => !kept.includes(label))];
+}
+
+/** Use cases offered for a set of types, in order, without repeats. */
+export function mainUsesForTypes(types: VehicleType[]): string[] {
+  return [...new Set(types.flatMap((t) => USE_CASES_BY_VEHICLE_TYPE[t] ?? []))];
+}
+
 // Swaps whichever of the two type-dependent labels (Resale Value /
 // Towing & Payload) is present in an existing, possibly customer-
 // reordered priority list for the correct one given a new vehicle type --
@@ -380,7 +406,12 @@ export function applyUseCaseHint(order: string[], useCase: string): string[] {
 }
 
 export type Answers = {
+  // The FIRST selected type, kept for everything that needs a single one
+  // (silhouette, use-case hints, the intake hand-off). `vehicleTypes` is the
+  // full selection (Cruz's tester feedback #1, 2026-10-10): results show one
+  // separately ranked list per selected type.
   vehicleType: VehicleType | "";
+  vehicleTypes: VehicleType[];
   useCase: string;
   familySize: string;
   powertrain: Powertrain | "";

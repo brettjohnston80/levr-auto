@@ -264,7 +264,7 @@ export function ReviewAndPay({
             <p>
               {nearbyCount > 0
                 ? `${nearbyCount.toLocaleString()} ${nearbyCount === 1 ? "vehicle" : "vehicles"} within ${INVENTORY_RADIUS_MILES} miles`
-                : "0 matching listings tracked near you right now — our nationwide outreach can still source it"}
+                : "No nearby matches yet — we can search nationwide for you."}
             </p>
           )}
         </div>

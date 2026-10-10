@@ -54,6 +54,12 @@ export function dimensionIndicator(score: number, hasData: boolean): IndicatorLe
 // detail-modal breakdown (all 9) -- one shared function, so the two
 // surfaces can't silently drift apart on ordering.
 export function personalizedDimensionOrder(bodyStyle: VehicleType, priorities: string[]): string[] {
+  // A multi-type search carries both 9th priorities (2026-10-10): keep the
+  // one this body style uses rather than swapping, which would duplicate it.
+  if (priorities.includes("Resale Value") && priorities.includes("Towing & Payload")) {
+    const towing = TOWING_PAYLOAD_VEHICLE_TYPES.includes(bodyStyle);
+    return priorities.filter((label) => label !== (towing ? "Resale Value" : "Towing & Payload"));
+  }
   return retargetPriorityOrderForVehicleType(priorities, bodyStyle);
 }
 

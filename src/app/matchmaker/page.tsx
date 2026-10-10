@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Matchmaker } from "@/components/matchmaker";
-import { getLiveVehicles } from "@/lib/matchmaker-vehicles";
+import { getLiveVehicleDataUpdatedAt, getLiveVehicles } from "@/lib/matchmaker-vehicles";
 
 export const metadata: Metadata = {
   title: "Vehicle Matchmaker — LEVR Auto",
@@ -8,6 +8,6 @@ export const metadata: Metadata = {
 };
 
 export default async function MatchmakerPage() {
-  const vehicles = await getLiveVehicles();
-  return <Matchmaker vehicles={vehicles} />;
+  const [vehicles, dataUpdatedAt] = await Promise.all([getLiveVehicles(), getLiveVehicleDataUpdatedAt()]);
+  return <Matchmaker vehicles={vehicles} dataUpdatedAt={dataUpdatedAt} />;
 }

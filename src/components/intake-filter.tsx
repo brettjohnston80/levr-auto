@@ -225,7 +225,7 @@ function MatchCounter({
   if (count === 0) {
     return (
       <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-1.5 text-xs font-semibold text-amber-300">
-        0 matching listings tracked near you right now — our nationwide outreach can still source it
+        No nearby matches yet — we can search nationwide for you.
       </div>
     );
   }
@@ -645,7 +645,7 @@ export function IntakeFilter({
                   className={`mt-1 text-xs font-medium ${matchCount === 0 ? "text-amber-400" : "text-emerald-400"}`}
                 >
                   {matchCount === 0
-                    ? `0 matching listings tracked near you right now — nationwide outreach can still source it`
+                    ? `No nearby matches yet — we can search nationwide for you.`
                     : `${matchCount.toLocaleString()} ${matchCount === 1 ? "vehicle matches" : "vehicles match"} within ${INVENTORY_RADIUS_MILES} miles`}
                 </p>
               )}

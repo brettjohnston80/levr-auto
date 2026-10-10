@@ -6,6 +6,8 @@ import type { Answers } from "@/lib/matchmaker-data";
 import { formatPriceEstimate, fuelTypeToPowertrain, type MatchmakerVehicle } from "@/lib/matchmaker-vehicle-display";
 import { SilhouetteIcon } from "@/components/vehicle-silhouette";
 import { countNationwideInventory } from "@/lib/inventory-count";
+import { ScoreLegendButton } from "@/components/score-legend";
+import { priorityBreakdown, prioritiesForType } from "@/lib/matchmaker-explain";
 import {
   dimensionIndicator,
   dimensionDataPoint,
@@ -38,9 +40,11 @@ const SAMPLE_REVIEW_VIDEO_ID = "K6kyAeAozBs";
 function buildFitBullets(vehicle: MatchmakerVehicle, answers: Answers): string[] {
   const bullets: string[] = [];
 
-  const typeMatches = answers.vehicleType !== "" && vehicle.bodyStyle === answers.vehicleType;
+  // One or more selected types (2026-10-10).
+  const selectedTypes = answers.vehicleTypes.length > 0 ? answers.vehicleTypes : [answers.vehicleType];
+  const typeMatches = selectedTypes.includes(vehicle.bodyStyle);
   if (typeMatches) {
-    bullets.push(`Matches your ${answers.vehicleType} preference.`);
+    bullets.push(`Matches your ${vehicle.bodyStyle} preference.`);
   }
 
   if (answers.powertrain && fuelTypeToPowertrain(vehicle.fuelType) === answers.powertrain) {
@@ -67,7 +71,7 @@ function buildFitBullets(vehicle: MatchmakerVehicle, answers: Answers): string[]
     bullets.push(`A solid fit for "${answers.useCase}."`);
   }
 
-  answers.priorities.slice(0, 3).forEach((label, index) => {
+  prioritiesForType(answers.priorities, vehicle.bodyStyle).slice(0, 3).forEach((label, index) => {
     const score = vehicle.scores[label] ?? 0;
     if (score >= 80) {
       bullets.push(`Scores well on ${dimensionDisplayName(label)}, your #${index + 1} priority.`);
@@ -269,9 +273,45 @@ export function VehicleDetailModal({
                   trim's own scores/hasData/data point with no extra wiring,
                   since it never looks at the group, only at whatever single
                   vehicle it was given. */}
+              {/* Cruz's tester feedback #5 (2026-10-10). Bar length = how much
+                  each priority can count (your ranking); filled part = how
+                  this vehicle scores on it. Same numbers as the ranking. */}
+              {answers.priorities.length > 0 && (
+                <div className="mt-6">
+                  <h3 className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
+                    How your priorities shaped this rank
+                  </h3>
+                  {/* Wording pending sign-off. */}
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Longer bars are your higher priorities; the filled part is how this car scores on each.
+                  </p>
+                  <ul className="mt-3 space-y-2">
+                    {priorityBreakdown(vehicle, prioritiesForType(answers.priorities, vehicle.bodyStyle)).map((row) => (
+                      <li key={row.label} className="flex items-center gap-3 text-xs">
+                        <span className="w-36 shrink-0 truncate text-zinc-300">
+                          <span className="text-zinc-500">{row.position}.</span> {row.name}
+                        </span>
+                        <span className="h-2 flex-1">
+                          <span
+                            className="block h-2 overflow-hidden rounded-full bg-white/[0.08]"
+                            style={{ width: `${row.weightShare * 100}%` }}
+                          >
+                            <span
+                              className="block h-2 rounded-full bg-emerald-500"
+                              style={{ width: `${row.earned * 100}%` }}
+                            />
+                          </span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <div className="mt-6">
-                <h3 className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
+                <h3 className="flex items-center gap-1 text-xs font-semibold tracking-wide text-zinc-400 uppercase">
                   How it scores on what matters to you
+                  <ScoreLegendButton types={[vehicle.bodyStyle]} />
                 </h3>
                 <ul className="mt-3 space-y-1.5">
                   {personalizedDimensionOrder(vehicle.bodyStyle, answers.priorities).map((label) => {

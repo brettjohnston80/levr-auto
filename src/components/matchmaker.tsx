@@ -1,12 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { GetStartedButton } from "@/components/get-started-button";
 import { stashMatchmakerPrefill } from "@/lib/matchmaker-prefill";
 import { VehicleDetailModal } from "@/components/vehicle-detail-modal";
 import { PriceRangeSlider } from "@/components/price-range-slider";
 import { useIsNarrowViewport } from "@/lib/use-is-narrow-viewport";
+import { ScoreLegendButton } from "@/components/score-legend";
+import { prioritiesForType, rankReasons } from "@/lib/matchmaker-explain";
+import {
+  buildShareUrl,
+  clearSavedMatchmakerState,
+  parseSavedMatchmakerState,
+  parseShareParam,
+  readSavedMatchmakerRaw,
+  saveMatchmakerState,
+} from "@/lib/matchmaker-persist";
 import {
   ALL_PRIORITIES,
   FAMILY_SIZES,
@@ -21,8 +31,10 @@ import {
   VEHICLE_TYPES,
   applyUseCaseHint,
   defaultPriorityOrder,
+  defaultPriorityOrderForTypes,
   formatPriceRange,
-  retargetPriorityOrderForVehicleType,
+  retargetPriorityOrderForTypes,
+  mainUsesForTypes,
   type Answers,
   type Powertrain,
   type PriceRangeValue,
@@ -54,6 +66,7 @@ import {
 
 const EMPTY_ANSWERS: Answers = {
   vehicleType: "",
+  vehicleTypes: [],
   useCase: "",
   familySize: "",
   powertrain: "",
@@ -64,7 +77,8 @@ const EMPTY_ANSWERS: Answers = {
 
 type Step = {
   id: keyof Answers;
-  kind: "select" | "range" | "rank";
+  // "multi" (2026-10-10): vehicle type, pick one or more, then Continue.
+  kind: "select" | "multi" | "range" | "rank";
   title: string;
   subtitle?: string;
   options?: string[];
@@ -88,9 +102,10 @@ const POWERTRAIN_LABELS: Record<string, string> = { "": "No preference" };
 const STEPS: Step[] = [
   {
     id: "vehicleType",
-    kind: "select",
+    kind: "multi",
     title: "What type of vehicle are you looking for?",
-    subtitle: "Pick the body style that fits how you get around.",
+    // Approved 2026-10-10 (Cruz's tester feedback #1).
+    subtitle: "Pick one or more.",
     options: VEHICLE_TYPES,
   },
   {
@@ -648,7 +663,7 @@ function BuildingVisual({ answers, currentStepId }: { answers: Answers; currentS
   const priceTier = priceTierForRange(answers.priceRange);
 
   const allChips: { label: string; value: string; stepId: keyof Answers }[] = [
-    { label: "Type", value: answers.vehicleType, stepId: "vehicleType" },
+    { label: "Type", value: answers.vehicleTypes.join(", "), stepId: "vehicleType" },
     { label: "Use", value: answers.useCase, stepId: "useCase" },
     { label: "Riders", value: answers.familySize, stepId: "familySize" },
     { label: "Powertrain", value: answers.powertrain, stepId: "powertrain" },
@@ -776,6 +791,7 @@ function CompactSelectField({
 // longer has an edit control here.
 function AnswerPanel({
   answers,
+  onVehicleTypesChange,
   onFieldChange,
   onPriceRangeChange,
   onReorderPriorities,
@@ -786,6 +802,7 @@ function AnswerPanel({
   powertrainTouched,
 }: {
   answers: Answers;
+  onVehicleTypesChange: (types: VehicleType[]) => void;
   onFieldChange: (id: keyof Answers, value: string) => void;
   onPriceRangeChange: (range: PriceRangeValue) => void;
   onReorderPriorities: (order: string[]) => void;
@@ -806,7 +823,7 @@ function AnswerPanel({
   modelYearTouched: boolean;
   powertrainTouched: boolean;
 }) {
-  const allowSixPlus = answers.vehicleType ? LARGE_CAPACITY_VEHICLE_TYPES.includes(answers.vehicleType) : false;
+  const allowSixPlus = answers.vehicleTypes.some((t) => LARGE_CAPACITY_VEHICLE_TYPES.includes(t));
   const familySizeOptions = FAMILY_SIZES.filter((size) => size !== "6+" || allowSixPlus);
 
   return (
@@ -814,12 +831,36 @@ function AnswerPanel({
       <h3 className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">Your answers</h3>
       <p className="mt-1 text-xs text-zinc-500">Change anything below — the list updates live.</p>
 
-      <CompactSelectField
-        label="Vehicle type"
-        options={VEHICLE_TYPES}
-        value={answers.vehicleType}
-        onSelect={(v) => onFieldChange("vehicleType", v)}
-      />
+      {/* One or more (2026-10-10); the last selected type can't be removed. */}
+      <div className="mt-4 first:mt-0">
+        <h4 className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">Vehicle type</h4>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {VEHICLE_TYPES.map((type) => {
+            const active = answers.vehicleTypes.includes(type);
+            const isLast = active && answers.vehicleTypes.length === 1;
+            return (
+              <button
+                key={type}
+                type="button"
+                aria-pressed={active}
+                disabled={isLast}
+                onClick={() =>
+                  onVehicleTypesChange(
+                    active ? answers.vehicleTypes.filter((t) => t !== type) : [...answers.vehicleTypes, type],
+                  )
+                }
+                className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-default ${
+                  active
+                    ? "border-emerald-500 bg-emerald-500 text-zinc-950"
+                    : "border-white/10 bg-white/[0.02] text-zinc-300 hover:border-white/25 hover:bg-white/[0.05]"
+                }`}
+              >
+                {type}
+              </button>
+            );
+          })}
+        </div>
+      </div>
       <CompactSelectField
         label="Riders"
         options={familySizeOptions}
@@ -881,6 +922,8 @@ function QuestionPanel({
   onBack,
   onContinue,
   emptyOptionTouched,
+  multiValues,
+  onToggleMulti,
 }: {
   step: Step;
   stepIndex: number;
@@ -899,6 +942,9 @@ function QuestionPanel({
   emptyOptionTouched: boolean;
   onBack: () => void;
   onContinue: () => void;
+  // "multi" steps (vehicle type, 2026-10-10).
+  multiValues: string[];
+  onToggleMulti: (value: string) => void;
 }) {
   const progress = ((stepIndex + 1) / totalSteps) * 100;
 
@@ -950,6 +996,41 @@ function QuestionPanel({
               </button>
             );
           })}
+        </div>
+      )}
+
+      {step.kind === "multi" && (
+        <div className="mt-8">
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+            {step.options?.map((option) => {
+              const active = multiValues.includes(option);
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => onToggleMulti(option)}
+                  className={`rounded-2xl border px-5 py-4 text-left text-sm font-semibold transition-all ${
+                    active
+                      ? "border-emerald-500 bg-emerald-500 text-zinc-950 shadow-md shadow-emerald-500/20"
+                      : "border-white/10 bg-white/[0.02] text-zinc-200 hover:border-white/25 hover:bg-white/[0.05]"
+                  }`}
+                >
+                  {step.labels?.[option] ?? option}
+                </button>
+              );
+            })}
+          </div>
+          <div className="mt-8 flex justify-end">
+            <button
+              type="button"
+              onClick={onContinue}
+              disabled={multiValues.length === 0}
+              className="rounded-full bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Continue
+            </button>
+          </div>
         </div>
       )}
 
@@ -1092,8 +1173,12 @@ function ModelGroupCard({
   onDismissGroup,
   onToggleFlag,
   onOpenInfo,
+  reasons,
 }: {
   group: ModelGroup;
+  // Why it ranked here (Cruz's tester feedback #5, 2026-10-10) -- primary
+  // list only; computed by the caller from the ranked list it sits in.
+  reasons?: { why: string | null; below: string | null };
   // Qualified group identity for flagging -- `${group.key}::primary` or
   // `${group.key}::alt:${powertrain}`, built by modelGroupFlagKey() below
   // and passed down by ResultsList. Qualified by segment (not just raw
@@ -1179,6 +1264,13 @@ function ModelGroupCard({
             {priceEstimate}
           </span>
         </div>
+
+        {reasons?.why && (
+          <div className="mt-2">
+            <p className="text-sm text-zinc-300">{reasons.why}</p>
+            {reasons.below && <p className="mt-0.5 text-xs text-zinc-500">{reasons.below}</p>}
+          </div>
+        )}
 
         {/* Trim/drivetrain list -- only shown when there's more than one
             variant to choose between (a single-trim group has nothing to
@@ -1284,7 +1376,8 @@ function ModelGroupCard({
             }`}
           >
             <StarIcon filled={isFlagged} />
-            {isFlagged ? "Flagged" : compareLimitReached ? "Compare limit reached" : "Flag"}
+            {/* "Interested" replaces "Flag" (2026-10-10); wording pending sign-off. */}
+            {isFlagged ? "Interested ✓" : compareLimitReached ? "Limit of 5 reached" : "Interested"}
           </button>
         </div>
 
@@ -1453,11 +1546,27 @@ function CollapsedGroupRow({ group, onRestore }: { group: ModelGroup; onRestore:
 const PRIMARY_INITIAL_COUNT = 5;
 const PRIMARY_MAX_COUNT = 10;
 
-function ResultsList({
-  answers,
-  primaryRows,
-  alternatives,
-  yearAlternative,
+// One ranked list per selected vehicle type (Cruz's tester feedback #1,
+// 2026-10-10). With a single type there is exactly one section and nothing
+// about the list looks different from before.
+type ResultsSectionData = {
+  type: VehicleType;
+  // Flag-key segment tags. Plain "primary"/"alt:..." with one type (so
+  // nothing changes for single-type searches); type-qualified when several
+  // types are shown, so a model appearing in two sections can't share a key.
+  primaryTag: string;
+  altTag: (powertrain: Powertrain) => string;
+  yearTag: (year: number) => string;
+  // The 9 priorities this type is scored on.
+  priorities: string[];
+  primaryRows: PrimaryRow[];
+  alternatives: AlternativeCard[];
+  yearAlternative: YearAlternativeCard | null;
+};
+
+function ResultsSection({
+  section,
+  showHeading,
   flaggedKeys,
   compareLimitReached,
   onDismiss,
@@ -1465,75 +1574,34 @@ function ResultsList({
   onRestoreGroup,
   onToggleFlag,
   onOpenInfo,
-  onRestoreAll,
-  anyDismissed,
-  modelYearLabels,
-  singleFlaggedVehicle,
 }: {
-  answers: Answers;
-  // Every primary-list group in score order, each tagged collapsed or not
-  // -- NOT just the visible ones, since a collapsed row has to render in
-  // its original position among them.
-  primaryRows: PrimaryRow[];
-  alternatives: AlternativeCard[];
-  // Null whenever "Both years" is selected (nothing excluded) or nothing
-  // in the excluded year matches the customer's other answers -- both
-  // real, expected outcomes, not error states (see getBestOtherYearAlternate,
-  // matchmaker-scoring.ts).
-  yearAlternative: YearAlternativeCard | null;
-  // Just the flagKeys, not the full FlaggedGroup[] -- ResultsList only
-  // ever needs a yes/no "is this card flagged" check per card, never the
-  // stored make/model/trimId, so a Set<string> keeps this component (and
-  // ModelGroupCard below it) from needing to know the FlaggedGroup shape
-  // at all.
+  section: ResultsSectionData;
+  showHeading: boolean;
   flaggedKeys: Set<string>;
   compareLimitReached: boolean;
-  // Per-trim dismiss, still used by the alternatives and year-alternate
-  // cards, which keep their original behavior (approved scope).
   onDismiss: (id: string) => void;
-  // Card-level dismiss/restore, primary list only.
   onDismissGroup: (group: ModelGroup, flagKey: string) => void;
   onRestoreGroup: (group: ModelGroup) => void;
   onToggleFlag: (candidate: FlaggedGroup) => void;
   onOpenInfo: (vehicle: MatchmakerVehicle) => void;
-  onRestoreAll: () => void;
-  anyDismissed: boolean;
-  // Same map Matchmaker() already computes for QuestionPanel/AnswerPanel
-  // ("" -> "Both years", "2026" -> "2026 only") -- needed here because,
-  // unlike BuildingVisual's chips, these chips render bare values with no
-  // label prefix, so a raw "2026" alone would read ambiguously (a year?
-  // a price?) next to "Sedan"/"Gas".
-  modelYearLabels: Record<string, string>;
-  // The resolved vehicle when EXACTLY ONE is flagged, else null. Resolved
-  // up in Matchmaker(), which is the only place holding both the full
-  // FlaggedGroup[] and the vehicles array -- ResultsList deliberately only
-  // receives flaggedKeys (see its comment above), and widening that to the
-  // FlaggedGroup shape just to serve one button would undo that boundary.
-  singleFlaggedVehicle: MatchmakerVehicle | null;
 }) {
-  // Local, not lifted to Matchmaker() -- ResultsList only unmounts (and
-  // this resets) on Start Over (the `done` ternary in Matchmaker()), which
-  // is the right moment for a fresh 5/10 view; editing an answer alongside
-  // the list re-renders this same component instance, so an already-
-  // expanded view intentionally stays expanded rather than jarringly
-  // re-collapsing.
+  // Local per section -- see the original ResultsList comment: resets only
+  // on Start Over, so an expanded list stays expanded while answers change.
   const [showMore, setShowMore] = useState(false);
   const visibleCount = showMore ? PRIMARY_MAX_COUNT : PRIMARY_INITIAL_COUNT;
+  const { primaryRows, alternatives, yearAlternative } = section;
 
   // The 5/10 window counts ACTIVE cards only -- collapsed rows never
-  // consume a slot (approved 2026-09-07). So dismissing card #3 still
-  // pulls #6 up into view, exactly as it did when a dismissed card
-  // vanished outright; the only difference is that a muted line now marks
-  // where #3 used to be.
-  const activeRowCount = primaryRows.filter((r) => !r.collapsed).length;
-  const remainingToReveal = Math.min(activeRowCount, PRIMARY_MAX_COUNT) - PRIMARY_INITIAL_COUNT;
+  // consume a slot (approved 2026-09-07).
+  const activeRows = primaryRows.filter((r) => !r.collapsed);
+  const remainingToReveal = Math.min(activeRows.length, PRIMARY_MAX_COUNT) - PRIMARY_INITIAL_COUNT;
   const canShowMore = !showMore && remainingToReveal > 0;
 
-  // Walked in score order so a collapsed row lands in its original
-  // position. `shownActive` both numbers the visible cards (a clean 1..N
-  // that ignores collapsed rows entirely) and enforces the window; once
-  // it reaches visibleCount nothing further renders, collapsed included,
-  // since that region is behind "Show more".
+  // Rank reasons compare each card with the other vehicles in THIS list
+  // (their headline trims) and with its #1.
+  const field = activeRows.map((r) => r.group.headline);
+  const leader = field[0] ?? null;
+
   const renderedPrimary: React.ReactNode[] = [];
   {
     let shownActive = 0;
@@ -1541,16 +1609,12 @@ function ResultsList({
       if (shownActive >= visibleCount) break;
       if (row.collapsed) {
         renderedPrimary.push(
-          <CollapsedGroupRow
-            key={row.group.key}
-            group={row.group}
-            onRestore={() => onRestoreGroup(row.group)}
-          />,
+          <CollapsedGroupRow key={row.group.key} group={row.group} onRestore={() => onRestoreGroup(row.group)} />,
         );
         continue;
       }
       shownActive += 1;
-      const flagKey = modelGroupFlagKey(row.group.key, PRIMARY_SEGMENT_TAG);
+      const flagKey = modelGroupFlagKey(row.group.key, section.primaryTag);
       renderedPrimary.push(
         <ModelGroupCard
           key={row.group.key}
@@ -1559,7 +1623,8 @@ function ResultsList({
           isFlagged={flaggedKeys.has(flagKey)}
           compareLimitReached={compareLimitReached}
           position={shownActive}
-          priorities={answers.priorities}
+          priorities={section.priorities}
+          reasons={rankReasons(row.group.headline, field, section.priorities, shownActive, leader)}
           onDismissGroup={onDismissGroup}
           onToggleFlag={onToggleFlag}
           onOpenInfo={onOpenInfo}
@@ -1568,8 +1633,142 @@ function ResultsList({
     }
   }
 
+  const yearAlternativeFlagKey = yearAlternative
+    ? modelGroupFlagKey(yearAlternative.group.key, section.yearTag(yearAlternative.year))
+    : null;
+  const hasAny = activeRows.length > 0 || alternatives.length > 0 || yearAlternative !== null || primaryRows.length > 0;
+
+  return (
+    <div className="mt-8">
+      {showHeading && (
+        <h3 className="text-xl font-semibold tracking-tight text-white">{bodyStyleHeading(section.type)}</h3>
+      )}
+      {!hasAny && showHeading && (
+        <p className="mt-3 text-sm text-zinc-400">No matches for these answers yet.</p>
+      )}
+      {renderedPrimary.length > 0 && (
+        <div className={`${showHeading ? "mt-4" : ""} flex flex-col gap-4`}>
+          {renderedPrimary}
+          {canShowMore && (
+            <button
+              type="button"
+              onClick={() => setShowMore(true)}
+              className="self-center rounded-full border border-white/20 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+            >
+              Show {remainingToReveal} more
+            </button>
+          )}
+        </div>
+      )}
+
+      {(alternatives.length > 0 || yearAlternative) && (
+        <div className="mt-10">
+          <h3 className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">Other options worth a look</h3>
+          <div className="mt-4 flex flex-col gap-6">
+            {alternatives.map((alt) => {
+              const flagKey = modelGroupFlagKey(alt.group.key, section.altTag(alt.powertrain));
+              return (
+                <div key={alt.powertrain}>
+                  <p className="mb-2 text-xs font-semibold tracking-wide text-emerald-400 uppercase">{alt.label}</p>
+                  <ModelGroupCard
+                    group={alt.group}
+                    flagKey={flagKey}
+                    isFlagged={flaggedKeys.has(flagKey)}
+                    compareLimitReached={compareLimitReached}
+                    priorities={section.priorities}
+                    onDismiss={onDismiss}
+                    onToggleFlag={onToggleFlag}
+                    onOpenInfo={onOpenInfo}
+                  />
+                </div>
+              );
+            })}
+            {yearAlternative && yearAlternativeFlagKey && (
+              <div key={`year-${yearAlternative.year}`}>
+                <p className="mb-2 text-xs font-semibold tracking-wide text-emerald-400 uppercase">
+                  {yearAlternative.label}
+                </p>
+                <ModelGroupCard
+                  group={yearAlternative.group}
+                  flagKey={yearAlternativeFlagKey}
+                  isFlagged={flaggedKeys.has(yearAlternativeFlagKey)}
+                  compareLimitReached={compareLimitReached}
+                  priorities={section.priorities}
+                  onDismiss={onDismiss}
+                  onToggleFlag={onToggleFlag}
+                  onOpenInfo={onOpenInfo}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const BODY_STYLE_HEADINGS: Record<string, string> = {
+  Sedan: "Sedans",
+  Truck: "Trucks",
+  SUV: "SUVs",
+  Hatchback: "Hatchbacks",
+  Wagon: "Wagons",
+  Convertible: "Convertibles",
+  Coupe: "Coupes",
+  Minivan: "Minivans",
+  "Cargo Van": "Cargo vans",
+};
+function bodyStyleHeading(type: VehicleType): string {
+  return BODY_STYLE_HEADINGS[type] ?? type;
+}
+
+// "Vehicle data last updated October 2026" (Cruz's tester feedback #4).
+function formatDataMonth(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "America/Chicago" });
+}
+
+function ResultsList({
+  answers,
+  sections,
+  flaggedKeys,
+  flaggedGroups,
+  compareLimitReached,
+  onDismiss,
+  onDismissGroup,
+  onRestoreGroup,
+  onToggleFlag,
+  onOpenInfo,
+  onRestoreAll,
+  anyDismissed,
+  hiddenCount,
+  modelYearLabels,
+  singleFlaggedVehicle,
+  dataUpdatedAt,
+}: {
+  answers: Answers;
+  sections: ResultsSectionData[];
+  // Just the flagKeys for per-card checks; flaggedGroups only for the share link.
+  flaggedKeys: Set<string>;
+  flaggedGroups: FlaggedGroup[];
+  compareLimitReached: boolean;
+  onDismiss: (id: string) => void;
+  onDismissGroup: (group: ModelGroup, flagKey: string) => void;
+  onRestoreGroup: (group: ModelGroup) => void;
+  onToggleFlag: (candidate: FlaggedGroup) => void;
+  onOpenInfo: (vehicle: MatchmakerVehicle) => void;
+  onRestoreAll: () => void;
+  anyDismissed: boolean;
+  // Collapsed ("Not interested") rows across every section.
+  hiddenCount: number;
+  modelYearLabels: Record<string, string>;
+  singleFlaggedVehicle: MatchmakerVehicle | null;
+  dataUpdatedAt: string | null;
+}) {
   const answerChips = [
-    answers.vehicleType,
+    answers.vehicleTypes.join(" + "),
     answers.useCase,
     answers.familySize,
     answers.powertrain,
@@ -1577,35 +1776,63 @@ function ResultsList({
     answers.priceRange ? formatPriceRange(answers.priceRange) : "",
   ].filter(Boolean);
 
-  // Collapsed rows deliberately do NOT count as results here: if every
-  // primary card has been dismissed and nothing else matched, the customer
-  // still gets the "You dismissed everything" state and its global Restore
-  // All (unchanged, approved) rather than a list of nothing but tombstones.
-  const hasAnyResults = activeRowCount > 0 || alternatives.length > 0 || yearAlternative !== null;
-  const yearAlternativeFlagKey = yearAlternative
-    ? modelGroupFlagKey(yearAlternative.group.key, yearAlternativeSegmentTag(yearAlternative.year))
-    : null;
+  // Collapsed rows deliberately do NOT count as results here (unchanged).
+  const hasAnyResults = sections.some(
+    (sec) =>
+      sec.primaryRows.some((r) => !r.collapsed) || sec.alternatives.length > 0 || sec.yearAlternative !== null,
+  );
+  const multi = sections.length > 1;
+  const dataMonth = formatDataMonth(dataUpdatedAt);
+
+  // Share link (Cruz's tester feedback #3): the vehicles marked Interested
+  // plus the ranked priorities. Wording pending sign-off.
+  const [copied, setCopied] = useState(false);
+  // Shown for manual copying only when the clipboard refuses the write.
+  const [manualShareUrl, setManualShareUrl] = useState<string | null>(null);
+  async function shareInterested() {
+    const url = buildShareUrl(window.location.origin, {
+      ids: flaggedGroups.map((g) => g.trimId),
+      priorities: answers.priorities,
+    });
+    try {
+      await navigator.clipboard.writeText(url);
+      setManualShareUrl(null);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 3000);
+    } catch {
+      setManualShareUrl(url);
+    }
+  }
 
   return (
     <div>
       <div>
-        {/* PROPOSED customer-facing copy, pending explicit sign-off -- see
-            build notes. "Mock" was accurate for the old hand-curated/
-            derived-heuristic dataset; this is real researched vehicle
-            data now, just not live dealer inventory yet. */}
-        <span className="inline-flex items-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5 text-xs font-medium tracking-wide text-emerald-400 uppercase">
-          Real vehicle data — not live inventory
-        </span>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span className="inline-flex items-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5 text-xs font-medium tracking-wide text-emerald-400 uppercase">
+            Real vehicle data — not live inventory
+          </span>
+          {dataMonth && <span className="text-xs text-zinc-500">Vehicle data last updated {dataMonth}</span>}
+        </div>
         <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
           Here&apos;s what we&apos;d search for
         </h2>
         <p className="mt-3 text-lg text-zinc-400">
-          Dismiss what doesn&apos;t fit, flag what does — this narrows the list live.
+          {/* "Interested" replaces "flag" (2026-10-10); wording pending sign-off. */}
+          Dismiss what doesn&apos;t fit, mark what you&apos;re interested in — this narrows the list live.
         </p>
-        <p className="mt-1 text-xs text-zinc-500">
-          Sorted by how well each vehicle matches what matters most to you. Edit any answer
-          alongside the list to re-sort instantly.
+        <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-zinc-500">
+          <span>
+            Sorted by how well each vehicle matches what matters most to you. Edit any answer alongside the list to
+            re-sort instantly.
+          </span>
+          <ScoreLegendButton types={answers.vehicleTypes} />
         </p>
+        {multi && (
+          <p className="mt-1 text-xs text-zinc-500">
+            {/* Wording pending sign-off. */}
+            Each type is ranked separately — scores compare vehicles of the same type.
+          </p>
+        )}
         <p className="mt-1 text-xs text-zinc-500">{RATINGS_DISCLAIMER}</p>
         {answerChips.length > 0 && (
           <div className="mt-6 flex flex-wrap gap-2">
@@ -1619,83 +1846,57 @@ function ResultsList({
             ))}
           </div>
         )}
+        {(hiddenCount > 0 || flaggedGroups.length > 0) && (
+          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+            {hiddenCount > 0 && (
+              <span className="text-zinc-500">
+                {hiddenCount} hidden ·{" "}
+                <button
+                  type="button"
+                  onClick={onRestoreAll}
+                  className="font-semibold text-zinc-300 underline decoration-white/30 underline-offset-4 hover:text-white"
+                >
+                  Restore all
+                </button>
+              </span>
+            )}
+            {flaggedGroups.length > 0 && (
+              <button
+                type="button"
+                onClick={shareInterested}
+                className="rounded-full border border-white/15 px-3 py-1.5 font-semibold text-zinc-300 transition-colors hover:border-white/30 hover:text-white"
+              >
+                {copied ? "Link copied" : "Share the cars you're interested in"}
+              </button>
+            )}
+            {manualShareUrl && flaggedGroups.length > 0 && (
+              <input
+                readOnly
+                value={manualShareUrl}
+                onFocus={(e) => e.currentTarget.select()}
+                aria-label="Share link"
+                className="w-full rounded-lg border border-white/15 bg-zinc-900 px-3 py-2 text-xs text-zinc-200"
+              />
+            )}
+          </div>
+        )}
       </div>
 
       {hasAnyResults ? (
-        <>
-          {renderedPrimary.length > 0 && (
-            <div className="mt-8 flex flex-col gap-4">
-              {renderedPrimary}
-              {canShowMore && (
-                <button
-                  type="button"
-                  onClick={() => setShowMore(true)}
-                  className="self-center rounded-full border border-white/20 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
-                >
-                  Show {remainingToReveal} more
-                </button>
-              )}
-            </div>
-          )}
-
-          {(alternatives.length > 0 || yearAlternative) && (
-            <div className="mt-10">
-              {/* Renamed from "Other powertrains worth a look" (2026-09-02,
-                  Model Year filter, approved plan) -- this section can now
-                  hold a year-alternate card even when no powertrain
-                  preference is set at all (segmented.alternatives empty),
-                  so a powertrain-specific heading stopped being accurate. */}
-              <h3 className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">
-                Other options worth a look
-              </h3>
-              <div className="mt-4 flex flex-col gap-6">
-                {alternatives.map((alt) => {
-                  const flagKey = modelGroupFlagKey(alt.group.key, alternativeSegmentTag(alt.powertrain));
-                  return (
-                    <div key={alt.powertrain}>
-                      <p className="mb-2 text-xs font-semibold tracking-wide text-emerald-400 uppercase">
-                        {alt.label}
-                      </p>
-                      <ModelGroupCard
-                        group={alt.group}
-                        flagKey={flagKey}
-                        isFlagged={flaggedKeys.has(flagKey)}
-                        compareLimitReached={compareLimitReached}
-                        priorities={answers.priorities}
-                        onDismiss={onDismiss}
-                        onToggleFlag={onToggleFlag}
-                        onOpenInfo={onOpenInfo}
-                      />
-                    </div>
-                  );
-                })}
-                {/* Year-alternate (2026-09-02, approved plan) -- appended
-                    after any powertrain alternatives, same section, own
-                    disjoint flagKey (yearAlternativeSegmentTag) so it can
-                    never collide with a powertrain-alternative card that
-                    happens to resolve to the same underlying
-                    ModelGroup.key. */}
-                {yearAlternative && yearAlternativeFlagKey && (
-                  <div key={`year-${yearAlternative.year}`}>
-                    <p className="mb-2 text-xs font-semibold tracking-wide text-emerald-400 uppercase">
-                      {yearAlternative.label}
-                    </p>
-                    <ModelGroupCard
-                      group={yearAlternative.group}
-                      flagKey={yearAlternativeFlagKey}
-                      isFlagged={flaggedKeys.has(yearAlternativeFlagKey)}
-                      compareLimitReached={compareLimitReached}
-                      priorities={answers.priorities}
-                      onDismiss={onDismiss}
-                      onToggleFlag={onToggleFlag}
-                      onOpenInfo={onOpenInfo}
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </>
+        sections.map((section) => (
+          <ResultsSection
+            key={section.type}
+            section={section}
+            showHeading={multi}
+            flaggedKeys={flaggedKeys}
+            compareLimitReached={compareLimitReached}
+            onDismiss={onDismiss}
+            onDismissGroup={onDismissGroup}
+            onRestoreGroup={onRestoreGroup}
+            onToggleFlag={onToggleFlag}
+            onOpenInfo={onOpenInfo}
+          />
+        ))
       ) : anyDismissed ? (
         <div className="mt-8 rounded-3xl border border-white/10 bg-white/[0.03] p-10 text-center">
           <p className="text-lg font-semibold text-white">You dismissed everything.</p>
@@ -1722,32 +1923,33 @@ function ResultsList({
           {flaggedKeys.size > 0 ? "Found the one (or a few)?" : "See something you like?"}
         </h3>
         <p className="mt-2 text-sm text-zinc-400">
-          {/* Says "the vehicle you picked" rather than naming fields on
-              purpose. The old copy promised "make, model, trim, and color",
-              but trim and colour moved to /finalize in Aug 2026 and neither
-              is carried. This wording also stays honest in the zero- and
-              multiple-flagged cases, where nothing carries over at all --
-              naming the fields would promise a transfer that did not
-              happen. Approved 2026-09-12. */}
-          Get started and we&apos;ll build your real search — we&apos;ll carry over the vehicle you
-          picked.
+          {/* Approved 2026-09-12; honest in the zero- and multiple-selected cases. */}
+          Get started and we&apos;ll build your real search — we&apos;ll carry over the vehicle you picked.
         </p>
-        {/* Single-flagged carry-through. Exactly one flagged vehicle is the
-            only unambiguous case, so it is the only one that pre-fills:
-            with none flagged there is nothing to carry, and with several
-            there is no way to know which one the customer means -- guessing
-            would put a vehicle they did not choose into their intake form.
-            Both of those fall through to plain navigation, unchanged. */}
+        {/* Single-selected carry-through: exactly one is the only unambiguous case. */}
         <GetStartedButton
-          onBeforeNavigate={
-            singleFlaggedVehicle ? () => stashVehiclePrefill(singleFlaggedVehicle) : undefined
-          }
+          onBeforeNavigate={singleFlaggedVehicle ? () => stashVehiclePrefill(singleFlaggedVehicle) : undefined}
           className="mt-6 inline-flex items-center justify-center rounded-full bg-emerald-500 px-8 py-3.5 text-base font-semibold text-zinc-950 transition-colors hover:bg-emerald-400"
         >
           Get Started
         </GetStartedButton>
       </div>
     </div>
+  );
+}
+
+// Undo after "Not interested" (Cruz's tester feedback #8, 2026-10-10):
+// a short-lived prompt, bottom-left so it never covers the Compare pill.
+// Portaled for the same will-change-transform reason as CompareBar.
+function UndoToast({ label, onUndo }: { label: string; onUndo: () => void }) {
+  return createPortal(
+    <div className="fixed bottom-6 left-6 z-40 flex items-center gap-4 rounded-full border border-white/10 bg-zinc-900 px-5 py-3 text-sm text-zinc-200 shadow-xl shadow-black/40">
+      <span>{label} hidden.</span>
+      <button type="button" onClick={onUndo} className="font-semibold text-emerald-400 hover:text-emerald-300">
+        Undo
+      </button>
+    </div>,
+    document.body,
   );
 }
 
@@ -1776,7 +1978,7 @@ function CompareBar({ count, onClick }: { count: number; onClick: () => void }) 
         onClick={onClick}
         className="rounded-full bg-emerald-500 px-6 py-3.5 text-sm font-semibold text-zinc-950 shadow-xl shadow-black/40 transition-colors hover:bg-emerald-400"
       >
-        Compare ({count})
+        Compare ({count} interested)
       </button>
     </div>,
     document.body,
@@ -2603,7 +2805,22 @@ function StandaloneHome({ flaggedCount, onReset }: { flaggedCount: number; onRes
   );
 }
 
-export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
+function subscribeToStorage(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  return () => window.removeEventListener("storage", onChange);
+}
+function subscribeToNothing() {
+  return () => {};
+}
+
+export function Matchmaker({
+  vehicles,
+  dataUpdatedAt = null,
+}: {
+  vehicles: MatchmakerVehicle[];
+  // Live dataset's promotion date, for "Vehicle data last updated" (#4).
+  dataUpdatedAt?: string | null;
+}) {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Answers>(EMPTY_ANSWERS);
   const [done, setDone] = useState(false);
@@ -2667,6 +2884,51 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
   // tile would render pre-highlighted on first paint, the exact bug fixed
   // for Model Year in 479ad9e.
   const [powertrainTouched, setPowertrainTouched] = useState(false);
+
+  // Remembered answers (Cruz's tester feedback #2, 2026-10-10). A saved
+  // session is offered back ("Pick up where you left off?") rather than
+  // restored silently; nothing is saved over it until the customer either
+  // continues it or starts answering again.
+  const [resumeHandled, setResumeHandled] = useState(false);
+  const savedRaw = useSyncExternalStore(subscribeToStorage, readSavedMatchmakerRaw, () => null);
+  const saved = useMemo(() => parseSavedMatchmakerState(savedRaw), [savedRaw]);
+
+  // Undo after "Not interested" (#8): the group just hidden, for 6 seconds.
+  const [undo, setUndo] = useState<{ group: ModelGroup; label: string; at: number } | null>(null);
+  useEffect(() => {
+    if (!undo) return;
+    const timer = window.setTimeout(() => setUndo(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [undo]);
+
+  // A shared list (#3): ?share=... resolved against the real vehicles.
+  const [sharedHandled, setSharedHandled] = useState(false);
+  const locationSearch = useSyncExternalStore(subscribeToNothing, () => window.location.search, () => "");
+  const shared = useMemo(() => {
+    const list = parseShareParam(locationSearch);
+    if (!list) return null;
+    const found = list.ids
+      .map((id) => vehicles.find((v) => v.id === id))
+      .filter((v): v is MatchmakerVehicle => v !== undefined);
+    return found.length > 0 ? { vehicles: found, priorities: list.priorities } : null;
+  }, [locationSearch, vehicles]);
+
+  // Browser Back/Forward between quiz steps and results (#2).
+  useEffect(() => {
+    try {
+      window.history.replaceState({ ...window.history.state, mm: { step: 0, done: false } }, "");
+    } catch {
+      // ignore
+    }
+    const onPop = (e: PopStateEvent) => {
+      const mm = (e.state as { mm?: { step: number; done: boolean } } | null)?.mm;
+      if (!mm) return;
+      setStep(mm.step);
+      setDone(mm.done);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
   // Dataset-wide, not answer-dependent (2026-09-02, Model Year filter) --
   // same derivation VehiclePickerFlow's own Model step already uses, so
   // the quiz's Model Year question and the standalone tool's year columns
@@ -2687,14 +2949,17 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
   const currentStep = STEPS[step];
   const stepForRender = (() => {
     if (currentStep.id === "useCase") {
-      return { ...currentStep, options: answers.vehicleType ? USE_CASES_BY_VEHICLE_TYPE[answers.vehicleType] : [] };
+      return { ...currentStep, options: mainUsesForTypes(answers.vehicleTypes) };
     }
     if (currentStep.id === "familySize") {
-      const allowSixPlus = answers.vehicleType ? LARGE_CAPACITY_VEHICLE_TYPES.includes(answers.vehicleType) : false;
+      const allowSixPlus = answers.vehicleTypes.some((t) => LARGE_CAPACITY_VEHICLE_TYPES.includes(t));
       return { ...currentStep, options: FAMILY_SIZES.filter((size) => size !== "6+" || allowSixPlus) };
     }
     if (currentStep.id === "modelYear") {
       return { ...currentStep, options: modelYearOptions, labels: modelYearLabels };
+    }
+    if (currentStep.id === "vehicleType") {
+      return { ...currentStep, options: VEHICLE_TYPES };
     }
     return currentStep;
   })();
@@ -2722,18 +2987,39 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
     if (id === "powertrain") setPowertrainTouched(true);
     setAnswers((prev) => {
       const next = { ...prev, [id]: value };
-      if (id === "vehicleType" && prev.vehicleType !== value) {
-        next.useCase = "";
-        next.familySize = "";
-        next.priorities = prioritiesTouched
-          ? retargetPriorityOrderForVehicleType(prev.priorities, value as VehicleType | "")
-          : defaultPriorityOrder(value as VehicleType | "");
-      }
       if (id === "useCase" && !prioritiesTouched) {
-        next.priorities = applyUseCaseHint(defaultPriorityOrder(next.vehicleType), value);
+        next.priorities = applyUseCaseHint(defaultPriorityOrderForTypes(next.vehicleTypes), value);
       }
       return next;
     });
+  }
+
+  // Vehicle types, one or more (Cruz's tester feedback #1, 2026-10-10).
+  // Clears Main Use / Riders only when the new types no longer offer them,
+  // and keeps the priority list holding exactly the 9th priorities the
+  // selected types use (both, when they disagree).
+  function setVehicleTypes(types: VehicleType[]) {
+    setAnswers((prev) => {
+      const next: Answers = { ...prev, vehicleTypes: types, vehicleType: types[0] ?? "" };
+      if (prev.useCase && !mainUsesForTypes(types).includes(prev.useCase)) next.useCase = "";
+      if (prev.familySize === "6+" && !types.some((t) => LARGE_CAPACITY_VEHICLE_TYPES.includes(t))) {
+        next.familySize = "";
+      }
+      next.priorities = prioritiesTouched
+        ? retargetPriorityOrderForTypes(prev.priorities, types)
+        : next.useCase
+          ? applyUseCaseHint(defaultPriorityOrderForTypes(types), next.useCase)
+          : defaultPriorityOrderForTypes(types);
+      return next;
+    });
+  }
+
+  function toggleQuizVehicleType(type: string) {
+    const t = type as VehicleType;
+    setVehicleTypes(
+      answers.vehicleTypes.includes(t) ? answers.vehicleTypes.filter((x) => x !== t) : [...answers.vehicleTypes, t],
+    );
+    setResumeHandled(true);
   }
 
   function setPriceRange(range: PriceRangeValue) {
@@ -2781,11 +3067,27 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
     window.scrollTo({ top: 0, behavior: "auto" });
   }, [done]);
 
+  // Each quiz step and the results get their own browser history entry
+  // (Cruz's tester feedback #2), so the browser Back button goes to the
+  // previous question instead of leaving Matchmaker. Next's router keeps
+  // its own state in the same history entry, and reloads the page on Back
+  // if it's missing, so it is always carried over alongside ours.
+  function pushHistory(nextStep: number, nextDone: boolean) {
+    try {
+      window.history.pushState({ ...window.history.state, mm: { step: nextStep, done: nextDone } }, "");
+    } catch {
+      // ignore
+    }
+  }
+
   function goNext() {
+    setResumeHandled(true);
     if (step < STEPS.length - 1) {
-      setStep((s) => s + 1);
+      setStep(step + 1);
+      pushHistory(step + 1, false);
     } else {
       setDone(true);
+      pushHistory(step, true);
     }
   }
 
@@ -2800,10 +3102,21 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
   }
 
   function goBack() {
+    // Our own history entry for this step: let the browser go back, and the
+    // popstate handler moves the quiz, so the in-page Back and the browser
+    // Back stay in step.
+    const mm = (window.history.state as { mm?: { step: number; done: boolean } } | null)?.mm;
+    if (mm && mm.step === step && !mm.done && step > 0) {
+      window.history.back();
+      return;
+    }
     setStep((s) => Math.max(0, s - 1));
   }
 
   function startOver() {
+    clearSavedMatchmakerState();
+    setResumeHandled(true);
+    pushHistory(0, false);
     setAnswers(EMPTY_ANSWERS);
     setStep(0);
     setDone(false);
@@ -3020,92 +3333,75 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
     }
   }, [flaggedGroups.length, comparisonOpen]);
 
-  // Real data now (matchmaker-vehicles.ts / matchmaker-scoring.ts) --
-  // hard-filters, scores, and segments by powertrain preference. Dismiss/
-  // flag apply within each segment independently, so dismissing a vehicle
-  // in "Best hybrid option" doesn't touch the primary list, and vice versa.
-  const matched = useMemo(() => getMatchedVehicles(vehicles, answers), [vehicles, answers]);
-  const segmented = useMemo(
-    () => segmentByPowertrain(matched, answers.powertrain),
-    [matched, answers.powertrain],
-  );
-
-  // Dismiss is applied BEFORE grouping, not after -- this is what makes
-  // the "dismiss the currently-active trim, card recomputes its headline"
-  // behavior (Brett, 2026-09-02) work with no special-case logic:
-  // groupByModel()'s headline is always "the first (i.e. highest-scoring)
-  // vehicle encountered for a given make+model key" in its sorted input,
-  // so removing dismissed trims from that input before grouping already
-  // produces the correct recomputed headline (and correctly re-sorts the
-  // group's own list position if its headline changed) for free. A model
-  // with every trim dismissed simply has no vehicles left to group, so no
-  // group -- and no card -- is ever built for it; nothing needs to
-  // explicitly hide a fully-dismissed card.
+  // Real data (matchmaker-vehicles.ts / matchmaker-scoring.ts): hard
+  // filters, weighted scores, powertrain segments -- now ONE PIPELINE PER
+  // SELECTED VEHICLE TYPE (Cruz's tester feedback #1, 2026-10-10), each
+  // scored on the 9 priorities that apply to its type. A single type runs
+  // exactly the pipeline it always did.
   //
-  // Flagging deliberately does NOT affect list order (2026-09-07, Brett's
-  // request after tester feedback). This function used to end in a
-  // `.sort()` that bubbled a flagged group to the top of its section --
-  // working as originally designed, but the effect was that flagging a
-  // card mid-list yanked it to position 1, renumbered every rank badge,
-  // and jumped the 5/10 "Show more" window. Flag is now purely a state
-  // toggle: order is whatever `groupByModel` returns (already sorted by
-  // weighted score), independent of what's flagged.
-  //
-  // The `segmentTag` parameter went away with the sort -- it existed only
-  // to build the qualified flagKey being looked up. Nothing else here
-  // needed it, and callers no longer pass one.
-  //
-  // Note this is safe for the "Other options worth a look" cards, which
-  // take `resolved[0]`: you can only flag what's displayed, and the
-  // displayed alternative is already the highest scorer, so removing the
-  // flag-sort can't change which vehicle that section shows.
-  // Flag never changes which trim is a group's headline/active display --
-  // only dismiss does that.
+  // Unchanged from before, per section: dismiss is applied BEFORE grouping
+  // (so a group's headline recomputes for free), flagging never reorders,
+  // and a second UNFILTERED grouping pass identifies fully-dismissed groups
+  // so they collapse in place with every variant intact for Restore.
   function groupWithDismiss(list: MatchedVehicle[]): ModelGroup[] {
-    const nonDismissed = list.filter((v) => !dismissed.has(v.id));
-    return groupByModel(nonDismissed);
+    return groupByModel(list.filter((v) => !dismissed.has(v.id)));
   }
 
-  const visiblePrimary = groupWithDismiss(segmented.primary);
+  const sectionTypes: VehicleType[] =
+    answers.vehicleTypes.length > 0 ? answers.vehicleTypes : answers.vehicleType ? [answers.vehicleType] : [];
+  const multiType = sectionTypes.length > 1;
+  const excludedYear =
+    answers.modelYear === "" ? undefined : modelYears.find((year) => String(year) !== answers.modelYear);
 
-  // Second, UNFILTERED grouping pass, used only to derive collapsed rows
-  // (2026-09-07, "Not interested" card collapse). Deliberately additive:
-  // groupWithDismiss above is untouched and still feeds scoring, headline
-  // recomputation and the visible list, because filtering before grouping
-  // is what makes those work with no special-casing. Diffing the two
-  // passes by group key is what identifies a fully-dismissed group --
-  // present here, absent there -- without rewriting either.
-  //
-  // Taking the group object from THIS pass (not the filtered one, where it
-  // no longer exists) is also what makes Restore exact: it still holds
-  // every variant, so restoring removes precisely the ids that were
-  // dismissed, and the card's headline is recomputed fresh by the normal
-  // pipeline afterwards rather than restored from anything cached.
-  //
-  // PRIMARY LIST ONLY, by design (approved scope): the alternatives and
-  // year-alternate sections each render exactly one best-of card, so a
-  // collapsed row there would be meaningless -- they keep today's
-  // behavior, where dismissing simply promotes the next best vehicle.
-  const allPrimaryGroups = groupByModel(segmented.primary);
-  const activePrimaryKeys = new Set(visiblePrimary.map((g) => g.key));
-  const primaryRows: PrimaryRow[] = allPrimaryGroups.map((group) =>
-    activePrimaryKeys.has(group.key)
-      ? // Use the FILTERED group for an active row: a partially-dismissed
-        // model must render with its dismissed trims already removed, so
-        // its headline/trim switcher stay correct.
-        { collapsed: false, group: visiblePrimary.find((g) => g.key === group.key) ?? group }
-      : // Use the UNFILTERED group for a collapsed row: it's the only one
-        // that still holds every variant, which Restore needs.
-        { collapsed: true, group },
-  );
+  const sections: ResultsSectionData[] = sectionTypes.map((type) => {
+    const typeAnswers: Answers = {
+      ...answers,
+      vehicleType: type,
+      priorities: prioritiesForType(answers.priorities, type),
+    };
+    const matched = getMatchedVehicles(vehicles, typeAnswers);
+    const segmented = segmentByPowertrain(matched, answers.powertrain);
 
-  // Card-level dismiss (approved 2026-09-07): removes EVERY trim in the
-  // group in one action, not just whichever one happens to be showing.
-  // Per-trim dismiss was the old behavior and was near-invisible on a
-  // multi-trim model -- the card stayed put and merely re-picked its
-  // headline, which is not what "Not interested" means to a customer.
-  // Also unflags in the same action, so a dismissed card can't linger in
-  // the compare bar.
+    const visiblePrimary = groupWithDismiss(segmented.primary);
+    const activeKeys = new Set(visiblePrimary.map((g) => g.key));
+    const primaryRows: PrimaryRow[] = groupByModel(segmented.primary).map((group) =>
+      activeKeys.has(group.key)
+        ? { collapsed: false, group: visiblePrimary.find((g) => g.key === group.key) ?? group }
+        : { collapsed: true, group },
+    );
+
+    // Each alternative powertrain shows only its single best model group.
+    const alternatives = segmented.alternatives
+      .map((altGroup) => {
+        const resolved = groupWithDismiss(altGroup.vehicles);
+        return resolved.length > 0 ? { powertrain: altGroup.powertrain, label: altGroup.label, group: resolved[0] } : null;
+      })
+      .filter((entry): entry is AlternativeCard => entry !== null);
+
+    // "Best <excluded year> option" -- only when a single year is selected.
+    let yearAlternative: YearAlternativeCard | null = null;
+    if (excludedYear !== undefined) {
+      const nonDismissed = vehicles.filter((v) => !dismissed.has(v.id));
+      const group = getBestOtherYearAlternate(nonDismissed, typeAnswers, excludedYear);
+      yearAlternative = group ? { year: excludedYear, label: `Best ${excludedYear} option`, group } : null;
+    }
+
+    return {
+      type,
+      primaryTag: multiType ? `${PRIMARY_SEGMENT_TAG}:${type}` : PRIMARY_SEGMENT_TAG,
+      altTag: (powertrain: Powertrain) =>
+        multiType ? `alt:${type}:${powertrain}` : alternativeSegmentTag(powertrain),
+      yearTag: (year: number) => (multiType ? `alt-year:${type}:${year}` : yearAlternativeSegmentTag(year)),
+      priorities: typeAnswers.priorities,
+      primaryRows,
+      alternatives,
+      yearAlternative,
+    };
+  });
+  const hiddenCount = sections.reduce((n, sec) => n + sec.primaryRows.filter((r) => r.collapsed).length, 0);
+
+  // Card-level dismiss (approved 2026-09-07): every trim in the group, and
+  // unflags. Now also offers Undo for a few seconds (#8).
   function dismissGroup(group: ModelGroup, flagKey: string) {
     setDismissed((prev) => {
       const next = new Set(prev);
@@ -3113,6 +3409,7 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
       return next;
     });
     removeFlag(flagKey);
+    setUndo({ group, label: `${group.make} ${group.model}`, at: Date.now() });
   }
 
   function restoreGroup(group: ModelGroup) {
@@ -3123,46 +3420,91 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
     });
   }
 
-  // Each alternative powertrain shows only its single best (post-dismiss/
-  // flag) MODEL GROUP as one labeled card, e.g. "Best hybrid option" --
-  // not the full group, which can run into the hundreds of vehicles (see
-  // Step 4's verification: e.g. 1,059 Gas vehicles in one alternative
-  // group). groupWithDismissAndFlagSort runs independently per powertrain
-  // bucket (not once across all of them) -- approved 2026-09-02, see the
-  // joint plan's point 5: a model spanning multiple powertrains (e.g. a
-  // Tucson sold as Gas/Hybrid/PHEV) can legitimately produce two separate
-  // cards, one per powertrain bucket it has a real entry in, rather than
-  // being collapsed into one card whose toggle would blur this section's
-  // whole purpose.
-  const visibleAlternatives = segmented.alternatives
-    .map((altGroup) => {
-      const resolved = groupWithDismiss(altGroup.vehicles);
-      return resolved.length > 0
-        ? { powertrain: altGroup.powertrain, label: altGroup.label, group: resolved[0] }
-        : null;
-    })
-    .filter((entry): entry is { powertrain: Powertrain; label: string; group: ModelGroup } => entry !== null);
-
-  // "Best <excluded year> option" (2026-09-02, approved plan) -- only
-  // computed at all once a single year is actually selected (Model Year's
-  // whole point is "Both years" being a real no-op default, matching
-  // powertrain/priceRange's own "" == no filter convention). Uses the
-  // dismiss-filtered `vehicles` array, same as groupWithDismissAndFlagSort
-  // above does for the primary/powertrain-alternative lists -- a "Not
-  // interested" dismissal should never resurface the same vehicle here
-  // either, even though in practice a vehicle from the currently-excluded
-  // year could only ever have been dismissed in an earlier session where
-  // "Both years" (or the other single year) was selected instead.
-  const yearAlternative: YearAlternativeCard | null = useMemo(() => {
-    if (answers.modelYear === "") return null;
-    const excludedYear = modelYears.find((year) => String(year) !== answers.modelYear);
-    if (excludedYear === undefined) return null;
-    const nonDismissedVehicles = vehicles.filter((v) => !dismissed.has(v.id));
-    const group = getBestOtherYearAlternate(nonDismissedVehicles, answers, excludedYear);
-    return group ? { year: excludedYear, label: `Best ${excludedYear} option`, group } : null;
-  }, [vehicles, answers, modelYears, dismissed]);
-
   const anyDismissed = dismissed.size > 0;
+
+  // Save the quiz/results state as it changes (#2). Not the standalone
+  // comparison tool, and not before the customer has chosen what to do
+  // with an earlier saved session.
+  useEffect(() => {
+    if (standaloneMode || !resumeHandled) return;
+    if (!done && step === 0 && answers.vehicleTypes.length === 0) return;
+    saveMatchmakerState({
+      step,
+      done,
+      answers,
+      dismissed: [...dismissed],
+      flaggedGroups,
+      prioritiesTouched,
+      modelYearTouched,
+      powertrainTouched,
+    });
+  }, [
+    standaloneMode,
+    resumeHandled,
+    done,
+    step,
+    answers,
+    dismissed,
+    flaggedGroups,
+    prioritiesTouched,
+    modelYearTouched,
+    powertrainTouched,
+  ]);
+
+  const showResume =
+    !resumeHandled && saved !== null && (saved.done || saved.step > 0) && !done && step === 0 && !standaloneMode && !shared;
+
+  function resumeSaved() {
+    if (!saved) return;
+    const restoredTypes =
+      saved.answers.vehicleTypes ?? (saved.answers.vehicleType ? [saved.answers.vehicleType] : []);
+    const restoredStep = Math.min(Math.max(0, saved.step), STEPS.length - 1);
+    setAnswers({ ...EMPTY_ANSWERS, ...saved.answers, vehicleTypes: restoredTypes });
+    setStep(restoredStep);
+    setDone(saved.done);
+    setDismissed(new Set(saved.dismissed));
+    setFlaggedGroups(saved.flaggedGroups.slice(0, FLAG_CAP));
+    setPrioritiesTouched(saved.prioritiesTouched);
+    setModelYearTouched(saved.modelYearTouched);
+    setPowertrainTouched(saved.powertrainTouched);
+    setResumeHandled(true);
+    try {
+      window.history.replaceState({ ...window.history.state, mm: { step: restoredStep, done: saved.done } }, "");
+    } catch {
+      // ignore
+    }
+  }
+
+  function discardSaved() {
+    clearSavedMatchmakerState();
+    setResumeHandled(true);
+  }
+
+  // Opening a shared list: the shared vehicles go straight into the
+  // comparison tool (one vehicle opens its detail view instead).
+  function openShared() {
+    if (!shared) return;
+    setSharedHandled(true);
+    const known = new Set(ALL_PRIORITIES.map((p) => p.label));
+    const sharedPriorities = shared.priorities.filter((label) => known.has(label));
+    setStandaloneMode(true);
+    setStandalonePriorities(
+      sharedPriorities.length >= 9 ? sharedPriorities : defaultPriorityOrder(shared.vehicles[0].bodyStyle),
+    );
+    setFlaggedGroups(
+      shared.vehicles.map((v) => ({
+        flagKey: modelGroupFlagKey(
+          `${v.make}|${v.model}`,
+          directSegmentTag(fuelTypeToPowertrain(v.fuelType), nextStandaloneAddId()),
+        ),
+        make: v.make,
+        model: v.model,
+        trimId: v.id,
+      })),
+    );
+    if (shared.vehicles.length >= 2) setComparisonOpen(true);
+    else setInfoVehicle(shared.vehicles[0]);
+  }
 
   // Which priorities drive comparisonRowOrder() -- the quiz's own live
   // answers.priorities when reached that way, or the fixed default
@@ -3177,10 +3519,7 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
     <section className="bg-zinc-950 py-20 sm:py-24">
       <div className="mx-auto max-w-6xl px-6">
         <div className="text-center">
-          {/* PROPOSED customer-facing copy, pending explicit sign-off --
-              "mock data" was accurate for the old hand-curated/derived-
-              heuristic dataset; this is real researched vehicle data now
-              (matchmaker-data-spec.md), just not live dealer inventory. */}
+          {/* Approved 2026-09-02. */}
           <span className="inline-flex items-center rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-1.5 text-xs font-medium tracking-wide text-amber-400 uppercase">
             Real vehicle data — not yet connected to live dealer inventory
           </span>
@@ -3207,6 +3546,57 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
           )}
         </div>
 
+        {shared && !sharedHandled && !standaloneMode && (
+          <div className="mx-auto mt-10 max-w-2xl rounded-3xl border border-emerald-500/30 bg-emerald-500/10 p-6 text-center">
+            {/* Wording pending sign-off (2026-10-10). */}
+            <p className="text-base font-semibold text-white">
+              Someone shared the cars they&apos;re interested in with you.
+            </p>
+            <p className="mt-2 text-sm text-zinc-300">
+              {shared.vehicles.map((v) => `${v.modelYear} ${v.make} ${v.model}`).join(" · ")}
+            </p>
+            <div className="mt-5 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={openShared}
+                className="rounded-full bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400"
+              >
+                See them
+              </button>
+              <button
+                type="button"
+                onClick={() => setSharedHandled(true)}
+                className="rounded-full border border-white/20 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+              >
+                Start your own match
+              </button>
+            </div>
+          </div>
+        )}
+
+        {showResume && (
+          <div className="mx-auto mt-10 flex max-w-2xl flex-col items-center justify-between gap-4 rounded-3xl border border-white/10 bg-white/[0.04] p-6 sm:flex-row">
+            {/* Approved 2026-10-10. */}
+            <p className="text-base font-semibold text-white">Pick up where you left off?</p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={resumeSaved}
+                className="rounded-full bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400"
+              >
+                Continue
+              </button>
+              <button
+                type="button"
+                onClick={discardSaved}
+                className="rounded-full border border-white/20 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+              >
+                Start over
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="mt-14">
           {standaloneMode ? (
             <div className="mx-auto max-w-2xl">
@@ -3230,10 +3620,9 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
             <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
               <ResultsList
                 answers={answers}
-                primaryRows={primaryRows}
-                alternatives={visibleAlternatives}
-                yearAlternative={yearAlternative}
+                sections={sections}
                 flaggedKeys={flaggedKeys}
+                flaggedGroups={flaggedGroups}
                 compareLimitReached={compareLimitReached}
                 onDismiss={dismiss}
                 onDismissGroup={dismissGroup}
@@ -3242,8 +3631,10 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
                 onOpenInfo={setInfoVehicle}
                 onRestoreAll={() => setDismissed(new Set())}
                 anyDismissed={anyDismissed}
+                hiddenCount={hiddenCount}
                 modelYearLabels={modelYearLabels}
                 singleFlaggedVehicle={singleFlaggedVehicle}
+                dataUpdatedAt={dataUpdatedAt}
               />
               {/* Normal document-flow positioning (2026-09-02, Brett's
                   request) -- previously lg:sticky lg:top-24 lg:self-start,
@@ -3256,6 +3647,7 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
                   here. */}
               <AnswerPanel
                 answers={answers}
+                onVehicleTypesChange={setVehicleTypes}
                 onFieldChange={setField}
                 onPriceRangeChange={setPriceRange}
                 onReorderPriorities={reorderPriorities}
@@ -3291,6 +3683,8 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
                       ? powertrainTouched
                       : true
                 }
+                multiValues={answers.vehicleTypes}
+                onToggleMulti={toggleQuizVehicleType}
               />
               <BuildingVisual answers={answers} currentStepId={currentStep.id} />
             </div>
@@ -3299,6 +3693,15 @@ export function Matchmaker({ vehicles }: { vehicles: MatchmakerVehicle[] }) {
       </div>
 
       {infoVehicle && <VehicleDetailModal vehicle={infoVehicle} answers={answers} onClose={() => setInfoVehicle(null)} />}
+      {undo && done && (
+        <UndoToast
+          label={undo.label}
+          onUndo={() => {
+            restoreGroup(undo.group);
+            setUndo(null);
+          }}
+        />
+      )}
       {/* Mounted whenever a comparison exists, regardless of entry path
           (Step C) -- previously gated on `done` alone, which only ever
           covered the quiz path. The standalone tool has no `done` state of
