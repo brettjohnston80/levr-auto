@@ -1,5 +1,5 @@
 import { valueCents } from "./offer-comparison";
-import { totalPriceCents } from "./delivery-estimate";
+import { deliveryEstimatePending, totalPriceCents } from "./delivery-estimate";
 import type { DashboardOffer } from "./customer-dashboard";
 
 // Your Deal sorting (2026-09-26). Default is best discount, so the offer
@@ -38,7 +38,15 @@ export function sortOffers(offers: DashboardOffer[], sort: OfferSort): Dashboard
   return [...offers].sort((a, b) => {
     const s = statusRank(a.status) - statusRank(b.status);
     if (s !== 0) return s;
-    if (sort === "price") return totalPriceCents(a) - totalPriceCents(b);
+    if (sort === "price") {
+      // Offers still waiting on a delivery estimate have no real total yet,
+      // so they sort after every offer whose total is known (Brett,
+      // 2026-10-10); "Best discount" keeps them in place by price.
+      const pa = deliveryEstimatePending(a) ? 1 : 0;
+      const pb = deliveryEstimatePending(b) ? 1 : 0;
+      if (pa !== pb) return pa - pb;
+      return totalPriceCents(a) - totalPriceCents(b);
+    }
     if (sort === "closest") {
       // Unknown distances go last, then fall back to best discount.
       const ad = a.distanceMiles ?? Infinity;

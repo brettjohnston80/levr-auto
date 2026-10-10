@@ -64,6 +64,5 @@ export const DELIVERY_ESTIMATE_COPY = {
   requested: "Delivery estimate requested from the dealer",
   request: "Get a delivery estimate",
   pendingMarker: "+ delivery (estimate pending)",
-  /** PENDING SIGN-OFF: not in the approved plan's wording. */
-  unavailable: "This dealer doesn't deliver this car.",
+  unavailable: "This dealer doesn't offer delivery for this car.",
 };
