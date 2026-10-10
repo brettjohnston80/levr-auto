@@ -2,6 +2,8 @@
 
 This file exists so any Claude Code session (yours, your collaborator's, or a future one) has full context without re-explaining the business. Read this before starting build work.
 
+**Documents:** see `docs/README.md` for where business docs (`docs/business/`), plans (`docs/plans/`), research (`docs/research/`) and import CSVs (`data/`) live.
+
 ## Working Preferences (read this before doing anything)
 
 - **Plan before code, always.** Propose schema, UI surfaces, and open design questions before writing any implementation code on non-trivial changes. No surprises.
