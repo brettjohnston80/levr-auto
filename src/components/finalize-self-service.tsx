@@ -127,6 +127,9 @@ export function FinalizeSelfService({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  // Test accounts only (tester-sample-offers.ts): the search went live at
+  // once with sample offers, so there is no 24h window to describe.
+  const [startedNow, setStartedNow] = useState(false);
   // Combination-preferences step (2026-09-17 Phase 3 UI, persisted via
   // writeCombinationPreferences as of 2026-09-19) -- local UI state here,
   // built from and saved back through buildCombinationPreferences() in
@@ -656,6 +659,7 @@ export function FinalizeSelfService({
       return;
     }
     setAlreadyFinalized(true);
+    setStartedNow(Boolean(result.startedNow));
     setDone(true);
   }
 
@@ -667,9 +671,18 @@ export function FinalizeSelfService({
         </span>
         <h1 className="mt-6 text-2xl font-semibold text-white">You&apos;re all set.</h1>
         <p className="mt-4 text-sm text-zinc-400">
-          You made your decision today. We&apos;ll begin the search tomorrow. If you wake up
-          wanting to change something, now&apos;s the time — you have 24 hours to edit this from
-          your account.
+          {startedNow ? (
+            <>
+              Your search is live. This is a test account, so we&apos;ve added three sample offers
+              to Your Deal for you to try.
+            </>
+          ) : (
+            <>
+              You made your decision today. We&apos;ll begin the search tomorrow. If you wake up
+              wanting to change something, now&apos;s the time — you have 24 hours to edit this
+              from your account.
+            </>
+          )}
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <a
@@ -679,17 +692,20 @@ export function FinalizeSelfService({
             View My Account
           </a>
           {/* Back to Review with every answer intact; saving again goes
-              through updateFinalizedSearch (2026-10-10). */}
-          <button
-            type="button"
-            onClick={() => {
-              setDone(false);
-              navigateToStep("review");
-            }}
-            className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/20 px-8 py-3.5 text-base font-semibold text-white transition-colors hover:bg-white/10"
-          >
-            Make changes
-          </button>
+              through updateFinalizedSearch (2026-10-10). Not shown once a
+              test account's search has already started. */}
+          {!startedNow && (
+            <button
+              type="button"
+              onClick={() => {
+                setDone(false);
+                navigateToStep("review");
+              }}
+              className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/20 px-8 py-3.5 text-base font-semibold text-white transition-colors hover:bg-white/10"
+            >
+              Make changes
+            </button>
+          )}
         </div>
       </div>
     );

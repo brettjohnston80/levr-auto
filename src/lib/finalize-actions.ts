@@ -19,8 +19,11 @@ import { loadInventoryBlock } from "@/lib/inventory-block";
 import { inventoryBlockCopy } from "@/lib/inventory-block-copy";
 import { syncListingsForMakeModel } from "@/lib/marketcheck-sync";
 import { notifyAgentsOfCallRequest } from "@/lib/agent-call-notifications";
+import { startTesterSearchNow } from "@/lib/tester-sample-offers";
 
-export type FinalizeResult = { ok: true } | { ok: false; error: string };
+// `startedNow`: a test account's search skipped the 24h window and went live
+// at once (tester-sample-offers.ts), so the confirmation screen says so.
+export type FinalizeResult = { ok: true; startedNow?: boolean } | { ok: false; error: string };
 
 async function getOwnedAwaitingFinalizationSearch(searchId: string) {
   const supabase = await createClient();
@@ -55,6 +58,7 @@ async function getOwnedAwaitingFinalizationSearch(searchId: string) {
   return {
     ok: true as const,
     customerId: user.id,
+    email: user.email ?? null,
     make: (search.make as string | null) ?? null,
     model: (search.model as string | null) ?? null,
     modelYear: (search.model_year as number | null) ?? null,
@@ -1263,7 +1267,8 @@ export async function finalizeSelfService(
   // screen (and its "Make changes") vanished the moment it appeared. Every
   // page showing this search (/finalize, /account, /account/vehicle,
   // /internal/outreach) is force-dynamic, so the next visit renders fresh.
-  return { ok: true };
+  const startedNow = await startTesterSearchNow(searchId, check.email);
+  return { ok: true, startedNow };
 }
 
 /**

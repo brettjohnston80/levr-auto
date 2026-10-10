@@ -48,6 +48,12 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}));
   const files: string[] = Array.isArray(body.files) && body.files.length > 0 ? body.files : DEFAULT_FILES;
+  // Optional make filter, so one file holding several makes can be imported
+  // as one batch per make (Chevrolet/Ford, 2026-10-10).
+  const makes: string[] | null =
+    Array.isArray(body.makes) && body.makes.length > 0 ? body.makes.map((m: unknown) => String(m)) : null;
+  // See parsePrice: a blank price means "not published" in this source.
+  const parseOptions = { blankPriceUnknown: body.blankPriceUnknown === true };
 
   // --- read + parse every file before touching the DB -------------------
   const parsedRows = [];
@@ -62,7 +68,14 @@ export async function POST(req: NextRequest) {
     // meaningful leading/trailing spaces around ' | ' and ' ;; ', and the
     // parser handles its own trimming per field.
     const rawRows: CsvRow[] = parse(csvText, { columns: true, skip_empty_lines: true, trim: false });
-    for (const raw of rawRows) parsedRows.push(parseConfiguratorRow(raw));
+    for (const raw of rawRows) {
+      const row = parseConfiguratorRow(raw, parseOptions);
+      if (makes && !makes.includes(row.make)) continue;
+      parsedRows.push(row);
+    }
+  }
+  if (parsedRows.length === 0) {
+    return NextResponse.json({ error: "no rows matched" }, { status: 400 });
   }
 
   // --- aggregate counts + the audit trail for dropped items -------------
@@ -188,6 +201,8 @@ export async function POST(req: NextRequest) {
     batchId: batch.id,
     isLive: batch.is_live === true,
     files,
+    makes,
+    blankPriceUnknown: parseOptions.blankPriceUnknown,
     trimsInserted: insertedTrimIds.length,
     optionsInserted: optionRows.length,
     keptOptions,

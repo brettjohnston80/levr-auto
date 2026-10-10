@@ -123,8 +123,22 @@ export function classifyAvailability(raw: string | null | undefined): {
  * A blank only means "no extra cost" when the item is genuinely obtainable
  * -- for anything else a blank tells us nothing, so it stays unknown
  * rather than being silently reported as free.
+ *
+ * `blankPriceUnknown` is for sources where a blank means "not published"
+ * (Cowork's Chevrolet/Ford file, 2026-10-09: Ford doesn't publish most
+ * package and extra-cost paint prices). There a blank on anything but a
+ * standard item stays unknown, so it shows "Price not confirmed" instead of
+ * "No extra cost". The Toyota/Honda files keep the original rule.
  */
-export function parsePrice(raw: string | null | undefined, availability: Availability): ParsedPrice {
+export interface ParseOptions {
+  blankPriceUnknown?: boolean;
+}
+
+export function parsePrice(
+  raw: string | null | undefined,
+  availability: Availability,
+  opts: ParseOptions = {},
+): ParsedPrice {
   const value = (raw ?? "").trim();
 
   if (value.toLowerCase() === "included") {
@@ -144,7 +158,7 @@ export function parsePrice(raw: string | null | undefined, availability: Availab
     }
   }
 
-  if (value === "" && availability !== "unavailable") {
+  if (value === "" && availability !== "unavailable" && !(opts.blankPriceUnknown && availability !== "standard")) {
     return { priceCents: 0, priceIsIncluded: false, priceUnknown: false };
   }
 
@@ -152,14 +166,17 @@ export function parsePrice(raw: string | null | undefined, availability: Availab
 }
 
 /** Parses the package_definitions column into a name -> package map. */
-export function parsePackageDefinitions(raw: string | null | undefined): Map<string, ParsedPackage> {
+export function parsePackageDefinitions(
+  raw: string | null | undefined,
+  opts: ParseOptions = {},
+): Map<string, ParsedPackage> {
   const packages = new Map<string, ParsedPackage>();
   for (const item of (raw ?? "").split(";;")) {
     const { body } = splitNote(item);
     const fields = body.split("|").map((f) => f.trim());
     const name = fields[0] ?? "";
     if (!name) continue;
-    const { priceCents } = parsePrice(fields[1], "standalone");
+    const { priceCents } = parsePrice(fields[1], "standalone", opts);
     const contentsField = (fields[2] ?? "").replace(/^contents:\s*/i, "");
     const contents = contentsField
       .split(",")
@@ -184,6 +201,7 @@ export function parseOptionColumn(
   category: OptionCategory,
   raw: string | null | undefined,
   packages: Map<string, ParsedPackage>,
+  opts: ParseOptions = {},
 ): { options: ParsedOption[]; droppedUnresolvedPackage: ParsedOption[] } {
   const options: ParsedOption[] = [];
   const droppedUnresolvedPackage: ParsedOption[] = [];
@@ -198,7 +216,7 @@ export function parseOptionColumn(
 
     const availabilityRaw = fields[1] ?? "";
     const { availability, method } = classifyAvailability(availabilityRaw);
-    const price = parsePrice(fields[2], availability);
+    const price = parsePrice(fields[2], availability, opts);
     const packageRef = fields[3] ?? "";
 
     const parsed: ParsedOption = {
@@ -244,13 +262,13 @@ export interface ParsedTrimRow {
 }
 
 /** Parses one CSV row into its trim identity plus every normalized option. */
-export function parseConfiguratorRow(row: Record<string, string>): ParsedTrimRow {
-  const packages = parsePackageDefinitions(row.package_definitions);
+export function parseConfiguratorRow(row: Record<string, string>, opts: ParseOptions = {}): ParsedTrimRow {
+  const packages = parsePackageDefinitions(row.package_definitions, opts);
   const options: ParsedOption[] = [];
   const dropped: ParsedOption[] = [];
 
   for (const [column, category] of Object.entries(CATEGORY_BY_COLUMN)) {
-    const result = parseOptionColumn(category, row[column], packages);
+    const result = parseOptionColumn(category, row[column], packages, opts);
     options.push(...result.options);
     dropped.push(...result.droppedUnresolvedPackage);
   }
