@@ -115,7 +115,32 @@ const TRIM_EQUIVALENTS: Record<string, Record<string, string[]>> = {
   "chevrolet|equinox ev": { "1lt": ["lt1"], "2lt": ["lt2"] },
   "ford|bronco": { stroppe: ["stroppe edition"] },
   "ford|maverick": { "lobo standard": ["lobo"], "lobo premium": ["lobo"] },
+  // Wave 1 (2026-10-10), each confirmed against MarketCheck's own version
+  // field or dealer heading, not guessed from the name.
+  "hyundai|elantra": { sel: ["sel sport premium"] }, // version "2.0 SEL Sport Premium"
+  "hyundai|tucson": { "blue se": ["se"] }, // hybrid SE; powertrain picks the row
+  "kia|ev6": { "light l r": ["light long range"] },
+  "kia|ev9": { "light l r": ["light long range"] },
+  "kia|sorento": { "sx prestige": ["x line sx prestige"] }, // heading "Hybrid X-Line SX Prestige"
+  "kia|seltos": { sx: ["x line sx"] }, // version "X-Line SX AWD"
+  "nissan|kicks": { "s awd": ["s"], "sv awd": ["sv"], "sr awd": ["sr"] },
+  "jeep|compass": { "85th anniversary": ["85th anniversary edition"] },
 };
+
+/**
+ * Mazda (2026-10-10): the research names trims with the engine first ("2.5 S
+ * Preferred", "3.3 Turbo Premium Plus") while MarketCheck drops it, and
+ * sometimes the "S" too, and adds "Package" ("S Preferred", "Preferred",
+ * "Premium Plus Package"). Tried in order, loosest last; the first tier that
+ * finds any research trim wins, so a looser tier can't add a second,
+ * wrong candidate when a closer name exists.
+ */
+const MAZDA_TIERS: ((name: string) => string)[] = [
+  (n) => n,
+  (n) => n.replace(/^\d \d /, ""),
+  (n) => n.replace(/^\d \d /, "").replace(/^(turbo|phev) /, ""),
+  (n) => n.replace(/^\d \d /, "").replace(/^(turbo|phev) /, "").replace(/^s /, ""),
+];
 
 function equivalentTrims(make: string, model: string, normalizedTrim: string): string[] {
   return TRIM_EQUIVALENTS[`${make}|${model}`.toLowerCase()]?.[normalizedTrim] ?? [];
@@ -191,13 +216,7 @@ export function matchConfiguratorTrim(
   const knownPowertrains = [...new Set(facts.powertrains.filter((p) => p !== "UNKNOWN"))];
   const mixed = knownPowertrains.length > 1;
 
-  const wanted = normalizeTrimForMatch(facts.trim);
-  const aliases = candidates.length > 0 ? equivalentTrims(candidates[0].make, candidates[0].model, wanted) : [];
-  const sameTrim = candidates.filter((c) => {
-    if (c.modelYear !== facts.year) return false;
-    const name = normalizeTrimForMatch(c.trim);
-    return name === wanted || aliases.includes(name);
-  });
+  const sameTrim = sameNameCandidates(candidates, facts);
   if (sameTrim.length === 0) {
     return { matched: false, reason: mixed ? "mixed_powertrain" : "no_candidates" };
   }
@@ -236,6 +255,29 @@ export function matchConfiguratorTrim(
     if (twin) return { matched: true, configuratorTrimId: twin };
   }
   return { matched: false, reason: "ambiguous_trim" };
+}
+
+/** Candidates for the same model year whose trim name matches the listing's. */
+export function sameNameCandidates(
+  candidates: ConfiguratorTrimCandidate[],
+  facts: { trim: string; year: number | null },
+): ConfiguratorTrimCandidate[] {
+  const wanted = normalizeTrimForMatch(facts.trim);
+  const sameYear = candidates.filter((c) => c.modelYear === facts.year);
+  if (sameYear.length === 0) return [];
+  const aliases = equivalentTrims(sameYear[0].make, sameYear[0].model, wanted);
+  const exact = sameYear.filter((c) => {
+    const name = normalizeTrimForMatch(c.trim);
+    return name === wanted || aliases.includes(name);
+  });
+  if (exact.length > 0 || sameYear[0].make.toLowerCase() !== "mazda") return exact;
+
+  const listingName = wanted.replace(/ package$/, "");
+  for (const tier of MAZDA_TIERS) {
+    const found = sameYear.filter((c) => tier(normalizeTrimForMatch(c.trim)) === listingName);
+    if (found.length > 0) return found;
+  }
+  return [];
 }
 
 /**

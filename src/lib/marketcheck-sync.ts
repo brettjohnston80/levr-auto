@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "./supabase/admin";
 import { ensureDealerAliasesForListings } from "./dealer-aliases";
 import { searchActiveListings, type MarketCheckListing } from "./marketcheck";
+import { marketCheckModelRule } from "./marketcheck-models";
 
 const PAGE_SIZE = 50;
 
@@ -20,11 +21,20 @@ function isTrustworthyNewListingYear(year: number | null | undefined): boolean {
   return year === currentYear || year === currentYear + 1;
 }
 
-function toListingRow(listing: MarketCheckListing, fallbackMake: string, fallbackModel: string) {
+function toListingRow(
+  listing: MarketCheckListing,
+  fallbackMake: string,
+  fallbackModel: string,
+  forceOurNames = false,
+) {
   return {
     vin: listing.vin,
-    make: listing.build?.make ?? fallbackMake,
-    model: listing.build?.model ?? fallbackModel,
+    // A mapped model (marketcheck-models.ts) is stored under OUR names, so
+    // everything reading listings by make/model finds it.
+    make: forceOurNames ? fallbackMake : (listing.build?.make ?? fallbackMake),
+    model: forceOurNames
+      ? fallbackModel
+      : (listing.build?.model ?? fallbackModel),
     trim: listing.build?.trim ?? null,
     year: listing.build?.year ?? null,
     color: listing.exterior_color ?? null,
@@ -56,42 +66,57 @@ function toListingRow(listing: MarketCheckListing, fallbackMake: string, fallbac
 export async function syncListingsForMakeModel(
   make: string,
   model: string,
-  maxPages = 3
+  maxPages = 3,
 ) {
   const supabase = createAdminClient();
-  let start = 0;
   let totalFound = 0;
   let upserted = 0;
   let excludedForYear = 0;
   let pages = 0;
 
-  for (let page = 0; page < maxPages; page++) {
-    const result = await searchActiveListings({ make, model, rows: PAGE_SIZE, start });
-    totalFound = result.num_found;
-    pages++;
+  // MarketCheck's own model name(s) for ours (2026-10-10); usually just ours.
+  const rule = marketCheckModelRule(make, model);
+  for (const mcModel of rule?.mcModels ?? [model]) {
+    let start = 0;
+    for (let page = 0; page < maxPages; page++) {
+      const result = await searchActiveListings({
+        make,
+        model: mcModel,
+        rows: PAGE_SIZE,
+        start,
+      });
+      totalFound += page === 0 ? result.num_found : 0;
+      pages++;
 
-    if (result.listings.length === 0) break;
+      if (result.listings.length === 0) break;
 
-    const withVin = result.listings.filter((listing) => !!listing.vin);
-    const trusted = withVin.filter((listing) => isTrustworthyNewListingYear(listing.build?.year));
-    excludedForYear += withVin.length - trusted.length;
+      const withVin = result.listings.filter((listing) => !!listing.vin);
+      const trusted = withVin.filter((listing) =>
+        isTrustworthyNewListingYear(listing.build?.year),
+      );
+      excludedForYear += withVin.length - trusted.length;
 
-    const rows = trusted.map((listing) => toListingRow(listing, make, model));
+      const rows = trusted
+        .filter((listing) => !rule?.keep || rule.keep(listing))
+        .map((listing) => toListingRow(listing, make, model, !!rule));
 
-    if (rows.length > 0) {
-      const { error } = await supabase.from("listings").upsert(rows, { onConflict: "vin" });
-      if (error) {
-        throw new Error(`Listings upsert failed: ${error.message}`);
+      if (rows.length > 0) {
+        const { error } = await supabase
+          .from("listings")
+          .upsert(rows, { onConflict: "vin" });
+        if (error) {
+          throw new Error(`Listings upsert failed: ${error.message}`);
+        }
+        upserted += rows.length;
+
+        // LEVRating Phase A -- keeps dealer_aliases current with every sync,
+        // non-blocking (see dealer-aliases.ts for why).
+        await ensureDealerAliasesForListings(rows);
       }
-      upserted += rows.length;
 
-      // LEVRating Phase A -- keeps dealer_aliases current with every sync,
-      // non-blocking (see dealer-aliases.ts for why).
-      await ensureDealerAliasesForListings(rows);
+      start += PAGE_SIZE;
+      if (start >= result.num_found) break;
     }
-
-    start += PAGE_SIZE;
-    if (start >= totalFound) break;
   }
 
   return { make, model, totalFound, upserted, excludedForYear, pages };
