@@ -100,8 +100,22 @@ const loadLiveVehicleRows = cache(
   unstable_cache(fetchLiveVehicleRows, ["live-vehicle-rows"], { revalidate: 900, tags: [LIVE_VEHICLE_ROWS_TAG] }),
 );
 
+/**
+ * Make/models customers can no longer choose, even though the researched
+ * dataset still has them. Ford Escape (Brett, 2026-10-10): Ford is
+ * discontinuing it and it can't be bought in CA, MA, OR, NY, WA or VT.
+ * Applied after the cache, so a change here takes effect on the next deploy
+ * rather than waiting for the 15-minute cache. Every picker that uses these
+ * options (intake, the switch forms, the agent forms) and the server-side
+ * year check drop them together.
+ */
+const NOT_OFFERED_MODELS = new Set(["Ford|Escape"]);
+
+const loadOfferedVehicleRows = async (): Promise<LiveRow[]> =>
+  (await loadLiveVehicleRows()).filter((r) => !NOT_OFFERED_MODELS.has(`${r.make}|${r.model}`));
+
 export async function getIntakeMakeModelOptions(): Promise<MakeModelOptions> {
-  const rows = await loadLiveVehicleRows();
+  const rows = await loadOfferedVehicleRows();
 
   // The vehicles table is one row per make/model/trim/model_year, so the
   // same make/model repeats many times over -- dedupe to the distinct
@@ -122,7 +136,7 @@ export async function getIntakeMakeModelOptions(): Promise<MakeModelOptions> {
 }
 
 export async function getIntakeModelYearOptions(): Promise<ModelYearOptions> {
-  const rows = await loadLiveVehicleRows();
+  const rows = await loadOfferedVehicleRows();
 
   const years = new Map<string, Map<string, Set<number>>>();
   for (const { make, model, model_year } of rows) {

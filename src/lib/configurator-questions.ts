@@ -3,11 +3,13 @@ import { resolveColorImages } from "@/lib/vehicle-color-images";
 import { resolveFeatureImages } from "@/lib/vehicle-feature-images";
 import { resolveColorSwatches } from "@/lib/vehicle-color-swatches";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { liveConfiguratorBatchId } from "@/lib/configurator-live";
 import {
   CHOICE_AVAILABILITY,
   configuratorFuelClass,
   listingPowertrainClass,
   matchConfiguratorTrim,
+  normalizeTrimForMatch,
   sortChoices,
   type ConfiguratorChoice,
   type ConfiguratorQuestions,
@@ -119,12 +121,8 @@ export async function getConfiguratorQuestionsForTrims(
 
   const admin = createAdminClient();
 
-  const { data: batch } = await admin
-    .from("configurator_batches")
-    .select("id")
-    .eq("is_live", true)
-    .maybeSingle();
-  if (!batch) return empty;
+  const batchId = await liveConfiguratorBatchId(admin, make);
+  if (!batchId) return empty;
 
   // --- candidate trims for this make/model ------------------------------
   const candidates: ConfiguratorTrimCandidate[] = [];
@@ -139,7 +137,7 @@ export async function getConfiguratorQuestionsForTrims(
     const { data, error } = await admin
       .from("configurator_trims")
       .select("id, make, model, trim, model_year, fuel_type, body_style")
-      .eq("batch_id", batch.id)
+      .eq("batch_id", batchId)
       .eq("make", make)
       .eq("model", model)
       .order("id")
@@ -159,6 +157,42 @@ export async function getConfiguratorQuestionsForTrims(
     if (!data || data.length < PAGE_SIZE) break;
   }
   if (candidates.length === 0) return empty;
+
+  // --- option signatures for same-name candidates (drivetrain twins) ----
+  // Only candidates sharing a trim name and year need one; see
+  // pickDrivetrainTwin in configurator-matching.ts.
+  const nameKey = (c: ConfiguratorTrimCandidate) => `${normalizeTrimForMatch(c.trim)}::${c.modelYear}`;
+  const nameCounts = new Map<string, number>();
+  for (const c of candidates) nameCounts.set(nameKey(c), (nameCounts.get(nameKey(c)) ?? 0) + 1);
+  const twinIds = candidates.filter((c) => (nameCounts.get(nameKey(c)) ?? 0) > 1).map((c) => c.id);
+  if (twinIds.length > 0) {
+    const parts = new Map<string, string[]>();
+    for (let i = 0; i < twinIds.length; i += ID_CHUNK) {
+      const chunk = twinIds.slice(i, i + ID_CHUNK);
+      for (let from = 0; ; from += PAGE_SIZE) {
+        const { data, error } = await admin
+          .from("configurator_options")
+          .select("id, trim_id, category, name, availability, price_cents, package_name, package_price_cents")
+          .in("trim_id", chunk)
+          .neq("category", "drivetrain")
+          .order("id")
+          .range(from, from + PAGE_SIZE - 1);
+        if (error) break;
+        for (const r of data ?? []) {
+          const list = parts.get(r.trim_id as string) ?? [];
+          list.push(
+            [r.category, r.name, r.availability, r.price_cents, r.package_name, r.package_price_cents].join("|"),
+          );
+          parts.set(r.trim_id as string, list);
+        }
+        if (!data || data.length < PAGE_SIZE) break;
+      }
+    }
+    for (const c of candidates) {
+      if (!twinIds.includes(c.id)) continue;
+      c.optionSignature = [bodyStyleById.get(c.id) ?? "", ...(parts.get(c.id) ?? []).sort()].join("\n");
+    }
+  }
 
   // --- powertrain classes present per trim option -----------------------
   // Keyed exactly as buildTrimOptions keys its own output, so the two

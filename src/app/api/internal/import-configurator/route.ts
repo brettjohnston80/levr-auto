@@ -11,8 +11,9 @@ import { parseConfiguratorRow, type ParsedOption } from "@/lib/configurator-pars
 // a bad run cannot corrupt whatever is currently live.
 //
 // Promotion is deliberately NOT part of this route. Unlike
-// import-vehicle-dataset there is no `promote` flag at all -- promotion is
-// step 9 and happens by calling promote_configurator_batch explicitly.
+// import-vehicle-dataset there is no `promote` flag at all -- a make goes
+// live only by calling promote_configurator_batch_make(batch, make)
+// explicitly (one live batch per make since 2026-10-10).
 // Nothing here can make a batch live, by construction rather than by
 // default value.
 //

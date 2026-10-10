@@ -20,6 +20,7 @@ import { inventoryBlockCopy } from "@/lib/inventory-block-copy";
 import { syncListingsForMakeModel } from "@/lib/marketcheck-sync";
 import { notifyAgentsOfCallRequest } from "@/lib/agent-call-notifications";
 import { startTesterSearchNow } from "@/lib/tester-sample-offers";
+import { liveConfiguratorBatchId } from "@/lib/configurator-live";
 
 // `startedNow`: a test account's search skipped the 24h window and went live
 // at once (tester-sample-offers.ts), so the confirmation screen says so.
@@ -919,17 +920,13 @@ async function fetchAllLiveTrimsForMakeModel(
 ): Promise<{ id: string; trim: string; modelYear: number | null }[]> {
   if (!make || !model) return [];
 
-  const { data: batch } = await admin
-    .from("configurator_batches")
-    .select("id")
-    .eq("is_live", true)
-    .maybeSingle();
-  if (!batch) return [];
+  const batchId = await liveConfiguratorBatchId(admin, make);
+  if (!batchId) return [];
 
   const { data, error } = await admin
     .from("configurator_trims")
     .select("id, make, model, trim, model_year")
-    .eq("batch_id", batch.id);
+    .eq("batch_id", batchId);
   if (error || !data) return [];
 
   return data
@@ -955,17 +952,13 @@ async function resolveValidConfiguratorTrimIds(
   const claimed = [...new Set(preferences.map((p) => p.configuratorTrimId).filter(Boolean))] as string[];
   if (claimed.length === 0 || !make || !model) return new Set();
 
-  const { data: batch } = await admin
-    .from("configurator_batches")
-    .select("id")
-    .eq("is_live", true)
-    .maybeSingle();
-  if (!batch) return new Set();
+  const batchId = await liveConfiguratorBatchId(admin, make);
+  if (!batchId) return new Set();
 
   const { data, error } = await admin
     .from("configurator_trims")
     .select("id, make, model")
-    .eq("batch_id", batch.id)
+    .eq("batch_id", batchId)
     .in("id", claimed);
   if (error || !data) return new Set();
 

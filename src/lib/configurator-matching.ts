@@ -103,6 +103,10 @@ export interface ConfiguratorTrimCandidate {
   trim: string;
   modelYear: number;
   fuelType: string | null;
+  /** Body style plus every option except the drivetrain line, as one
+   *  string. Set by the caller; two candidates with the same signature
+   *  differ only in drivetrain (see pickDrivetrainTwin). */
+  optionSignature?: string | null;
 }
 
 /** What we know about one inventory-derived trim option. */
@@ -163,17 +167,43 @@ export function matchConfiguratorTrim(
     return { matched: true, configuratorTrimId: qualified[0].id };
   }
   if (qualified.length > 1) {
-    return { matched: false, reason: "ambiguous_trim" };
+    const twin = pickDrivetrainTwin(qualified);
+    return twin ? { matched: true, configuratorTrimId: twin } : { matched: false, reason: "ambiguous_trim" };
   }
 
   // Nothing qualified on powertrain. If the trim name resolved to exactly
   // one candidate and inventory told us nothing usable about powertrain,
   // the name alone is still an unambiguous answer -- accept it. Anything
-  // more than one candidate stays a refusal.
+  // more than one candidate stays a refusal, unless they are drivetrain
+  // twins.
   if (sameTrim.length === 1 && knownPowertrains.length === 0) {
     return { matched: true, configuratorTrimId: sameTrim[0].id };
   }
+  if (knownPowertrains.length === 0) {
+    const twin = pickDrivetrainTwin(sameTrim);
+    if (twin) return { matched: true, configuratorTrimId: twin };
+  }
   return { matched: false, reason: "ambiguous_trim" };
+}
+
+/**
+ * Drivetrain twins (Brett, 2026-10-10): Cowork's Chevrolet file has one row
+ * per drivetrain for Equinox / Equinox EV (FWD and AWD, same trim name),
+ * and inventory groups both under one trim option. When every candidate has
+ * the same fuel type and the same option signature, the colour, interior,
+ * seating, wheel, roof and feature questions are identical whichever we
+ * pick, so the match is safe. Picks the lowest id, so the choice is stable.
+ * Only the drivetrain line differs, and that comes from the picked row.
+ */
+function pickDrivetrainTwin(candidates: ConfiguratorTrimCandidate[]): string | null {
+  if (candidates.length < 2) return null;
+  const first = candidates[0];
+  if (!first.optionSignature) return null;
+  const twins = candidates.every(
+    (c) => c.optionSignature === first.optionSignature && c.fuelType === first.fuelType,
+  );
+  if (!twins) return null;
+  return [...candidates].sort((a, b) => (a.id < b.id ? -1 : 1))[0].id;
 }
 
 // ---------------------------------------------------------------------------
