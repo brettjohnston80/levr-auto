@@ -44,7 +44,7 @@ export const MAP_COPY = {
     highlighted: "Highlighted",
     inactive: "Declined or withdrawn",
   },
-  // PENDING BRETT'S SIGN-OFF (2026-10-10): the map's pickup-range slider.
+  // Approved (Brett, 2026-10-10): the map's pickup-range slider.
   // The value itself reuses the gauge's approved labels (travelValueLabel).
   rangeSlider: {
     label: "Pickup range",
