@@ -165,6 +165,76 @@ export function parsePrice(
   return { priceCents: null, priceIsIncluded: false, priceUnknown: true };
 }
 
+/**
+ * Research notes that sometimes stand in for, or trail after, a package's
+ * real contents ("not disclosed by source", "exact item list not fully
+ * detailed by sources checked", "required prerequisite for ..."). They are
+ * notes to us, not contents a customer can use (Brett, 2026-10-10).
+ */
+const CONTENTS_NOTE =
+  /\bnot (\w+ ){0,2}(disclosed|itemi[sz]ed|detailed|confirmed|published|listed|opened)\b|\bunconfirmed\b|\bsources? (checked|consulted)\b|\bsourced pages?\b|\bper (GM|Ford|Toyota|Honda)\b|\border guide\b|\bprice not\b|\bdiscount available\b|\bprerequisite\b|\brequired for\b|\brequires an eligible\b|\bexact (item|items|feature|contents)\b|\b(full|other) contents\b|\bcontents (beyond|modal)\b|\blikely (includes|additional)\b|\bflagged\b|\bBuild & Price\b|\binferred\b|\bapproximate\b|\btypically\b|\bAdditional Change/i;
+
+/** Splits on `sep` where it is not inside parentheses. */
+function splitTopLevel(text: string, sep: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const ch of text) {
+    if (ch === "(") depth += 1;
+    if (ch === ")") depth = Math.max(0, depth - 1);
+    if (ch === sep && depth === 0) {
+      parts.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  parts.push(current);
+  return parts;
+}
+
+/** Removes top-level parenthetical groups (nesting-aware) that read as notes. */
+function dropNoteParentheticals(text: string): string {
+  let out = "";
+  let depth = 0;
+  let group = "";
+  for (const ch of text) {
+    if (ch === "(") {
+      depth += 1;
+      group += ch;
+    } else if (ch === ")" && depth > 0) {
+      depth -= 1;
+      group += ch;
+      if (depth === 0) {
+        if (!CONTENTS_NOTE.test(group)) out += group;
+        group = "";
+      }
+    } else if (depth > 0) {
+      group += ch;
+    } else {
+      out += ch;
+    }
+  }
+  return (out + group).replace(/\s+/g, " ").trim();
+}
+
+/**
+ * A package's contents field as a clean item list. Note-like clauses
+ * (top-level ";") and note-like parentheticals are dropped; what remains is
+ * split on top-level commas. An empty result means the source listed no
+ * real contents, which the customer sees as "Contents not listed".
+ */
+export function cleanPackageContents(raw: string): string[] {
+  const text = raw.replace(/^\s*contents\s*:\s*/i, "");
+  return splitTopLevel(text, ";")
+    .map((clause) => dropNoteParentheticals(clause))
+    .filter((clause) => clause.length > 0 && !CONTENTS_NOTE.test(clause))
+    .map((clause) => clause.replace(/^(includes|adds)\s+/i, ""))
+    .flatMap((clause) => splitTopLevel(clause, ","))
+    .map((c) => c.replace(/\s+/g, " ").trim())
+    .filter((c) => c.length > 0);
+}
+
 /** Parses the package_definitions column into a name -> package map. */
 export function parsePackageDefinitions(
   raw: string | null | undefined,
@@ -177,11 +247,7 @@ export function parsePackageDefinitions(
     const name = fields[0] ?? "";
     if (!name) continue;
     const { priceCents } = parsePrice(fields[1], "standalone", opts);
-    const contentsField = (fields[2] ?? "").replace(/^contents:\s*/i, "");
-    const contents = contentsField
-      .split(",")
-      .map((c) => c.trim())
-      .filter((c) => c.length > 0);
+    const contents = cleanPackageContents(fields[2] ?? "");
     packages.set(name, { name, priceCents, contents });
   }
   return packages;

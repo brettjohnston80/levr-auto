@@ -77,6 +77,51 @@ export function configuratorFuelClass(fuelType: string | null | undefined): Powe
 }
 
 /**
+ * Every powertrain class a research row covers (2026-10-10). Usually just
+ * configuratorFuelClass, but Cowork's Ford rows describe gas and hybrid in
+ * one row ("Gasoline (V6); hybrid optional", "Hybrid (standard); 2.0L
+ * EcoBoost gasoline (optional)"). A row that explicitly names both covers
+ * both, so inventory mixing gas and hybrid listings under one trim can
+ * still match it.
+ */
+export function configuratorFuelClasses(fuelType: string | null | undefined): PowertrainClass[] {
+  const primary = configuratorFuelClass(fuelType);
+  // Negated mentions ("Hybrid not available") don't count.
+  const f = (fuelType ?? "")
+    .toLowerCase()
+    .replace(/\b(no|non-)\s*hybrid\b|\bhybrid (is )?not (available|offered)\b/g, " ");
+  const namesGas = /\bgas(oline)?\b|ecoboost/.test(f);
+  const namesHybrid = /\bhybrid\b/.test(f) && !/plug-?in/.test(f);
+  if ((primary === "GAS" || primary === "HYBRID") && namesGas && namesHybrid) return ["GAS", "HYBRID"];
+  // Text that leads with the engine ("2.0L EcoBoost gasoline (only engine
+  // offered)") isn't caught by the prefix check, but names its fuel plainly.
+  if (primary === "UNKNOWN") {
+    if (namesGas && !namesHybrid) return ["GAS"];
+    if (namesHybrid && !namesGas) return ["HYBRID"];
+    return [];
+  }
+  return [primary];
+}
+
+/**
+ * Known trim-name equivalents between MarketCheck inventory and the
+ * research (Brett, 2026-10-10). Keyed by "make|model" and the inventory
+ * trim, both normalized; values are the research trim names it means. Only
+ * one-to-one or many-to-one cases belong here: Chevrolet Trax "RS" is not
+ * listed because MarketCheck uses it for both 1RS and 2RS, which differ.
+ * The wider trim-name reconciliation is parked.
+ */
+const TRIM_EQUIVALENTS: Record<string, Record<string, string[]>> = {
+  "chevrolet|equinox ev": { "1lt": ["lt1"], "2lt": ["lt2"] },
+  "ford|bronco": { stroppe: ["stroppe edition"] },
+  "ford|maverick": { "lobo standard": ["lobo"], "lobo premium": ["lobo"] },
+};
+
+function equivalentTrims(make: string, model: string, normalizedTrim: string): string[] {
+  return TRIM_EQUIVALENTS[`${make}|${model}`.toLowerCase()]?.[normalizedTrim] ?? [];
+}
+
+/**
  * MarketCheck's build.powertrain_type -> PowertrainClass.
  *
  * This field, not build.fuel_type, is the real signal. fuel_type is the
@@ -131,37 +176,44 @@ export type MatchOutcome =
  * and sends them to negotiate for something that cannot be built. Silence
  * is cheaper than confident error here.
  *
- * A group carrying more than one KNOWN powertrain is refused outright, even
- * when only one candidate qualifies. Real example: Honda Civic Sport 2026
- * is a single MarketCheck trim string covering 222 gas and 129 hybrid
- * listings. buildTrimOptions groups on trim and year, so the customer picks
- * one option that means two different cars -- and there is no answer to
- * "which colours does it come in" that is right for both.
+ * A group carrying more than one KNOWN powertrain is refused unless a
+ * research row explicitly covers all of them (2026-10-10, Ford rows like
+ * "Gasoline (V6); hybrid optional" -- see configuratorFuelClasses). Real
+ * example of the refusal: Honda Civic Sport 2026 is a single MarketCheck
+ * trim string covering 222 gas and 129 hybrid listings, and the research
+ * has separate gas and hybrid rows, so there is no answer to "which
+ * colours does it come in" that is right for both.
  */
 export function matchConfiguratorTrim(
   candidates: ConfiguratorTrimCandidate[],
   facts: InventoryTrimFacts,
 ): MatchOutcome {
   const knownPowertrains = [...new Set(facts.powertrains.filter((p) => p !== "UNKNOWN"))];
-  if (knownPowertrains.length > 1) {
-    return { matched: false, reason: "mixed_powertrain" };
-  }
+  const mixed = knownPowertrains.length > 1;
 
   const wanted = normalizeTrimForMatch(facts.trim);
-  const sameTrim = candidates.filter(
-    (c) => c.modelYear === facts.year && normalizeTrimForMatch(c.trim) === wanted,
-  );
+  const aliases = candidates.length > 0 ? equivalentTrims(candidates[0].make, candidates[0].model, wanted) : [];
+  const sameTrim = candidates.filter((c) => {
+    if (c.modelYear !== facts.year) return false;
+    const name = normalizeTrimForMatch(c.trim);
+    return name === wanted || aliases.includes(name);
+  });
   if (sameTrim.length === 0) {
-    return { matched: false, reason: "no_candidates" };
+    return { matched: false, reason: mixed ? "mixed_powertrain" : "no_candidates" };
   }
 
-  // One name, one powertrain: qualify by class. An UNKNOWN class on either
-  // side never qualifies, so unrecognized data falls back rather than
-  // guessing.
+  // Qualify by powertrain: a candidate must cover EVERY known powertrain in
+  // the inventory group. Normally that is one class; a mixed gas + hybrid
+  // group only qualifies a research row that explicitly covers both
+  // (configuratorFuelClasses). An UNKNOWN class never qualifies, so
+  // unrecognized data falls back rather than guessing.
   const qualified = sameTrim.filter((c) => {
-    const cls = configuratorFuelClass(c.fuelType);
-    return cls !== "UNKNOWN" && knownPowertrains.includes(cls);
+    const classes = configuratorFuelClasses(c.fuelType);
+    return knownPowertrains.length > 0 && knownPowertrains.every((p) => classes.includes(p));
   });
+  if (mixed && qualified.length === 0) {
+    return { matched: false, reason: "mixed_powertrain" };
+  }
 
   if (qualified.length === 1) {
     return { matched: true, configuratorTrimId: qualified[0].id };

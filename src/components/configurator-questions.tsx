@@ -82,21 +82,35 @@ export function PriceTag({ choice }: { choice: ConfiguratorChoice }) {
  * other contents to list) gets no note at all -- there's nothing to add
  * beyond the name already shown as the row's title.
  */
+const CONTENTS_NOT_LISTED = "Contents not listed";
+
 export function PackageNote({ choice }: { choice: ConfiguratorChoice }) {
   if (choice.availability !== "package_only" || !choice.packageName) return null;
   const hasContents = choice.packageContents && choice.packageContents.length > 0;
+  // No real contents in the research (2026-10-10): the importer drops notes
+  // like "not disclosed by source", so say so rather than show nothing.
+  // Wording pending Brett's sign-off.
   if (choice.name === choice.packageName) {
-    if (!hasContents) return null;
     return (
       <p className="mt-1.5 text-xs leading-relaxed text-zinc-500">
-        Includes: <span className="text-zinc-400">{choice.packageContents!.join(", ")}</span>
+        {hasContents ? (
+          <>
+            Includes: <span className="text-zinc-400">{choice.packageContents!.join(", ")}</span>
+          </>
+        ) : (
+          CONTENTS_NOT_LISTED
+        )}
       </p>
     );
   }
   return (
     <p className="mt-1.5 text-xs leading-relaxed text-zinc-500">
       Only available in the <span className="text-zinc-400">{choice.packageName}</span>
-      {hasContents && <> — also includes {choice.packageContents!.join(", ")}</>}
+      {hasContents ? (
+        <> — also includes {choice.packageContents!.join(", ")}</>
+      ) : (
+        <> — {CONTENTS_NOT_LISTED.toLowerCase()}</>
+      )}
     </p>
   );
 }
