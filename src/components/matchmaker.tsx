@@ -1794,6 +1794,18 @@ function ResultsList({
       ids: flaggedGroups.map((g) => g.trimId),
       priorities: answers.priorities,
     });
+    // On phones, the phone's own share sheet (Messages, Mail...); copying is
+    // the fallback where there isn't one (Brett, 2026-10-10). Cancelling the
+    // sheet does nothing.
+    if (window.matchMedia("(pointer: coarse)").matches && typeof navigator.share === "function") {
+      try {
+        // Wording pending sign-off.
+        await navigator.share({ text: "Cars I'm interested in on LEVR Auto", url });
+        return;
+      } catch (e) {
+        if (e instanceof DOMException && e.name === "AbortError") return;
+      }
+    }
     try {
       await navigator.clipboard.writeText(url);
       setManualShareUrl(null);
@@ -2913,6 +2925,16 @@ export function Matchmaker({
     return found.length > 0 ? { vehicles: found, priorities: list.priorities } : null;
   }, [locationSearch, vehicles]);
 
+  // The sender's top three priorities, as the recipient sees them.
+  const sharedTopPriorities = useMemo(() => {
+    if (!shared) return [];
+    const known = new Set(ALL_PRIORITIES.map((p) => p.label));
+    return shared.priorities
+      .filter((label) => known.has(label))
+      .slice(0, 3)
+      .map(dimensionDisplayName);
+  }, [shared]);
+
   // Browser Back/Forward between quiz steps and results (#2).
   useEffect(() => {
     try {
@@ -3555,6 +3577,10 @@ export function Matchmaker({
             <p className="mt-2 text-sm text-zinc-300">
               {shared.vehicles.map((v) => `${v.modelYear} ${v.make} ${v.model}`).join(" · ")}
             </p>
+            {sharedTopPriorities.length > 0 && (
+              // Wording pending sign-off (2026-10-10).
+              <p className="mt-1 text-sm text-zinc-400">Their top priorities: {sharedTopPriorities.join(", ")}</p>
+            )}
             <div className="mt-5 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <button
                 type="button"
