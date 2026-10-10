@@ -4,6 +4,8 @@ import { AddonRemovalButton } from "@/components/addon-removal-button";
 import { FinancingCaptureForm } from "@/components/financing-capture-form";
 import { ServiceAgreementSigning } from "@/components/service-agreement-signing";
 import { computeOfferSavings } from "@/lib/offer-comparison";
+import { DeliveryEstimateLine } from "@/components/delivery-estimate-line";
+import { DELIVERY_ESTIMATE_COPY, deliveryEstimatePending } from "@/lib/delivery-estimate";
 import { formatCents, formatDate } from "@/lib/dashboard-format";
 import type { DashboardOffer } from "@/lib/customer-dashboard";
 import {
@@ -92,7 +94,10 @@ export function OfferCard({
           </div>
           {offer.vehicleTrim && <p className="mt-0.5 text-xs text-zinc-500">Trim: {offer.vehicleTrim}</p>}
           <p className="mt-2 text-sm text-zinc-400">
-            Offer: <span className="text-white">{formatCents(offer.offerPriceCents)}</span> — Total
+            Offer: <span className="text-white">{formatCents(offer.offerPriceCents)}</span>
+            {deliveryEstimatePending(offer) && (
+                <span className="ml-1.5 text-xs font-medium text-amber-300">{DELIVERY_ESTIMATE_COPY.pendingMarker}</span>
+              )} — Total
             Suggested Retail Price: {formatCents(offer.msrpCents)}
           </p>
           {savings && (
@@ -100,6 +105,11 @@ export function OfferCard({
               {formatCents(savings.belowMsrpCents)} below Total SRP ({savings.belowMsrpPercent}% off)
             </p>
           )}
+          <DeliveryEstimateLine
+            offerId={offer.id}
+            estimate={offer.deliveryEstimate}
+            canRequest={offer.threadOpen && (offer.status === "pending" || offer.status === "customer_accepted")}
+          />
           <p className="mt-1 text-xs text-zinc-500">
             Delivered {formatDate(offer.deliveredAt)} — status: {offer.status.replace(/_/g, " ")}
             {statusDate && ` on ${formatDate(statusDate)}`}

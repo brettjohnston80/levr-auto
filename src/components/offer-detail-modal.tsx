@@ -6,6 +6,8 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { respondToOffer } from "@/lib/offer-response-actions";
 import { computeOfferSavings } from "@/lib/offer-comparison";
+import { DeliveryEstimateLine } from "@/components/delivery-estimate-line";
+import { DELIVERY_ESTIMATE_COPY, deliveryEstimatePending } from "@/lib/delivery-estimate";
 import { formatCents } from "@/lib/dashboard-format";
 import { SilhouetteIcon } from "@/components/vehicle-silhouette";
 import { HighlightToggle } from "@/components/offer-highlight-controls";
@@ -185,7 +187,10 @@ export function OfferDetailModal({
 
             <Section title="Price">
               <p className="text-sm text-zinc-400">
-                Offer: <span className="text-white">{formatCents(offer.offerPriceCents)}</span> — Total Suggested
+                Offer: <span className="text-white">{formatCents(offer.offerPriceCents)}</span>
+            {deliveryEstimatePending(offer) && (
+                <span className="ml-1.5 text-xs font-medium text-amber-300">{DELIVERY_ESTIMATE_COPY.pendingMarker}</span>
+              )} — Total Suggested
                 Retail Price: {formatCents(offer.msrpCents)}
               </p>
               {savings && (
@@ -193,6 +198,11 @@ export function OfferDetailModal({
                   {formatCents(savings.belowMsrpCents)} below Total SRP ({savings.belowMsrpPercent}% off)
                 </p>
               )}
+              <DeliveryEstimateLine
+                offerId={offer.id}
+                estimate={offer.deliveryEstimate}
+                canRequest={offer.threadOpen && (offer.status === "pending" || offer.status === "customer_accepted")}
+              />
             </Section>
 
             {(addressLines.length > 0 || miles !== null) && (

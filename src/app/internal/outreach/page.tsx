@@ -39,6 +39,7 @@ import { AgentBypassLookup } from "@/components/agent-bypass-lookup";
 import { AgentCancellationResolutionForm } from "@/components/agent-cancellation-resolution-form";
 import { AgentCancellationLookup } from "@/components/agent-cancellation-lookup";
 import { AgentRevertPurchasedLookup } from "@/components/agent-revert-purchased-lookup";
+import { AgentDeliveryEstimate } from "@/components/agent-delivery-estimate";
 import { AgentUndecidedFinalizeForm } from "@/components/agent-undecided-finalize-form";
 import { getIntakeMakeModelOptions, getIntakeModelYearOptions } from "@/lib/intake-vehicle-options";
 import { MODEL_YEAR_INVENTORY_BLOCK_ENABLED } from "@/lib/inventory-block";
@@ -848,6 +849,45 @@ export default async function OutreachQueuePage() {
           )}
         </div>
 
+        {/* Delivery estimates to get (2026-10-10): requested ones (by the
+            customer, or marked requested at log time) and standard ones with
+            nothing on file yet -- e.g. after the customer narrowed their
+            pickup range. Open offers on active searches only. */}
+        {(() => {
+          const toGet = queue.flatMap((search) =>
+            search.offers
+              .filter(
+                (o) =>
+                  (o.status === "pending" || o.status === "customer_accepted") &&
+                  (o.deliveryEstimate?.status === "requested" || (!o.deliveryEstimate && o.deliveryEstimateStandard)),
+              )
+              .map((offer) => ({ search, offer })),
+          );
+          if (toGet.length === 0) return null;
+          return (
+            <div className="mt-12">
+              <h2 className="text-lg font-semibold text-white">Delivery estimates to get ({toGet.length})</h2>
+              <ul className="mt-3 space-y-2 text-sm text-zinc-300">
+                {toGet.map(({ search, offer }) => (
+                  <li key={offer.id}>
+                    <a href={`#search-${search.id}`} className="text-emerald-400 underline hover:text-emerald-300">
+                      {offer.dealerName}
+                    </a>{" "}
+                    — {search.make} {search.model} for {search.customerEmail ?? "unknown customer"}
+                    <span className="ml-2 text-xs text-zinc-500">
+                      {offer.deliveryEstimate?.status === "requested"
+                        ? offer.deliveryEstimateRequestedBy === "customer"
+                          ? "customer asked"
+                          : "requested from dealer"
+                        : "standard, none on file"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })()}
+
         <div className="mt-12">
           <h2 className="text-lg font-semibold text-white">Active searches ({queue.length})</h2>
 
@@ -914,6 +954,13 @@ export default async function OutreachQueuePage() {
                             {offer.handoffMethod && (
                               <span className="ml-2 text-xs text-zinc-400">· {handoffAgentLabel(offer.handoffMethod)}</span>
                             )}
+                            <AgentDeliveryEstimate
+                              offerId={offer.id}
+                              estimate={offer.deliveryEstimate}
+                              requestedBy={offer.deliveryEstimateRequestedBy}
+                              standard={offer.deliveryEstimateStandard}
+                              open={offer.status === "pending" || offer.status === "customer_accepted"}
+                            />
                             {offer.vehicleSoldAt ? (
                               <span className="ml-2 text-amber-400">sold to another buyer</span>
                             ) : (

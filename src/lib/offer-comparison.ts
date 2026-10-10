@@ -1,4 +1,5 @@
 import type { DashboardOffer } from "./customer-dashboard";
+import { deliveryEstimatePending, totalPriceCents } from "./delivery-estimate";
 
 // A declined/withdrawn offer is no longer a real option, so it's excluded
 // from "best value" comparison even though it still renders on the card.
@@ -18,6 +19,17 @@ export function computeOfferSavings(offer: DashboardOffer): OfferSavings | null 
 }
 
 /**
+ * What "best value" ranks on (2026-10-10): Total SRP minus the offer price
+ * plus its delivery estimate when the customer takes delivery and the figure
+ * is known. Shared by the badge and the "Best discount" sort so they can't
+ * disagree. The "$X below Total SRP" line stays price-only, since that's
+ * what the guarantee measures.
+ */
+export function valueCents(offer: DashboardOffer): number {
+  return offer.msrpCents - totalPriceCents(offer);
+}
+
+/**
  * The offer id to highlight as the best value, or null when there's nothing
  * to compare (fewer than 2 offers) or nothing worth highlighting (no live
  * offer is actually below Total SRP). "Live" = pending or already accepted
@@ -32,10 +44,13 @@ export function bestValueOfferId(offers: DashboardOffer[]): string | null {
 
   for (const offer of offers) {
     if (!COMPARABLE_STATUSES.includes(offer.status)) continue;
-    const savings = computeOfferSavings(offer);
-    if (!savings) continue;
-    if (savings.belowMsrpCents > bestSavingsCents) {
-      bestSavingsCents = savings.belowMsrpCents;
+    if (!computeOfferSavings(offer)) continue;
+    // Held until its delivery estimate arrives: a price that will go up by
+    // an unknown amount can't be called the best value.
+    if (deliveryEstimatePending(offer)) continue;
+    const value = valueCents(offer);
+    if (value > 0 && value > bestSavingsCents) {
+      bestSavingsCents = value;
       bestId = offer.id;
     }
   }

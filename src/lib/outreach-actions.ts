@@ -1,6 +1,8 @@
 "use server";
 
-import { travelFromValue, travelToColumns } from "./pickup-travel";
+import { travelFromColumns, travelFromValue, travelToColumns } from "./pickup-travel";
+import { haversineMiles } from "./geo";
+import { deliveryEstimateStandard } from "./delivery-estimate";
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { getAuthorizedAgent } from "./agent-auth";
@@ -111,12 +113,32 @@ export async function logQualifyingOffer(formData: FormData): Promise<LogOfferRe
 
   const { data: search, error: searchError } = await admin
     .from("customer_searches")
-    .select("id")
+    .select("id, zip, pickup_travel_choice, pickup_travel_miles")
     .eq("id", customerSearchId)
     .maybeSingle();
 
   if (searchError || !search) {
     return { ok: false, error: "That search no longer exists." };
+  }
+
+  // Delivery estimate (2026-10-10). Standard when the dealer is beyond the
+  // customer's pickup range or they prefer delivery -- then the agent must
+  // give the fee, mark it requested, or say the dealer doesn't deliver.
+  const delivery = parseDeliveryEstimateFields(formData);
+  if ("error" in delivery) return { ok: false, error: delivery.error };
+  if (!delivery.columns) {
+    const travel = travelFromColumns(
+      search.pickup_travel_choice as string | null,
+      search.pickup_travel_miles as number | null,
+    );
+    const miles = await zipDistanceMiles(admin, (search.zip as string | null) ?? null, dealerZip);
+    if (deliveryEstimateStandard(travel, miles)) {
+      return {
+        ok: false,
+        error:
+          "This dealer is beyond the customer's pickup range (or they prefer delivery), so a delivery estimate is standard: enter the dealer's fee, mark it requested from the dealer, or mark that the dealer doesn't deliver.",
+      };
+    }
   }
 
   const { data: newOffer, error: insertError } = await admin
@@ -137,6 +159,7 @@ export async function logQualifyingOffer(formData: FormData): Promise<LogOfferRe
       dealer_zip: dealerZip,
       vin,
       stock_number: stockNumber,
+      ...(delivery.columns ?? {}),
     })
     .select("id")
     .single();
@@ -1087,5 +1110,102 @@ export async function resolveNotificationCallback(eventId: string): Promise<Reso
   }
 
   revalidatePath("/internal/outreach");
+  return { ok: true };
+}
+
+// ---- Delivery estimates (2026-10-10) ------------------------------------
+
+type DeliveryColumns = Record<string, string | number | null>;
+
+/** The agent's delivery-estimate fields as columns, null when left as "None". */
+function parseDeliveryEstimateFields(formData: FormData): { columns: DeliveryColumns | null } | { error: string } {
+  const mode = formData.get("delivery_mode")?.toString() ?? "";
+  const note = formData.get("delivery_note")?.toString().trim().slice(0, 500) || null;
+  const now = new Date().toISOString();
+  if (mode === "") return { columns: null };
+  if (mode === "requested") {
+    return {
+      columns: {
+        delivery_estimate_status: "requested",
+        delivery_estimate_cents: null,
+        delivery_estimate_note: null,
+        delivery_estimate_requested_at: now,
+        delivery_estimate_requested_by: "agent",
+        delivery_estimate_provided_at: null,
+      },
+    };
+  }
+  if (mode === "unavailable") {
+    return {
+      columns: {
+        delivery_estimate_status: "unavailable",
+        delivery_estimate_cents: null,
+        delivery_estimate_note: note,
+        delivery_estimate_provided_at: now,
+      },
+    };
+  }
+  if (mode === "fee") {
+    const cents = Math.round(parseFloat(formData.get("delivery_fee")?.toString() ?? "") * 100);
+    if (!Number.isFinite(cents) || cents < 0) return { error: "Enter the dealer's delivery fee (0 for free delivery)." };
+    return {
+      columns: {
+        delivery_estimate_status: "provided",
+        delivery_estimate_cents: cents,
+        delivery_estimate_note: note,
+        delivery_estimate_provided_at: now,
+      },
+    };
+  }
+  return { error: "Invalid delivery estimate choice." };
+}
+
+/** ZIP-centroid distance in miles, null when either ZIP is unknown. */
+async function zipDistanceMiles(
+  admin: ReturnType<typeof createAdminClient>,
+  zipA: string | null,
+  zipB: string | null,
+): Promise<number | null> {
+  if (!zipA || !zipB) return null;
+  const { data } = await admin.from("zip_coordinates").select("zip, latitude, longitude").in("zip", [zipA, zipB]);
+  const a = data?.find((z) => z.zip === zipA);
+  const b = data?.find((z) => z.zip === zipB);
+  if (!a || !b) return null;
+  return haversineMiles(a.latitude as number, a.longitude as number, b.latitude as number, b.longitude as number);
+}
+
+export interface SetDeliveryEstimateResult {
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * Agent records (or updates) an offer's delivery estimate after logging it:
+ * the dealer's fee, that it's been requested, or that the dealer doesn't
+ * deliver. Overwrites the previous answer (one estimate per offer). Only on
+ * an offer that's still open.
+ */
+export async function setOfferDeliveryEstimate(formData: FormData): Promise<SetDeliveryEstimateResult> {
+  const agent = await getAuthorizedAgent();
+  if (!agent) return { ok: false, error: "Not authorized." };
+  const offerId = formData.get("offer_id")?.toString();
+  if (!offerId) return { ok: false, error: "Missing offer." };
+  const parsed = parseDeliveryEstimateFields(formData);
+  if ("error" in parsed) return { ok: false, error: parsed.error };
+  if (!parsed.columns) return { ok: false, error: "Choose the fee, requested, or doesn't deliver." };
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("qualifying_offers")
+    .update(parsed.columns)
+    .eq("id", offerId)
+    .in("status", ["pending", "customer_accepted"])
+    .select("id")
+    .maybeSingle();
+  if (error) return { ok: false, error: `Failed to save: ${error.message}` };
+  if (!data) return { ok: false, error: "That offer is no longer open." };
+
+  revalidatePath("/internal/outreach");
+  revalidatePath("/account/deal");
   return { ok: true };
 }

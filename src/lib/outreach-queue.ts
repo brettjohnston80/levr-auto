@@ -1,3 +1,4 @@
+import { deliveryEstimateStandard, type DeliveryEstimate, type DeliveryEstimateStatus } from "./delivery-estimate";
 import "server-only";
 import { createAdminClient } from "./supabase/admin";
 import { buildTrimOptions, filterListingsToCommittedYear, type TrimOption } from "./finalize-trims";
@@ -292,6 +293,12 @@ export interface OutreachOffer {
   distanceMiles: number | null;
   /** Same rule the customer sees (isBeyondPickupRange). */
   beyondRange: boolean;
+  /** Delivery estimate (2026-10-10); null = never asked. */
+  deliveryEstimate: DeliveryEstimate | null;
+  deliveryEstimateRequestedBy: "customer" | "agent" | null;
+  /** Standard for this offer under the CURRENT pickup range (beyond range
+   *  or prefers delivery) -- see deliveryEstimateStandard. */
+  deliveryEstimateStandard: boolean;
   addons: OutreachAddon[];
   dealProgress: OutreachDealProgress | null;
   serviceAgreementSignedAt: string | null;
@@ -386,7 +393,7 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
     supabase
       .from("qualifying_offers")
       .select(
-        "id, customer_search_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at, vehicle_sold_at, withdrawn_at, withdrawn_by_agent_id, withdrawal_reason, customer_highlighted_at, handoff_method, dealer_zip"
+        "id, customer_search_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at, vehicle_sold_at, withdrawn_at, withdrawn_by_agent_id, withdrawal_reason, customer_highlighted_at, handoff_method, dealer_zip, delivery_estimate_status, delivery_estimate_cents, delivery_estimate_note, delivery_estimate_requested_by"
       )
       .in("customer_search_id", searchIds),
   ]);
@@ -664,6 +671,15 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
       handoffMethod,
       distanceMiles: offerDistance,
       beyondRange: isBeyondPickupRange(travelBySearchId.get(offer.customer_search_id) ?? null, offerDistance, handoffMethod),
+      deliveryEstimate: offer.delivery_estimate_status
+        ? {
+            status: offer.delivery_estimate_status as DeliveryEstimateStatus,
+            cents: (offer.delivery_estimate_cents as number | null) ?? null,
+            note: (offer.delivery_estimate_note as string | null) ?? null,
+          }
+        : null,
+      deliveryEstimateRequestedBy: (offer.delivery_estimate_requested_by as "customer" | "agent" | null) ?? null,
+      deliveryEstimateStandard: deliveryEstimateStandard(travelBySearchId.get(offer.customer_search_id) ?? null, offerDistance),
       addons: addonsByOfferId.get(offer.id) ?? [],
       dealProgress: dealProgressByOfferId.get(offer.id) ?? null,
       serviceAgreementSignedAt: serviceAgreementSignedAtByOfferId.get(offer.id) ?? null,

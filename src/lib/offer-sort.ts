@@ -1,4 +1,5 @@
-import { computeOfferSavings } from "./offer-comparison";
+import { valueCents } from "./offer-comparison";
+import { totalPriceCents } from "./delivery-estimate";
 import type { DashboardOffer } from "./customer-dashboard";
 
 // Your Deal sorting (2026-09-26). Default is best discount, so the offer
@@ -13,7 +14,8 @@ export const DEFAULT_OFFER_SORT: OfferSort = "discount";
 export const OFFER_SORT_LABEL = "Sort by";
 export const OFFER_SORT_OPTIONS: { value: OfferSort; label: string }[] = [
   { value: "discount", label: "Best discount" },
-  { value: "price", label: "Best price" },
+  // Renamed 2026-10-10: ranks on price plus a known delivery estimate.
+  { value: "price", label: "Best total price" },
   { value: "closest", label: "Closest" },
 ];
 
@@ -29,13 +31,14 @@ function statusRank(status: string): number {
   return 2;
 }
 
-const savingsOf = (o: DashboardOffer) => computeOfferSavings(o)?.belowMsrpCents ?? -Infinity;
+// Delivery-inclusive (2026-10-10), the same basis as the Best value badge.
+const savingsOf = (o: DashboardOffer) => valueCents(o);
 
 export function sortOffers(offers: DashboardOffer[], sort: OfferSort): DashboardOffer[] {
   return [...offers].sort((a, b) => {
     const s = statusRank(a.status) - statusRank(b.status);
     if (s !== 0) return s;
-    if (sort === "price") return a.offerPriceCents - b.offerPriceCents;
+    if (sort === "price") return totalPriceCents(a) - totalPriceCents(b);
     if (sort === "closest") {
       // Unknown distances go last, then fall back to best discount.
       const ad = a.distanceMiles ?? Infinity;

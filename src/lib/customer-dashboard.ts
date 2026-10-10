@@ -1,3 +1,4 @@
+import type { DeliveryEstimate, DeliveryEstimateStatus } from "./delivery-estimate";
 import "server-only";
 import { createAdminClient } from "./supabase/admin";
 import {
@@ -115,6 +116,9 @@ export interface DashboardOffer {
   inTransit: boolean;
   /** ZIP-centroid distance in miles; null when either zip is unknown. */
   distanceMiles: number | null;
+  /** The dealer's delivery estimate (2026-10-10); null = never asked. See
+   *  delivery-estimate.ts for when it's standard and how it counts. */
+  deliveryEstimate: DeliveryEstimate | null;
   /** Map pin (2026-09-26, detail view only): the linked listing's dealer
    *  coordinates when available, else the dealer ZIP's centroid (flagged
    *  approximate), else null -- no pin. */
@@ -201,7 +205,7 @@ async function loadOffersBySearchId(
   const { data: offers, error: offersError } = await supabase
     .from("qualifying_offers")
     .select(
-      "id, customer_search_id, listing_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at, withdrawn_at, vehicle_trim, vehicle_exterior_color, customer_highlighted_at, last_agent_message_at, customer_messages_read_at, handoff_method, dealer_street, dealer_city, dealer_state, dealer_zip, vin, stock_number"
+      "id, customer_search_id, listing_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at, withdrawn_at, vehicle_trim, vehicle_exterior_color, customer_highlighted_at, last_agent_message_at, customer_messages_read_at, handoff_method, dealer_street, dealer_city, dealer_state, dealer_zip, vin, stock_number, delivery_estimate_status, delivery_estimate_cents, delivery_estimate_note"
     )
     .in("customer_search_id", searchIds)
     .order("received_at", { ascending: false });
@@ -447,6 +451,13 @@ async function loadOffersBySearchId(
       listingPhotoUrls: listingDetail?.photoUrls ?? [],
       inTransit: listingDetail?.inTransit ?? false,
       distanceMiles: distanceFor(offer.customer_search_id, offer.dealer_zip),
+      deliveryEstimate: offer.delivery_estimate_status
+        ? {
+            status: offer.delivery_estimate_status as DeliveryEstimateStatus,
+            cents: (offer.delivery_estimate_cents as number | null) ?? null,
+            note: (offer.delivery_estimate_note as string | null) ?? null,
+          }
+        : null,
       mapLocation: mapLocationFor(listingDetail, offer.dealer_zip),
     });
     offersBySearchId.set(offer.customer_search_id, list);

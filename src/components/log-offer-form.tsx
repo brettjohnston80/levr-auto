@@ -45,6 +45,12 @@ export function LogOfferForm({ searchId, listings }: { searchId: string; listing
   const [vin, setVin] = useState("");
   const [stockNumber, setStockNumber] = useState("");
   const [notes, setNotes] = useState("");
+  // Delivery estimate (2026-10-10). Standard when the dealer is beyond the
+  // customer's pickup range or they prefer delivery -- the server checks
+  // that against the dealer ZIP and refuses to save without one of these.
+  const [deliveryMode, setDeliveryMode] = useState<"" | "fee" | "requested" | "unavailable">("");
+  const [deliveryFee, setDeliveryFee] = useState("");
+  const [deliveryNote, setDeliveryNote] = useState("");
   const [addons, setAddons] = useState<AddonLine[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; error?: string } | null>(null);
@@ -94,6 +100,9 @@ export function LogOfferForm({ searchId, listings }: { searchId: string; listing
     setVin("");
     setStockNumber("");
     setNotes("");
+    setDeliveryMode("");
+    setDeliveryFee("");
+    setDeliveryNote("");
     setAddons([]);
     setRawText("");
     setPdfFile(null);
@@ -161,6 +170,9 @@ export function LogOfferForm({ searchId, listings }: { searchId: string; listing
     formData.set("vin", vin);
     formData.set("stock_number", stockNumber);
     formData.set("notes", notes);
+    formData.set("delivery_mode", deliveryMode);
+    formData.set("delivery_fee", deliveryFee);
+    formData.set("delivery_note", deliveryNote);
     formData.set("addons_json", JSON.stringify(addonsPayload));
     if (parseMode === "pdf" && pdfFile) {
       formData.set("offer_sheet_pdf", pdfFile);
@@ -422,6 +434,55 @@ export function LogOfferForm({ searchId, listings }: { searchId: string; listing
           </div>
         ))}
       </div>
+
+      <fieldset className="rounded-md border border-white/10 p-3">
+        <legend className="px-1 text-xs text-zinc-400">Delivery estimate</legend>
+        <p className="text-xs text-zinc-500">
+          Required when the dealer is beyond the customer&apos;s pickup range or they prefer delivery; optional
+          otherwise.
+        </p>
+        <div className="mt-2 flex flex-wrap gap-3 text-xs text-zinc-300">
+          {(
+            [
+              ["", "None"],
+              ["fee", "Dealer's delivery fee"],
+              ["requested", "Requested from dealer"],
+              ["unavailable", "Dealer doesn't deliver"],
+            ] as const
+          ).map(([value, label]) => (
+            <label key={value} className="flex min-h-9 items-center gap-1.5">
+              <input
+                type="radio"
+                name="delivery_mode_choice"
+                checked={deliveryMode === value}
+                onChange={() => setDeliveryMode(value)}
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+        {deliveryMode === "fee" && (
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="$0.00 (0 = free delivery)"
+            value={deliveryFee}
+            onChange={(e) => setDeliveryFee(e.target.value)}
+            className="mt-2 w-48 rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
+          />
+        )}
+        {(deliveryMode === "fee" || deliveryMode === "unavailable") && (
+          <input
+            type="text"
+            maxLength={500}
+            placeholder="Note for the customer (optional)"
+            value={deliveryNote}
+            onChange={(e) => setDeliveryNote(e.target.value)}
+            className="mt-2 w-full rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
+          />
+        )}
+      </fieldset>
 
       <div>
         <label className="block text-xs text-zinc-400">Notes</label>

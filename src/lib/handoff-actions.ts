@@ -71,6 +71,63 @@ export async function setOfferHandoff(offerId: string, method: HandoffMethod): P
   if (error) return { ok: false, error: `Failed to save: ${error.message}` };
   if (!updated) return { ok: false, error: HANDOFF_CLOSED_ERROR };
 
+  // "Estimate delivery for me" also asks for the estimate, if nobody has yet
+  // (2026-10-10). Never overwrites a figure or an earlier request.
+  if (method === "delivery") {
+    await admin
+      .from("qualifying_offers")
+      .update({ delivery_estimate_status: "requested", delivery_estimate_requested_at: now, delivery_estimate_requested_by: "customer" })
+      .eq("id", offerId)
+      .is("delivery_estimate_status", null);
+  }
+
+  revalidatePath("/account/deal");
+  revalidatePath("/internal/outreach");
+  return { ok: true };
+}
+
+/**
+ * Customer asks for a delivery estimate on an open offer, before or after
+ * accepting (walkthrough note 9, 2026-10-10). Doesn't change their
+ * pickup/delivery answer -- they may just want to compare. Counts as
+ * customer activity, and the request lands on the agent's "Delivery
+ * estimates to get" list. A no-op if one was already asked for or given.
+ */
+export async function requestDeliveryEstimate(offerId: string): Promise<HandoffResult> {
+  const userId = await currentUserId();
+  if (!userId) return { ok: false, error: "Not signed in." };
+
+  const admin = createAdminClient();
+  const { data: offer } = await admin
+    .from("qualifying_offers")
+    .select("id, status, customer_search_id")
+    .eq("id", offerId)
+    .maybeSingle();
+  if (!offer) return { ok: false, error: "That offer no longer exists." };
+  const { data: search } = await admin
+    .from("customer_searches")
+    .select("customer_id, search_status")
+    .eq("id", offer.customer_search_id)
+    .maybeSingle();
+  if (!search || search.customer_id !== userId) return { ok: false, error: "Not authorized." };
+  if (!HANDOFF_EDITABLE_STATUSES.includes(offer.status as string) || !threadIsOpen(offer.status, search.search_status)) {
+    return { ok: false, error: HANDOFF_CLOSED_ERROR };
+  }
+
+  const now = new Date().toISOString();
+  const { error } = await admin
+    .from("qualifying_offers")
+    .update({
+      delivery_estimate_status: "requested",
+      delivery_estimate_requested_at: now,
+      delivery_estimate_requested_by: "customer",
+      customer_activity_at: now,
+    })
+    .eq("id", offerId)
+    .in("status", HANDOFF_EDITABLE_STATUSES)
+    .is("delivery_estimate_status", null);
+  if (error) return { ok: false, error: `Failed to save: ${error.message}` };
+
   revalidatePath("/account/deal");
   revalidatePath("/internal/outreach");
   return { ok: true };
