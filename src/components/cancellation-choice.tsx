@@ -16,11 +16,13 @@ export function CancellationChoice({
   cancellationCallAlreadyRequested: boolean;
 }) {
   const [mode, setMode] = useState<Mode>(cancellationCallAlreadyRequested ? "call-requested" : "intro");
-  const [busy, setBusy] = useState(false);
+  // Which action is in flight, for its busy label (2026-10-10).
+  const [busy, setBusyState] = useState<false | "call" | "cancel">(false);
+  const setBusy = (v: false | "call" | "cancel") => setBusyState(v);
   const [error, setError] = useState<string | null>(null);
 
   async function handleRequestCall() {
-    setBusy(true);
+    setBusy("call");
     setError(null);
     const result = await requestCancellationCall(searchId);
     setBusy(false);
@@ -32,7 +34,7 @@ export function CancellationChoice({
   }
 
   async function handleCancel() {
-    setBusy(true);
+    setBusy("cancel");
     setError(null);
     const result = await cancelSearch(searchId);
     setBusy(false);
@@ -83,18 +85,18 @@ export function CancellationChoice({
         <button
           type="button"
           onClick={handleRequestCall}
-          disabled={busy}
+          disabled={!!busy}
           className="rounded-full border border-white/20 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/10 disabled:opacity-50"
         >
-          Request a call with an agent
+          {busy === "call" ? "Requesting…" : "Request a call with an agent"}
         </button>
         <button
           type="button"
           onClick={handleCancel}
-          disabled={busy}
+          disabled={!!busy}
           className="rounded-full border border-red-500/30 px-5 py-2 text-sm font-semibold text-red-400 transition-colors hover:bg-red-500/10 disabled:opacity-50"
         >
-          Cancel search permanently
+          {busy === "cancel" ? "Cancelling…" : "Cancel search permanently"}
         </button>
       </div>
     </div>

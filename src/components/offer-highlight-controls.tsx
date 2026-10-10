@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { setOfferHighlight } from "@/lib/offer-highlight-actions";
 
@@ -13,17 +13,26 @@ export function HighlightToggle({ offerId, highlighted }: { offerId: string; hig
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Shown state flips the moment the save succeeds, and the button stays
+  // disabled until the refreshed page arrives (2026-10-10): it used to
+  // re-enable from the stale prop, so a quick second tap sent the same
+  // toggle again.
+  const [optimistic, setOptimistic] = useState<boolean | null>(null);
+  const [refreshing, startRefresh] = useTransition();
+  const shown = refreshing && optimistic !== null ? optimistic : highlighted;
 
   async function toggle() {
     setSaving(true);
     setError(null);
-    const res = await setOfferHighlight(offerId, !highlighted);
+    const next = !shown;
+    const res = await setOfferHighlight(offerId, next);
     setSaving(false);
     if (!res.ok) {
       setError(res.error ?? "Something went wrong.");
       return;
     }
-    router.refresh();
+    setOptimistic(next);
+    startRefresh(() => router.refresh());
   }
 
   return (
@@ -31,15 +40,15 @@ export function HighlightToggle({ offerId, highlighted }: { offerId: string; hig
       <button
         type="button"
         onClick={toggle}
-        disabled={saving}
-        aria-pressed={highlighted}
+        disabled={saving || refreshing}
+        aria-pressed={shown}
         className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 ${
-          highlighted
+          shown
             ? "border-amber-400/60 bg-amber-400/15 text-amber-300"
             : "border-white/15 text-zinc-300 hover:bg-white/5"
         }`}
       >
-        {highlighted ? "★ Highlighted" : "☆ Highlight"}
+        {saving ? "Saving…" : shown ? "★ Highlighted" : "☆ Highlight"}
       </button>
       {error && <span className="mt-1 text-xs text-red-400">{error}</span>}
     </span>

@@ -23,6 +23,7 @@ import {
   type ModelYearOptions,
 } from "@/lib/intake-vehicle-options";
 import { effectiveDeadline, REMINDER_WINDOW_DAYS } from "@/lib/day60-extension";
+import { SubmitButton } from "@/components/submit-button";
 
 export const metadata: Metadata = {
   title: "Your Account — LEVR Auto",
@@ -238,12 +239,12 @@ export default async function AccountPage({
         <AccountFaqSection customerEmail={customer?.email ?? user.email ?? ""} />
 
         <form action={logout} className="mt-10 text-center">
-          <button
-            type="submit"
+          <SubmitButton
             className="rounded-full border border-white/20 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+            pendingLabel="Logging out…"
           >
             Log Out
-          </button>
+          </SubmitButton>
         </form>
       </div>
     </section>

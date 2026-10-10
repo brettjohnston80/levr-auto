@@ -127,6 +127,7 @@ function UnconfirmedAliasRow({ alias }: { alias: UnconfirmedAlias }) {
       {mode === "merge" && (
         <div className="mt-3 border-t border-white/10 pt-3">
           <DealershipSearchPicker onPick={(d) => handleMerge(d.id)} disabled={submitting} />
+          {submitting && <p className="mt-2 text-xs text-zinc-400">Merging…</p>}
           {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
         </div>
       )}

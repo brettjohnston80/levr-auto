@@ -538,7 +538,7 @@ export function IntakeFilter({
             className="text-sm font-medium text-emerald-400 underline decoration-emerald-400/40 underline-offset-4 transition-colors hover:text-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {savingUndecided
-              ? "Redirecting to checkout…"
+              ? "Saving…"
               : "Not sure what you're looking for yet? Skip ahead — pay now and we'll help you decide together."}
           </button>
           {undecidedError && <p className="mt-2 text-xs text-red-400">{undecidedError}</p>}

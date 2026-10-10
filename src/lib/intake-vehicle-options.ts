@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -50,7 +51,11 @@ type LiveRow = { make: string; model: string; model_year: number | null };
  * action) reads the live batch once, not once per lookup. No arguments by
  * design -- cache() memoises on argument identity.
  */
-const loadLiveVehicleRows = cache(async (): Promise<LiveRow[]> => {
+/** Cache tag for the live vehicle-dataset rows; the import route revalidates
+ *  it when a batch is promoted. */
+export const LIVE_VEHICLE_ROWS_TAG = "live-vehicle-rows";
+
+const fetchLiveVehicleRows = async (): Promise<LiveRow[]> => {
   const admin = createAdminClient();
 
   const { data: liveBatch, error: batchError } = await admin
@@ -83,7 +88,17 @@ const loadLiveVehicleRows = cache(async (): Promise<LiveRow[]> => {
     from += PAGE_SIZE;
   }
   return rows;
-});
+};
+
+// Cached across requests for 15 minutes (2026-10-10). The full scan is
+// ~2,270 rows over several round trips and changes only when a dataset batch
+// is promoted -- yet every /account load, intake, Your Car and the agent page
+// re-read it per request. The import route clears it on promote; a promotion
+// run by hand in SQL reaches these dropdowns within 15 minutes. React's
+// cache() still dedupes within one request.
+const loadLiveVehicleRows = cache(
+  unstable_cache(fetchLiveVehicleRows, ["live-vehicle-rows"], { revalidate: 900, tags: [LIVE_VEHICLE_ROWS_TAG] }),
+);
 
 export async function getIntakeMakeModelOptions(): Promise<MakeModelOptions> {
   const rows = await loadLiveVehicleRows();

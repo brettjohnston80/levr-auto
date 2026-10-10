@@ -270,7 +270,9 @@ export default async function DealPage({
           </>
         ) : (
           <>
-            <PickupRangeControl searchId={deal.searchId} value={travelToValue(deal.pickupTravel)} />
+            {/* Hidden in Map view (2026-10-10): the slider under the map is the
+                range control there. */}
+            {!showMap && <PickupRangeControl searchId={deal.searchId} value={travelToValue(deal.pickupTravel)} />}
 
             <div className="mt-5">
               <div className="flex flex-wrap items-baseline justify-between gap-2">

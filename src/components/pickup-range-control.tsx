@@ -88,6 +88,7 @@ export function PickupRangeControl({ searchId, value }: { searchId: string; valu
       {editing && (
         <div className="mt-3">
           <PickupTravelGauge value={value} onChange={choose} disabled={saving} />
+          {saving && <p className="mt-2 text-center text-xs text-zinc-400">Saving…</p>}
         </div>
       )}
       {error && <p className="mt-2 text-xs text-red-400">{error}</p>}

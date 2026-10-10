@@ -215,9 +215,13 @@ async function loadOffersBySearchId(
   }
 
   const offerIds = (offers ?? []).map((o) => o.id);
-  const messagesByOfferId = await loadMessagesForOffers(supabase, offerIds, "customer");
+  // Everything below needs only the offer list, so the lookups run in
+  // parallel rather than one after another (2026-10-10: /account and Your
+  // Deal took 2-3 s, mostly sequential round trips to the database).
+  const messagesP = loadMessagesForOffers(supabase, offerIds, "customer");
   const addonsByOfferId = new Map<string, DashboardAddon[]>();
 
+  const addonsP = (async () => {
   if (offerIds.length > 0) {
     const { data: addons, error: addonsError } = await supabase
       .from("offer_addons")
@@ -240,11 +244,13 @@ async function loadOffersBySearchId(
       addonsByOfferId.set(addon.qualifying_offer_id, list);
     }
   }
+  })();
 
   const dealProgressByOfferId = new Map<string, DashboardDealProgress>();
   const serviceAgreementSignedAtByOfferId = new Map<string, string>();
   const offerSheetUrlByOfferId = new Map<string, string>();
 
+  const progressP = (async () => {
   if (offerIds.length > 0) {
     const [{ data: progressRows, error: progressError }, { data: docs, error: docsError }] =
       await Promise.all([
@@ -311,12 +317,13 @@ async function loadOffersBySearchId(
       });
     }
   }
+  })();
 
   const undelivered = (offers ?? []).filter((o) => !o.delivered_at).map((o) => o.id);
-  let deliveredAtNow: string | null = null;
+  const deliveredAtNow: string | null = undelivered.length > 0 ? new Date().toISOString() : null;
 
+  const deliveredP = (async () => {
   if (undelivered.length > 0) {
-    deliveredAtNow = new Date().toISOString();
     const { error: updateError } = await supabase
       .from("qualifying_offers")
       .update({ delivered_at: deliveredAtNow })
@@ -327,6 +334,7 @@ async function loadOffersBySearchId(
       throw new Error(`Failed to mark offers delivered: ${updateError.message}`);
     }
   }
+  })();
 
   // Detail-view-only: linked-listing photos/in-transit, and ZIP distances.
   const listingDetailById = new Map<
@@ -334,7 +342,10 @@ async function loadOffersBySearchId(
     { photoUrls: string[]; inTransit: boolean; lat: number | null; lng: number | null }
   >();
   const coordByZip = new Map<string, { lat: number; lon: number }>();
-  if (detail) {
+  const detailP = (async () => {
+  if (!detail) return;
+  await Promise.all([
+  (async () => {
     const listingIds = [
       ...new Set((offers ?? []).map((o) => o.listing_id).filter((id): id is string => !!id)),
     ];
@@ -361,7 +372,8 @@ async function loadOffersBySearchId(
         });
       }
     }
-
+  })(),
+  (async () => {
     const zips = [
       ...new Set(
         [
@@ -382,7 +394,11 @@ async function loadOffersBySearchId(
         coordByZip.set(c.zip as string, { lat: c.latitude as number, lon: c.longitude as number });
       }
     }
-  }
+  })(),
+  ]);
+  })();
+
+  const [messagesByOfferId] = await Promise.all([messagesP, addonsP, progressP, deliveredP, detailP]);
 
   const mapLocationFor = (
     listingDetail: { lat: number | null; lng: number | null } | undefined,
@@ -509,36 +525,33 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
   // LEVRating Phase B -- created by the daily post-deal-survey cron, not
   // here. Existence of the row (not any local date math) is what unlocks
   // the /account prompt card, same 2-day trigger as the email.
-  const { data: surveys, error: surveysError } = await supabase
-    .from("post_deal_surveys")
-    .select("id, customer_search_id, submitted_at")
-    .in("customer_search_id", searchIds);
+  const makeModelBySearchId = new Map(
+    searches.map((s) => [s.id, { make: s.make, model: s.model, searchStatus: s.search_status as string }]),
+  );
+  // Independent of each other -- run together (2026-10-10).
+  const [
+    { data: surveys, error: surveysError },
+    offersBySearchId,
+    { data: configuratorSelectionRows, error: selectionsError },
+  ] = await Promise.all([
+    supabase.from("post_deal_surveys").select("id, customer_search_id, submitted_at").in("customer_search_id", searchIds),
+    loadOffersBySearchId(supabase, searchIds, makeModelBySearchId),
+    // Not paginated, unlike getOutreachQueue's equivalent read -- scoped to
+    // one customer's own searches, which never approaches the 1,000-row cap.
+    supabase
+      .from("search_option_selections")
+      .select(
+        "search_id, category, question_kind, selection, rank_position, excluded, package_name, package_price_cents, package_contents, price_unknown"
+      )
+      .in("search_id", searchIds)
+      .order("id"),
+  ]);
 
   if (surveysError) {
     throw new Error(`Failed to load post-deal surveys: ${surveysError.message}`);
   }
 
   const surveyBySearchId = new Map((surveys ?? []).map((s) => [s.customer_search_id, s]));
-
-  // Needed to resolve each offer's photo below -- vehicleColorImageUrl is
-  // keyed on make/model, which lives on the search, not the offer itself.
-  const makeModelBySearchId = new Map(
-    searches.map((s) => [s.id, { make: s.make, model: s.model, searchStatus: s.search_status as string }]),
-  );
-
-  const offersBySearchId = await loadOffersBySearchId(supabase, searchIds, makeModelBySearchId);
-
-  // Not paginated, unlike getOutreachQueue's equivalent read -- that one
-  // spans every active search across every customer and can realistically
-  // near PostgREST's 1,000-row cap; this is scoped to one customer's own
-  // searches, which never approaches that.
-  const { data: configuratorSelectionRows, error: selectionsError } = await supabase
-    .from("search_option_selections")
-    .select(
-      "search_id, category, question_kind, selection, rank_position, excluded, package_name, package_price_cents, package_contents, price_unknown"
-    )
-    .in("search_id", searchIds)
-    .order("id");
 
   if (selectionsError) {
     throw new Error(`Failed to load configurator selections: ${selectionsError.message}`);
@@ -664,24 +677,18 @@ export async function getDealDetails(searchId: string, customerId: string): Prom
   }
   if (!search) return null;
 
-  const { data: surveyRow, error: surveyError } = await supabase
-    .from("post_deal_surveys")
-    .select("id, submitted_at")
-    .eq("customer_search_id", searchId)
-    .maybeSingle();
+  // Independent lookups, run together (2026-10-10).
+  const [{ data: surveyRow, error: surveyError }, { data: customerRow }, { data: zipRow }] = await Promise.all([
+    supabase.from("post_deal_surveys").select("id, submitted_at").eq("customer_search_id", searchId).maybeSingle(),
+    supabase.from("customers").select("notify_by_email").eq("id", customerId).maybeSingle(),
+    search.zip
+      ? supabase.from("zip_coordinates").select("latitude, longitude").eq("zip", search.zip).maybeSingle()
+      : Promise.resolve({ data: null as { latitude: number; longitude: number } | null }),
+  ]);
 
   if (surveyError) {
     throw new Error(`Failed to load post-deal survey: ${surveyError.message}`);
   }
-
-  const { data: customerRow } = await supabase
-    .from("customers")
-    .select("notify_by_email")
-    .eq("id", customerId)
-    .maybeSingle();
-  const { data: zipRow } = search.zip
-    ? await supabase.from("zip_coordinates").select("latitude, longitude").eq("zip", search.zip).maybeSingle()
-    : { data: null };
   const customerLocation = zipRow ? { lat: zipRow.latitude as number, lng: zipRow.longitude as number } : null;
   const pickupTravel = travelFromColumns(
     search.pickup_travel_choice as string | null,

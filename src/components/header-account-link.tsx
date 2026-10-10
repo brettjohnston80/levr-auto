@@ -8,6 +8,7 @@ import { logout } from "@/lib/auth-actions";
 import { getMyUnreadThreadCount } from "@/lib/offer-message-actions";
 import { UNREAD_CHANGED_EVENT } from "@/components/unread-count-refresh";
 import { useSignedIn } from "@/lib/use-signed-in";
+import { SubmitButton } from "@/components/submit-button";
 
 // Header auth indicator. Reported by a tester: the header said "Log In"
 // even while they were signed in.
@@ -260,14 +261,14 @@ export function HeaderAccountLink({
           Account settings
         </Link>
         <form action={logout}>
-          <button
-            type="submit"
+          <SubmitButton
             role="menuitem"
             onClick={handleSelect}
             className="block w-full px-4 py-2 text-left text-sm text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
+            pendingLabel="Logging out…"
           >
             Log out
-          </button>
+          </SubmitButton>
         </form>
       </div>
     </div>

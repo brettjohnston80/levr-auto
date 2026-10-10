@@ -45,3 +45,23 @@
     font-size: max(16px, 1em);
   }
 }
+
+/*
+ * Pressed state on every tap and click (Brett's walkthrough note 13,
+ * 2026-10-10): buttons and option tiles shrink slightly, links dim, the
+ * moment they're pressed, on phones and desktop. Disabled controls don't
+ * react. Unlayered so it applies over Tailwind's utilities; :where keeps
+ * specificity at zero. transform (not the `scale` property) so it composes
+ * with Tailwind v4's own translate/scale/rotate properties. No transition:
+ * the feedback has to be immediate.
+ */
+:where(button, [role="button"], summary, input[type="submit"], input[type="button"]):not(:disabled):active {
+  transform: scale(0.97);
+}
+:where(a, label:has(input:not(:disabled))):active {
+  opacity: 0.7;
+}
+/* iOS's grey tap flash would double up with the states above. */
+:where(a, button, [role="button"], label, summary) {
+  -webkit-tap-highlight-color: transparent;
+}

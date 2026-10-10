@@ -58,6 +58,7 @@ export function OfferDetailModal({
   isBestValue,
   anotherOfferAccepted,
   onClose,
+  onResponded,
 }: {
   offer: DashboardOffer;
   make: string | null;
@@ -65,6 +66,9 @@ export function OfferDetailModal({
   isBestValue: boolean;
   anotherOfferAccepted: boolean;
   onClose: () => void;
+  /** Tells the card behind the modal, so it shows the result straight away
+   *  instead of an active Decline until the refresh lands (2026-10-10). */
+  onResponded?: (response: "accepted" | "declined") => void;
 }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -120,6 +124,7 @@ export function OfferDetailModal({
       setError(res.error ?? "Something went wrong.");
       return;
     }
+    onResponded?.(response);
     onClose();
     router.refresh();
   }
@@ -280,7 +285,7 @@ export function OfferDetailModal({
                     <div className="mt-2">
                       <HandoffChoice value={offer.handoffMethod} onChange={saveHandoff} disabled={handoffSaving} />
                     </div>
-                    <p className="mt-2 text-xs text-zinc-500">{HANDOFF_HELPER}</p>
+                    <p className="mt-2 text-xs text-zinc-500">{handoffSaving ? "Saving…" : HANDOFF_HELPER}</p>
                     {handoffError && <p className="mt-1 text-xs text-red-400">{handoffError}</p>}
                   </div>
                 )}

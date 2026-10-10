@@ -1,3 +1,5 @@
+import { revalidateTag } from "next/cache";
+import { LIVE_VEHICLE_ROWS_TAG } from "@/lib/intake-vehicle-options";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { NextRequest, NextResponse } from "next/server";
@@ -213,6 +215,8 @@ export async function POST(req: NextRequest) {
       );
     }
     promoted = true;
+    // Intake/account dropdowns cache the live rows (intake-vehicle-options).
+    revalidateTag(LIVE_VEHICLE_ROWS_TAG, "max");
   }
 
   return NextResponse.json({

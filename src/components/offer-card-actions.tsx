@@ -47,6 +47,10 @@ export function OfferCardActions({
   const router = useRouter();
   const [open, setOpen] = useState(initiallyOpen);
   const [declining, setDeclining] = useState(false);
+  // Set the moment a response succeeds (here or in the detail modal), so the
+  // card shows it immediately and Accept/Decline can't be clicked again
+  // before the refresh lands (2026-10-10; the follow-up from the journey test).
+  const [responded, setResponded] = useState<"accepted" | "declined" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const close = useCallback(() => setOpen(false), []);
   const isClient = useIsClient();
@@ -71,6 +75,7 @@ export function OfferCardActions({
       setError(res.error ?? "Something went wrong.");
       return;
     }
+    setResponded("declined");
     router.refresh();
   }
 
@@ -104,7 +109,12 @@ export function OfferCardActions({
         </div>
       )}
 
-      {isPending && (
+      {isPending && responded && (
+        <p className="mt-3 text-sm font-semibold text-zinc-300">
+          {responded === "declined" ? "Declined" : "Accepted"}
+        </p>
+      )}
+      {isPending && !responded && (
         <div className="mt-3">
           {anotherOfferAccepted && (
             <p className="mb-2 text-xs text-zinc-500">You&apos;ve already accepted another offer on this search.</p>
@@ -140,6 +150,7 @@ export function OfferCardActions({
           isBestValue={isBestValue}
           anotherOfferAccepted={anotherOfferAccepted}
           onClose={close}
+          onResponded={setResponded}
         />
       )}
     </div>

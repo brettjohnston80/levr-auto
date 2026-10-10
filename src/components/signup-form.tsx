@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { signup } from "@/lib/auth-actions";
 import { PASSWORD_REQUIREMENTS, passwordProblem } from "@/lib/password-rules";
+import { SubmitButton } from "@/components/submit-button";
 
 // Extracted from /signup so a client-side password-confirmation check can
 // run before the native form submission -- the signup Server Action itself
@@ -85,12 +86,9 @@ export function SignupForm() {
         />
       </label>
 
-      <button
-        type="submit"
-        className="w-full rounded-full bg-emerald-500 px-6 py-3 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400"
-      >
+      <SubmitButton className="w-full rounded-full bg-emerald-500 px-6 py-3 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400" pendingLabel="Signing up…">
         Sign Up
-      </button>
+      </SubmitButton>
     </form>
   );
 }
