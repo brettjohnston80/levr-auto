@@ -43,82 +43,58 @@ This file exists so any Claude Code session (yours, your collaborator's, or a fu
   - **⚠ THE ONE QUERY IT DOES CONTAMINATE: a bare `select count(*) from customers`.** There is **no `is_test` flag anywhere in this schema** — confirmed by grep, no such column and no naming convention checked in code — so nothing excludes it automatically. **Any future "how many real customers do we have" check must subtract it** (or filter `email not like '%@levrauto.invalid'`). Searches, paid searches and payments are all unaffected, so the pre-launch "zero real money has moved" checks stay valid as-is: at the time of writing `customers = 3` (Brett's two accounts plus this one) while `customer_searches = 0`, `paid searches = 0` and `payments = 0`.
   - **Discipline when Brett uses it himself:** create whatever searches/rows a verification needs, then delete them afterwards and confirm by count. Leave the account itself in place — it is meant to persist. If a proper `is_test` flag is ever wanted, that is a migration plus edits to each enumeration surface, and should be its own reviewed change rather than a column nothing reads.
 
-## ⚠ IN-FLIGHT STATE — read before doing anything (updated 2026-10-01)
+## ⚠ IN-FLIGHT STATE — read before doing anything (updated 2026-10-10)
 
 A snapshot of work that is mid-flight right now. Verify against `git log`/`git status` before acting on it, and rewrite this section once these items are resolved. **Nothing gets pushed without Brett's sign-off.**
 
-### ⏸ PAUSED 2026-09-30: start here
+### Start here (2026-10-10)
 
-**1. Production journey test: at the post-deal survey step.** Marked purchased 2026-10-01 02:56 UTC; `purchased_at` moved back 49h to 2026-09-29T01:56:41Z. Waiting on the 12:00 UTC post-deal-survey cron (or Brett's `curl`). Steps 1 and 2 below are done; 3–5 remain.
-- **Test account:** `emailtest@levrauto.com` (a Zoho alias on Brett's mailbox, a real address, so emails really send). Customer id `72a3252a-32a0-444e-b177-7a3129edd077`.
-- **Live search:** `1a02ccad-9ea9-48b7-ab91-4dfc3ff05fa7`, a Toyota Camry 2026 SE at ZIP 67212. Paid with Stripe's **test** card: `payments` row `search_fee`, `pi_3ULQXj…`. Went live 2026-09-30 17:00:45 UTC.
-- **Its offers:** "tester" $31,000 against a $35,000 sticker, accepted with pickup, availability and a $500 deposit confirmed. Stevenson-hendrick $42,519, declined.
-- **Its messages:** 2 offer-thread and 2 general-thread messages.
-- **⚠ This account and its searches stay in place on purpose until the test finishes. No automated cleanup, sweep or verification may touch them**, and none of its data is to be reused for other checks.
-- **Remaining steps, in order:**
-  1. Brett marks the search purchased on `/internal/outreach`. Expect the "Congratulations on your new Toyota Camry!" email; Your Deal shows the celebration and "Guarantee delivered September 30, 2026."
-  2. Move `purchased_at` back 49 hours, then let the 12:00 UTC post-deal-survey job send "How was your experience?" (or Brett triggers it with `curl` and the production `CRON_SECRET`). Don't run the survey job locally: it covers every customer.
-  3. Brett submits the survey; check it's saved and locked.
-  4. Full cleanup, confirmed by count. Delete the account and everything on it: all 3 searches, including the two extra **unpaid** ones (`0a6f801f-d20b-446c-8eb4-84c87f4a764e`, `7be58963-0c7e-4405-a92f-c0efa04d0429`); offers, deal progress, messages, the general thread, notification events, the payment row, the survey, and any new dealer-alias row. Delete the auth user, and confirm everything is at 0.
-  5. Delete the unsent PandaDoc draft from the sandbox workspace (Brett, in PandaDoc).
-- **Confirmed by the test so far:** sign-up email, test-mode Stripe payment, `www` Stripe webhook delivery, finalize, the call-request agent email, the hourly job starting the search, new-offer highlight emails, messages both ways with no per-reply emails, two scoped daily updates (conversation links, then receipts), availability and deposit highlight emails.
-- **Found by the test:**
-  - intake loses a customer who confirms their email elsewhere (the sign-up-to-payment fix below);
-  - each intake save creates another unpaid search;
-  - Decline can be clicked again after it succeeds;
-  - an offer can be logged above sticker by mistake;
-  - Stripe sends no receipt in test mode;
-  - the PandaDoc key is sandbox.
+**1. Production journey test: FINISHED and cleaned up (2026-10-10).**
+- Ran end to end on production with `emailtest@levrauto.com` (test-mode Stripe): sign-up, payment, `www` webhook, finalize, call-request agent email, search going live, offers, messages, daily updates, highlight emails, mark purchased, post-deal survey.
+- Survey submitted by Brett 2026-10-10 01:55 UTC: saved with his answers and locked (the submit action refuses an already-submitted survey, its write is guarded on `submitted_at`, the page shows "Already submitted").
+- **Full cleanup done, every count confirmed 0 by saved id:** auth user, customer row, all 4 searches (two unpaid, the purchased Camry, and Brett's own unpaid BMW 3 Series test), 2 offers, deal progress, 4 messages, the general thread, 7 notification events, the test-mode payment row, the survey, the purchase log, option selections and trim preference, the "tester" dealer alias the survey job created, and a **draft "Deal of the Week" social post** the Sunday 2026-10-04 batch had generated from the test deal (never approved or posted). The address is free again: **Brett is reusing `emailtest@levrauto.com` for his phone sign-up test of the sign-up-to-payment fix.**
+- **Still Brett's:** delete the unsent PandaDoc draft from the sandbox workspace.
+- **Found by the test, now follow-ups (item 5):** Decline can be clicked again; an offer can be logged above sticker; Stripe sends no receipt in test mode; the PandaDoc key is sandbox; the social selectors treat any non-test-domain account as real (the journey test reached a Deal of the Week draft).
 
-**2. Pop-up fix and fuel gauge: PUSHED AND LIVE 2026-10-01 (Brett's call to ship ahead of the journey test's end).**
-- Pushed `fd0ab35..18d8cb9`: `c137170` sign-up pop-up (pinned to the screen, scroll lock, focus handling), `9ebc989` pickup-range fuel gauge with the "any distance" (`unlimited`) choice, `35aa88c` this file's pause notes, `50e7990` the sign-up-to-payment plan, `18d8cb9` the gauge's case-by-case button raised to a 44px minimum height (found during the checks).
-- Production deploy `levr-auto-ot897imxv` (built from `18d8cb9`) is Ready and aliased to www.levrauto.com.
-- Its migration `20260930120000_pickup_travel_unlimited.sql` was already run in production beforehand.
-- **Checked before pushing**, on 127.0.0.1 with disposable accounts (deleted after): the gauge on intake, Your Deal's prompt and Change control, and the agent's undecided form; tap, drag, keyboard and "any distance" saving; both components at 390px and 360px (same-origin iframe method); the pop-up's position, focus, Escape and scroll lock.
-- **Left to Brett:** a real trackpad/mouse-wheel check on the live pop-up (the test tool's scroll moves the page by script, so it can't prove the scroll lock against real wheel input).
-- **Gauge default, PUSHED AND LIVE 2026-10-01 (`b872c98`, deploy `levr-auto-dbos6tqzl`, Ready).** Brett's call: on homepage intake and Your Deal's no-answer prompt the needle starts at 100 miles (`PICKUP_TRAVEL_DEFAULT`) and counts as the answer if left. Your Deal's prompt gained a "Save" button (approved) that stores whatever the needle shows; tapping a stop still saves at once. The agent's undecided form keeps no default and is the only place showing "Drag or tap to choose". Checked desktop + 390/360px on disposable accounts.
+**2. Shipped 2026-10-01 (all live):** sign-up pop-up fix (`c137170`), pickup-range fuel gauge (`9ebc989`, `18d8cb9`) with the 100-mile default and Your Deal "Save" button (`b872c98`), and the sign-up-to-payment fix (item 3). Brett still to do: a real trackpad scroll check on the live pop-up.
 
-**3. Sign-up-to-payment fix: PUSHED 2026-10-01 (Brett's go-ahead). Reminders built but OFF.**
-- **Plan, approved wording and SQL:** `docs/plans/signup-to-payment-plan.md`.
-- **Commits pushed:** `0aeb5e6` core build, `7889eb7` guarantee start-point wording, `932756b` migration file + notes, `eeaf40e` reminders job + unsubscribe + "Not paid yet" badge, and this CLAUDE.md update.
-- **What shipped** (all checked on 127.0.0.1 with disposable accounts, deleted after):
-  - `src/lib/unpaid-search.ts` (server-only): the ONE place an unpaid search is saved or edited. Reuses the customer's latest unpaid row instead of inserting. Types live in `src/lib/intake-choices.ts`. **⚠ A `"use server"` file must not re-export types** (`export type { X }` of an imported type): Next treats it as a server action and the save crashed at runtime with "MatchmakerContext is not defined". tsc doesn't catch it.
-  - Intake (signed in) and undecided intake save through it and land on `/account/vehicle?searchId=…`. No automatic Stripe redirect anywhere.
-  - Pop-up sign-up (`signupInline`) saves the search for the NEW account only (an existing email's stand-in user is ignored) and shows "We've saved your search…". **Not verified end to end by Claude** (a `.invalid` address can't receive the confirmation email). **Brett is doing the real-inbox sign-up on his phone in his walkthrough.**
-  - Your Car "Review your search" (`src/components/review-and-pay.tsx`), `/account` "Finish starting your search" card, unpaid line + "Review and pay", older duplicate unpaid rows hidden, badge "Not paid yet".
-  - Payment required on the server for every finalize and call-request action.
-  - Admin "Unpaid (checkout not completed)" filter (unpaid hidden from All), "unpaid" in agent lookups and on general-thread activity.
-  - Guarantee wording: "within 30 days of your search going live" everywhere in the plan's table.
-- **Reminders (built, OFF in production):** `src/lib/unpaid-reminders.ts`, hourly cron `/api/cron/unpaid-reminders` at :30, `/unsubscribe` page + `POST /api/unsubscribe` (one-click), signed with `UNSUBSCRIBE_SECRET` (`src/lib/unsubscribe-token.ts`), `List-Unsubscribe` headers via `sendEmail`'s new `headers` (ZeptoMail `mime_headers`).
-  - Sends nothing while **`REMINDER_MAILING_ADDRESS`** or **`UNSUBSCRIBE_SECRET`** is unset. **Neither is set in Vercel Production** (checked 2026-10-01; earlier notes saying `UNSUBSCRIBE_SECRET` was set were wrong).
-  - Eligible: the latest unpaid search per customer, created after `UNPAID_REMINDERS_CUTOFF` (2026-10-01T04:00Z), confirmed non-test address (from auth, not `customers.email`), no paid search, not unsubscribed. Reminder 1 at 24–72h, reminder 2 at 72h–7 days (not two within 24h). Payment re-checked before each send; stamped after a successful send.
-  - Checked: timing rules (8 cases), all four email variants' text, skip while either secret is unset, signed-link tampering/expiry by secret change, cron 401 without auth, bad unsubscribe link shows the approved invalid-link copy.
-  - **⚠ NOT yet checked: the job's database path and the unsubscribe write**, because **the migration had not landed** when checked (2026-10-01 03:48–03:55 UTC: Postgres reported `unpaid_reminder_1_sent_at` and `unpaid_reminders_unsubscribed_at` don't exist). Production is safe meanwhile: only `unpaid-reminders.ts` reads those columns, and both its entry points stop before the database while the secret/address are unset.
-- **To finish before turning reminders on:**
-  1. Brett re-runs `supabase/migrations/20261001120000_unpaid_reminders.sql` in project `couiovhducwytlckfgvo`; confirm from the app's side.
-  2. Verify the job scoped to a disposable customer (`sendUnpaidReminders({ onlyCustomerIds, allowTestAddressesForVerification: true, now })` with a throwaway secret and a clearly-fake address only in the script's process; sendEmail suppresses `.invalid`), plus a real unsubscribe write.
-  3. Brett sets `UNSUBSCRIBE_SECRET` (`openssl rand -hex 32 | vercel env add UNSUBSCRIBE_SECRET production`, never pasted) and a real `REMINDER_MAILING_ADDRESS`, then redeploys.
-  4. CLAUDE.md "Current state": the real-customer rule (= a paid search), the new flow, one unpaid search per customer.
-- **⚠ REMINDER_MAILING_ADDRESS** must be a real postal address (PO box, virtual mailbox or registered agent). No test or made-up address in real email.
+**3. Sign-up-to-payment fix: LIVE since 2026-10-01. Reminders built, tested, OFF until `REMINDER_MAILING_ADDRESS` is set.**
+- Plan, approved wording and SQL: `docs/plans/signup-to-payment-plan.md`.
+- What it does: the search is saved on the server at sign-up (new accounts only), one unpaid search per customer (`src/lib/unpaid-search.ts`, types in `src/lib/intake-choices.ts`), "Review your search" in Your Car, `/account` "Finish starting your search" card and "Not paid yet" line/badge, payment required on the server for every finalize and call-request action, admin "Unpaid (checkout not completed)" filter, "unpaid" in agent lookups and on general-thread activity, guarantee wording "within 30 days of your search going live" everywhere.
+- **⚠ A `"use server"` file must not re-export types** (`export type { X }` of an imported type): Next treats it as a server action and the save crashed at runtime. tsc doesn't catch it.
+- **Not yet verified end to end: the pop-up sign-up itself** (a `.invalid` address can't receive the confirmation email). Brett is testing it on his phone with `emailtest@levrauto.com`: sign up in the pop-up, confirm on another device, land on "Finish starting your search", pay from Your Car.
+- **Reminders:** `src/lib/unpaid-reminders.ts`, hourly cron `/api/cron/unpaid-reminders` at :30, `/unsubscribe` page + `POST /api/unsubscribe` (one-click, RFC 8058), signed with `UNSUBSCRIBE_SECRET` (`src/lib/unsubscribe-token.ts`), `List-Unsubscribe` headers via `sendEmail`'s `headers` (ZeptoMail `mime_headers`).
+  - Migration `20261001120000_unpaid_reminders.sql`: **run by Brett, confirmed from the app 2026-10-10** (all three columns present). `UNSUBSCRIBE_SECRET` is **set in Production** (2026-10-10; the deploy after that picks it up). `REMINDER_MAILING_ADDRESS` is **not set**, so the job sends nothing.
+  - Wording and timing limits **approved by Brett 2026-10-10 as written**, including the undecided wording ("Still want help with your LEVR Auto search?" / "You started your LEVR Auto search but haven't paid yet.") and the windows (reminder 1 at 24–72h, reminder 2 at 72h–7 days, never two within 24h).
+  - Eligible: the latest unpaid search per customer, created after `UNPAID_REMINDERS_CUTOFF` (2026-10-01T04:00Z), confirmed non-test address (from auth, not `customers.email`), no paid search, not unsubscribed. Payment re-checked before each send; stamped after a successful send.
+  - **Verified 2026-10-10 against the real database** with 6 throwaway accounts (deleted, counts 0), a throwaway secret and a clearly fake address in the script's process only, every send suppressed: nothing before 24h; test addresses skipped unless the verification flag is on; at 25h reminder 1 only to eligible customers (paid, unsubscribed and unconfirmed all skipped; the older duplicate untouched); no repeats; a real signed token unsubscribed a customer (idempotent) and the job then skipped them; reminder 2 at 73h; nothing at 80h. Also: cron 401 without auth, bad unsubscribe link shows the approved invalid-link copy.
+  - **To turn reminders on:** Brett sets a real `REMINDER_MAILING_ADDRESS` (PO box, virtual mailbox or registered agent; never a test or made-up address) and redeploys.
 
-**4. Decisions pending (Brett):**
+**4. Clock-skew fix: Supabase "JWT issued at future" now retried (2026-10-10).**
+- It failed the 13:00 daily update on 2026-09-28, 10-02, 10-03 and 10-05 and the hourly solidify job on 10-01, always at the up-front load before any customer was processed. Nothing was sent or stamped, so later runs caught up, but it was a pattern, not a one-off.
+- Fix in `src/lib/supabase/admin.ts`: the service-role client's fetch retries exactly that rejection after 1s, 2s and 4s (safe for every method: the rejected request did nothing); anything else returns untouched. Covers every job and server path using `createAdminClient`. Per-item failures were already isolated in each job's `errors` list (daily update per customer, Day-30, solidify, etc.).
+- Verified: fake-fetch unit cases (skew twice then success; other 401 not retried; gives up after 3 retries; a 200 containing the phrase untouched), the real `sendNotificationDigests` with two injected skew rejections completed cleanly (scoped to a nonexistent customer id, so nothing sent or written), and a control client without the retry failed with the exact production error.
+
+**5. Decisions pending (Brett):**
 - **E-sign provider.** The PandaDoc key is confirmed **sandbox** (403 on sending outside the organization), so customer e-signing doesn't work in production. SignWell is recommended: first 25 documents a month free, then $0.85 each, in-page signing and webhooks included. Switching is about a day across 4 files, with no migration. Alternatives: Dropbox Sign $75/mo, DocuSign (in-page signing only from $480/mo), or a PandaDoc production quote.
-- **A real mailing address for the reminder emails:** a PO box, virtual mailbox or registered-agent address. No test or made-up address goes into real email.
+- **A real mailing address for the reminder emails** (see item 3).
 
-**5. Follow-ups (not started):**
+**6. Follow-ups (not started), roughly in priority order:**
+- Stripe live-mode switch: live keys, a live-mode webhook at the `www` URL, the "Successful payments" receipts setting, and a real payment and refund verified end to end (see the launch item under "Pre-launch to-dos").
+- **Deal of the Week caption bug (found 2026-10-10):** the draft generated from the journey test said "2024 Toyota Camry SE" for a 2026 search, and "MSRP" where approved wording says Total SRP. Check where the year comes from in `social-generation.ts`'s deal source and the captions prompt. Separately: the testimonial/deal selectors only exclude `@levrauto-test.invalid` accounts, so any real-address test account (like `emailtest@levrauto.com`) can be picked.
 - Decline button fix: disable after the first click and show "Declined" straight away (details below).
 - A warning in the agent's Log Offer form when the price is above the sticker. In the journey test a listing's pre-filled price was saved above a hand-typed sticker by mistake.
 - Customer name shown prominently on agent cards, or a "Log offer for {name}?" confirmation (details below).
 - "Which deal?" picker labels (trim and/or status).
+- Undecided searches show a blank vehicle name ("— unpaid") in the agent customer lookups.
 - Cleanup migration dropping `qualifying_offers.message_email_sent_at` and `customers.communication_frequency`.
-- The daily-update run shouldn't abort for everyone on one failed query; retry or skip per customer.
 - The header still shows "Log In" after logging in through the intake pop-up, until the next page load.
+- Articles: approved articles can't be edited from `/internal/articles`, and approving keeps no version history (details below).
 - An automated end-to-end journey test, once Preview and Production have separate databases.
-- Stripe live-mode switch: live keys, a live-mode webhook at the `www` URL, the "Successful payments" receipts setting, and a real payment and refund verified end to end (see the launch item under "Pre-launch to-dos").
 
 ---
 
-**Last pushed state.** `origin/main` is at `18d8cb9` and later (see item 2 above; the pop-up fix and fuel gauge deployed 2026-10-01). Before that, the last code deploy was `00f6c20` on 2026-09-28. Details from before the pause follow.
+**Last pushed state.** See `git log origin/main`: everything through the 2026-10-10 clock-skew fix and this update is pushed. Code deploys 2026-10-01 (`2efec3e`) and 2026-10-10. Before that, `00f6c20` on 2026-09-28. Older details follow.
 
 **Deployed 2026-09-28 (`00f6c20`).** Vercel built it successfully and it's aliased to www.levrauto.com. The latest work was:
 - `2b01ab2` Day-30 guarantee check skips cancelled searches
@@ -131,7 +107,7 @@ A snapshot of work that is mid-flight right now. Verify against `git log`/`git s
 
 The earlier feature work deployed at `3e59c50` (2026-09-26): `ca0c3d0` offer message threads, `e1596c6` pickup/delivery, `27ab440` agent-message email (since replaced by the daily update), `66ffed7` List | Map view.
 
-Every migration is applied, through `20260930120000_pickup_travel_unlimited.sql` (run early on 2026-09-30; its code shipped in `9ebc989`, deployed 2026-10-01).
+Every migration is applied, through `20261001120000_unpaid_reminders.sql` (run by Brett, confirmed from the app 2026-10-10).
 
 **⚠ Production keys were missing until 2026-09-27 (found during the real-inbox test).** `ZEPTOMAIL_API_KEY`/`ZEPTOMAIL_FROM_EMAIL`, `ANTHROPIC_API_KEY` and `PANDADOC_API_KEY` existed only in `.env.local`, never in Vercel Production. So in production every app-sent email failed before reaching ZeptoMail (new-offer and other notifications, Day-60/resume reminders, auto-renew confirmations, post-deal surveys, agent call alerts, article reminders; Supabase auth emails were unaffected), and AI offer parsing, article/social generation and PandaDoc e-sign could not have worked. Brett set all of them on 2026-09-27 and production was redeployed (`levr-auto-45pe0zjfz`, Ready). `ZEPTOMAIL_FROM_NAME` is unset everywhere, so the code default "LEVR Auto" is used.
 - Lesson: after adding a Vercel variable, a redeploy is needed, and a page loaded before the redeploy keeps sending its form submissions (server actions) to the OLD deployment. Reload before re-testing. Compare `.env.local` names against `vercel env ls production` when anything works locally but not in production; the `VERCEL_*`, `TURBO_*` and `NX_DAEMON` names in `.env.local` came from `vercel env pull` and are supplied by Vercel itself.
@@ -142,7 +118,7 @@ Every migration is applied, through `20260930120000_pickup_travel_unlimited.sql`
   - The 2026-09-29 run caught up: one daily update, to the review account, suppressed as a test address.
   - The 2026-09-30 run had nothing to send.
   - No other production errors since the key fix. So far only test accounts have had agent replies, so no real customer has received a daily update yet.
-  - Possible hardening, not done: one failed query aborts the whole run for everyone; it could retry or skip per customer.
+  - **Fixed 2026-10-10** after it recurred (10-02, 10-03, 10-05): the admin client now retries the clock-skew rejection (in-flight item 4).
 - **Check whether `PANDADOC_API_KEY` in production is a sandbox or production PandaDoc key:** to be learned from the journey test (a watermarked document means sandbox). See the PandaDoc launch item under "Pre-launch to-dos"; `PANDADOC_WEBHOOK_SECRET` is intentionally unset.
 
 **Follow-up (not started):** on `/internal/outreach` search cards, show the customer's name more prominently, or confirm "Log offer for {name}?" before saving. During the real-inbox test an offer was logged on the wrong one of five identical-looking Toyota Camry cards (it landed on tester3's search and had to be deleted). The page is agent-facing, but the confirm wording still needs Brett's OK.
@@ -168,7 +144,7 @@ Every migration is applied, through `20260930120000_pickup_travel_unlimited.sql`
    - Migration `20260927120000_drop_retired_note_and_delivery_columns.sql` ran in `couiovhducwytlckfgvo`; the file is committed as `72e08e2`.
    - It dropped `qualifying_offers.customer_note`, `customer_note_updated_at` and their length constraint, plus `deal_progress.delivery_method`.
    - Confirmed from the app's side: all three columns return 42703.
-   - **The backup table `public._backup_20260927_retired_columns` still exists**, holding 3 rows: the review account's note, and tester5's and tester7's delivery answers. **Brett drops it himself around 2026-10-04** (`drop table public._backup_20260927_retired_columns;`). Don't drop it or write to it.
+   - The backup table `public._backup_20260927_retired_columns` was **dropped by Brett, confirmed gone from the app 2026-10-10** (PostgREST returns PGRST205, same as a nonexistent table).
 
 2. **Real-world checks:**
    - **Phone map check: DONE (2026-09-27).** Brett set the production Mapbox token in Vercel (restricted to `levrauto.com`), redeployed, and confirmed the map works on his phone.
@@ -568,6 +544,8 @@ Legal entity: **LEVR Holdings LLC** (Kansas). Public brand: **LEVR Auto**.
 Full business logic lives in `LEVR-Auto-Core-Processes-v1.md` and `LEVR-Auto-Business-Plan-and-Roadmap.md` in this repo — read those for anything not covered here.
 
 ## Current state (updated 2026-08-18 — keep this current, it's the first thing read each session)
+
+- **Rules since the sign-up-to-payment fix (2026-10-01):** a **real customer = a customer with a paid search** (`paid_at` set); unpaid searches stay out of syncs, agent queues, guarantee jobs and counts. **One unpaid search per customer:** every save goes through `src/lib/unpaid-search.ts`, which reuses the latest unpaid row (older duplicates from before the fix are left in the database but never shown). **Flow:** intake or pop-up sign-up saves the unpaid search → "Review your search" in Your Car (`/account/vehicle`) → "Continue to payment — $699" → Stripe → finalize. Payment is required on the server before finalizing or requesting a call. Details: the in-flight section, item 3, and `docs/plans/signup-to-payment-plan.md`.
 
 - **Live site:** levrauto.com (Next.js + Tailwind, deployed on Vercel, GitHub repo `brettjohnston80/levr-auto`)
 - **Built and live:**
