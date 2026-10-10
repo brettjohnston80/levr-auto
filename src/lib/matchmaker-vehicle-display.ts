@@ -44,7 +44,7 @@ export type MatchmakerVehicle = {
   horsepower: number | null;
   zeroToSixtySec: number | null;
   // Added 2026-09-02 for the full always-visible indicator list (see
-  // matchmaker-full-indicator-list-plan-2026-09-02.md) -- each backs one
+  // docs/plans/matchmaker-full-indicator-list-plan-2026-09-02.md) -- each backs one
   // dimension's data-point text in dimensionDataPoint(). All four were
   // already real columns on `vehicles` (confirmed by reading the
   // migration directly), just never threaded through to this client type

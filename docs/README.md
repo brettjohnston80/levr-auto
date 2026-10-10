@@ -9,4 +9,4 @@ Where things live in this repo:
 
 `CLAUDE.md` (repo root) is the working context for Claude Code sessions: current state, in-flight work and rules.
 
-Some older documents still sit at the repo root (e.g. `LEVR-Auto-Business-Plan-and-Roadmap.md`, `LEVR-Auto-Core-Processes-v1.md`) and older research notes sit in `data/`. New documents go in the folders above.
+A few older build plans still sit at the repo root (`plan.md`, `articles-phase2-plan.md`, `social-posts-plan.md`, `matchmaker-data-spec.md`). New documents go in the folders above.

@@ -989,7 +989,7 @@ function QuestionPanel({
 
 // Full always-visible ranking-indicator list (Step H3, replacing the
 // Step E compact dot/abbreviation row entirely -- approved 2026-09-02,
-// see data/matchmaker-full-indicator-list-plan-2026-09-02.md). No more
+// see docs/plans/matchmaker-full-indicator-list-plan-2026-09-02.md). No more
 // compact/expandable toggle: every card shows all `limit` top-ranked
 // priorities as their own row, each with a real per-dimension data point
 // (dimensionDataPoint()) alongside the same colored Excellent/Good/Below
@@ -1051,7 +1051,7 @@ function DimensionDetailList({
 
 // One card per MODEL (make + model), not per trim row -- results-card
 // redesign approved 2026-09-02 (see
-// data/matchmaker-duplicate-investigation-and-grouping-plan-2026-09-02.md,
+// docs/plans/matchmaker-duplicate-investigation-and-grouping-plan-2026-09-02.md,
 // Part 2). Price/rationale/badges/action buttons always operate on
 // whichever trim is currently "active" within the card: group.headline
 // (the highest scorer) by default, or whatever the customer picked from
@@ -1322,7 +1322,7 @@ type AlternativeCard = { powertrain: Powertrain; label: string; group: ModelGrou
 type YearAlternativeCard = { year: number; label: string; group: ModelGroup };
 
 // Comparison view (Step B, approved plan 2026-09-02, see
-// data/matchmaker-comparison-view-plan-2026-09-02.md) -- one flagged
+// docs/plans/matchmaker-comparison-view-plan-2026-09-02.md) -- one flagged
 // MODEL GROUP, capped at 5 at a time (FLAG_CAP in Matchmaker()). `make`/
 // `model` are stored directly (not parsed back out of `flagKey`) so a
 // later comparison view can resolve "which model is this" without any

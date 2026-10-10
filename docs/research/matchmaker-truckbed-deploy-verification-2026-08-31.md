@@ -9,7 +9,7 @@
 Staged only the files actually touched by this round of work — left your untracked `.numbers` files alone:
 
 ```
-git add data/matchmaker_scoring_pipeline.py data/matchmaker-vehicle-dataset-2026-v19-scored-truckbed.csv data/matchmaker-truckbed-cargo-verification-2026-08-31.md
+git add data/matchmaker_scoring_pipeline.py data/matchmaker-vehicle-dataset-2026-v19-scored-truckbed.csv docs/research/matchmaker-truckbed-cargo-verification-2026-08-31.md
 ```
 
 Commit:

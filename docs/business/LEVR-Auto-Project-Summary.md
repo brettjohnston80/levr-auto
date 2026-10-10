@@ -2,7 +2,7 @@
 
 *Paste this into a new chat to pick up where we left off. The four detailed docs already created still exist and can be re-uploaded for full fidelity if needed — this is the compact version.*
 
-**Superseded, kept for historical reference only:** this was an early one-time snapshot. `LEVR-Auto-Business-Plan-and-Roadmap.md` and `CLAUDE.md` are now the actively maintained sources of truth for current status — treat everything below as a point-in-time snapshot, not current. Pricing below was corrected Aug 17, 2026 to match the flat $699 model; other sections are not being kept in sync going forward.
+**Superseded, kept for historical reference only:** this was an early one-time snapshot. `docs/business/LEVR-Auto-Business-Plan-and-Roadmap.md` and `CLAUDE.md` are now the actively maintained sources of truth for current status — treat everything below as a point-in-time snapshot, not current. Pricing below was corrected Aug 17, 2026 to match the flat $699 model; other sections are not being kept in sync going forward.
 
 ---
 
@@ -67,10 +67,10 @@
 
 ## Documents Already Created
 
-1. **LEVR-Auto-Core-Processes-v1.md** — guarantee, pricing, switching policy, full operational workflow, dealer outreach email template
-2. **LEVR-Auto-Website-Copy-v1.md** — landing page + FAQ
-3. **LEVR-Auto-Developer-Brief-v1.md** — pages, data model, integrations, build order *(created before some later details — may need a refresh pass to match the Core Processes doc)*
-4. **LEVR-Auto-Dealer-Agreement-v1.md** — itemization rules, no hidden fees, offer revocation, buyer confidentiality, quality standards
+1. **docs/business/LEVR-Auto-Core-Processes-v1.md** — guarantee, pricing, switching policy, full operational workflow, dealer outreach email template
+2. **docs/business/LEVR-Auto-Website-Copy-v1.md** — landing page + FAQ
+3. **docs/business/LEVR-Auto-Developer-Brief-v1.md** — pages, data model, integrations, build order *(created before some later details — may need a refresh pass to match the Core Processes doc)*
+4. **docs/business/LEVR-Auto-Dealer-Agreement-v1.md** — itemization rules, no hidden fees, offer revocation, buyer confidentiality, quality standards
 
 ## Genuinely Open — Needs Real-World Action, Not More Planning
 

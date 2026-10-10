@@ -3,7 +3,7 @@ import { formatPriceEstimate, type MatchmakerVehicle } from "./matchmaker-vehicl
 
 // Ranking-indicator (Green/Yellow/Red/Gray) logic, part of the
 // results-card redesign approved 2026-09-02 (see
-// data/matchmaker-duplicate-investigation-and-grouping-plan-2026-09-02.md,
+// docs/plans/matchmaker-duplicate-investigation-and-grouping-plan-2026-09-02.md,
 // Part 3, "Step C"). Pure functions, no UI here -- consumed by both the
 // compact card indicator row (top 5) and the detail modal's full
 // breakdown (all 9), so ordering logic lives in exactly one place.
@@ -181,7 +181,7 @@ export const DIMENSION_ABBREVIATION: Record<string, string> = {
 };
 
 // Comfort's phrase-per-level lookup -- locked wording (approved
-// 2026-09-02, see matchmaker-full-indicator-list-plan-2026-09-02.md),
+// 2026-09-02, see docs/plans/matchmaker-full-indicator-list-plan-2026-09-02.md),
 // not auto-derived from the level like every other dimension's data
 // point below. No raw field involved at all -- Comfort's data point is
 // purely a function of which bucket the score landed in.

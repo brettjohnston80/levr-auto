@@ -1,6 +1,6 @@
 # Matchmaker: Standalone Comparison Tool Entry Point — Investigation + Proposed Plan (2026-09-01)
 
-Investigation only was requested first, then a plan for review — same pattern as the earlier comparison-view build (`matchmaker-comparison-view-plan-2026-09-02.md`). No code has been written.
+Investigation only was requested first, then a plan for review — same pattern as the earlier comparison-view build (`docs/plans/matchmaker-comparison-view-plan-2026-09-02.md`). No code has been written.
 
 ## Part 1 — Investigation
 

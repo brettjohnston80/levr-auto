@@ -2,7 +2,7 @@ import type { Answers, Powertrain, VehicleType } from "./matchmaker-data";
 import { fuelTypeToPowertrain, type MatchmakerVehicle } from "./matchmaker-vehicle-display";
 
 // Rank position (1st, 2nd, ...) -> weight, per the approved scoring spec
-// (matchmaker-scoring-spec-2026-08-29.md, Section 6). Index 0 = 1st place.
+// (docs/research/matchmaker-scoring-spec-2026-08-29.md, Section 6). Index 0 = 1st place.
 export const RANK_WEIGHTS = [100, 75, 50, 40, 30, 25, 20, 15, 10];
 
 // Minimum-only filter, per the approved spec's actual filter rule (not its
@@ -219,7 +219,7 @@ export type ModelGroup = {
 // separate card -- per powertrain bucket it has a real entry in, rather
 // than being collapsed into one card whose toggle would blur the "Other
 // powertrains worth a look" section's whole purpose (approved 2026-09-02,
-// see matchmaker-duplicate-investigation-and-grouping-plan-2026-09-02.md
+// see docs/plans/matchmaker-duplicate-investigation-and-grouping-plan-2026-09-02.md
 // point 5).
 export function groupByModel(matched: MatchedVehicle[]): ModelGroup[] {
   const groups = new Map<string, ModelGroup>();
@@ -428,7 +428,7 @@ export function getTwoMostRecentModelYears(vehicles: MatchmakerVehicle[]): numbe
 // only), so this returns every trim across every powertrain a Make+Model+
 // modelYear spans, letting the caller show one flat trim list regardless of
 // how many powertrain buckets the model has (see
-// matchmaker-standalone-comparison-tool-plan-2026-09-01.md, finding 2).
+// docs/plans/matchmaker-standalone-comparison-tool-plan-2026-09-01.md, finding 2).
 // Not scoped to `bodyStyle` either -- make+model together already
 // uniquely identify the real vehicles for this purpose (confirmed no
 // model name is shared across different makes in the real dataset, same
