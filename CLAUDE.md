@@ -4,6 +4,8 @@ This file exists so any Claude Code session (yours, your collaborator's, or a fu
 
 **Documents:** see `docs/README.md` for where business docs (`docs/business/`), plans (`docs/plans/`), research (`docs/research/`) and import CSVs (`data/`) live.
 
+**How Brett works:** `docs/business/how-brett-works.md` — approvals, migrations, wording sign-off, verification, off-limits accounts, communication. Read it before doing anything.
+
 ## Working Preferences (read this before doing anything)
 
 - **Plan before code, always.** Propose schema, UI surfaces, and open design questions before writing any implementation code on non-trivial changes. No surprises.
@@ -45,7 +47,62 @@ This file exists so any Claude Code session (yours, your collaborator's, or a fu
   - **⚠ THE ONE QUERY IT DOES CONTAMINATE: a bare `select count(*) from customers`.** There is **no `is_test` flag anywhere in this schema** — confirmed by grep, no such column and no naming convention checked in code — so nothing excludes it automatically. **Any future "how many real customers do we have" check must subtract it** (or filter `email not like '%@levrauto.invalid'`). Searches, paid searches and payments are all unaffected, so the pre-launch "zero real money has moved" checks stay valid as-is: at the time of writing `customers = 3` (Brett's two accounts plus this one) while `customer_searches = 0`, `paid searches = 0` and `payments = 0`.
   - **Discipline when Brett uses it himself:** create whatever searches/rows a verification needs, then delete them afterwards and confirm by count. Leave the account itself in place — it is meant to persist. If a proper `is_test` flag is ever wanted, that is a migration plus edits to each enumeration surface, and should be its own reviewed change rather than a column nothing reads.
 
-## ⚠ IN-FLIGHT STATE — read before doing anything (updated 2026-10-10, late)
+## ⭐ START HERE — current state (2026-10-11, end of session)
+
+Read this first; `docs/business/how-brett-works.md` covers how Brett wants work done. The sections below this one are the detailed record (older entries can be stale; check `git log` and the code before relying on them).
+
+### Live on www.levrauto.com today
+- **Configurator data for 12 makes** (per-make live batches, `configurator_live_makes`): Chevrolet, Ford, Honda, Hyundai, INFINITI, Jeep, Kia, Mazda, Nissan, Ram, Subaru, Toyota. Kia and Jeep include the 2026 Sportage and 2027 Grand Cherokee year-gap trims. Confirm-page trims split by powertrain ("Sport" / "Sport Hybrid").
+- **"Not confirmed" availability:** a research item left blank on purpose is stored as `unknown` and shown as "Not confirmed" (comparison, All details, combination cards). Toyota/Honda's older blanks stay "unavailable" by Brett's choice.
+- **Sign-up-to-payment flow** (unpaid search saved at sign-up, "Review your search", payment required server-side). Payment reminders are built but OFF until a real `REMINDER_MAILING_ADDRESS` is set.
+- **Delivery estimates before acceptance** (agents log/request; customers request; ranking uses known estimates).
+- **Matchmaker changes from Cruz's feedback** (per-type lists, rank reasons, score legend, saved state, share link with priorities and the phone share sheet, "Interested", undo).
+- **MarketCheck usage cuts:** syncs skip a model refreshed in the last 24h; live-search models refresh every ~3 days; models a real customer searched in the last 90 days weekly; everything else monthly; agent "Refresh inventory" button (once per model per day). Usage is now ~260 calls/month or less against the 500 free-tier limit.
+- **Portland region:** Vercel functions run in `pdx1`, next to Supabase (`us-west-2`).
+
+### ⚠ Outside tester round ACTIVE
+- `tester1`–`tester11@levrauto-test.invalid`; invites sent 2026-10-10; instant start + 3 sample offers ON (`TESTER_INSTANT_START_ENABLED`). Tester notes expected over the next week. Credentials: `~/Downloads/levr-tester-credentials-2026-10-10.txt` (never commit or paste).
+- **No automated cleanup, sweep, reset or seeding may touch these accounts or their data until Brett says the round is over.** Read-only checks are fine.
+- The tester watch from the 2026-10-10/11 session (a background script that reported the first tester confirmation) **stopped when that session ended**. At its last check no tester had signed in or confirmed yet. Restart a read-only watch only if Brett asks.
+- When the round ends: report what testers did if asked, clean up by count on Brett's say-so, consider turning instant start off, then do the held item below.
+
+### Held until the tester round ends
+- Skip test accounts in the on-demand MarketCheck syncs (payment webhook, vehicle change, switch). Approved in principle; held because testers need synced inventory for the confirm page and sample offers.
+
+### Research pipeline
+- Still coming from Cowork into `data/` + `docs/research/`: **VW/Audi, GMC/Buick, Tesla/Rivian**. (`data/gmc-buick-configurator-full-2026-10.csv` and its notes are already in the repo, committed 2026-10-11 but NOT imported or reviewed yet.) Then **Wave 2 (8 groups)**.
+- Same process every time, one make at a time: import as a new unpromoted batch (`/api/internal/import-configurator` with `makes`, `blankPriceUnknown: true`) → verify (data checks, match rates against synced listings, screenshots) → report → Brett approves → `promote_configurator_batch_make` → confirm live. MarketCheck model-name differences go in `src/lib/marketcheck-models.ts`; trim-name differences in `TRIM_EQUIVALENTS`.
+
+### Open launch decisions (Brett)
+1. E-sign provider: the PandaDoc key is sandbox-only; **SignWell recommended** (25 docs/month free, then $0.85; ~1 day to switch).
+2. A real mailing address for the reminder emails (`REMINDER_MAILING_ADDRESS`).
+3. MarketCheck licensing/pricing email (production tier ~ $749/mo + data fee; listing-photo licensing, `LISTING_PHOTOS_ENABLED` is false).
+4. Stripe live mode after the tester round (live keys, live webhook at the `www` URL, receipts, a real payment + refund test).
+5. Preview/Production database split (both point at the production Supabase today).
+
+### Next big focus
+- **The agent dashboard: look, feel and logic.** Plan first (current `/internal/outreach` queues are a long single page); wait for Brett's approval before building.
+
+### All open follow-ups, in priority order
+1. Tester round: triage tester notes as they arrive; fixes go through plan → approval → verify → push.
+2. Agent dashboard redesign (above).
+3. Launch items: Stripe live mode, e-sign provider, reminder mailing address, MarketCheck pricing/licensing, Preview/Production split.
+4. Deal of the Week caption bug (said "2024" for a 2026 search, and "MSRP" instead of Total SRP); social selectors only exclude test-domain accounts.
+5. Agent Log Offer form: warn when the price is above the sticker.
+6. Agent cards: show the customer's name prominently, or confirm "Log offer for {name}?" (wording needs sign-off).
+7. "Which deal?" picker labels on Your Deal (add trim and/or status; wording needs sign-off).
+8. Undecided searches show a blank vehicle name in agent customer lookups.
+9. Configurator data gaps: 2026 Sportage short feature list (a later Cowork pass could fill it in from kia.com's MY2026 feature feed); Mini/MINI duplicate in the Matchmaker dataset; Forester Sport and Rogue SV Hybrid ambiguity; Ford/Nissan/Hyundai cab and bed sizes researched under "seating" (needs a new option category = migration); Equinox EV and Trax RS naming; Toyota/Honda researched data gaps (null package prices).
+10. Cleanup migration: drop `qualifying_offers.message_email_sent_at` and `customers.communication_frequency`.
+11. Header still shows "Log In" after logging in through the intake pop-up, until the next page load.
+12. Articles: approved articles can't be edited from `/internal/articles`; approving keeps no version history.
+13. Brett's own checks: iPhone pop-up scroll lock, focus-zoom, map slider; one real-device Matchmaker pass; delete the unsent PandaDoc sandbox draft.
+14. `PriorityRanker` still has its own copy of the drag logic (consolidate onto `use-drag-reorder.ts` with a device re-check).
+15. Image licensing review (colour/feature/wheel photos are manufacturer screenshots, switches are ON).
+16. Website audit item 7 (state eligibility at intake) and strategic items 19/20; dealer outreach spike; trademark search.
+17. Automated end-to-end journey test, once Preview and Production have separate databases.
+
+## Detailed record of the 2026-10-10/11 work (was "IN-FLIGHT STATE"; superseded by START HERE above where they differ)
 
 A snapshot of work that is mid-flight right now. Verify against `git log`/`git status` before acting on it, and rewrite this section once these items are resolved. **Nothing gets pushed without Brett's sign-off.**
 
