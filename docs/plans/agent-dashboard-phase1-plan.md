@@ -1235,11 +1235,284 @@ alter table public.agent_activity_log
   foreign key (dealer_contact_id) references public.dealer_contacts (id) on delete set null;
 ```
 
-Verify:
+Verify (A, B, E read-only; C errors on purpose and writes nothing; D is rolled back and uses Brett's own customer row):
 
 ```sql
-select count(*) from public.dealer_contacts; -- expect 0
-select count(*) from pg_constraint where conname = 'agent_activity_log_dealer_contact_fk'; -- expect 1
+-- A. structure: expect 0 | 1 | 3 | true
+select (select count(*) from public.dealer_contacts) as contact_rows,
+       (select count(*) from pg_constraint where conname = 'agent_activity_log_dealer_contact_fk') as activity_fk,
+       (select count(*) from pg_indexes where tablename = 'dealer_contacts' and indexname like 'dealer_contacts_%_idx') as indexes,
+       (select relrowsecurity from pg_class where relname = 'dealer_contacts') as rls_on;
+
+-- B. grant check, all agent tables so far: expect 14 rows, every can_* false
+select c.relname as table_name, r.role_name,
+       has_table_privilege(r.role_name, c.oid, 'SELECT') as can_select,
+       has_table_privilege(r.role_name, c.oid, 'INSERT') as can_insert,
+       has_table_privilege(r.role_name, c.oid, 'UPDATE') as can_update,
+       has_table_privilege(r.role_name, c.oid, 'DELETE') as can_delete,
+       has_table_privilege(r.role_name, c.oid, 'TRUNCATE') as can_truncate
+from pg_class c cross join (values ('anon'), ('authenticated')) as r(role_name)
+where c.relnamespace = 'public'::regnamespace
+  and c.relname in ('agents', 'agent_activity_types', 'agent_activity_log', 'agent_alerts',
+                    'agent_away_periods', 'search_assignments', 'dealer_contacts')
+order by 1, 2;
+
+-- C. the closed-follow-up shape rule rejects a half-closed row (expect ERROR ... "dealer_contacts_closed_shape").
+--    Uses random ids: the check fails before any foreign key is looked at, so nothing is written.
+insert into public.dealer_contacts (search_id, agent_id, dealer_alias_id, channel, outcome, follow_up_closed_at)
+values (gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 'phone', 'no_answer', now());
+
+-- D. end to end as the website's role, rolled back: log a contact + its activity row, then delete
+--    the test search. Expect: contacts_after_delete 0 | activity_rows_unlinked 1
+begin;
+with s as (
+  insert into public.customer_searches (customer_id, make, model, model_year, paid_at)
+  select c.id, 'Toyota', 'Camry', 2026, now()
+  from public.customers c join auth.users u on u.id = c.id
+  where lower(u.email) = 'bjohnston@levrauto.com'
+  returning id
+)
+select set_config('p6.search', (select id::text from s), true);
+set local role service_role;
+with c as (
+  insert into public.dealer_contacts (search_id, agent_id, dealer_alias_id, channel, outcome, next_follow_up_at)
+  values (current_setting('p6.search')::uuid,
+          (select id from public.agents where lower(email) = 'bjohnston@levrauto.com'),
+          (select id from public.dealer_aliases order by created_at limit 1),
+          'phone', 'left_message', now() + interval '48 hours')
+  returning id
+)
+select set_config('p6.contact', (select id::text from c), true);
+select public.log_agent_activity((select id from public.agents where lower(email) = 'bjohnston@levrauto.com'),
+  'dealer_contact_logged', current_setting('p6.search')::uuid,
+  p_dealer_contact_id => current_setting('p6.contact')::uuid);
+delete from public.customer_searches where id = current_setting('p6.search')::uuid;
+reset role;
+select (select count(*) from public.dealer_contacts) as contacts_after_delete,
+       (select count(*) from public.agent_activity_log
+         where action = 'dealer_contact_logged' and search_id is null and dealer_contact_id is null) as activity_rows_unlinked;
+rollback;
+
+-- E. nothing left behind: expect 0 | 0 | 0
+select (select count(*) from public.dealer_contacts) as contacts,
+       (select count(*) from public.agent_activity_log) as activity_rows,
+       (select count(*) from public.customer_searches where make = 'Toyota' and model = 'Camry'
+          and customer_id = (select id from auth.users where lower(email) = 'bjohnston@levrauto.com')
+          and created_at > now() - interval '1 day') as leftover_test_searches;
+```
+
+### Step 6b: activity-log links checked at commit (found by Step 6's test D, 2026-10-11)
+
+**What failed.** Step 6's rolled-back test D failed on deleting the test search with `23503 … agent_activity_log_dealer_contact_fk`.
+- One delete can reach an activity row by several routes:
+  - search → `search_id` (set null);
+  - search → dealer contact (cascade) → `dealer_contact_id` (set null);
+  - search → offer (cascade) → `qualifying_offer_id` (set null);
+  - customer → `customer_id` plus customer → search → all of the above.
+- When the activity row was **inserted in the same transaction**, Postgres re-checks every foreign key on it during the first set-null update (`ri_triggers.c`: "our UPDATE will invalidate the INSERT so that the INSERT RI trigger will not do anything").
+- So the check of a link whose target is being deleted in the same statement fails.
+- Rows logged in an earlier transaction (normal use) were not affected. Rolled-back tests, and any future function that logs and then deletes in one transaction, were.
+
+**Fix (`20261011190000_activity_log_deferred_links.sql`):**
+- The six link foreign keys become `deferrable initially deferred`: checked at commit, after the set-null actions have run. The delete actions are unchanged, and `agent_id` / `action` stay immediate.
+- `log_agent_activity` (same signature) drops any link id that doesn't exist before inserting. It nulls the link on the row and keeps the id in `details.dropped_ids`, so a deferred check can never fail at commit and roll back the agent's action (Q8).
+- **Alternatives rejected:**
+  - dropping the foreign keys: loses the database's guarantee that links point at real rows;
+  - cascade-deleting activity rows: deletes audit history;
+  - blocking the delete: stops legitimate cleanups.
+
+**Dealer aliases in use can't be deleted (noted 2026-10-11, Brett).**
+- `dealer_contacts.dealer_alias_id` (Step 6) and, from Step 8, `qualifying_offers.dealer_alias_id` are plain foreign keys, so an alias that's in use can't be deleted. `post_deal_surveys.dealer_alias_id` already behaves this way today.
+- **Checked against the code (2026-10-11):**
+  - nothing in `src/` deletes a dealer alias or a dealership;
+  - "merge" (`mergeAliasIntoDealership`, `src/lib/dealership-actions.ts:58`) only sets an alias's `dealership_id`, so several aliases point at one dealership and none is deleted or repointed;
+  - the sync only inserts aliases it hasn't seen (`dealer-aliases.ts:127`, `ignoreDuplicates`).
+  - So nothing today is affected.
+- **The one manual process that is affected:** test-data cleanup that deletes a seeded alias (as with "Seeded Test Motors" during tester setup). It must first delete or repoint that alias's `dealer_contacts`, offers and surveys. Activity rows clear their link on their own.
+- **If duplicate dealerships or aliases are ever genuinely merged** (deleting one), the merge has to repoint `dealer_contacts`, `qualifying_offers`, `post_deal_surveys` and `agent_activity_log` rows to the surviving alias first, inside one transaction. That should be a database function, not hand-run SQL.
+
+**Rule for every later step:** any new foreign key on a table that a single delete can reach by more than one route must be deferrable, and its writer must validate links first. Steps 7–10 add no such key: their new keys are plain links with no delete action, onto lookup tables and agents. Rolled-back tests that delete a parent must run `set constraints all immediate` before reading results, or the deferred checks never run.
+
+```sql
+alter table public.agent_activity_log
+  alter constraint agent_activity_log_search_id_fkey deferrable initially deferred,
+  alter constraint agent_activity_log_customer_id_fkey deferrable initially deferred,
+  alter constraint agent_activity_log_qualifying_offer_id_fkey deferrable initially deferred,
+  alter constraint agent_activity_log_dealer_alias_id_fkey deferrable initially deferred,
+  alter constraint agent_activity_log_refund_id_fkey deferrable initially deferred,
+  alter constraint agent_activity_log_dealer_contact_fk deferrable initially deferred;
+
+create or replace function public.log_agent_activity(
+  p_agent_id uuid,
+  p_action text,
+  p_search_id uuid default null,
+  p_customer_id uuid default null,
+  p_qualifying_offer_id uuid default null,
+  p_dealer_alias_id uuid default null,
+  p_refund_id uuid default null,
+  p_dealer_contact_id uuid default null,
+  p_details jsonb default '{}'::jsonb
+) returns uuid
+language plpgsql as $$
+declare
+  v_id uuid;
+  v_search uuid := p_search_id;
+  v_customer uuid := p_customer_id;
+  v_offer uuid := p_qualifying_offer_id;
+  v_alias uuid := p_dealer_alias_id;
+  v_refund uuid := p_refund_id;
+  v_contact uuid := p_dealer_contact_id;
+  v_dropped jsonb := '{}'::jsonb;
+  v_details jsonb := coalesce(p_details, '{}'::jsonb);
+begin
+  -- Links are deferred-checked at commit, so validate them now: a missing target is dropped
+  -- (and recorded) instead of failing the caller's transaction later.
+  if v_search is not null and not exists (select 1 from public.customer_searches where id = v_search) then
+    v_dropped := v_dropped || jsonb_build_object('search_id', v_search); v_search := null;
+  end if;
+  if v_customer is not null and not exists (select 1 from public.customers where id = v_customer) then
+    v_dropped := v_dropped || jsonb_build_object('customer_id', v_customer); v_customer := null;
+  end if;
+  if v_offer is not null and not exists (select 1 from public.qualifying_offers where id = v_offer) then
+    v_dropped := v_dropped || jsonb_build_object('qualifying_offer_id', v_offer); v_offer := null;
+  end if;
+  if v_alias is not null and not exists (select 1 from public.dealer_aliases where id = v_alias) then
+    v_dropped := v_dropped || jsonb_build_object('dealer_alias_id', v_alias); v_alias := null;
+  end if;
+  if v_refund is not null and not exists (select 1 from public.refunds where id = v_refund) then
+    v_dropped := v_dropped || jsonb_build_object('refund_id', v_refund); v_refund := null;
+  end if;
+  if v_contact is not null and not exists (select 1 from public.dealer_contacts where id = v_contact) then
+    v_dropped := v_dropped || jsonb_build_object('dealer_contact_id', v_contact); v_contact := null;
+  end if;
+  if v_dropped <> '{}'::jsonb then
+    v_details := v_details || jsonb_build_object('dropped_ids', v_dropped);
+  end if;
+
+  begin
+    insert into public.agent_activity_log (agent_id, action, search_id, customer_id, qualifying_offer_id,
+                                           dealer_alias_id, refund_id, dealer_contact_id, details)
+    values (p_agent_id, p_action, v_search, v_customer, v_offer,
+            v_alias, v_refund, v_contact, v_details)
+    returning id into v_id;
+  exception when others then
+    begin
+      insert into public.agent_alerts (kind, search_id, agent_id, details)
+      values ('activity_log_failed', v_search,
+              case when exists (select 1 from public.agents where id = p_agent_id) then p_agent_id end,
+              jsonb_build_object('error', sqlerrm, 'action', p_action, 'agent_id', p_agent_id, 'details', v_details));
+    exception when others then
+      raise warning 'agent activity and alert both failed: %', sqlerrm;
+    end;
+  end;
+  return v_id;
+end;
+$$;
+
+-- create or replace keeps existing grants; restated so the file stands on its own.
+revoke execute on function public.log_agent_activity(uuid, text, uuid, uuid, uuid, uuid, uuid, uuid, jsonb)
+  from public, anon, authenticated;
+grant execute on function public.log_agent_activity(uuid, text, uuid, uuid, uuid, uuid, uuid, uuid, jsonb) to service_role;
+```
+
+Verify (A read-only; B–E rolled back, using Brett's own customer row; F read-only):
+
+```sql
+-- A. constraint states: expect 8 rows. The six links deferrable/deferred = true/true;
+--    agent_activity_log_action_fkey and agent_activity_log_agent_id_fkey = false/false (still immediate).
+select conname, condeferrable, condeferred
+from pg_constraint
+where conrelid = 'public.agent_activity_log'::regclass and contype = 'f'
+order by conname;
+
+-- B. Step 6 test D again, now forcing the deferred checks before reading the result.
+--    expect: contacts_after_delete 0 | activity_rows_unlinked 1   (and no error)
+begin;
+with s as (
+  insert into public.customer_searches (customer_id, make, model, model_year, paid_at)
+  select c.id, 'Toyota', 'Camry', 2026, now()
+  from public.customers c join auth.users u on u.id = c.id
+  where lower(u.email) = 'bjohnston@levrauto.com'
+  returning id
+)
+select set_config('p6.search', (select id::text from s), true);
+set local role service_role;
+with c as (
+  insert into public.dealer_contacts (search_id, agent_id, dealer_alias_id, channel, outcome, next_follow_up_at)
+  values (current_setting('p6.search')::uuid,
+          (select id from public.agents where lower(email) = 'bjohnston@levrauto.com'),
+          (select id from public.dealer_aliases order by created_at limit 1),
+          'phone', 'left_message', now() + interval '48 hours')
+  returning id
+)
+select set_config('p6.contact', (select id::text from c), true);
+select public.log_agent_activity((select id from public.agents where lower(email) = 'bjohnston@levrauto.com'),
+  'dealer_contact_logged', current_setting('p6.search')::uuid,
+  p_dealer_contact_id => current_setting('p6.contact')::uuid);
+delete from public.customer_searches where id = current_setting('p6.search')::uuid;
+set constraints all immediate;   -- run the commit-time checks now, inside the transaction
+reset role;
+select (select count(*) from public.dealer_contacts) as contacts_after_delete,
+       (select count(*) from public.agent_activity_log
+         where action = 'dealer_contact_logged' and search_id is null and dealer_contact_id is null) as activity_rows_unlinked;
+rollback;
+
+-- C. the offer route (search -> offer -> activity), same pattern.
+--    expect: offers_after_delete 0 | activity_rows_unlinked 1   (and no error)
+begin;
+with s as (
+  insert into public.customer_searches (customer_id, make, model, model_year, paid_at)
+  select c.id, 'Toyota', 'Camry', 2026, now()
+  from public.customers c join auth.users u on u.id = c.id
+  where lower(u.email) = 'bjohnston@levrauto.com'
+  returning id
+)
+select set_config('p6b.search', (select id::text from s), true);
+set local role service_role;
+with o as (
+  insert into public.qualifying_offers (customer_search_id, dealer_name, offer_price_cents, msrp_cents)
+  values (current_setting('p6b.search')::uuid, 'Phase1 Step6b Check Motors', 3000000, 3200000)
+  returning id
+)
+select set_config('p6b.offer', (select id::text from o), true);
+select public.log_agent_activity((select id from public.agents where lower(email) = 'bjohnston@levrauto.com'),
+  'offer_logged', current_setting('p6b.search')::uuid,
+  p_qualifying_offer_id => current_setting('p6b.offer')::uuid);
+delete from public.customer_searches where id = current_setting('p6b.search')::uuid;
+set constraints all immediate;
+reset role;
+select (select count(*) from public.qualifying_offers where dealer_name = 'Phase1 Step6b Check Motors') as offers_after_delete,
+       (select count(*) from public.agent_activity_log
+         where action = 'offer_logged' and search_id is null and qualifying_offer_id is null) as activity_rows_unlinked;
+rollback;
+
+-- D. a link to a row that doesn't exist is dropped and recorded, never failing the caller (Q8).
+--    expect: search_id NULL | dropped_recorded true   (and no error after forcing the checks)
+begin;
+set local role service_role;
+select public.log_agent_activity((select id from public.agents where lower(email) = 'bjohnston@levrauto.com'),
+  'agent_role_changed', gen_random_uuid());
+set constraints all immediate;
+reset role;
+select search_id, details ? 'dropped_ids' and details->'dropped_ids' ? 'search_id' as dropped_recorded
+from public.agent_activity_log;
+rollback;
+
+-- E. a bad action code still becomes an alert straight away (unchanged from Step 2).
+--    expect one row: activity_log_failed | leads
+begin;
+select public.log_agent_activity((select id from public.agents where lower(email) = 'bjohnston@levrauto.com'), 'not_a_real_action');
+select kind, audience from public.agent_alerts;
+rollback;
+
+-- F. nothing left behind: expect 0 | 0 | 0 | 0 | 0
+select (select count(*) from public.agent_activity_log) as activity_rows,
+       (select count(*) from public.agent_alerts) as alerts,
+       (select count(*) from public.dealer_contacts) as contacts,
+       (select count(*) from public.qualifying_offers where dealer_name = 'Phase1 Step6b Check Motors') as test_offers,
+       (select count(*) from public.customer_searches where make = 'Toyota' and model = 'Camry'
+          and customer_id = (select id from auth.users where lower(email) = 'bjohnston@levrauto.com')
+          and created_at > now() - interval '1 day') as leftover_test_searches;
 ```
 
 ### Step 7: refund reasons and refunds without a cancellation
