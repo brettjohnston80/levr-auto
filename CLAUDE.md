@@ -62,8 +62,13 @@ Read this first; `docs/business/how-brett-works.md` covers how Brett wants work 
 
 ### Agent dashboard Phase 1 (data foundation): in progress
 - Plan: `docs/plans/agent-dashboard-phase1-plan.md` (10 migration steps). Review: `docs/plans/agent-dashboard-review-2026-10-10.md`. Brett runs each step; the code deploys after the tester round.
-- **Steps 1–2 are applied (2026-10-11).** Step 2 added `agent_activity_types` (49 types), `agent_activity_log`, `agent_alerts` and `log_agent_activity()`, which never raises: a failed write becomes an `activity_log_failed` alert.
-- **Two locks on agent tables:** RLS with no policies, plus (from Step 3) INSERT/UPDATE/DELETE/TRUNCATE revoked from `anon` and `authenticated`. Every new Phase 1 table gets both, and every step's verification includes a grant check.
+- **Step 2 (2026-10-11):** Step 2 added `agent_activity_types` (49 types), `agent_activity_log`, `agent_alerts` and `log_agent_activity()`, which never raises: a failed write becomes an `activity_log_failed` alert.
+- **Steps 1–3 applied (2026-10-11).** Step 3: `agent_away_periods`, `agent_is_away()`, writes revoked on agent tables.
+- **Two locks on agent tables:**
+  - RLS with no policies;
+  - all table rights revoked from `anon` and `authenticated`: INSERT/UPDATE/DELETE/TRUNCATE from Step 3, SELECT from Step 4.
+  - Every new Phase 1 table gets the full revoke in the migration that creates it, and every step's verification includes the grant check, with SELECT.
+  - Every agent-table read and write in `src/` uses the service role.
 - **Step 1 (2026-10-11):** `agents.role` (agent < lead < admin, permissions only), `agents.in_rotation` (workload), `auth_user_id`, deactivation fields, `agent_role_rank()` / `agent_has_role()`, and the `agents_guard` trigger.
 - **⚠ `agents.role`, `in_rotation` and `active` can't be changed by a direct UPDATE.** The trigger rejects it. From Step 4, `customer_searches.assigned_agent_id` is guarded the same way (flag `levr.assignment`).
 - **Emergency fix in the SQL Editor (never drop the trigger):**

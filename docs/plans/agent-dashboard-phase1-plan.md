@@ -163,7 +163,8 @@ There are three layers. Each one alone would stop a plain mistake; together they
    - Supabase grants `anon` and `authenticated` INSERT/UPDATE/DELETE/TRUNCATE on every new public table by default; RLS with no policies is what blocks them today.
    - Every agent table (`agents` and each Phase 1 table) gets those writes **revoked** from `anon` and `authenticated`, so customers would still be blocked if a policy were ever added by mistake.
    - TRUNCATE matters most: RLS doesn't apply to it.
-   - SELECT is left granted (RLS returns nothing).
+   - **SELECT is revoked too, from Step 4** (Brett, 2026-10-11): these are internal staff tables, and reads must not depend on RLS alone. Every read already goes through the service role.
+   - **Rule for every new Phase 1 table:** revoke SELECT, INSERT, UPDATE, DELETE and TRUNCATE from `anon` and `authenticated` in the same migration that creates it.
    - Every step that creates a table revokes in the same migration, and every step's verification includes the grant check.
    - **Checked 2026-10-11:** no deployed code writes to `agents` or any Phase 1 table with a customer or anonymous login. All six `agents` references in `src/` are reads through the service-role admin client (`agent-auth.ts:30`, `admin-actions.ts:72`, `offer-messages.ts:40`, `article-reminders.ts:67`, `agent-call-notifications.ts:112`, `outreach-queue.ts:416`). The only SQL that writes `agents` is the Step 1 migration itself. Nothing in `src/` touches the Phase 1 tables yet.
 5. **Backfill and emergency fixes in the SQL Editor (no trigger drop).**
@@ -470,7 +471,7 @@ Run one step at a time in the Supabase SQL Editor (project `couiovhducwytlckfgvo
 - Steps 1–9 are additive: new columns, tables and functions, plus same-signature replacements of `switch_customer_search` and `record_refund`.
 - **No step changes what the currently deployed code does.** It doesn't call the new functions, and the replaced functions keep their behaviour.
 - Step 10 is the backfill.
-- **Every step from 3 on ends with the grant check** for the tables it creates (same query as Step 3, with that step's table names). Expected: every `can_insert` / `can_update` / `can_delete` / `can_truncate` is false for `anon` and `authenticated`.
+- **Every step from 3 on ends with the grant check** for the tables it creates (same query as Step 3, with that step's table names). Expected: every `can_select` / `can_insert` / `can_update` / `can_delete` / `can_truncate` is false for `anon` and `authenticated`, for every agent table created so far.
 
 ### Step 1: agents, role helpers, deactivation, guard trigger
 
@@ -761,10 +762,11 @@ select (select count(*) from public.agent_away_periods) as away_rows,          -
        (select bool_and(not public.agent_is_away(id)) from public.agents) as nobody_away; -- expect true
 ```
 
-Grant check (expect 10 rows, every can_* = false):
+Grant check (as run for Step 3: expect 10 rows, every write column false. From Step 4 the same query also shows `can_select`, which must be false too):
 
 ```sql
 select c.relname as table_name, r.role_name,
+       has_table_privilege(r.role_name, c.oid, 'SELECT')   as can_select,
        has_table_privilege(r.role_name, c.oid, 'INSERT')   as can_insert,
        has_table_privilege(r.role_name, c.oid, 'UPDATE')   as can_update,
        has_table_privilege(r.role_name, c.oid, 'DELETE')   as can_delete,
@@ -802,15 +804,21 @@ create table public.search_assignments (
 create index search_assignments_search_idx on public.search_assignments (search_id, created_at desc, id);
 create index search_assignments_agent_idx on public.search_assignments (agent_id, created_at desc, id);
 alter table public.search_assignments enable row level security;
-revoke insert, update, delete, truncate on public.search_assignments from anon, authenticated;
+revoke select, insert, update, delete, truncate on public.search_assignments from anon, authenticated;
+
+-- Second lock, reads too (2026-10-11): internal staff data must not depend on RLS alone for reads.
+-- Every read of these tables goes through the service role (checked 2026-10-11), so nothing breaks.
+revoke select on public.agents, public.agent_activity_types, public.agent_activity_log,
+  public.agent_alerts, public.agent_away_periods from anon, authenticated;
 
 create function public.customer_searches_assignment_guard() returns trigger
 language plpgsql as $$
 begin
-  if (tg_op = 'INSERT' and new.assigned_agent_id is not null)
-     or (tg_op = 'UPDATE' and new.assigned_agent_id is distinct from old.assigned_agent_id) then
+  if (tg_op = 'INSERT' and (new.assigned_agent_id is not null or new.assigned_at is not null))
+     or (tg_op = 'UPDATE' and (new.assigned_agent_id, new.assigned_at)
+                              is distinct from (old.assigned_agent_id, old.assigned_at)) then
     if coalesce(current_setting('levr.assignment', true), '') <> 'on' then
-      raise exception 'assigned_agent_id changes only through assign_search(), reassign_search() or switch_customer_search()';
+      raise exception 'assigned_agent_id / assigned_at change only through assign_search(), reassign_search() or switch_customer_search()';
     end if;
   end if;
   return new;
@@ -818,7 +826,7 @@ end;
 $$;
 
 create trigger customer_searches_assignment_guard
-before insert or update of assigned_agent_id on public.customer_searches
+before insert or update of assigned_agent_id, assigned_at on public.customer_searches
 for each row execute function public.customer_searches_assignment_guard();
 
 -- Test accounts (N7): the CLAUDE.md rules, by the auth email (never customers.email, which is not unique).
@@ -973,17 +981,57 @@ grant execute on function public.is_test_customer(uuid) to service_role;
 grant execute on function public.assign_search(uuid), public.reassign_search(uuid, uuid, uuid, text) to service_role;
 ```
 
-Verify:
+Verify (A–C are read-only; D runs inside a transaction that is rolled back, using Brett's own customer row, never a tester's):
 
 ```sql
-select count(*) filter (where assigned_agent_id is not null) as assigned,
-       count(*) filter (where assigned_agent_id is null and paid_at is not null) as unassigned_paid
-from public.customer_searches;  -- expect assigned = 0 (step 10 backfills)
-select has_function_privilege('anon', 'public.assign_search(uuid)', 'execute'); -- expect false
--- guard check (expect ERROR "assigned_agent_id changes only through ..."):
-update public.customer_searches set assigned_agent_id = (select id from public.agents limit 1)
+-- A. columns, table, guard trigger, functions locked
+select
+  (select count(*) from information_schema.columns
+    where table_schema = 'public' and table_name = 'customer_searches'
+      and column_name in ('assigned_agent_id', 'assigned_at')) as new_columns,               -- expect 2
+  (select count(*) from public.search_assignments) as history_rows,                           -- expect 0
+  (select count(*) from public.customer_searches where assigned_agent_id is not null) as assigned, -- expect 0
+  (select count(*) from pg_trigger where tgname = 'customer_searches_assignment_guard') as guard,   -- expect 1
+  has_function_privilege('authenticated', 'public.assign_search(uuid)', 'execute') as customer_can_assign,       -- expect false
+  has_function_privilege('authenticated', 'public.is_test_customer(uuid)', 'execute') as customer_can_test_check; -- expect false
+
+-- B. grant check, now including SELECT: expect 12 rows, every can_* false
+select c.relname as table_name, r.role_name,
+       has_table_privilege(r.role_name, c.oid, 'SELECT') as can_select,
+       has_table_privilege(r.role_name, c.oid, 'INSERT') as can_insert,
+       has_table_privilege(r.role_name, c.oid, 'UPDATE') as can_update,
+       has_table_privilege(r.role_name, c.oid, 'DELETE') as can_delete,
+       has_table_privilege(r.role_name, c.oid, 'TRUNCATE') as can_truncate
+from pg_class c cross join (values ('anon'), ('authenticated')) as r(role_name)
+where c.relnamespace = 'public'::regnamespace
+  and c.relname in ('agents', 'agent_activity_types', 'agent_activity_log', 'agent_alerts',
+                    'agent_away_periods', 'search_assignments')
+order by 1, 2;
+
+-- C. the guard blocks a direct write (expect ERROR "assigned_agent_id / assigned_at change only through ...")
+update public.customer_searches set assigned_at = now()
 where id = (select id from public.customer_searches limit 1);
+
+-- D. assignment works end to end, rolled back (run these lines together as one query).
+--    Expected final result: one row, agent_email = bjohnston@levrauto.com, method = round_robin.
+begin;
+create temp table phase1_step4_check on commit drop as
+  with s as (
+    insert into public.customer_searches (customer_id, make, model, model_year, paid_at)
+    select c.id, 'Toyota', 'Camry', 2026, now()
+    from public.customers c join auth.users u on u.id = c.id
+    where lower(u.email) = 'bjohnston@levrauto.com'
+    returning id
+  )
+  select id from s;
+select public.assign_search(id) from phase1_step4_check;
+select a.email as agent_email, sa.method
+from phase1_step4_check t
+join public.search_assignments sa on sa.search_id = t.id
+join public.agents a on a.id = sa.agent_id;
+rollback;
 ```
+Afterwards, query A should still show `history_rows = 0` and `assigned = 0`: the rollback removed the test search and its assignment.
 
 ### Step 5: switches inherit the agent
 
@@ -1096,7 +1144,7 @@ create index dealer_contacts_agent_idx on public.dealer_contacts (agent_id, cont
 create index dealer_contacts_due_idx on public.dealer_contacts (next_follow_up_at, id)
   where follow_up_closed_at is null and next_follow_up_at is not null;
 alter table public.dealer_contacts enable row level security;
-revoke insert, update, delete, truncate on public.dealer_contacts from anon, authenticated;
+revoke select, insert, update, delete, truncate on public.dealer_contacts from anon, authenticated;
 
 alter table public.agent_activity_log
   add constraint agent_activity_log_dealer_contact_fk
@@ -1120,7 +1168,7 @@ create table public.refund_reasons (
   created_at timestamptz not null default now()
 );
 alter table public.refund_reasons enable row level security;
-revoke insert, update, delete, truncate on public.refund_reasons from anon, authenticated;
+revoke select, insert, update, delete, truncate on public.refund_reasons from anon, authenticated;
 insert into public.refund_reasons (code, label) values
   ('cancellation', 'Cancellation'),
   ('guarantee', 'Day-30 guarantee'),
