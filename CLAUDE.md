@@ -60,6 +60,22 @@ Read this first; `docs/business/how-brett-works.md` covers how Brett wants work 
 - **MarketCheck usage cuts:** syncs skip a model refreshed in the last 24h; live-search models refresh every ~3 days; models a real customer searched in the last 90 days weekly; everything else monthly; agent "Refresh inventory" button (once per model per day). Usage is now ~260 calls/month or less against the 500 free-tier limit.
 - **Portland region:** Vercel functions run in `pdx1`, next to Supabase (`us-west-2`).
 
+### Agent dashboard Phase 1 (data foundation): in progress
+- Plan: `docs/plans/agent-dashboard-phase1-plan.md` (10 migration steps). Review: `docs/plans/agent-dashboard-review-2026-10-10.md`. Brett runs each step; the code deploys after the tester round.
+- **Steps 1–2 are applied (2026-10-11).** Step 2 added `agent_activity_types` (49 types), `agent_activity_log`, `agent_alerts` and `log_agent_activity()`, which never raises: a failed write becomes an `activity_log_failed` alert.
+- **Two locks on agent tables:** RLS with no policies, plus (from Step 3) INSERT/UPDATE/DELETE/TRUNCATE revoked from `anon` and `authenticated`. Every new Phase 1 table gets both, and every step's verification includes a grant check.
+- **Step 1 (2026-10-11):** `agents.role` (agent < lead < admin, permissions only), `agents.in_rotation` (workload), `auth_user_id`, deactivation fields, `agent_role_rank()` / `agent_has_role()`, and the `agents_guard` trigger.
+- **⚠ `agents.role`, `in_rotation` and `active` can't be changed by a direct UPDATE.** The trigger rejects it. From Step 4, `customer_searches.assigned_agent_id` is guarded the same way (flag `levr.assignment`).
+- **Emergency fix in the SQL Editor (never drop the trigger):**
+  ```sql
+  begin;
+  select set_config('levr.agent_admin', 'on', true);
+  update public.agents set ... where ...;
+  commit;
+  ```
+  Keep the `begin`/`commit`: the flag only lasts for that transaction. Check by hand that at least one active admin remains, since the function-level rules don't run on a manual fix. Once Step 2 exists, record the fix with `log_agent_activity(...)` in the same transaction.
+- The helper functions aren't callable by anon or signed-in customers (execute revoked).
+
 ### ⚠ Outside tester round ACTIVE
 - `tester1`–`tester11@levrauto-test.invalid`; invites sent 2026-10-10; instant start + 3 sample offers ON (`TESTER_INSTANT_START_ENABLED`). Tester notes expected over the next week. Credentials: `~/Downloads/levr-tester-credentials-2026-10-10.txt` (never commit or paste).
 - **No automated cleanup, sweep, reset or seeding may touch these accounts or their data until Brett says the round is over.** Read-only checks are fine.

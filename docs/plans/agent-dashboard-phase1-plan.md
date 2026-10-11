@@ -102,6 +102,7 @@
 | `status` | `requested` / `approved` / `rejected` / `cancelled` |
 | `requested_by_agent_id` | Who created it (the agent themselves, or a lead setting it for them) |
 | `decided_by_agent_id`, `decided_at`, `decision_note` | Who approved or rejected it |
+| `cancelled_by_agent_id`, `cancelled_at` | Who cancelled it. An approved period can be cancelled; it keeps its decision fields |
 | `created_at` | |
 
 - **"Away now"** = an `approved` row with `starts_at <= now() < ends_at`. The helper `agent_is_away(agent_id)` reads exactly that, and it is used only for flags, never for assignment.
@@ -158,9 +159,34 @@ There are three layers. Each one alone would stop a plain mistake; together they
      - `customer_searches`: `assigned_agent_id`. The flag is `levr.assignment`.
    - A plain insert of a role-`agent` row is still allowed, which keeps disposable test agents simple (section 12). An insert with role lead/admin, or of an assigned search, needs the flag.
    - The flag is transaction-local, so it can't leak to other requests.
-4. **RLS.**
+4. **Table grants (the second lock, from Step 3).**
+   - Supabase grants `anon` and `authenticated` INSERT/UPDATE/DELETE/TRUNCATE on every new public table by default; RLS with no policies is what blocks them today.
+   - Every agent table (`agents` and each Phase 1 table) gets those writes **revoked** from `anon` and `authenticated`, so customers would still be blocked if a policy were ever added by mistake.
+   - TRUNCATE matters most: RLS doesn't apply to it.
+   - SELECT is left granted (RLS returns nothing).
+   - Every step that creates a table revokes in the same migration, and every step's verification includes the grant check.
+   - **Checked 2026-10-11:** no deployed code writes to `agents` or any Phase 1 table with a customer or anonymous login. All six `agents` references in `src/` are reads through the service-role admin client (`agent-auth.ts:30`, `admin-actions.ts:72`, `offer-messages.ts:40`, `article-reminders.ts:67`, `agent-call-notifications.ts:112`, `outreach-queue.ts:416`). The only SQL that writes `agents` is the Step 1 migration itself. Nothing in `src/` touches the Phase 1 tables yet.
+5. **Backfill and emergency fixes in the SQL Editor (no trigger drop).**
+   - The guard only checks a transaction-local flag. Anything run by hand, the Step 10 backfill included, sets the flag inside an explicit transaction:
+     ```sql
+     begin;
+     select set_config('levr.agent_admin', 'on', true);  -- agents: role / in_rotation / active
+     -- select set_config('levr.assignment', 'on', true); -- customer_searches.assigned_agent_id (from Step 4)
+     update public.agents set role = 'admin', in_rotation = true where lower(email) = 'someone@levrauto.com';
+     commit;
+     ```
+   - The `true` makes the flag last only until `commit`, so it can't leak into later queries or other sessions. Keep `begin`/`commit` around it; without them the flag is gone before the update runs.
+   - The table's check constraints still apply: a deactivated agent can't be in rotation, and roles are limited to the three values. The functions' own rules don't run, and that includes the last-admin guard, so check by hand that at least one active admin remains.
+   - Once Step 2 exists, record the fix in the activity log in the same transaction, for example `select public.log_agent_activity(<your agent id>, 'agent_role_changed', p_details => '{"manual_sql": true, "note": "..."}');`.
+   - **Never drop or disable the trigger.** If the flag route ever fails, stop and investigate.
+6. **RLS.**
    - Every new table, including the lookup tables, has RLS enabled and **no policies**: anon and authenticated get nothing.
    - Policies keyed on `auth.uid() = agents.auth_user_id` only matter if agent pages ever stop using the service role. `auth_user_id` keeps that possible; it isn't proposed now.
+   - **`agent_has_role` and the other helpers are not callable by signed-in customers** (`authenticated` has no execute), and no Phase 1 RLS policy calls them.
+     - If a future policy needs a role check, the policy runs with the signed-in user's privileges, so it would need execute on the helper.
+     - The safe pattern then is a `security definer` copy in a separate `private` schema. That schema is **not exposed through the API** (Supabase only exposes `public` via `/rest/v1`), with execute granted to `authenticated` and `search_path` pinned.
+     - Policies can call it; customers can't reach it through `/rest/v1/rpc`.
+     - Not needed for Phase 1.
 
 ---
 
@@ -249,7 +275,7 @@ Bulk reassignment is the same function in a loop.
   | `details jsonb` | |
   | `resolved_at`, `resolved_by_agent_id` | |
 
-  Partial index on open alerts, plus a partial unique index on `(search_id, kind)` for open alerts, so retries never pile up duplicates.
+  Partial index on open alerts, plus a partial unique index on `(search_id, kind)` for open **assignment** alerts, so the hourly retry never piles up duplicates. Activity-write failures are each recorded.
 
 ### 5.2 How activity is written (Q8)
 
@@ -444,6 +470,7 @@ Run one step at a time in the Supabase SQL Editor (project `couiovhducwytlckfgvo
 - Steps 1–9 are additive: new columns, tables and functions, plus same-signature replacements of `switch_customer_search` and `record_refund`.
 - **No step changes what the currently deployed code does.** It doesn't call the new functions, and the replaced functions keep their behaviour.
 - Step 10 is the backfill.
+- **Every step from 3 on ends with the grant check** for the tables it creates (same query as Step 3, with that step's table names). Expected: every `can_insert` / `can_update` / `can_delete` / `can_truncate` is false for `anon` and `authenticated`.
 
 ### Step 1: agents, role helpers, deactivation, guard trigger
 
@@ -594,7 +621,7 @@ create table public.agent_activity_log (
   qualifying_offer_id uuid references public.qualifying_offers (id) on delete set null,
   dealer_alias_id uuid references public.dealer_aliases (id) on delete set null,
   refund_id uuid references public.refunds (id) on delete set null,
-  dealer_contact_id uuid, -- FK added in step 5
+  dealer_contact_id uuid, -- FK added in step 6 (dealer outreach log)
   details jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
@@ -617,8 +644,11 @@ create table public.agent_alerts (
   resolved_by_agent_id uuid references public.agents (id)
 );
 create index agent_alerts_open_idx on public.agent_alerts (created_at desc, id) where resolved_at is null;
-create unique index agent_alerts_one_open_per_search_idx on public.agent_alerts (search_id, kind)
-  where resolved_at is null and search_id is not null;
+-- One open assignment alert per search, so the hourly retry never piles up duplicates.
+-- Activity-write failures are deliberately not limited: each one is recorded.
+create unique index agent_alerts_one_open_assignment_idx on public.agent_alerts (search_id, kind)
+  where resolved_at is null and search_id is not null
+    and kind in ('assignment_lead_fallback', 'assignment_no_lead');
 alter table public.agent_alerts enable row level security;
 
 -- Never raises: a failed activity insert becomes an alert, so the caller's action still succeeds (Q8).
@@ -672,7 +702,7 @@ select kind, details->>'action' from public.agent_alerts;  -- expect one activit
 delete from public.agent_alerts where details->>'action' = 'not_a_real_action';  -- clean up the test row
 ```
 
-### Step 3: away periods
+### Step 3: away periods, plus the second lock (no customer or anonymous writes on agent tables)
 
 ```sql
 create table public.agent_away_periods (
@@ -686,10 +716,18 @@ create table public.agent_away_periods (
   decided_by_agent_id uuid references public.agents (id),
   decided_at timestamptz,
   decision_note text check (decision_note is null or char_length(decision_note) <= 500),
+  cancelled_by_agent_id uuid references public.agents (id),
+  cancelled_at timestamptz,
   created_at timestamptz not null default now(),
   constraint agent_away_periods_window check (ends_at > starts_at),
-  constraint agent_away_periods_decided_shape check (
-    (status in ('approved', 'rejected')) = (decided_by_agent_id is not null and decided_at is not null))
+  -- requested: not decided yet. approved/rejected: decided. cancelled: may or may not have been
+  -- decided first (an approved period can be cancelled), but always records who cancelled it.
+  constraint agent_away_periods_status_shape check (
+    (status = 'requested' and decided_by_agent_id is null and decided_at is null
+       and cancelled_by_agent_id is null and cancelled_at is null)
+    or (status in ('approved', 'rejected') and decided_by_agent_id is not null and decided_at is not null
+       and cancelled_by_agent_id is null and cancelled_at is null)
+    or (status = 'cancelled' and cancelled_by_agent_id is not null and cancelled_at is not null))
 );
 create index agent_away_periods_agent_idx on public.agent_away_periods (agent_id, starts_at desc, id);
 create index agent_away_periods_pending_idx on public.agent_away_periods (created_at, id) where status = 'requested';
@@ -706,13 +744,36 @@ $$;
 
 revoke execute on function public.agent_is_away(uuid, timestamptz) from public, anon, authenticated;
 grant execute on function public.agent_is_away(uuid, timestamptz) to service_role;
+
+-- Second lock (2026-10-11): RLS with no policies already blocks these, but Supabase's default
+-- grants still give anon/authenticated INSERT/UPDATE/DELETE/TRUNCATE on every public table.
+-- TRUNCATE is not covered by RLS at all. Revoke the writes so a mistaken future policy can't open them.
+-- SELECT stays granted (RLS with no policies returns nothing) so nothing that relies on it breaks.
+revoke insert, update, delete, truncate on public.agents,
+  public.agent_activity_types, public.agent_activity_log, public.agent_alerts, public.agent_away_periods
+  from anon, authenticated;
 ```
 
 Verify:
 
 ```sql
-select count(*) from public.agent_away_periods; -- expect 0
-select public.agent_is_away(id) from public.agents; -- expect false
+select (select count(*) from public.agent_away_periods) as away_rows,          -- expect 0
+       (select bool_and(not public.agent_is_away(id)) from public.agents) as nobody_away; -- expect true
+```
+
+Grant check (expect 10 rows, every can_* = false):
+
+```sql
+select c.relname as table_name, r.role_name,
+       has_table_privilege(r.role_name, c.oid, 'INSERT')   as can_insert,
+       has_table_privilege(r.role_name, c.oid, 'UPDATE')   as can_update,
+       has_table_privilege(r.role_name, c.oid, 'DELETE')   as can_delete,
+       has_table_privilege(r.role_name, c.oid, 'TRUNCATE') as can_truncate
+from pg_class c
+cross join (values ('anon'), ('authenticated')) as r(role_name)
+where c.relnamespace = 'public'::regnamespace
+  and c.relname in ('agents', 'agent_activity_types', 'agent_activity_log', 'agent_alerts', 'agent_away_periods')
+order by 1, 2;
 ```
 
 ### Step 4: assignment columns, history, assign and reassign, guard trigger
@@ -741,6 +802,7 @@ create table public.search_assignments (
 create index search_assignments_search_idx on public.search_assignments (search_id, created_at desc, id);
 create index search_assignments_agent_idx on public.search_assignments (agent_id, created_at desc, id);
 alter table public.search_assignments enable row level security;
+revoke insert, update, delete, truncate on public.search_assignments from anon, authenticated;
 
 create function public.customer_searches_assignment_guard() returns trigger
 language plpgsql as $$
@@ -833,7 +895,10 @@ begin
   if v_agent is null then
     insert into public.agent_alerts (kind, audience, search_id, details)
     values ('assignment_no_lead', 'admins', p_search_id, jsonb_build_object('reason', 'nobody in rotation and no active lead'))
-    on conflict (search_id, kind) where resolved_at is null and search_id is not null do nothing
+    on conflict (search_id, kind)
+      where resolved_at is null and search_id is not null
+        and kind in ('assignment_lead_fallback', 'assignment_no_lead')
+      do nothing
     returning id into v_alert;
     return jsonb_build_object('search_id', p_search_id, 'agent_id', null, 'method', 'unassigned', 'alert_id', v_alert);
   end if;
@@ -848,7 +913,10 @@ begin
   if v_method = 'lead_fallback' then
     insert into public.agent_alerts (kind, audience, search_id, agent_id, details)
     values ('assignment_lead_fallback', 'leads', p_search_id, v_agent, jsonb_build_object('reason', 'nobody in rotation'))
-    on conflict (search_id, kind) where resolved_at is null and search_id is not null do nothing
+    on conflict (search_id, kind)
+      where resolved_at is null and search_id is not null
+        and kind in ('assignment_lead_fallback', 'assignment_no_lead')
+      do nothing
     returning id into v_alert;
   end if;
 
@@ -1028,6 +1096,7 @@ create index dealer_contacts_agent_idx on public.dealer_contacts (agent_id, cont
 create index dealer_contacts_due_idx on public.dealer_contacts (next_follow_up_at, id)
   where follow_up_closed_at is null and next_follow_up_at is not null;
 alter table public.dealer_contacts enable row level security;
+revoke insert, update, delete, truncate on public.dealer_contacts from anon, authenticated;
 
 alter table public.agent_activity_log
   add constraint agent_activity_log_dealer_contact_fk
@@ -1051,6 +1120,7 @@ create table public.refund_reasons (
   created_at timestamptz not null default now()
 );
 alter table public.refund_reasons enable row level security;
+revoke insert, update, delete, truncate on public.refund_reasons from anon, authenticated;
 insert into public.refund_reasons (code, label) values
   ('cancellation', 'Cancellation'),
   ('guarantee', 'Day-30 guarantee'),
