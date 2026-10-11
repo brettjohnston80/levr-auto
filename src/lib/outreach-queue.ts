@@ -811,7 +811,9 @@ export async function getFinalizationQueue(): Promise<FinalizationQueueSearch[]>
       distinctMakeModels.map(async ({ make, model }) => {
         const { data } = await supabase
           .from("listings")
-          .select("trim, price_cents, year")
+          // powertrain: buildTrimOptions splits a trim MarketCheck uses for
+          // gas and hybrid alike, so agents see the customer's choices.
+          .select("trim, price_cents, year, powertrain:raw_data->build->>powertrain_type")
           .eq("make", make)
           .eq("model", model)
           .not("trim", "is", null);

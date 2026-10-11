@@ -215,7 +215,9 @@ export async function getConfiguratorQuestionsForTrims(
     const outcome = matchConfiguratorTrim(candidates, {
       trim: option.trim,
       year: option.year,
-      powertrains: [...(powertrainsByOption.get(option.id) ?? [])],
+      // A trim split by powertrain (buildTrimOptions, 2026-10-11) carries
+      // its own; every other option uses its listings' powertrains.
+      powertrains: option.powertrain ? [option.powertrain] : [...(powertrainsByOption.get(option.id) ?? [])],
     });
     results.set(option.id, { outcome, questions: null });
     if (outcome.matched) matchedTrimIds.add(outcome.configuratorTrimId);

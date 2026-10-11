@@ -1,3 +1,4 @@
+import { listingPowertrainClass, type PowertrainClass } from "./configurator-matching";
 // Aggregates real synced listings.trim data into distinct trim options for
 // the finalize flow -- so the self-service trim picker (finalize-self-
 // service.tsx) shows actual current inventory and price ranges for the
@@ -5,65 +6,91 @@
 // Deliberately plain data transformation, not a server action.
 
 export interface TrimOption {
-  // Stable identity for React keys and selection state: a trim name alone
-  // is NOT unique once options are split by model year (2026-09-09) -- the
-  // same trim can legitimately appear for both MY2026 and MY2027, and two
-  // options sharing a key would collide in React and highlight together.
-  // Format: `${trim}::${year ?? "unknown"}`.
   id: string;
   trim: string;
-  // Model year this option's listings are from, or null when the synced
-  // rows carry no year. `listings.year` has always been populated by the
-  // sync (and filtered to current-year-or-next by
-  // isTrustworthyNewListingYear), but the finalize flow discarded it --
-  // so a make/model spanning two model years collapsed into one
-  // undifferentiated trim list.
   year: number | null;
   count: number;
   minPriceCents: number | null;
   maxPriceCents: number | null;
+  /**
+   * Set only when this option is one powertrain of a trim name MarketCheck
+   * uses for more than one (2026-10-11): e.g. Subaru Forester "Premium" gas
+   * vs. hybrid, Honda Civic "Sport". Absent for every ordinary option.
+   */
+  powertrain?: PowertrainClass;
 }
 
-// Grouped by trim AND year, not trim alone. Everything else about this
-// function is unchanged: same count/min/max aggregation, same
-// cheapest-first sort, same skip of null trims.
-export function buildTrimOptions(
-  listings: { trim: string | null; price_cents: number | null; year?: number | null }[]
-): TrimOption[] {
-  const byTrim = new Map<string, TrimOption>();
+type TrimListing = { trim: string | null; price_cents: number | null; year?: number | null; powertrain?: string | null };
 
+// Label suffix for a split-out powertrain. Wording pending Brett's sign-off.
+const POWERTRAIN_SUFFIX: Partial<Record<PowertrainClass, string>> = {
+  HYBRID: "Hybrid",
+  PHEV: "Plug-in Hybrid",
+  EV: "Electric",
+  FCEV: "Fuel Cell",
+};
+
+function labelFor(trim: string, cls: PowertrainClass): string {
+  const suffix = POWERTRAIN_SUFFIX[cls];
+  if (!suffix) return trim; // gas keeps the plain trim name
+  return new RegExp(`\\b${suffix}\\b`, "i").test(trim) ? trim : `${trim} ${suffix}`;
+}
+
+function addListing(map: Map<string, TrimOption>, key: string, trim: string, year: number | null, price: number | null, powertrain?: PowertrainClass) {
+  const existing = map.get(key);
+  if (existing) {
+    existing.count += 1;
+    if (price != null) {
+      existing.minPriceCents = existing.minPriceCents == null ? price : Math.min(existing.minPriceCents, price);
+      existing.maxPriceCents = existing.maxPriceCents == null ? price : Math.max(existing.maxPriceCents, price);
+    }
+  } else {
+    map.set(key, {
+      id: key,
+      trim,
+      year,
+      count: 1,
+      minPriceCents: price,
+      maxPriceCents: price,
+      ...(powertrain ? { powertrain } : {}),
+    });
+  }
+}
+
+export function buildTrimOptions(listings: TrimListing[]): TrimOption[] {
+  // Which known powertrains each trim+year group carries.
+  const classesByGroup = new Map<string, Map<PowertrainClass, number>>();
+  for (const listing of listings) {
+    if (!listing.trim) continue;
+    const key = `${listing.trim}::${listing.year ?? "unknown"}`;
+    const cls = listingPowertrainClass(listing.powertrain);
+    if (cls === "UNKNOWN") continue;
+    const counts = classesByGroup.get(key) ?? new Map<PowertrainClass, number>();
+    counts.set(cls, (counts.get(cls) ?? 0) + 1);
+    classesByGroup.set(key, counts);
+  }
+
+  const byTrim = new Map<string, TrimOption>();
   for (const listing of listings) {
     if (!listing.trim) continue;
     const year = listing.year ?? null;
     const key = `${listing.trim}::${year ?? "unknown"}`;
-    const existing = byTrim.get(key);
-    if (existing) {
-      existing.count += 1;
-      if (listing.price_cents != null) {
-        existing.minPriceCents =
-          existing.minPriceCents == null
-            ? listing.price_cents
-            : Math.min(existing.minPriceCents, listing.price_cents);
-        existing.maxPriceCents =
-          existing.maxPriceCents == null
-            ? listing.price_cents
-            : Math.max(existing.maxPriceCents, listing.price_cents);
-      }
-    } else {
-      byTrim.set(key, {
-        id: key,
-        trim: listing.trim,
-        year,
-        count: 1,
-        minPriceCents: listing.price_cents,
-        maxPriceCents: listing.price_cents,
-      });
+    const counts = classesByGroup.get(key);
+    if (!counts || counts.size <= 1) {
+      // One powertrain (or none known): exactly as before.
+      addListing(byTrim, key, listing.trim, year, listing.price_cents);
+      continue;
     }
+    // Several powertrains under one trim name: one option per powertrain.
+    // A listing with no known powertrain joins the most common one.
+    let cls = listingPowertrainClass(listing.powertrain);
+    if (cls === "UNKNOWN") cls = [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    const label = labelFor(listing.trim, cls);
+    // Keyed by label, so it lines up with a separate MarketCheck trim that
+    // already carries the same name (e.g. "SEL Sport Hybrid"): one option.
+    addListing(byTrim, `${label}::${year ?? "unknown"}`, label, year, listing.price_cents, cls);
   }
 
-  // Primary sort unchanged (cheapest first). Year is only a tie-break, so
-  // for any make/model whose listings all share one year -- the common case
-  // -- the resulting order is byte-identical to before this change.
   return [...byTrim.values()].sort(
     (a, b) => (a.minPriceCents ?? 0) - (b.minPriceCents ?? 0) || (a.year ?? 0) - (b.year ?? 0),
   );
