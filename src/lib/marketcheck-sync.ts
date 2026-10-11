@@ -21,6 +21,10 @@ function isTrustworthyNewListingYear(year: number | null | undefined): boolean {
   return year === currentYear || year === currentYear + 1;
 }
 
+function sameIgnoringCase(a: string | undefined, b: string): boolean {
+  return (a ?? "").toLowerCase() === b.toLowerCase();
+}
+
 function toListingRow(
   listing: MarketCheckListing,
   fallbackMake: string,
@@ -30,11 +34,17 @@ function toListingRow(
   return {
     vin: listing.vin,
     // A mapped model (marketcheck-models.ts) is stored under OUR names, so
-    // everything reading listings by make/model finds it.
-    make: forceOurNames ? fallbackMake : (listing.build?.make ?? fallbackMake),
-    model: forceOurNames
-      ? fallbackModel
-      : (listing.build?.model ?? fallbackModel),
+    // everything reading listings by make/model finds it. So is a name that
+    // differs only in capitals (MarketCheck "INFINITI" vs our "Infiniti",
+    // 2026-10-11) -- reads match make/model exactly.
+    make:
+      forceOurNames || sameIgnoringCase(listing.build?.make, fallbackMake)
+        ? fallbackMake
+        : (listing.build?.make ?? fallbackMake),
+    model:
+      forceOurNames || sameIgnoringCase(listing.build?.model, fallbackModel)
+        ? fallbackModel
+        : (listing.build?.model ?? fallbackModel),
     trim: listing.build?.trim ?? null,
     year: listing.build?.year ?? null,
     color: listing.exterior_color ?? null,

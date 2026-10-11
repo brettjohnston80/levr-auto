@@ -138,8 +138,10 @@ export async function getConfiguratorQuestionsForTrims(
       .from("configurator_trims")
       .select("id, make, model, trim, model_year, fuel_type, body_style")
       .eq("batch_id", batchId)
-      .eq("make", make)
-      .eq("model", model)
+      // Case-insensitive (2026-10-11): research and MarketCheck spell some
+      // makes differently from our vehicle list ("INFINITI" / "Infiniti").
+      .ilike("make", make)
+      .ilike("model", model)
       .order("id")
       .range(from, from + PAGE_SIZE - 1);
     if (error) return empty;
