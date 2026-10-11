@@ -203,6 +203,11 @@ There are three layers. Each one alone would stop a plain mistake; together they
 
 - **Payment:** the Stripe webhook `checkout.session.completed`, `search_payment` branch (`src/app/api/stripe/webhook/route.ts`, right after `paid_at` is set at ~:79–88), calls `assign_search`. It's non-fatal, like the MarketCheck sync beside it: a failure is logged and alerted, and the sweep retries.
 - **Switches** (free, paid, or agent-initiated) all go through `switch_customer_search`. The new row **inherits the old row's agent** inside that function (method `inherited_switch`), so a switch never re-rolls the agent.
+  - **Deactivated agent (Brett, 2026-10-11):** a switch must not inherit a deactivated agent. The Step 5 version inherits whoever is on the old row, active or not. **Fix, folded into Step 9 and required before Step 10:**
+    1. inherit only if `agents.active` is true for the old agent;
+    2. otherwise insert the new row unassigned and, if it's paid, call `assign_search(v_new.id)`. That applies the normal rules: test accounts skipped; continuity, which also skips the deactivated agent because it requires `active and in_rotation`; round-robin; the lead fallback; then admin alerts.
+    - An away agent, or one taken out of rotation, is still inherited: only deactivation breaks the link, matching how existing searches stay with an away agent (Q5).
+  - **Why Step 9, not a separate follow-up:** nothing is assigned until the Step 10 backfill, so the gap can't affect anyone before then, and Step 9 already replaces functions. It must land before Step 10. Step 9's verification adds a rolled-back test: deactivate a test agent inside the transaction, switch a search assigned to them, and expect the new row assigned by `assign_search` (method `round_robin` to Brett), not `inherited_switch`.
 - **Undecided searches** are the same row after `finalizeUndecidedSearch`, so the assignment carries over.
 - **Safety net:** an `assignUnassignedPaidSearches()` sweep inside the existing hourly `/api/cron/solidify-pending-searches` job (no new cron). Paginated (section 7).
 - **When the Phase 1 code deploys (confirmed):** the sweep runs on its first hourly tick after the deploy, and immediately assigns every **real** paid search that stayed unassigned in between. That means anything paid after the Step 10 backfill, while the migrations were in but the code wasn't. It can also be triggered by hand right after the deploy (a `CRON_SECRET` call to the same cron route), so there's no wait. The deploy check counts real paid searches with no agent, before and after; the expected result afterwards is 0, unless no active lead or admin exists, in which case there are alert rows instead.
@@ -1042,7 +1047,7 @@ Afterwards, query A should still show `history_rows = 0` and `assigned = 0`: the
 
 ### Step 5: switches inherit the agent
 
-Same signature as today, so it replaces in place. The current body is copied verbatim from `20260926130000_pickup_travel_and_handoff.sql`; the only additions are the assignment columns on the new row, a history row, the guard flag and the activity write.
+Built from the live function text in `20260926130000_pickup_travel_and_handoff.sql` (no later migration replaces it). The diff against it is **additions only**: the two assignment columns on the new row inside the guard flag, the `inherited_switch` history row, and the activity row for agent switches. Same signature, so `create or replace` replaces it in place. Callers, all unchanged: `src/app/api/stripe/webhook/route.ts:192`, `src/lib/switch-actions.ts:92`, `src/lib/switch-self-service-actions.ts:185`.
 
 ```sql
 create or replace function public.switch_customer_search(
@@ -1062,7 +1067,10 @@ declare
   v_old public.customer_searches;
   v_new public.customer_searches;
 begin
-  select * into v_old from public.customer_searches where id = p_old_search_id for update;
+  select * into v_old
+  from public.customer_searches
+  where id = p_old_search_id
+  for update;
 
   if not found then
     raise exception 'customer_searches row % not found', p_old_search_id;
@@ -1076,8 +1084,14 @@ begin
     raise exception 'p_reason_category is required when p_agent_id is provided';
   end if;
 
-  perform set_config('levr.assignment', 'on', true);  -- only for this insert; turned off right after
-
+  -- trim/colors/required_options deliberately reset to defaults, not copied
+  -- from the old row -- they're model-specific. zip and the pickup travel
+  -- answer carry over: customer-level, not vehicle-specific. model_year is
+  -- the switched-TO year, never the old row's.
+  -- Phase 1 (Step 5): the assigned agent carries over too (method inherited_switch),
+  -- so a switch never re-rolls the agent. An unassigned old row gives an unassigned
+  -- new row. The assignment guard flag is on only for this insert.
+  perform set_config('levr.assignment', 'on', true);
   insert into public.customer_searches (
     customer_id, make, model, model_year, zip, paid_at,
     pickup_travel_choice, pickup_travel_miles, pickup_travel_set_at,
@@ -1092,7 +1106,8 @@ begin
   perform set_config('levr.assignment', 'off', true);
 
   update public.customer_searches
-  set superseded_by_id = v_new.id, search_status = 'switched'
+  set superseded_by_id = v_new.id,
+      search_status = 'switched'
   where id = p_old_search_id;
 
   if v_old.assigned_agent_id is not null then
@@ -1114,14 +1129,75 @@ end;
 $$;
 ```
 
-Unassigned old rows (anything paid before the backfill, and every tester search) produce an unassigned new row. The payment-time step or the hourly sweep then assigns it normally once the code ships.
-
-Verify:
+Verify (A is read-only; B and C are rolled back and use Brett's own customer row, never a tester's):
 
 ```sql
-select count(*) from pg_proc where proname = 'switch_customer_search'; -- expect 1
-select position('inherited_switch' in pg_get_functiondef('public.switch_customer_search'::regproc)) > 0; -- expect true
+-- A. one function, same signature, new behaviour present
+select count(*) as overloads,
+       bool_and(pg_get_function_identity_arguments(oid) =
+         'p_old_search_id uuid, p_new_make text, p_new_model text, p_new_model_year smallint, p_paid_at timestamp with time zone, p_agent_id uuid, p_reason_category text, p_notes text') as same_signature,
+       bool_and(position('inherited_switch' in pg_get_functiondef(oid)) > 0) as inherits_agent
+from pg_proc where proname = 'switch_customer_search';
+-- expect 1 | true | true
+
+-- B. agent switch of an ASSIGNED search, as the website's role, rolled back
+--    expect: old_status switched | new_inherits_brett true | new_method inherited_switch | bypass_rows 1 | activity_rows 1
+begin;
+with s as (
+  insert into public.customer_searches (customer_id, make, model, model_year, paid_at)
+  select c.id, 'Toyota', 'Camry', 2026, now()
+  from public.customers c join auth.users u on u.id = c.id
+  where lower(u.email) = 'bjohnston@levrauto.com'
+  returning id
+)
+select set_config('p5.old', (select id::text from s), true);
+set local role service_role;
+select public.assign_search(current_setting('p5.old')::uuid);
+select set_config('p5.new', (public.switch_customer_search(
+  current_setting('p5.old')::uuid, 'Honda', 'Civic', 2026::smallint, now(),
+  (select id from public.agents where lower(email) = 'bjohnston@levrauto.com'),
+  'Goodwill gesture', 'phase1 step5 check')).id::text, true);
+reset role;
+select (select search_status from public.customer_searches where id = current_setting('p5.old')::uuid) as old_status,
+       n.assigned_agent_id = (select id from public.agents where lower(email) = 'bjohnston@levrauto.com') as new_inherits_brett,
+       (select method from public.search_assignments where search_id = n.id) as new_method,
+       (select count(*) from public.agent_bypass_log where search_id = current_setting('p5.old')::uuid) as bypass_rows,
+       (select count(*) from public.agent_activity_log
+         where action = 'search_switched' and search_id = current_setting('p5.old')::uuid) as activity_rows
+from public.customer_searches n where n.id = current_setting('p5.new')::uuid;
+rollback;
+
+-- C. customer self-service switch of an UNASSIGNED search (how every switch behaves today), rolled back
+--    expect: old_status switched | new_assigned_agent null | history_rows 0 | activity_rows 0
+begin;
+with s as (
+  insert into public.customer_searches (customer_id, make, model, model_year, paid_at)
+  select c.id, 'Toyota', 'Camry', 2026, now()
+  from public.customers c join auth.users u on u.id = c.id
+  where lower(u.email) = 'bjohnston@levrauto.com'
+  returning id
+)
+select set_config('p5.old', (select id::text from s), true);
+set local role service_role;
+select set_config('p5.new', (public.switch_customer_search(
+  current_setting('p5.old')::uuid, 'Honda', 'Civic', 2026::smallint, now())).id::text, true);
+reset role;
+select (select search_status from public.customer_searches where id = current_setting('p5.old')::uuid) as old_status,
+       n.assigned_agent_id as new_assigned_agent,
+       (select count(*) from public.search_assignments where search_id = n.id) as history_rows,
+       (select count(*) from public.agent_activity_log where search_id = current_setting('p5.old')::uuid) as activity_rows
+from public.customer_searches n where n.id = current_setting('p5.new')::uuid;
+rollback;
+
+-- D. nothing left behind (run after B and C)
+--    expect 0 | 0 | 0 | 0
+select (select count(*) from public.search_assignments) as history_rows,
+       (select count(*) from public.customer_searches where assigned_agent_id is not null) as assigned,
+       (select count(*) from public.agent_activity_log) as activity_rows,
+       (select count(*) from public.agent_bypass_log where notes = 'phase1 step5 check') as test_bypass_rows;
 ```
+
+Step 5 creates no tables, so there's no new grant check. The grant check from Step 4 is unchanged.
 
 ### Step 6: dealer outreach log
 
@@ -1321,6 +1397,8 @@ order by 1, 2;
 
   Retyping a guard from memory is how bugs get in, so these bodies aren't reproduced in this plan.
 - **`set_agent_active`** must turn off `in_rotation` before setting `active = false`, because of the `agents_deactivated_not_in_rotation` check.
+- **`switch_customer_search` (deactivated-agent fix, see 4.2):** same signature again, built from the Step 5 text (`20261011170000_switch_inherits_agent.sql`). It inherits only an active agent; otherwise the new row starts unassigned and, if paid, goes through `assign_search`.
+- **`agent_alerts.notified_at`** (new column): alerts can now be raised inside other functions (`assign_search` called from a switch, `log_agent_activity`), not only when the app calls `assign_search` itself. So the app sends alert emails from a sweep over `agent_alerts where notified_at is null` (in the hourly cron, plus right after any call that returned an `alert_id`) and stamps `notified_at`. No alert email depends on which code path raised it.
 
 Verify:
 
@@ -1469,7 +1547,8 @@ None of these is a clock. They are due dates or states, all computable from Phas
 1. **`src/lib/agent-auth.ts`:** role-aware checks (section 3).
 2. **`src/lib/agent-activity.ts`:** `logAgentActivity`, with the failure path of section 5.2. Called from every app-level path in 5.3.
 3. **`src/lib/search-assignment.ts`:**
-   - `assignSearch` (calls `assign_search`; emails leads when it returns an `alert_id`);
+   - `assignSearch` (calls `assign_search`; when it returns an `alert_id`, runs the alert-email sweep straight away);
+   - `sendPendingAgentAlerts()` (emails each alert's audience and stamps `agent_alerts.notified_at`; also runs hourly);
    - `assignUnassignedPaidSearches` (paginated sweep);
    - `reassignSearch` (≥ lead).
    - Wired into the webhook `search_payment` branch and the hourly solidify cron.
