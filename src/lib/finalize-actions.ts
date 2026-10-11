@@ -530,7 +530,9 @@ async function writeConfiguratorSelections(
     // The table is unique on (search_id, category, selection); a repeated
     // answer is the same answer, not a second one.
     if (seen.has(key)) continue;
-    const matches = (optionsByKey.get(key) ?? []).filter((o) => o.availability !== "unavailable");
+    // Only real, offered options validate an answer -- `unavailable` and
+    // `unknown` (not confirmed, 2026-10-11) never do.
+    const matches = (optionsByKey.get(key) ?? []).filter((o) => CHOICE_AVAILABILITY.has(o.availability));
     // Genuinely never real for this vehicle -- optionsByKey is built from
     // the WIDER pool (every live trim for this make/model, not just
     // ranked ones), so this is the one remaining case actually worth
@@ -1084,6 +1086,7 @@ async function writeCombinationPreferences(
       interiorRaw: toChoices(trimId, "interior", CHOICE_AVAILABILITY),
       seatingRaw: toChoices(trimId, "seating", CHOICE_AVAILABILITY),
       featuresStandard: [],
+      featuresUnknown: [],
       // Unused by computeRealCombinations (only *Raw and, for the package
       // gate, features feed it) -- present only to satisfy the type.
       wheels: [],

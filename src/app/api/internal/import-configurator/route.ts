@@ -85,6 +85,7 @@ export async function POST(req: NextRequest) {
   const availabilityMethod: Record<string, number> = {
     exact: 0,
     prefix: 0,
+    blank_unknown: 0,
     forced_unavailable: 0,
   };
   const availability: Record<string, number> = {
@@ -92,6 +93,7 @@ export async function POST(req: NextRequest) {
     standalone: 0,
     package_only: 0,
     unavailable: 0,
+    unknown: 0,
   };
   let keptOptions = 0;
 

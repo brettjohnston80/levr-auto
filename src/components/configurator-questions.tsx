@@ -32,6 +32,7 @@ function formatCents(cents: number): string {
  * pipeline is built to avoid.
  */
 function priceLabel(choice: ConfiguratorChoice): { text: string; tone: "free" | "cost" | "unknown" } {
+  if (choice.unconfirmed) return { text: "Not confirmed", tone: "unknown" };
   if (choice.availability === "package_only") {
     if (choice.packagePriceCents == null) {
       return { text: "Package price not confirmed", tone: "unknown" };

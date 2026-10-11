@@ -11,10 +11,17 @@
 //   note       optional ' -- ' suffix anywhere in the item, stripped to `notes`
 // package_definitions uses the same shape: name | price | contents: a, b, c
 
-export type Availability = "standard" | "standalone" | "package_only" | "unavailable";
+/**
+ * `unknown` (2026-10-11, Brett): the research left the availability BLANK
+ * on purpose -- it couldn't confirm either way. Stored as unknown, never
+ * as unavailable, so the comparison and "All details" can say "Not
+ * confirmed" instead of implying the trim lacks it. Never offered as a
+ * customer choice (only CHOICE_AVAILABILITY values are).
+ */
+export type Availability = "standard" | "standalone" | "package_only" | "unavailable" | "unknown";
 
 /** How an availability string was resolved -- reporting/audit only. */
-export type AvailabilityMethod = "exact" | "prefix" | "forced_unavailable";
+export type AvailabilityMethod = "exact" | "prefix" | "blank_unknown" | "forced_unavailable";
 
 export interface ParsedPrice {
   /** Integer cents, or null when genuinely unknown. NEVER render null as $0. */
@@ -106,6 +113,9 @@ export function classifyAvailability(raw: string | null | undefined): {
   method: AvailabilityMethod;
 } {
   const value = (raw ?? "").trim();
+  // Left blank on purpose by the research (2026-10-11): not confirmed
+  // either way. Other ambiguous wording still resolves to unavailable.
+  if (value === "") return { availability: "unknown", method: "blank_unknown" };
 
   for (const [source, normalized] of CANONICAL) {
     if (value === source) return { availability: normalized, method: "exact" };

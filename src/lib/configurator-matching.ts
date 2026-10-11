@@ -391,6 +391,12 @@ export interface ConfiguratorChoice {
    * drag fs into the client bundle the way a value import would.
    */
   swatch?: ColorSwatchValue | null;
+  /**
+   * Display-only (2026-10-11): a fabricated row for a feature whose
+   * availability on this trim is not confirmed. PriceTag shows "Not
+   * confirmed". Never set on a real, selectable choice.
+   */
+  unconfirmed?: boolean;
 }
 
 /**
@@ -461,6 +467,13 @@ export interface ConfiguratorQuestions {
    * ("can't be removed on this trim").
    */
   featuresStandard: string[];
+  /**
+   * Names only (2026-10-11) -- feature names whose availability on THIS
+   * trim the research couldn't confirm (left blank on purpose, stored as
+   * `unknown`). Never a customer choice; the comparison and "All details"
+   * show them as "Not confirmed" rather than as missing.
+   */
+  featuresUnknown: string[];
   /**
    * Wheels / roof / drivetrain (2026-09-19, trim comparison view) -- real
    * researched categories that exist in `configurator_options` and were

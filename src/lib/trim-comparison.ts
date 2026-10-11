@@ -43,6 +43,9 @@ export interface ComparisonCell {
  */
 export const DASH: ComparisonCell = { text: "—", tone: "none" };
 
+/** A feature the research couldn't confirm on this trim (2026-10-11). */
+export const NOT_CONFIRMED: ComparisonCell = { text: "Not confirmed", tone: "unknown" };
+
 /**
  * One choice's compact table-cell rendering: Standard / +$price / +$price
  * package / price-not-confirmed / free-standalone. Deliberately NOT the
@@ -346,6 +349,7 @@ export function computeFeatureComparisonRows(
     packagesByTrimId[id] = packages;
     for (const c of packages) names.add(c.name);
     for (const n of q.featuresStandard) names.add(n);
+    for (const n of q.featuresUnknown) names.add(n);
   }
 
   return [...names].sort((a, b) => a.localeCompare(b)).map((name) => {
@@ -362,7 +366,13 @@ export function computeFeatureComparisonRows(
         continue;
       }
       const choice = packagesByTrimId[id]?.find((c) => c.name === name);
-      cellsByTrimId[id] = choice ? priceCellFor(choice) : DASH;
+      // Research couldn't confirm it on this trim (2026-10-11): say so,
+      // rather than a dash that reads as "this trim doesn't have it".
+      cellsByTrimId[id] = choice
+        ? priceCellFor(choice)
+        : q.featuresUnknown.includes(name)
+          ? NOT_CONFIRMED
+          : DASH;
       // Same "first compared trim that actually offers the name" rule
       // computeChoiceComparisonRows already uses -- the photo is the
       // same real asset regardless of which trim offers it, so the

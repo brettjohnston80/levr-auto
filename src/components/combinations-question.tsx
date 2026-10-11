@@ -81,6 +81,7 @@ function featurePillsFor(
   trimLabel: string,
 ): FeaturePill[] {
   const standardNames = new Set(q.featuresStandard);
+  const unknownNames = new Set(q.featuresUnknown);
   const obtainableNames = new Set(groupIntoPackages(q.features).map((c) => c.name));
   const featureSelections = selections.filter((s) => s.category === "feature");
   const touchedNames = new Set(featureSelections.map((s) => s.selection));
@@ -88,7 +89,10 @@ function featurePillsFor(
   const pills: FeaturePill[] = [];
   for (const s of featureSelections) {
     if (!s.excluded) {
-      if (!standardNames.has(s.selection) && !obtainableNames.has(s.selection)) {
+      if (unknownNames.has(s.selection)) {
+        // Research couldn't confirm it either way (2026-10-11).
+        pills.push({ tone: "amber", text: `${s.selection} not confirmed on ${trimLabel}` });
+      } else if (!standardNames.has(s.selection) && !obtainableNames.has(s.selection)) {
         pills.push({ tone: "amber", text: `${s.selection} not available on ${trimLabel}` });
       } else if (obtainableNames.has(s.selection)) {
         pills.push({ tone: "green", text: `Includes: ${s.selection}` });

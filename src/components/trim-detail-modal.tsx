@@ -60,6 +60,12 @@ function CloseIcon() {
 // name + swatch/photo + price + package-note row format this modal
 // already renders, just fed the customer's own ranked selections instead
 // of a trim's full unfiltered option list.
+/** A feature the research couldn't confirm on this trim (2026-10-11):
+ *  same row format, PriceTag reads "Not confirmed". */
+export function unconfirmedChoice(name: string): ConfiguratorChoice {
+  return { ...standardChoice(name), priceIsIncluded: false, unconfirmed: true };
+}
+
 export function standardChoice(name: string): ConfiguratorChoice {
   return {
     name,
@@ -483,6 +489,7 @@ export function TrimDetailModal({
                 choices={[
                   ...groupIntoPackages(questions.features),
                   ...questions.featuresStandard.map(standardChoice),
+                  ...questions.featuresUnknown.map(unconfirmedChoice),
                 ]}
               />
             </>

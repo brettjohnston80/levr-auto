@@ -380,6 +380,14 @@ function buildConfiguratorQuestions(
     interiorRaw,
     seatingRaw,
     featuresStandard,
+    featuresUnknown: [
+      ...new Set(
+        rows
+          .filter((r) => r.category === "feature" && r.availability === "unknown")
+          .map((r) => r.name)
+          .filter((n) => !featuresStandard.includes(n)),
+      ),
+    ],
     wheels,
     roof,
     drivetrain,
