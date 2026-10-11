@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { RefreshInventoryButton } from "@/components/refresh-inventory-button";
 import { requireAgent } from "@/lib/agent-auth";
 import {
   getOutreachQueue,
@@ -1111,6 +1112,7 @@ export default async function OutreachQueuePage() {
                     <h3 className="text-sm font-semibold text-zinc-300">
                       Matching dealers ({search.dealers.length})
                     </h3>
+                    <RefreshInventoryButton searchId={search.id} lastSyncedAt={search.inventoryLastSyncedAt} />
                     {search.dealers.length === 0 ? (
                       <p className="mt-1 text-sm text-zinc-500">No listings synced yet for this make/model.</p>
                     ) : (

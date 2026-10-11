@@ -1,4 +1,5 @@
 import { deliveryEstimateStandard, type DeliveryEstimate, type DeliveryEstimateStatus } from "./delivery-estimate";
+import { getLastSyncedAt } from "./marketcheck-sync";
 import "server-only";
 import { createAdminClient } from "./supabase/admin";
 import { buildTrimOptions, filterListingsToCommittedYear, type TrimOption } from "./finalize-trims";
@@ -317,6 +318,8 @@ export interface OutreachSearch {
   /** Customer's pickup range (2026-09-26); null = not answered yet. */
   pickupTravel: PickupTravel | null;
   dealers: OutreachDealer[];
+  /** When this make/model's listings were last refreshed from MarketCheck. */
+  inventoryLastSyncedAt: string | null;
   listings: OutreachListing[];
   offers: OutreachOffer[];
   /**
@@ -387,7 +390,8 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
           )
           .eq("make", make)
           .eq("model", model);
-        return { make, model, listings: data ?? [] };
+        const lastSyncedAt = await getLastSyncedAt(make, model);
+        return { make, model, listings: data ?? [], lastSyncedAt: lastSyncedAt?.toISOString() ?? null };
       })
     ),
     supabase
@@ -621,6 +625,9 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
   const listingsByMakeModel = new Map(
     listingsByPair.map(({ make, model, listings }) => [`${make}::${model}`, listings])
   );
+  const lastSyncedByMakeModel = new Map(
+    listingsByPair.map(({ make, model, lastSyncedAt }) => [`${make}::${model}`, lastSyncedAt])
+  );
   const [messagesByOfferId, generalByCustomerId] = await Promise.all([
     loadMessagesForOffers(
       supabase,
@@ -737,6 +744,7 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
       generalMessages: generalByCustomerId.get(search.customer_id) ?? [],
       pickupTravel: travel,
       dealers,
+      inventoryLastSyncedAt: lastSyncedByMakeModel.get(`${search.make}::${search.model}`) ?? null,
       listings: rawListings.map((l) => ({
         id: l.id,
         vin: l.vin,

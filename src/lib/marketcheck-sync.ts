@@ -65,19 +65,77 @@ function toListingRow(
 }
 
 /**
+ * A sync is skipped when the make/model was refreshed this recently
+ * (2026-10-11, approved by Brett). Payment, a vehicle change, a switch and
+ * the agent forms each sync on demand, and before this they always called
+ * MarketCheck even if the same model had been refreshed minutes earlier.
+ * The scheduled tiers (marketcheck-scheduler.ts) pass their own, longer
+ * windows.
+ */
+export const DEFAULT_FRESH_WITHIN_HOURS = 24;
+
+/**
+ * When this make/model was last refreshed: the newest `synced_at` among its
+ * listings (every sync stamps every row it upserts, stored under OUR
+ * make/model names). Null when nothing is stored -- a model whose last sync
+ * found no listings is indistinguishable from one never synced, so it is
+ * simply synced again.
+ */
+export async function getLastSyncedAt(make: string, model: string): Promise<Date | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("listings")
+    .select("synced_at")
+    .eq("make", make)
+    .eq("model", model)
+    .order("synced_at", { ascending: false })
+    .limit(1);
+  if (error) throw new Error(`Failed to read last sync time: ${error.message}`);
+  const value = data?.[0]?.synced_at as string | undefined;
+  return value ? new Date(value) : null;
+}
+
+export interface SyncOptions {
+  /** Caps API usage per MarketCheck model name (50 listings/page). */
+  maxPages?: number;
+  /** Skip when refreshed within this many hours. Default 24. */
+  freshWithinHours?: number;
+  /** Sync regardless of the last refresh (manual internal route only). */
+  force?: boolean;
+}
+
+/**
  * Syncs active new-inventory listings for a single make/model into the
  * `listings` table, upserting on VIN so re-syncs never create duplicates.
  *
  * `maxPages` caps API usage per call (50 listings/page) — MarketCheck's free
  * tier is 500 calls/mo, and a popular model can have thousands of national
- * listings. The full demand-driven scheduler (next up) will decide real
- * per-make/model budgets; this default is deliberately conservative.
+ * listings.
+ *
+ * Returns `skipped: true` (and makes NO MarketCheck call) when the model was
+ * refreshed within `freshWithinHours`.
  */
 export async function syncListingsForMakeModel(
   make: string,
   model: string,
-  maxPages = 3,
+  { maxPages = 3, freshWithinHours = DEFAULT_FRESH_WITHIN_HOURS, force = false }: SyncOptions = {},
 ) {
+  if (!force) {
+    const lastSyncedAt = await getLastSyncedAt(make, model);
+    if (lastSyncedAt && Date.now() - lastSyncedAt.getTime() < freshWithinHours * 3_600_000) {
+      return {
+        make,
+        model,
+        skipped: true as const,
+        lastSyncedAt: lastSyncedAt.toISOString(),
+        totalFound: 0,
+        upserted: 0,
+        excludedForYear: 0,
+        pages: 0,
+      };
+    }
+  }
+
   const supabase = createAdminClient();
   let totalFound = 0;
   let upserted = 0;
@@ -129,5 +187,14 @@ export async function syncListingsForMakeModel(
     }
   }
 
-  return { make, model, totalFound, upserted, excludedForYear, pages };
+  return {
+    make,
+    model,
+    skipped: false as const,
+    lastSyncedAt: new Date().toISOString(),
+    totalFound,
+    upserted,
+    excludedForYear,
+    pages,
+  };
 }

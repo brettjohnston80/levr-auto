@@ -15,13 +15,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { make, model } = await request.json();
+  // `force: true` syncs even if the model was refreshed in the last day.
+  const { make, model, force } = await request.json();
   if (!make || !model) {
     return NextResponse.json({ error: "make and model are required" }, { status: 400 });
   }
 
   try {
-    const result = await syncListingsForMakeModel(make, model);
+    const result = await syncListingsForMakeModel(make, model, { force: force === true });
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
     console.error("MarketCheck sync failed:", error);

@@ -8,7 +8,7 @@ import { revalidatePath } from "next/cache";
 import { getAuthorizedAgent } from "./agent-auth";
 import { createAdminClient } from "./supabase/admin";
 import { getDocumentStatus } from "./pandadoc/client";
-import { syncListingsForMakeModel } from "./marketcheck-sync";
+import { DEFAULT_FRESH_WITHIN_HOURS, syncListingsForMakeModel } from "./marketcheck-sync";
 import { isOfferedModelYear } from "./intake-vehicle-options";
 import { MODEL_YEAR_INVENTORY_BLOCK_ENABLED, loadInventoryBlock } from "./inventory-block";
 import { AGENT_INVENTORY_BLOCK_REFUSAL } from "./inventory-block-copy";
@@ -1208,4 +1208,47 @@ export async function setOfferDeliveryEstimate(formData: FormData): Promise<SetD
   revalidatePath("/internal/outreach");
   revalidatePath("/account/deal");
   return { ok: true };
+}
+
+export type RefreshInventoryResult =
+  | { ok: true; refreshed: true; upserted: number; lastSyncedAt: string }
+  | { ok: true; refreshed: false; lastSyncedAt: string }
+  | { ok: false; error: string };
+
+/**
+ * Agent "Refresh inventory" on an active search card (2026-10-11, approved
+ * by Brett). Re-pulls the search's make/model from MarketCheck between the
+ * scheduled every-3-days refreshes -- but at most once per model per day:
+ * the same 24h window every on-demand sync uses, so one refresh serves every
+ * search on that model and repeat clicks cost no MarketCheck calls.
+ */
+export async function refreshSearchInventory(searchId: string): Promise<RefreshInventoryResult> {
+  const agent = await getAuthorizedAgent();
+  if (!agent) {
+    return { ok: false, error: "Not authorized." };
+  }
+
+  const admin = createAdminClient();
+  const { data: search, error } = await admin
+    .from("customer_searches")
+    .select("make, model")
+    .eq("id", searchId)
+    .maybeSingle();
+  if (error) return { ok: false, error: `Failed to load the search: ${error.message}` };
+  if (!search?.make || !search?.model) return { ok: false, error: "This search has no vehicle yet." };
+
+  try {
+    const result = await syncListingsForMakeModel(search.make, search.model, {
+      freshWithinHours: DEFAULT_FRESH_WITHIN_HOURS,
+    });
+    revalidatePath("/internal/outreach");
+    return result.skipped
+      ? { ok: true, refreshed: false, lastSyncedAt: result.lastSyncedAt }
+      : { ok: true, refreshed: true, upserted: result.upserted, lastSyncedAt: result.lastSyncedAt };
+  } catch (syncError) {
+    return {
+      ok: false,
+      error: `MarketCheck refresh failed: ${syncError instanceof Error ? syncError.message : "unknown error"}`,
+    };
+  }
 }
