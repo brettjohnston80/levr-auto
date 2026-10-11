@@ -830,8 +830,10 @@ before insert or update of assigned_agent_id, assigned_at on public.customer_sea
 for each row execute function public.customer_searches_assignment_guard();
 
 -- Test accounts (N7): the CLAUDE.md rules, by the auth email (never customers.email, which is not unique).
+-- security definer so it can read auth.users whatever role calls it; safe because execute is
+-- revoked from anon/authenticated below, and search_path is pinned.
 create function public.is_test_customer(p_customer_id uuid) returns boolean
-language sql stable as $$
+language sql stable security definer set search_path = '' as $$
   select exists (
     select 1 from auth.users u
     where u.id = p_customer_id
@@ -849,7 +851,6 @@ declare
   v_alert uuid;
 begin
   perform pg_advisory_xact_lock(hashtext('levr_assign_search'));
-  perform set_config('levr.assignment', 'on', true);
 
   select * into v_search from public.customer_searches where id = p_search_id for update;
   if not found then
@@ -911,9 +912,12 @@ begin
     return jsonb_build_object('search_id', p_search_id, 'agent_id', null, 'method', 'unassigned', 'alert_id', v_alert);
   end if;
 
+  -- The guard flag is on only for this one update, so it can't carry over to later statements.
+  perform set_config('levr.assignment', 'on', true);
   update public.customer_searches set assigned_agent_id = v_agent, assigned_at = now() where id = p_search_id;
+  perform set_config('levr.assignment', 'off', true);
 
-  perform set_config('levr.agent_admin', 'on', true); -- last_assigned_at isn't a guarded column, but keeps updated_at consistent
+  -- last_assigned_at isn't a guarded column, so no agents flag is needed here.
   update public.agents set last_assigned_at = now() where id = v_agent;
 
   insert into public.search_assignments (search_id, agent_id, method) values (p_search_id, v_agent, v_method);
@@ -951,8 +955,6 @@ begin
     raise exception 'a reason is required to reassign a search';
   end if;
 
-  perform set_config('levr.assignment', 'on', true);
-
   select * into v_search from public.customer_searches where id = p_search_id for update;
   if not found then
     raise exception 'customer_searches row % not found', p_search_id;
@@ -962,8 +964,10 @@ begin
     return v_search;
   end if;
 
+  perform set_config('levr.assignment', 'on', true);
   update public.customer_searches set assigned_agent_id = p_new_agent_id, assigned_at = now()
   where id = p_search_id returning * into v_search;
+  perform set_config('levr.assignment', 'off', true);
 
   insert into public.search_assignments (search_id, agent_id, previous_agent_id, assigned_by_agent_id, method, reason)
   values (p_search_id, p_new_agent_id, v_previous, p_actor_agent_id, 'manual', p_reason);
@@ -1013,22 +1017,25 @@ update public.customer_searches set assigned_at = now()
 where id = (select id from public.customer_searches limit 1);
 
 -- D. assignment works end to end, rolled back (run these lines together as one query).
+--    It runs assign_search as service_role (the website's role), so it proves the real path,
+--    including is_test_customer reading auth.users.
 --    Expected final result: one row, agent_email = bjohnston@levrauto.com, method = round_robin.
 begin;
-create temp table phase1_step4_check on commit drop as
-  with s as (
-    insert into public.customer_searches (customer_id, make, model, model_year, paid_at)
-    select c.id, 'Toyota', 'Camry', 2026, now()
-    from public.customers c join auth.users u on u.id = c.id
-    where lower(u.email) = 'bjohnston@levrauto.com'
-    returning id
-  )
-  select id from s;
-select public.assign_search(id) from phase1_step4_check;
+with s as (
+  insert into public.customer_searches (customer_id, make, model, model_year, paid_at)
+  select c.id, 'Toyota', 'Camry', 2026, now()
+  from public.customers c join auth.users u on u.id = c.id
+  where lower(u.email) = 'bjohnston@levrauto.com'
+  returning id
+)
+select set_config('phase1.test_search_id', (select id::text from s), true);
+set local role service_role;          -- the role the website uses
+select public.assign_search(current_setting('phase1.test_search_id')::uuid);
+reset role;
 select a.email as agent_email, sa.method
-from phase1_step4_check t
-join public.search_assignments sa on sa.search_id = t.id
-join public.agents a on a.id = sa.agent_id;
+from public.search_assignments sa
+join public.agents a on a.id = sa.agent_id
+where sa.search_id = current_setting('phase1.test_search_id')::uuid;
 rollback;
 ```
 Afterwards, query A should still show `history_rows = 0` and `assigned = 0`: the rollback removed the test search and its assignment.
@@ -1069,7 +1076,7 @@ begin
     raise exception 'p_reason_category is required when p_agent_id is provided';
   end if;
 
-  perform set_config('levr.assignment', 'on', true);
+  perform set_config('levr.assignment', 'on', true);  -- only for this insert; turned off right after
 
   insert into public.customer_searches (
     customer_id, make, model, model_year, zip, paid_at,
@@ -1082,6 +1089,7 @@ begin
     v_old.assigned_agent_id, case when v_old.assigned_agent_id is not null then now() end
   )
   returning * into v_new;
+  perform set_config('levr.assignment', 'off', true);
 
   update public.customer_searches
   set superseded_by_id = v_new.id, search_status = 'switched'
