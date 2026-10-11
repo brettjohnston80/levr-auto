@@ -193,8 +193,29 @@ function splitTopLevel(text: string, sep: string): string[] {
   return parts;
 }
 
+/**
+ * Research notes that show up in parentheses inside OPTION NAMES (Hyundai /
+ * Kia, 2026-10-11): "18-inch alloy (inferred, same as adjacent SEL — not
+ * independently confirmed)", "Towing up to 2,000 lb (per Edmunds-cited
+ * press figure...)". Everything the package-contents filter treats as a
+ * note, plus source citations.
+ */
+const NAME_NOTE = new RegExp(
+  `${CONTENTS_NOTE.source}|\\bper Edmunds\\b|\\bEdmunds[-' ]|\\bcarried over\\b|\\bspec page\\b|\\bpress figure\\b|\\bnot separately specified\\b`,
+  "i",
+);
+
+/**
+ * An option name with note-like parentheticals removed. Never empty: if
+ * cleaning would remove everything, the original name is kept.
+ */
+export function cleanOptionName(name: string): string {
+  const cleaned = dropNoteParentheticals(name, NAME_NOTE);
+  return cleaned.length > 0 ? cleaned : name.trim();
+}
+
 /** Removes top-level parenthetical groups (nesting-aware) that read as notes. */
-function dropNoteParentheticals(text: string): string {
+function dropNoteParentheticals(text: string, note: RegExp = CONTENTS_NOTE): string {
   let out = "";
   let depth = 0;
   let group = "";
@@ -206,7 +227,7 @@ function dropNoteParentheticals(text: string): string {
       depth -= 1;
       group += ch;
       if (depth === 0) {
-        if (!CONTENTS_NOTE.test(group)) out += group;
+        if (!note.test(group)) out += group;
         group = "";
       }
     } else if (depth > 0) {
@@ -277,7 +298,8 @@ export function parseOptionColumn(
     const { body, note } = splitNote(item);
     const fields = body.split("|").map((f) => f.trim());
 
-    const name = fields[0] ?? "";
+    // Research notes in parentheses are removed from the name (2026-10-11).
+    const name = cleanOptionName(fields[0] ?? "");
     if (!name) continue;
 
     const availabilityRaw = fields[1] ?? "";
