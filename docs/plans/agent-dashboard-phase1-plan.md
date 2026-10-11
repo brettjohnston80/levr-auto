@@ -1,6 +1,8 @@
-# Agent dashboard redesign, Phase 1: data foundation (plan, revision 2)
+# Agent dashboard redesign, Phase 1: data foundation (plan, revision 3: final answers)
 
-**Status:** plan only (2026-10-10). Nothing in this document has been built. No migration files exist. The SQL in section 10 is a draft to review, not run.
+**Status:** plan only (2026-10-10; final answers 2026-10-11). Nothing in this document has been built except the Step 1 migration file, which is written for Brett to run (`supabase/migrations/20261011130000_agent_roles_rotation.sql`). The rest of the SQL in section 10 is a draft to review, not run.
+
+**Revision 3** applies Brett's answers to N1–N8 (2026-10-11), including his correction to N1: the system never picks an admin. Section 15 lists the changes.
 
 **Revision 2** applies Brett's answers to the open questions from revision 1 (2026-10-10), plus his correction that "away" never removes anyone from assignment. Section 15 lists what changed since revision 1.
 
@@ -34,7 +36,7 @@
 | Q1 | Assign at payment. |
 | Q2 | A customer's later separate search goes to the same agent if that agent is **not deactivated and in rotation**; otherwise round-robin. |
 | Q3 | Least recently assigned. |
-| Q4 | No assignment cap, and a search must never stay unassigned. Round-robin covers everyone in rotation who isn't deactivated. Only if nobody is in rotation does it fall back to the least-recently-assigned lead, with an alert to leads. |
+| Q4 (as corrected by N1) | No assignment cap. Round-robin covers everyone in rotation who isn't deactivated. Only if nobody is in rotation does it fall back to the least-recently-assigned **active lead**, with an alert to leads. **Admins are never picked by the system:** if there is no active lead either, the search stays unassigned and **admins are alerted** (record + email). An admin can still opt into rotation by hand with `in_rotation`; Brett's backfill keeps him in rotation for now. |
 | Q5 | A deactivated or away agent keeps their searches; leads see them flagged. Leads and admins can reassign. |
 | Q6 | Call-request emails go only to the assigned agent. Items belonging to an away agent surface in the lead view; that part is the attention-engine phase. |
 | Q7 | Activity types are a fixed list in a lookup table. |
@@ -48,6 +50,14 @@
 | Q15 | Refund reasons: cancellation, guarantee, goodwill, duplicate charge, other. They are lookup rows, so more can be added. |
 | Q16 | Agents request away time for themselves and a lead approves it; until then nothing changes. Leads can set away for anyone. A lead's or admin's own request is approved by another lead or admin. Admins can set their own. |
 | Q17 | Leads can add agents. Only admins can grant lead or admin. |
+| N1 | The fallback picks leads only, never admins (see Q4). The admin role is a different scope; researching deals isn't part of it. |
+| N2 | A role change resets `in_rotation` to the new role's default. The person making the change sees the reset and can override it before saving. |
+| N3 | Leads can change `in_rotation` for agents and leads; admins can for anyone. |
+| N4 | Leads can deactivate or reactivate agents; admins can for anyone. |
+| N5 | Never allow zero active admins. |
+| N6 | Every alert creates an `agent_alerts` record and emails its audience: leads, or admins when no active lead exists. |
+| N7 | **Test accounts are never auto-assigned**, even after the tester round. That covers `@levrauto-test.invalid` (CLAUDE.md `TEST_EMAIL_SUFFIX`) and the `@levrauto.invalid` production verification account. Leads can still assign them by hand for testing. |
+| N8 | No covering-agent field for now; leads reassign instead. |
 
 ---
 
@@ -119,11 +129,11 @@
 | Reassign any search to anyone, including self | ❌ | ✅ | ✅ | `reassign_search` |
 | Add an agent (role `agent`) | ❌ | ✅ | ✅ | `add_agent` |
 | Add someone as lead or admin; change anyone's role | ❌ | ❌ | ✅ | `add_agent`, `set_agent_role` |
-| Change `in_rotation` | ❌ | ✅ for agents and leads | ✅ for anyone | `set_agent_rotation` (Q-N3) |
-| Deactivate / reactivate | ❌ | ✅ for agents | ✅ for anyone | `set_agent_active` (Q-N4) |
+| Change `in_rotation` | ❌ | ✅ for agents and leads | ✅ for anyone | `set_agent_rotation` (N3) |
+| Deactivate / reactivate | ❌ | ✅ for agents | ✅ for anyone | `set_agent_active` (N4) |
 | Resolve an alert | ❌ | ✅ | ✅ | `resolve_agent_alert` |
 
-**Last-admin guard:** no function may leave zero active admins, whether by demoting or deactivating one (Q-N5).
+**Last-admin guard:** no function may leave zero active admins, whether by demoting or deactivating one (N5).
 
 ---
 
@@ -168,6 +178,8 @@ There are three layers. Each one alone would stop a plain mistake; together they
 - **Switches** (free, paid, or agent-initiated) all go through `switch_customer_search`. The new row **inherits the old row's agent** inside that function (method `inherited_switch`), so a switch never re-rolls the agent.
 - **Undecided searches** are the same row after `finalizeUndecidedSearch`, so the assignment carries over.
 - **Safety net:** an `assignUnassignedPaidSearches()` sweep inside the existing hourly `/api/cron/solidify-pending-searches` job (no new cron). Paginated (section 7).
+- **When the Phase 1 code deploys (confirmed):** the sweep runs on its first hourly tick after the deploy, and immediately assigns every **real** paid search that stayed unassigned in between. That means anything paid after the Step 10 backfill, while the migrations were in but the code wasn't. It can also be triggered by hand right after the deploy (a `CRON_SECRET` call to the same cron route), so there's no wait. The deploy check counts real paid searches with no agent, before and after; the expected result afterwards is 0, unless no active lead or admin exists, in which case there are alert rows instead.
+- **Test accounts are skipped by every automatic path (N7):** the webhook step, the sweep and continuity. `assign_search` returns `skipped_test_account` without assigning or alerting. Only `reassign_search` (a lead, by hand) can give a test-account search an agent. A tester's switch then inherits that hand-picked agent, which is not an automatic choice.
 
 ### 4.3 Picking the agent (`assign_search`)
 
@@ -178,9 +190,11 @@ All automatic assignments are serialized with `pg_advisory_xact_lock`, so two si
 3. **Round-robin (Q3).** Among everyone with `active and in_rotation`, pick the oldest `last_assigned_at` (never-assigned first), ties broken by `created_at, id` (method `round_robin`).
    - **Away status is ignored here**, by decision.
    - With a fixed team this cycles A→B→C→A. A new agent goes first once.
-4. **Nobody in rotation → lead fallback (Q4).** The least-recently-assigned **active lead** (method `lead_fallback`). An alert is raised and leads are emailed.
-   - Whether admins count as leads here is Q-N1. Proposed: leads first, then admins, so a search is assigned even when the only person is an admin with rotation off.
-5. **Nobody active at all.** The search stays unassigned, which only happens if there are zero active leads or admins. A `no_agent_available` alert row is written and retried hourly. This can't happen while the last-admin guard holds.
+0. **Test account?** Return `skipped_test_account`; no assignment, no alert (N7).
+4. **Nobody in rotation → lead fallback (Q4, N1).** The least-recently-assigned **active lead**: `role = 'lead'` exactly, so **admins are never picked** (method `lead_fallback`). An `assignment_lead_fallback` alert goes to leads (record + email).
+5. **No active lead either.** The search stays unassigned and an `assignment_no_lead` alert goes to **admins** (record + email). There is one open alert per search: the hourly sweep retries assignment but doesn't re-alert until the alert is resolved. The search is assigned as soon as someone is put in rotation or a lead exists. An admin can also take it by hand with `reassign_search`.
+
+An admin who has opted into rotation (`in_rotation = true`, like Brett now) is picked by step 1 or 3 like anyone else in rotation. The system just never chooses an admin through the fallback.
 
 **No cap (Q4).** There is no maximum load; least-recently-assigned spreads the work evenly.
 
@@ -229,12 +243,13 @@ Bulk reassignment is the same function in a loop.
   | Column | Notes |
   |---|---|
   | `id`, `created_at` | |
-  | `kind` | Check in (`assignment_lead_fallback`, `assignment_failed`, `no_agent_available`, `activity_log_failed`, `other`) |
+  | `kind` | Check in (`assignment_lead_fallback`, `assignment_no_lead`, `assignment_failed`, `activity_log_failed`, `other`) |
+  | `audience` | `leads` or `admins`: who the app emails (N6). `assignment_no_lead` → admins; everything else → leads (and admins too when no active lead exists) |
   | `search_id`, `agent_id` | Nullable links |
   | `details jsonb` | |
   | `resolved_at`, `resolved_by_agent_id` | |
 
-  Partial index on open alerts.
+  Partial index on open alerts, plus a partial unique index on `(search_id, kind)` for open alerts, so retries never pile up duplicates.
 
 ### 5.2 How activity is written (Q8)
 
@@ -397,7 +412,9 @@ The agent-facing button and wording will be quoted for sign-off when built.
 ### 8.3 Call-request emails to the assigned agent only (Q6)
 
 `notifyAgentsOfCallRequest` (`src/lib/agent-call-notifications.ts:100`) changes from "every active agent" (line 112) to **the search's assigned agent only**.
-- **If the search somehow has no agent:** assign it first. If that's impossible, email leads and raise an alert.
+- **If the search has no agent:**
+  - **Real customer:** run `assign_search` first, then email the agent it picks. If it can't assign (no rotation and no lead), email admins along with the `assignment_no_lead` alert.
+  - **Test account (never auto-assigned, N7):** email the leads; no alert, since an unassigned test search is expected. Their own email suppression still applies to any `@levrauto-test.invalid` recipient.
 - **If the assigned agent is away:** Phase 1 still emails them only. Surfacing the item to leads is the attention-engine phase (flagged below).
 - **Wording:** the email text doesn't change. It's agent-facing; any wording change will be shown for sign-off.
 
@@ -410,7 +427,7 @@ All of these are `security invoker`, have `execute` revoked from anon and authen
 | Function | Rule |
 |---|---|
 | `add_agent(actor, email, name, role default 'agent', in_rotation default null)` | actor ≥ lead. Role lead or admin needs actor = admin. `in_rotation` null → role default |
-| `set_agent_role(actor, subject, role)` | actor = admin. Last-admin guard. Doesn't change `in_rotation` (Q-N2) |
+| `set_agent_role(actor, subject, role, in_rotation default null)` | actor = admin. Last-admin guard. **`in_rotation` null → reset to the new role's default** (agent true, lead/admin false). A value given = the promoter's override (N2). The app shows the reset value before saving so the admin can change it |
 | `set_agent_rotation(actor, subject, in_rotation)` | actor ≥ lead; subject is an admin → actor must be an admin; deactivated subjects can't be put in rotation |
 | `set_agent_active(actor, subject, active)` | actor ≥ lead; subject ≥ lead → actor must be an admin. Last-admin guard. Deactivating also sets `in_rotation = false`, `deactivated_at`, `deactivated_by_agent_id` |
 | `request_away(actor, starts, ends, reason)` | For the actor themselves. Admin → `approved` (self-decided); otherwise `requested` |
@@ -590,7 +607,8 @@ alter table public.agent_activity_log enable row level security;
 create table public.agent_alerts (
   id uuid primary key default gen_random_uuid(),
   kind text not null check (kind in (
-    'assignment_lead_fallback', 'assignment_failed', 'no_agent_available', 'activity_log_failed', 'other')),
+    'assignment_lead_fallback', 'assignment_no_lead', 'assignment_failed', 'activity_log_failed', 'other')),
+  audience text not null default 'leads' check (audience in ('leads', 'admins')), -- who the app emails (N6)
   search_id uuid references public.customer_searches (id) on delete set null,
   agent_id uuid references public.agents (id) on delete set null,
   details jsonb not null default '{}'::jsonb,
@@ -599,6 +617,8 @@ create table public.agent_alerts (
   resolved_by_agent_id uuid references public.agents (id)
 );
 create index agent_alerts_open_idx on public.agent_alerts (created_at desc, id) where resolved_at is null;
+create unique index agent_alerts_one_open_per_search_idx on public.agent_alerts (search_id, kind)
+  where resolved_at is null and search_id is not null;
 alter table public.agent_alerts enable row level security;
 
 -- Never raises: a failed activity insert becomes an alert, so the caller's action still succeeds (Q8).
@@ -739,7 +759,17 @@ create trigger customer_searches_assignment_guard
 before insert or update of assigned_agent_id on public.customer_searches
 for each row execute function public.customer_searches_assignment_guard();
 
--- Automatic assignment. Idempotent. Returns what happened so the app can email leads on a fallback.
+-- Test accounts (N7): the CLAUDE.md rules, by the auth email (never customers.email, which is not unique).
+create function public.is_test_customer(p_customer_id uuid) returns boolean
+language sql stable as $$
+  select exists (
+    select 1 from auth.users u
+    where u.id = p_customer_id
+      and (lower(u.email) like '%@levrauto-test.invalid' or lower(u.email) like '%@levrauto.invalid')
+  );
+$$;
+
+-- Automatic assignment. Idempotent. Returns what happened so the app can email the alert's audience.
 create function public.assign_search(p_search_id uuid) returns jsonb
 language plpgsql as $$
 declare
@@ -760,6 +790,11 @@ begin
   end if;
   if v_search.paid_at is null then
     raise exception 'search % is not paid; only paid searches are assigned', p_search_id;
+  end if;
+
+  -- 0. Test accounts are never auto-assigned (N7); a lead can still use reassign_search.
+  if public.is_test_customer(v_search.customer_id) then
+    return jsonb_build_object('search_id', p_search_id, 'agent_id', null, 'method', 'skipped_test_account');
   end if;
 
   -- 1. Continuity (Q2): the customer's most recent other search, if that agent is active and in rotation.
@@ -783,19 +818,23 @@ begin
     v_method := 'round_robin';
   end if;
 
-  -- 4. Nobody in rotation (Q4): least-recently-assigned lead (leads before admins, Q-N1), plus an alert.
+  -- 4. Nobody in rotation (Q4/N1): least-recently-assigned ACTIVE LEAD. role = 'lead' exactly:
+  --    the system never picks an admin.
   if v_agent is null then
     select id into v_agent from public.agents
-    where active and public.agent_role_rank(role) >= public.agent_role_rank('lead')
-    order by (role = 'admin'), last_assigned_at nulls first, created_at, id
+    where active and role = 'lead'
+    order by last_assigned_at nulls first, created_at, id
     limit 1;
     v_method := 'lead_fallback';
   end if;
 
-  -- 5. Nobody active at all: stays unassigned, alert, hourly retry.
+  -- 5. No active lead either: stay unassigned, alert ADMINS (record + email by the app). One open alert
+  --    per search; the hourly sweep retries the assignment without re-alerting.
   if v_agent is null then
-    insert into public.agent_alerts (kind, search_id, details)
-    values ('no_agent_available', p_search_id, '{}'::jsonb) returning id into v_alert;
+    insert into public.agent_alerts (kind, audience, search_id, details)
+    values ('assignment_no_lead', 'admins', p_search_id, jsonb_build_object('reason', 'nobody in rotation and no active lead'))
+    on conflict (search_id, kind) where resolved_at is null and search_id is not null do nothing
+    returning id into v_alert;
     return jsonb_build_object('search_id', p_search_id, 'agent_id', null, 'method', 'unassigned', 'alert_id', v_alert);
   end if;
 
@@ -807,8 +846,9 @@ begin
   insert into public.search_assignments (search_id, agent_id, method) values (p_search_id, v_agent, v_method);
 
   if v_method = 'lead_fallback' then
-    insert into public.agent_alerts (kind, search_id, agent_id, details)
-    values ('assignment_lead_fallback', p_search_id, v_agent, jsonb_build_object('reason', 'nobody in rotation'))
+    insert into public.agent_alerts (kind, audience, search_id, agent_id, details)
+    values ('assignment_lead_fallback', 'leads', p_search_id, v_agent, jsonb_build_object('reason', 'nobody in rotation'))
+    on conflict (search_id, kind) where resolved_at is null and search_id is not null do nothing
     returning id into v_alert;
   end if;
 
@@ -859,8 +899,9 @@ begin
 end;
 $$;
 
-revoke execute on function public.assign_search(uuid), public.reassign_search(uuid, uuid, uuid, text)
-  from public, anon, authenticated;
+revoke execute on function public.assign_search(uuid), public.reassign_search(uuid, uuid, uuid, text),
+  public.is_test_customer(uuid) from public, anon, authenticated;
+grant execute on function public.is_test_customer(uuid) to service_role;
 grant execute on function public.assign_search(uuid), public.reassign_search(uuid, uuid, uuid, text) to service_role;
 ```
 
@@ -1339,7 +1380,7 @@ None of these is a clock. They are due dates or states, all computable from Phas
   - Steps 1–9 are additive. The replaced `switch_customer_search` and `record_refund` behave the same for current callers.
   - The guard triggers only reject direct changes to `agents.role` / `in_rotation` / `active` and to `customer_searches.assigned_agent_id`, which no deployed code makes.
   - Step 10 excludes `@levrauto-test.invalid` and `@levrauto.invalid`, and its verification checks `test_rows_touched = 0`.
-- **Until the code deploys:** new paid searches (testers included) stay unassigned, which is harmless. After the deploy, the sweep assigns them, including tester searches once the round is over (Q-N7).
+- **Until the code deploys:** new paid searches stay unassigned, which is harmless. The first sweep after the deploy assigns every real one (4.2). Tester searches are never auto-assigned (N7).
 - **The tester watch** (read-only) isn't affected.
 
 ---
@@ -1356,41 +1397,30 @@ None of these is a clock. They are due dates or states, all computable from Phas
 | Everyone's searches pile on Brett | Expected while he's the only person; adding an agent (in rotation by default) puts them first in line once |
 | A test agent picks up real work | Test agents are always inserted with `in_rotation = false` (section 12) |
 
-### 14.2 New open questions (recommended answer first)
+### 14.2 Open questions
 
-- **Q-N1. Lead fallback (nobody in rotation): do admins count as leads?**
-  - (a) Leads first, admins only if no lead exists, so a search is never left unassigned when only admins exist (recommended; matches "admins never auto-assigned by default" as far as possible).
-  - (b) Leads only, and unassigned with an alert if there are none.
-- **Q-N2. Promoting someone (for example agent → lead):**
-  - (a) `in_rotation` stays as it was, and the admin changes it explicitly if wanted (recommended).
-  - (b) It resets to the new role's default.
-- **Q-N3. Who changes `in_rotation`:**
-  - (a) Leads for agents and leads (including themselves), admins for anyone (recommended).
-  - (b) Admins only.
-- **Q-N4. Who deactivates or reactivates:**
-  - (a) Leads for agents, admins for anyone (recommended).
-  - (b) Admins only.
-- **Q-N5. Last-admin guard:**
-  - (a) Never allow zero active admins (recommended).
-  - (b) No guard.
-- **Q-N6. Alerts to leads (fallback assignment, activity-write failure):**
-  - (a) An `agent_alerts` row plus an email to active leads and admins (recommended).
-  - (b) Row only, shown in the lead view.
-- **Q-N7. Tester-account searches after the round:**
-  - (a) The sweep assigns them like any other once the round ends (recommended, "never unassigned").
-  - (b) Never assign test accounts.
-- **Q-N8. Away status for flags: who "covers"?**
-  - (a) No cover field in Phase 1; leads see the flag and reassign (recommended).
-  - (b) Add a `covering_agent_id` on the away period now.
+None open. N1–N8 were answered on 2026-10-11 (decisions table).
+
+**For the attention-engine phase (flagged, not Phase 1):** surfacing an away agent's items (call requests included) to leads (Q6). Showing open `assignment_no_lead` alerts to admins.
 
 ---
 
-## 15. What changed since revision 1
+## 15. What changed
+
+**Revision 3 (2026-10-11):**
+- The fallback picks active leads only. With no lead, the search stays unassigned and **admins are alerted**; the system never picks an admin (N1 as corrected).
+- `agent_alerts.audience` added (leads or admins); one open alert per search.
+- Test accounts are never auto-assigned (`is_test_customer()`, step 0 of `assign_search`); leads can assign them by hand (N7).
+- `set_agent_role` resets `in_rotation` to the new role's default unless overridden (N2). N3–N6 and N8 confirmed as proposed.
+- The post-deploy sweep is confirmed in 4.2.
+- The Step 1 migration file is written (`20261011130000_agent_roles_rotation.sql`).
+
+**Revision 2:**
 
 - **Workload is separate from roles:** new `in_rotation` with role-based defaults. Brett is admin and in rotation.
 - **Away** moved from `accepting_assignments` / `away_until` columns to an approval-based `agent_away_periods` table, and is **never** an assignment filter.
 - **Deactivated** (`active = false`) is the only thing that removes someone from assignment; a check makes it imply out of rotation.
-- **Assignment chain:** continuity (active and in rotation) → round-robin over everyone in rotation → lead fallback with an alert. It never stays unassigned while any active lead or admin exists.
+- **Assignment chain:** continuity (active and in rotation) → round-robin over everyone in rotation → lead fallback with an alert. (Superseded in revision 3: admins are never picked; with no lead, admins are alerted.)
 - **Activity types and refund reasons** are lookup tables (Q7, Q15). `duplicate_charge` added.
 - **Activity writes** go through `log_agent_activity`, which turns a failure into an alert instead of failing the action (Q8). New `agent_alerts` table.
 - **Permissions:** a table of who can do what, three enforcement layers, guard triggers and a last-admin guard. Leads can add agents; only admins grant lead or admin (Q17). Away approval rules (Q16).
