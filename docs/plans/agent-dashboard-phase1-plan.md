@@ -442,8 +442,8 @@ Applies to `agent_activity_log`, `dealer_contacts`, `search_assignments`, `agent
 ### 8.2 Call-request resolution
 
 New columns on `customer_searches`:
-- `switch_call_resolved_at`, `switch_call_resolved_by_agent_id`, `switch_call_outcome` (`switched`, `kept_vehicle`, `unreachable`, `other`);
-- the same three for cancellation, with outcomes `cancelled`, `retained`, `unreachable`, `other`.
+- `switch_call_resolved_at`, `switch_call_resolved_by_agent_id`, `switch_call_outcome` (`switched`, `no_switch`, `call_not_completed`, `other`; neutral values, because customers can read their own searches, set in Step 9a);
+- the same three for cancellation, with outcomes `cancelled`, `not_cancelled`, `call_not_completed`, `other`.
 
 New actions:
 - `resolveSwitchCall` and `resolveCancellationCall` set them and log `call_request_resolved`;
@@ -1938,30 +1938,194 @@ select (select count(*) from public.qualifying_offers where dealer_name = 'Phase
           and created_at > now() - interval '1 day') as leftover_test_searches;
 ```
 
-### Step 9: agent management and away functions; activity from the remaining functions
+### Step 9: agent management, away and alert functions; activity in the remaining functions
 
-- **Section 9's functions** are written in full in the migration file, each following the same pattern as `reassign_search`: role checks first, then `set_config('levr.agent_admin', 'on', true)`, then the change, then `log_agent_activity`.
-- **`cancel_search` (agent path), `grant_extension_bypass` and `revert_purchased_search`** each get a same-signature `create or replace` that adds one `perform public.log_agent_activity(...)`. Their bodies are copied verbatim from:
-  - `20260821120000_purchase_reversal.sql` (`cancel_search`);
-  - `20260816140000_agent_bypass_log.sql` (`grant_extension_bypass`);
-  - `20260823140000_revert_purchased_search_clears_offer.sql` (`revert_purchased_search`).
+Split into two files, run in order:
+- **9a** (`20261011220000_agent_team_functions.sql`) adds only new things:
+  - `add_agent`, `set_agent_role` (resets `in_rotation` to the new role's default unless overridden, N2), `set_agent_rotation`, `set_agent_active`, `request_away`, `decide_away`, `set_away`, `cancel_away`, `resolve_agent_alert`. Each re-checks the section 2 rules itself (last-admin guard included), sets the agents guard flag only around its own write, and logs through `log_agent_activity`. Execute is revoked from anon and authenticated.
+  - `agent_alerts.notified_at`, for the alert-email sweep.
+  - **Neutral call outcomes** (customers can read their own searches): switch `switched` / `no_switch` / `call_not_completed` / `other`; cancellation `cancelled` / `not_cancelled` / `call_not_completed` / `other`. These replace `kept_vehicle`, `retained` and `unreachable`. Both columns are empty today.
+- **9b** (`20261011230000_activity_in_existing_functions.sql`) replaces existing functions in place, each with its identical signature and built from its live text with additions only:
+  - `cancel_search` (agent path), `grant_extension_bypass` and `revert_purchased_search` each gain one `log_agent_activity` call;
+  - `switch_customer_search` inherits the old agent only if they're still active. If that agent was deactivated, the new paid row goes through `assign_search`'s normal rules. A never-assigned old row still gives an unassigned new row.
 
-  Retyping a guard from memory is how bugs get in, so these bodies aren't reproduced in this plan.
-- **`set_agent_active`** must turn off `in_rotation` before setting `active = false`, because of the `agents_deactivated_not_in_rotation` check.
-- **`switch_customer_search` (deactivated-agent fix, see 4.2):** same signature again, built from the Step 5 text (`20261011170000_switch_inherits_agent.sql`). It inherits only an active agent; otherwise the new row starts unassigned and, if paid, goes through `assign_search`.
-- **`agent_alerts.notified_at`** (new column): alerts can now be raised inside other functions (`assign_search` called from a switch, `log_agent_activity`), not only when the app calls `assign_search` itself. So the app sends alert emails from a sweep over `agent_alerts where notified_at is null` (in the hourly cron, plus right after any call that returned an `alert_id`) and stamps `notified_at`. No alert email depends on which code path raised it.
-
-Verify:
+Full SQL is in the two migration files (not repeated here). Verify after both (A after 9a; B after 9b; C and D after both). C is one rolled-back block that tries every permission rule. Brett is promoted to admin only inside it, through the emergency-fix flag, because his real promotion is Step 10:
 
 ```sql
-select proname, position('log_agent_activity' in pg_get_functiondef(oid)) > 0 as logs
+-- A (after 9a). structure: expect 9 | 0 | 1 | true | true
+select (select count(*) from pg_proc where proname in ('add_agent', 'set_agent_role', 'set_agent_rotation',
+          'set_agent_active', 'request_away', 'decide_away', 'set_away', 'cancel_away', 'resolve_agent_alert')) as new_functions,
+       (select count(*) from pg_proc where proname in ('add_agent', 'set_agent_role', 'set_agent_rotation',
+          'set_agent_active', 'request_away', 'decide_away', 'set_away', 'cancel_away', 'resolve_agent_alert')
+          and (has_function_privilege('anon', oid, 'execute') or has_function_privilege('authenticated', oid, 'execute'))) as exposed_to_customers,
+       (select count(*) from information_schema.columns
+         where table_schema = 'public' and table_name = 'agent_alerts' and column_name = 'notified_at') as notified_at_column,
+       position('no_switch' in (select pg_get_constraintdef(oid) from pg_constraint
+                                where conname = 'customer_searches_switch_call_outcome_check')) > 0 as switch_outcomes_neutral,
+       position('not_cancelled' in (select pg_get_constraintdef(oid) from pg_constraint
+                                    where conname = 'customer_searches_cancellation_call_outcome_check')) > 0 as cancel_outcomes_neutral;
+
+-- B (after 9b). same signatures, one version each, activity writes present: expect 4 rows, 1 | true each
+select proname, count(*) as versions,
+       bool_and(position('log_agent_activity' in pg_get_functiondef(oid)) > 0) as writes_activity
 from pg_proc
-where proname in ('cancel_search', 'grant_extension_bypass', 'revert_purchased_search', 'switch_customer_search',
-                  'record_payment_refund', 'reassign_search', 'add_agent', 'set_agent_role', 'set_agent_rotation',
-                  'set_agent_active', 'request_away', 'decide_away', 'set_away', 'cancel_away', 'resolve_agent_alert')
-order by proname; -- expect 15 rows, logs = true
-select proname, has_function_privilege('authenticated', oid, 'execute') as exposed
-from pg_proc where proname in ('add_agent', 'set_agent_role', 'reassign_search', 'decide_away'); -- expect all false
+where proname in ('cancel_search', 'grant_extension_bypass', 'revert_purchased_search', 'switch_customer_search')
+group by proname order by proname;
+
+-- C (after 9a and 9b). every permission rule, rolled back. Run all lines together.
+--   Inside the transaction only: Brett is promoted to admin (emergency-fix flag) and test agents
+--   are created; nothing survives the rollback. Expect every row's result = its expected value.
+begin;
+create temp table p9_results (n int, test text, expected text, result text) on commit drop;
+do $$
+declare
+  v_brett uuid; v_customer uuid;
+  v_a uuid; v_l uuid; v_b uuid;
+  v_period uuid; v_alert uuid; v_search uuid; v_new public.customer_searches; v_tmp text;
+  procedure_note text;
+begin
+  select id into v_brett from public.agents where lower(email) = 'bjohnston@levrauto.com';
+  select c.id into v_customer from public.customers c join auth.users u on u.id = c.id
+   where lower(u.email) = 'bjohnston@levrauto.com';
+  perform set_config('levr.agent_admin', 'on', true);
+  update public.agents set role = 'admin', in_rotation = true where id = v_brett;
+  perform set_config('levr.agent_admin', 'off', true);
+
+  -- agent management
+  v_a := (public.add_agent(v_brett, 'phase1-step9-a@levrauto-test.invalid', 'P9 Agent A')).id;
+  insert into p9_results values (1, 'admin adds agent: in rotation by default', 'true',
+    (select in_rotation::text from public.agents where id = v_a));
+  v_l := (public.add_agent(v_brett, 'phase1-step9-l@levrauto-test.invalid', 'P9 Lead L', 'lead')).id;
+  insert into p9_results values (2, 'admin adds lead: not in rotation by default', 'false',
+    (select in_rotation::text from public.agents where id = v_l));
+  begin perform public.add_agent(v_l, 'phase1-step9-x@levrauto-test.invalid', 'X', 'admin'); v_tmp := 'allowed';
+  exception when others then v_tmp := 'refused'; end;
+  insert into p9_results values (3, 'lead adds an admin', 'refused', v_tmp);
+  begin perform public.add_agent(v_a, 'phase1-step9-y@levrauto-test.invalid', 'Y'); v_tmp := 'allowed';
+  exception when others then v_tmp := 'refused'; end;
+  insert into p9_results values (4, 'plain agent adds an agent', 'refused', v_tmp);
+  begin perform public.add_agent(v_l, 'phase1-step9-z@levrauto-test.invalid', 'Z'); v_tmp := 'allowed';
+  exception when others then v_tmp := 'refused'; end;
+  insert into p9_results values (5, 'lead adds an agent', 'allowed', v_tmp);
+
+  perform public.set_agent_role(v_brett, v_a, 'lead');
+  insert into p9_results values (6, 'promote agent to lead: rotation resets to lead default', 'false',
+    (select in_rotation::text from public.agents where id = v_a));
+  perform public.set_agent_role(v_brett, v_a, 'agent', true);
+  insert into p9_results values (7, 'role change with explicit rotation override', 'true',
+    (select in_rotation::text from public.agents where id = v_a));
+  begin perform public.set_agent_role(v_brett, v_brett, 'lead'); v_tmp := 'allowed';
+  exception when others then v_tmp := 'refused'; end;
+  insert into p9_results values (8, 'demote the last active admin', 'refused', v_tmp);
+  begin perform public.set_agent_role(v_l, v_a, 'lead'); v_tmp := 'allowed';
+  exception when others then v_tmp := 'refused'; end;
+  insert into p9_results values (9, 'lead changes a role', 'refused', v_tmp);
+
+  begin perform public.set_agent_rotation(v_l, v_brett, false); v_tmp := 'allowed';
+  exception when others then v_tmp := 'refused'; end;
+  insert into p9_results values (10, 'lead changes an admin''s rotation', 'refused', v_tmp);
+  begin perform public.set_agent_rotation(v_l, v_l, true); v_tmp := 'allowed';
+  exception when others then v_tmp := 'refused'; end;
+  insert into p9_results values (11, 'lead changes own rotation', 'allowed', v_tmp);
+  perform public.set_agent_rotation(v_l, v_l, false);
+
+  begin perform public.set_agent_active(v_l, v_brett, false); v_tmp := 'allowed';
+  exception when others then v_tmp := 'refused'; end;
+  insert into p9_results values (12, 'lead deactivates an admin', 'refused', v_tmp);
+  begin perform public.set_agent_active(v_brett, v_brett, false); v_tmp := 'allowed';
+  exception when others then v_tmp := 'refused'; end;
+  insert into p9_results values (13, 'deactivate the last active admin', 'refused', v_tmp);
+  perform public.set_agent_active(v_l, v_a, false);
+  insert into p9_results values (14, 'lead deactivates agent: inactive and out of rotation', 'false|false',
+    (select active::text || '|' || in_rotation::text from public.agents where id = v_a));
+  begin perform public.set_agent_rotation(v_brett, v_a, true); v_tmp := 'allowed';
+  exception when others then v_tmp := 'refused'; end;
+  insert into p9_results values (15, 'put a deactivated agent in rotation', 'refused', v_tmp);
+  perform public.set_agent_active(v_l, v_a, true);
+  insert into p9_results values (16, 'reactivate: active, still out of rotation', 'true|false',
+    (select active::text || '|' || in_rotation::text from public.agents where id = v_a));
+
+  -- away periods
+  v_period := (public.request_away(v_l, now() - interval '1 hour', now() + interval '1 hour', 'P9 test')).id;
+  insert into p9_results values (17, 'lead requests own time away: pending', 'requested',
+    (select status from public.agent_away_periods where id = v_period));
+  begin perform public.decide_away(v_l, v_period, true); v_tmp := 'allowed';
+  exception when others then v_tmp := 'refused'; end;
+  insert into p9_results values (18, 'lead approves own request', 'refused', v_tmp);
+  begin perform public.decide_away(v_a, v_period, true); v_tmp := 'allowed';
+  exception when others then v_tmp := 'refused'; end;
+  insert into p9_results values (19, 'plain agent approves a request', 'refused', v_tmp);
+  perform public.decide_away(v_brett, v_period, true);
+  insert into p9_results values (20, 'admin approves: lead is away now', 'approved|true',
+    (select status from public.agent_away_periods where id = v_period) || '|' || public.agent_is_away(v_l)::text);
+  perform public.cancel_away(v_l, v_period);
+  insert into p9_results values (21, 'lead cancels own approved time away', 'cancelled|false',
+    (select status from public.agent_away_periods where id = v_period) || '|' || public.agent_is_away(v_l)::text);
+  begin perform public.set_away(v_l, v_l, now(), now() + interval '1 day'); v_tmp := 'allowed';
+  exception when others then v_tmp := 'refused'; end;
+  insert into p9_results values (22, 'lead sets own time away directly', 'refused', v_tmp);
+  begin perform public.set_away(v_l, v_a, now(), now() + interval '1 day'); v_tmp := 'allowed';
+  exception when others then v_tmp := 'refused'; end;
+  insert into p9_results values (23, 'lead sets time away for an agent', 'allowed', v_tmp);
+  v_tmp := (public.request_away(v_brett, now(), now() + interval '1 day')).status;
+  insert into p9_results values (24, 'admin requests own time away: approved at once', 'approved', v_tmp);
+  insert into p9_results values (25, 'away agent still gets round-robin work (stays in rotation)', 'true',
+    (select in_rotation::text from public.agents where id = v_brett));
+
+  -- alerts
+  insert into public.agent_alerts (kind, details) values ('other', '{"p9": true}') returning id into v_alert;
+  begin perform public.resolve_agent_alert(v_a, v_alert); v_tmp := 'allowed';
+  exception when others then v_tmp := 'refused'; end;
+  insert into p9_results values (26, 'plain agent resolves an alert', 'refused', v_tmp);
+  perform public.resolve_agent_alert(v_l, v_alert);
+  insert into p9_results values (27, 'lead resolves an alert', 'resolved',
+    (select case when resolved_by_agent_id = v_l then 'resolved' else 'not resolved' end from public.agent_alerts where id = v_alert));
+
+  -- 9b: switch away from a DEACTIVATED agent -> normal rules (round-robin to Brett, not inherited)
+  v_b := (public.add_agent(v_brett, 'phase1-step9-b@levrauto-test.invalid', 'P9 Agent B')).id;
+  insert into public.customer_searches (customer_id, make, model, model_year, paid_at)
+  values (v_customer, 'Toyota', 'Camry', 2026, now()) returning id into v_search;
+  perform public.reassign_search(v_search, v_b, v_brett, 'P9 test');
+  perform public.set_agent_active(v_brett, v_b, false);
+  v_new := public.switch_customer_search(v_search, 'Honda', 'Civic', 2026::smallint, now());
+  insert into p9_results values (28, 'switch from a deactivated agent: reassigned by normal rules', 'brett|round_robin',
+    (select case when v_new.assigned_agent_id = v_brett then 'brett' else coalesce(v_new.assigned_agent_id::text, 'unassigned') end)
+    || '|' || coalesce((select method from public.search_assignments where search_id = v_new.id), 'none'));
+
+  -- 9b: switch from an ACTIVE agent still inherits
+  insert into public.customer_searches (customer_id, make, model, model_year, paid_at)
+  values (v_customer, 'Toyota', 'RAV4', 2026, now()) returning id into v_search;
+  perform public.reassign_search(v_search, v_a, v_brett, 'P9 test');
+  v_new := public.switch_customer_search(v_search, 'Honda', 'Accord', 2026::smallint, now());
+  insert into p9_results values (29, 'switch from an active agent: inherited', 'agent_a|inherited_switch',
+    (case when v_new.assigned_agent_id = v_a then 'agent_a' else 'other' end)
+    || '|' || coalesce((select method from public.search_assignments where search_id = v_new.id), 'none'));
+
+  -- 9b: activity rows from cancel_search (agent), grant_extension_bypass, revert_purchased_search
+  insert into public.customer_searches (customer_id, make, model, model_year, paid_at, search_status, solidified_at)
+  values (v_customer, 'Toyota', 'Corolla', 2026, now(), 'searching', now()) returning id into v_search;
+  perform public.grant_extension_bypass(v_search, v_brett, 'Goodwill gesture', 'P9 test');
+  update public.customer_searches set search_status = 'purchased', purchased_at = now() where id = v_search;
+  perform public.revert_purchased_search(v_search, v_brett, 'P9 test');
+  perform public.cancel_search(v_search, 'agent', v_brett, 'Other', 'P9 test');
+  insert into p9_results values (30, 'activity rows from bypass, revert, agent cancel', '1|1|1',
+    (select count(*) filter (where action = 'extension_bypass_granted')::text || '|' ||
+            count(*) filter (where action = 'purchase_reverted')::text || '|' ||
+            count(*) filter (where action = 'search_cancelled_by_agent')::text
+     from public.agent_activity_log where search_id = v_search));
+end $$;
+set constraints all immediate;
+select n, test, expected, result, (expected = result) as pass from p9_results order by n;
+rollback;
+
+-- D. nothing left behind: expect agent | true | 0 | 0 | 0 | 0 | 0
+select (select role from public.agents where lower(email) = 'bjohnston@levrauto.com') as brett_role,
+       (select in_rotation from public.agents where lower(email) = 'bjohnston@levrauto.com') as brett_in_rotation,
+       (select count(*) from public.agents where email like 'phase1-step9-%') as test_agents,
+       (select count(*) from public.agent_away_periods) as away_rows,
+       (select count(*) from public.agent_activity_log) as activity_rows,
+       (select count(*) from public.agent_alerts) as alerts,
+       (select count(*) from public.search_assignments) as history_rows;
 ```
 
 ### Step 10: backfill (one transaction, test accounts excluded)
