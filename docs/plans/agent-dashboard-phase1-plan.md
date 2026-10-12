@@ -1819,6 +1819,11 @@ select (select count(*) from public.payments where stripe_payment_intent_id = 'p
 
 ### Step 8: attribution, call resolution and message-time columns
 
+Changes from the earlier draft, added while writing the migration:
+- **New rule:** a call resolution's time, agent and outcome are all set together or all empty (`customer_searches_switch_call_resolution_shape`, `…_cancellation_call_resolution_shape`), so a half-recorded resolution can't exist.
+- **No delete-route problem:** every new foreign key is a plain link to `agents` or `dealer_aliases` (no delete action), so no table here can be reached by two delete routes (Step 6b's problem).
+- **What customers can see:** they can read their own searches, offers and deal progress through the existing RLS select policies, so they see these new columns on their own rows. That's ids only, no names. There is no customer update policy on any table here.
+
 ```sql
 alter table public.qualifying_offers
   add column logged_by_agent_id uuid references public.agents (id),
@@ -1844,20 +1849,93 @@ alter table public.customer_searches
   add column cancellation_call_resolved_at timestamptz,
   add column cancellation_call_resolved_by_agent_id uuid references public.agents (id),
   add column cancellation_call_outcome text check (cancellation_call_outcome in ('cancelled', 'retained', 'unreachable', 'other'));
+
+alter table public.customer_searches
+  add constraint customer_searches_switch_call_resolution_shape check (
+    (switch_call_resolved_at is null and switch_call_resolved_by_agent_id is null and switch_call_outcome is null)
+    or (switch_call_resolved_at is not null and switch_call_resolved_by_agent_id is not null and switch_call_outcome is not null)),
+  add constraint customer_searches_cancellation_call_resolution_shape check (
+    (cancellation_call_resolved_at is null and cancellation_call_resolved_by_agent_id is null and cancellation_call_outcome is null)
+    or (cancellation_call_resolved_at is not null and cancellation_call_resolved_by_agent_id is not null and cancellation_call_outcome is not null));
 ```
 
-Verify:
+Verify (A, B, E read-only; C fails before writing; D rolled back, using Brett's own customer row). Step 8 creates no tables, so the grant check is unchanged:
 
 ```sql
+-- A. the 13 new columns: expect 13 rows
+--    customer_searches x6, deal_progress x2, general_threads x1, notification_events x1, qualifying_offers x3
 select table_name, column_name from information_schema.columns
 where table_schema = 'public'
-  and table_name in ('qualifying_offers', 'general_threads', 'deal_progress', 'notification_events', 'customer_searches')
-  and column_name in ('logged_by_agent_id', 'dealer_alias_id', 'last_customer_message_at',
-    'availability_confirmed_by_agent_id', 'deposit_confirmed_by_agent_id', 'flag_resolved_by_agent_id',
-    'switch_call_resolved_at', 'cancellation_call_resolved_at')
+  and (table_name, column_name) in (
+    ('qualifying_offers', 'logged_by_agent_id'), ('qualifying_offers', 'dealer_alias_id'),
+    ('qualifying_offers', 'last_customer_message_at'), ('general_threads', 'last_customer_message_at'),
+    ('deal_progress', 'availability_confirmed_by_agent_id'), ('deal_progress', 'deposit_confirmed_by_agent_id'),
+    ('notification_events', 'flag_resolved_by_agent_id'),
+    ('customer_searches', 'switch_call_resolved_at'), ('customer_searches', 'switch_call_resolved_by_agent_id'),
+    ('customer_searches', 'switch_call_outcome'), ('customer_searches', 'cancellation_call_resolved_at'),
+    ('customer_searches', 'cancellation_call_resolved_by_agent_id'), ('customer_searches', 'cancellation_call_outcome'))
 order by 1, 2;
--- expect 9 rows: qualifying_offers x3, general_threads x1, deal_progress x2,
--- notification_events x1, customer_searches x2
+
+-- B. every new foreign key is a plain link (no delete action, not deferred): expect 7 rows, all 'a' | false
+select conrelid::regclass as table_name, conname, confdeltype as on_delete, condeferrable
+from pg_constraint
+where contype = 'f'
+  and conname in ('qualifying_offers_logged_by_agent_id_fkey', 'qualifying_offers_dealer_alias_id_fkey',
+                  'deal_progress_availability_confirmed_by_agent_id_fkey', 'deal_progress_deposit_confirmed_by_agent_id_fkey',
+                  'notification_events_flag_resolved_by_agent_id_fkey',
+                  'customer_searches_switch_call_resolved_by_agent_id_fkey',
+                  'customer_searches_cancellation_call_resolved_by_agent_id_fkey')
+order by 1, 2;
+
+-- C. a half-recorded call resolution is rejected (expect ERROR ... "customer_searches_switch_call_resolution_shape").
+--    Random customer id: the check fails before the foreign key is looked at, so nothing is written.
+insert into public.customer_searches (customer_id, switch_call_resolved_at)
+values (gen_random_uuid(), now());
+
+-- D. end to end, rolled back: a search with an attributed offer, deal progress and a resolved call,
+--    then delete the search. Expect: search_resolved true | offers_after_delete 0 | progress_after_delete 0  (no error)
+begin;
+with s as (
+  insert into public.customer_searches (customer_id, make, model, model_year, paid_at)
+  select c.id, 'Toyota', 'Camry', 2026, now()
+  from public.customers c join auth.users u on u.id = c.id
+  where lower(u.email) = 'bjohnston@levrauto.com'
+  returning id
+)
+select set_config('p8.search', (select id::text from s), true);
+set local role service_role;
+with o as (
+  insert into public.qualifying_offers (customer_search_id, dealer_name, offer_price_cents, msrp_cents,
+                                        logged_by_agent_id, dealer_alias_id, last_customer_message_at)
+  values (current_setting('p8.search')::uuid, 'Phase1 Step8 Check Motors', 3000000, 3200000,
+          (select id from public.agents where lower(email) = 'bjohnston@levrauto.com'),
+          (select id from public.dealer_aliases order by created_at limit 1), now())
+  returning id
+)
+select set_config('p8.offer', (select id::text from o), true);
+insert into public.deal_progress (qualifying_offer_id, availability_reconfirmed_at, availability_confirmed_by_agent_id)
+values (current_setting('p8.offer')::uuid, now(), (select id from public.agents where lower(email) = 'bjohnston@levrauto.com'));
+update public.customer_searches
+set switch_call_requested_at = now() - interval '1 hour',
+    switch_call_resolved_at = now(),
+    switch_call_resolved_by_agent_id = (select id from public.agents where lower(email) = 'bjohnston@levrauto.com'),
+    switch_call_outcome = 'kept_vehicle'
+where id = current_setting('p8.search')::uuid;
+select set_config('p8.resolved', (select (switch_call_outcome = 'kept_vehicle')::text from public.customer_searches
+                                   where id = current_setting('p8.search')::uuid), true);
+delete from public.customer_searches where id = current_setting('p8.search')::uuid;
+set constraints all immediate;
+reset role;
+select current_setting('p8.resolved')::boolean as search_resolved,
+       (select count(*) from public.qualifying_offers where dealer_name = 'Phase1 Step8 Check Motors') as offers_after_delete,
+       (select count(*) from public.deal_progress where qualifying_offer_id = current_setting('p8.offer')::uuid) as progress_after_delete;
+rollback;
+
+-- E. nothing left behind: expect 0 | 0
+select (select count(*) from public.qualifying_offers where dealer_name = 'Phase1 Step8 Check Motors') as test_offers,
+       (select count(*) from public.customer_searches where make = 'Toyota' and model = 'Camry'
+          and customer_id = (select id from auth.users where lower(email) = 'bjohnston@levrauto.com')
+          and created_at > now() - interval '1 day') as leftover_test_searches;
 ```
 
 ### Step 9: agent management and away functions; activity from the remaining functions
