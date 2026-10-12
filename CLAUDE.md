@@ -60,31 +60,108 @@ Read this first; `docs/business/how-brett-works.md` covers how Brett wants work 
 - **MarketCheck usage cuts:** syncs skip a model refreshed in the last 24h; live-search models refresh every ~3 days; models a real customer searched in the last 90 days weekly; everything else monthly; agent "Refresh inventory" button (once per model per day). Usage is now ~260 calls/month or less against the 500 free-tier limit.
 - **Portland region:** Vercel functions run in `pdx1`, next to Supabase (`us-west-2`).
 
-### Agent dashboard Phase 1 (data foundation): in progress
-- Plan: `docs/plans/agent-dashboard-phase1-plan.md` (10 migration steps). Review: `docs/plans/agent-dashboard-review-2026-10-10.md`. Brett runs each step; the code deploys after the tester round.
-- **Step 2 (2026-10-11):** Step 2 added `agent_activity_types` (49 types), `agent_activity_log`, `agent_alerts` and `log_agent_activity()`, which never raises: a failed write becomes an `activity_log_failed` alert.
-- **Steps 1–3 applied (2026-10-11).** Step 3: `agent_away_periods`, `agent_is_away()`, writes revoked on agent tables.
-- **Two locks on agent tables:**
-  - RLS with no policies;
-  - all table rights revoked from `anon` and `authenticated`: INSERT/UPDATE/DELETE/TRUNCATE from Step 3, SELECT from Step 4.
-  - Every new Phase 1 table gets the full revoke in the migration that creates it, and every step's verification includes the grant check, with SELECT.
-  - Every agent-table read and write in `src/` uses the service role.
-- **Step 1 (2026-10-11):** `agents.role` (agent < lead < admin, permissions only), `agents.in_rotation` (workload), `auth_user_id`, deactivation fields, `agent_role_rank()` / `agent_has_role()`, and the `agents_guard` trigger.
-- **⚠ `agents.role`, `in_rotation` and `active` can't be changed by a direct UPDATE.** The trigger rejects it. From Step 4, `customer_searches.assigned_agent_id` is guarded the same way (flag `levr.assignment`).
-- **Emergency fix in the SQL Editor (never drop the trigger):**
+### Agent dashboard Phase 1 (data foundation): DATABASE COMPLETE (2026-10-11), code not started
+- Plan: `docs/plans/agent-dashboard-phase1-plan.md`. Review: `docs/plans/agent-dashboard-review-2026-10-10.md`.
+- **All 11 migrations applied by Brett and verified (Steps 1–10 plus 6b), committed through `4f215fb`:**
+  1. roles and rotation;
+  2. activity log and alerts;
+  3. away periods and the write lock;
+  4. search assignment;
+  5. switches inherit the agent;
+  6. dealer outreach log;
+  6b. activity-log links checked at commit;
+  7. refund reasons and refunds without a cancellation;
+  8. attribution and call-resolution columns;
+  9a. agent-management, away and alert functions;
+  9b. activity in the existing functions and the deactivated-agent switch fix;
+  10. backfill.
+- **State after the backfill:**
+  - Brett is `admin`, in rotation, linked to his login.
+  - 0 searches assigned: every paid search is a test account.
+  - The activity log holds 2 rebuilt article approvals.
+- **No customer-facing change.** Nothing in `src/` calls the new functions yet.
+- **Rules every later change must keep:**
+  - **Permissions** are `agents.role` (agent < lead < admin, stacked; compare with `agent_has_role()`).
+  - **Workload** is separate: `agents.in_rotation`, defaulting by role.
+  - **Away** (`agent_away_periods`, lead-approved) is a flag only and never changes assignment.
+  - **Deactivated** (`active = false`) is never assigned.
+  - **Assignment** (`assign_search`), in order:
+    1. test accounts are never auto-assigned;
+    2. continuity with the customer's other search (active and in rotation);
+    3. round-robin over everyone in rotation, least recently assigned;
+    4. otherwise the least-recently-assigned active **lead** with a lead alert;
+    5. otherwise unassigned with an **admin** alert. Admins are never picked by the system.
+  - **Two locks on every agent table:**
+    - RLS with no policies;
+    - SELECT/INSERT/UPDATE/DELETE/TRUNCATE revoked from `anon` and `authenticated`.
+    - Function execute is revoked from both.
+    - Every agent-table read and write in `src/` uses the service role.
+  - **Activity:** every activity write goes through `log_agent_activity()`, which never fails the caller.
+  - **Activity-log links are deferred** (checked at commit). Any new link on a table a single delete can reach by two routes must be too, and rolled-back tests must `set constraints all immediate` before reading results.
+  - **Refunds:** every refund goes through `record_payment_refund()` (agent on the refund row; reason from `refund_reasons`; a `cancellation` refund needs its cancellation record, and other reasons may have one). `record_refund()` is a same-signature wrapper kept for the deployed cancellation flow.
+  - **Call outcomes are neutral** (customers can read their own searches): `switched`/`no_switch`/`call_not_completed`/`other` and `cancelled`/`not_cancelled`/`call_not_completed`/`other` (approved by Brett 2026-10-11).
+- **⚠ Guarded columns:** `agents.role`, `in_rotation` and `active`, and `customer_searches.assigned_agent_id` / `assigned_at`, reject direct UPDATEs (triggers). Change them only through the functions. Never drop or disable a trigger to make an emergency fix in the SQL Editor; use the flag route instead:
   ```sql
   begin;
-  select set_config('levr.agent_admin', 'on', true);
-  update public.agents set ... where ...;
+  select set_config('levr.agent_admin', 'on', true);   -- agents
+  select set_config('levr.assignment', 'on', true);    -- customer_searches assignment columns
+  update ... ;
   commit;
   ```
-  Keep the `begin`/`commit`: the flag only lasts for that transaction. Check by hand that at least one active admin remains, since the function-level rules don't run on a manual fix. Once Step 2 exists, record the fix with `log_agent_activity(...)` in the same transaction.
-- The helper functions aren't callable by anon or signed-in customers (execute revoked).
+  Keep the `begin`/`commit`: the flag only lasts for that transaction. Check by hand that at least one active admin remains, and record the fix with `log_agent_activity(...)` in the same transaction.
+- **Migration discipline that worked:**
+  - write one step at a time and parse-check it offline (`libpg-query`/`@libpg-query/parser` WASM build, no database);
+  - build any replaced function from its live migration text, additions only;
+  - verify with read-only checks plus rolled-back tests on Brett's own customer row (never testers), run as `service_role` where the website path matters;
+  - Brett runs each step, and it's committed only after his results.
+
+**What remains for Phase 1 (code). Deploy after the tester round (Q14).** Plan sections 9, 12 and 8.1:
+1. `src/lib/agent-auth.ts`: role-aware `getAuthorizedAgent` / `requireAgent({ minRole })`, matching `auth_user_id`, then `lower(email)`.
+2. `logAgentActivity()` helper, called from every agent action in plan section 5.3. On failure: the `[agent-activity-failed]` log tag, an alert row, and an email to leads.
+3. Assignment:
+   - `assign_search` in the Stripe webhook `search_payment` branch (non-fatal);
+   - **the hourly sweep** in `/api/cron/solidify-pending-searches`. Its first run after the deploy assigns any real paid search left unassigned in the meantime; it can also be triggered by hand right after the deploy;
+   - `reassignSearch` (lead).
+4. **Alert-email sweep** (`sendPendingAgentAlerts`): emails each `agent_alerts` row's audience and stamps `notified_at`. Hourly, and straight after any call that returns an `alert_id`.
+5. Agent-team actions wrapping the 9a functions (add agent, roles, rotation, deactivate, away request/approve/set/cancel, resolve alert).
+6. Dealer outreach: `logDealerContact` (48h default follow-up date, editable; "mark unresponsive" prompt) and closing a follow-up when an offer is logged.
+7. Writes to the new columns:
+   - `logQualifyingOffer`: `logged_by_agent_id`, `dealer_alias_id`;
+   - deal-progress confirmations: `*_by_agent_id`;
+   - `resolveNotificationCallback`: `flag_resolved_by_agent_id`;
+   - customer message sends: `last_customer_message_at`.
+8. **Guarantee-refund recording on `/internal/refunds-due`:**
+   - "Issue refund": a Stripe refund with an idempotency key, then `record_payment_refund(…, 'guarantee')`;
+   - "Record a refund already issued in Stripe": paste the refund id, verified against Stripe first.
+   - `resolveCancellation` gets a reason per refund line and calls `record_payment_refund`.
+9. Call requests:
+   - resolve switch/cancellation calls (resolved columns, neutral outcomes);
+   - queues exclude resolved rows;
+   - `notifyAgentsOfCallRequest` emails only the assigned agent (Q6).
+10. Fixes:
+    - callback-queue predicate and paging (1,000-row bug);
+    - admin table reads `customer_searches.assigned_agent_id`, paginated;
+    - vehicle-consultation queue status filter.
+11. Verification on disposable `claude-verify-…` accounts only. Test agents are inserted with `in_rotation = false`.
+
+**Agent-facing wording Brett must sign off on before it ships:**
+- the two refunds-due buttons, their confirmations and error messages;
+- the per-refund reason picker in the cancellation form;
+- the call-resolution buttons and outcome labels;
+- the agent-team screens: add agent, role and rotation, deactivate, away request/approve, alerts;
+- the "Log dealer contact" form, including the "mark unresponsive" prompt;
+- alert email subjects and bodies;
+- the assigned-agent call-request email, if its text changes.
+
+**Flagged for the attention-engine phase:** surfacing an away agent's items (call requests included) to leads, and showing open `assignment_no_lead` alerts to admins.
+
+**Later cleanup migration:** drop `customers.assigned_agent_id`, and drop the `record_refund` wrapper once nothing calls it.
 
 ### ⚠ Outside tester round ACTIVE
 - `tester1`–`tester11@levrauto-test.invalid`; invites sent 2026-10-10; instant start + 3 sample offers ON (`TESTER_INSTANT_START_ENABLED`). Tester notes expected over the next week. Credentials: `~/Downloads/levr-tester-credentials-2026-10-10.txt` (never commit or paste).
 - **No automated cleanup, sweep, reset or seeding may touch these accounts or their data until Brett says the round is over.** Read-only checks are fine.
 - The tester watch from the 2026-10-10/11 session (a background script that reported the first tester confirmation) **stopped when that session ended**. At its last check no tester had signed in or confirmed yet. Restart a read-only watch only if Brett asks.
+- **First tester activity, 2026-10-12:** tester5 signed in (00:26 UTC), paid in test mode (webhook 200, 00:29) and confirmed a 2026 Honda CR-V Sport (00:32:26). The search went live 0.1s later with exactly 3 sample offers, all delivered (seen on the dashboard at 00:32:44). No production errors.
 - When the round ends: report what testers did if asked, clean up by count on Brett's say-so, consider turning instant start off, then do the held item below.
 
 ### Held until the tester round ends
@@ -102,7 +179,7 @@ Read this first; `docs/business/how-brett-works.md` covers how Brett wants work 
 5. Preview/Production database split (both point at the production Supabase today).
 
 ### Next big focus
-- **The agent dashboard: look, feel and logic.** Plan first (current `/internal/outreach` queues are a long single page); wait for Brett's approval before building.
+- **The agent dashboard.** Phase 1 database is complete. Next: the Phase 1 code (list above), deployed after the tester round, then the attention-engine and screen phases (plan first, Brett approves).
 
 ### All open follow-ups, in priority order
 1. Tester round: triage tester notes as they arrive; fixes go through plan → approval → verify → push.
