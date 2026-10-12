@@ -326,7 +326,20 @@ The stored codes are the neutral ones Brett approved on 2026-10-11. The labels a
   - subject `{who} requested a {finalization|switch|cancellation} call — {vehicle}`;
   - body as today, with the contact list and the "Open this request on /internal/outreach" link.
 - **Only the recipients change** (chunk 6).
-- **Optional addition, open question C5:** one line at the top, `This search is assigned to you.`
+- **Addition approved (C5):** one line at the top. The full email, as it will be sent:
+  - **Subject:** `{customer name or email} requested a {finalization|switch|cancellation} call — {year make model}`
+  - **Body:**
+    > This search is assigned to you.
+    >
+    > {customer name or email} asked for a call to {finalize the trim, color, and options on their | switch away from their current | talk through cancelling their} {year make model} search.
+    >
+    > - Name: {name}
+    > - Email: {email}
+    > - Phone: {phone}
+    >
+    > [Open this request on /internal/outreach]({link to the request's section})
+  - **Example:** "Jane Smith requested a switch call — 2026 Toyota Camry" / "This search is assigned to you. Jane Smith asked for a call to switch away from their current 2026 Toyota Camry search." Contact lines appear only when that detail is on file.
+  - **Sent elsewhere:** when the email goes to leads or admins instead (no agent assigned, or a test account), the first line is left out.
 
 ### 3.6 Agent sign-in pages (`/agent`)
 | Where | Draft text |
@@ -435,6 +448,20 @@ The stored codes are the neutral ones Brett approved on 2026-10-11. The labels a
 ---
 
 ## 6. Open questions for Brett (recommendation first)
+
+**Answers (2026-10-12).** The questions below are kept for the record.
+- **C1:** scratch customers on `@verify.invalid`, with every `.invalid` address suppressed in email (done in Chunk 0). Deleted, and checked by count, after each run.
+- **C2:** replaced by the invite flow (section 7).
+- **C3:** reassign through the SQL Editor (`reassign_search`) until the Phase 3 screens exist. No dropdown now.
+- **C4:** Brett stays in rotation; his live rotation is never toggled during tests. Scratch assignments go when the scratch accounts are deleted (`search_assignments` cascades with the search).
+  - **What does drift:** his `agents.last_assigned_at`, by test runs.
+  - **Why that's harmless:** it only decides who is next among agents in rotation. While Brett is the only one, there is no one else to pick. Once others exist, a recent test run would at worst make Brett look "just assigned", so the next real search goes to someone else first.
+  - **Nothing else moves:** no history row survives a deleted scratch search, assignment writes no activity row, and agent emails are suppressed outside production (Chunk 0).
+- **C5:** add "This search is assigned to you." to the assigned-agent call email. Full text in section 3.5.
+- **C6:** a new route, `/api/cron/agent-sweeps`, at `:15`.
+- **C7:** Issue refund always refunds the full remaining fee.
+- **C8:** push the branch after each approved chunk, with preview builds off.
+
 
 **C1. How do I test assignment locally, given that test accounts are never auto-assigned?**
 - (a) **Recommended:** scratch customers on `@verify.invalid` (undeliverable by definition), with `sendEmail` suppressing every `.invalid` address. They count as real for assignment, can't receive mail, are created directly in the database (never paid through Checkout), and are deleted the same session.
