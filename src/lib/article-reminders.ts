@@ -100,7 +100,7 @@ export async function sendArticleReminders(): Promise<ArticleReminderSummary> {
     let allSent = true;
     for (const agent of agents) {
       try {
-        await sendEmail({ to: agent.email, toName: agent.name, subject, html });
+        await sendEmail({ to: agent.email, toName: agent.name, subject, html, audience: "agent" });
       } catch (err) {
         allSent = false;
         summary.errors.push({

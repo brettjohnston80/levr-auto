@@ -138,7 +138,7 @@ export async function notifyAgentsOfCallRequest(params: {
 
     for (const agent of agents) {
       try {
-        await sendEmail({ to: agent.email, toName: agent.name, subject, html });
+        await sendEmail({ to: agent.email, toName: agent.name, subject, html, audience: "agent" });
         result.sent += 1;
       } catch (err) {
         result.errors.push(`Send to ${agent.email} failed: ${err instanceof Error ? err.message : "unknown error"}`);

@@ -1,5 +1,6 @@
 import "server-only";
 import { isTestEmail } from "./test-accounts";
+import { isProductionDeploy } from "./runtime-env";
 
 const ZEPTOMAIL_SEND_URL = "https://api.zeptomail.com/v1.1/email";
 
@@ -10,6 +11,14 @@ export interface SendEmailParams {
   toName?: string;
   /** Extra MIME headers, e.g. List-Unsubscribe (ZeptoMail's mime_headers). */
   headers?: Record<string, string>;
+  /**
+   * Who the email is for. "agent" covers every email to LEVR staff (call requests, article
+   * reminders, and from Phase 1 the alert emails). Outside production, agent emails are only
+   * ever sent to test addresses (which are suppressed below), so local development and preview
+   * builds -- which share the production database -- can never email a real agent.
+   * Defaults to "customer", which keeps every existing caller's behaviour unchanged.
+   */
+  audience?: "customer" | "agent";
 }
 
 /**
@@ -28,7 +37,7 @@ export interface SendEmailParams {
  * can actually send mail. ZEPTOMAIL_FROM_NAME is optional, defaults to
  * "LEVR Auto".
  */
-export async function sendEmail({ to, subject, html, toName, headers }: SendEmailParams): Promise<void> {
+export async function sendEmail({ to, subject, html, toName, headers, audience = "customer" }: SendEmailParams): Promise<void> {
   // Tester-program suppression, and it is FIRST in this function on purpose.
   //
   // This is the single chokepoint every business email in the app passes
@@ -52,6 +61,21 @@ export async function sendEmail({ to, subject, html, toName, headers }: SendEmai
   // substitute: it bounds the blast radius, this is what stops the attempt.
   if (isTestEmail(to)) {
     console.log("[email suppressed — test account]", { to, subject });
+    return;
+  }
+
+  // Any .invalid address is undeliverable by definition (RFC 2606), not only the tester
+  // domain above. Suppressing them all lets disposable scratch accounts use other .invalid
+  // domains (agent dashboard Phase 1 testing) without a send ever being attempted.
+  if (to.trim().toLowerCase().endsWith(".invalid")) {
+    console.log("[email suppressed — .invalid address]", { to, subject });
+    return;
+  }
+
+  // Agent-facing email outside a real production deployment is logged, never sent (Phase 1
+  // safety rail). Same placement rule as above: before the env checks, so it's a clean no-op.
+  if (audience === "agent" && !isProductionDeploy()) {
+    console.log("[email suppressed — agent email outside production]", { to, subject });
     return;
   }
 
