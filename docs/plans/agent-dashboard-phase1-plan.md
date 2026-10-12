@@ -413,7 +413,7 @@ Applies to `agent_activity_log`, `dealer_contacts`, `search_assignments`, `agent
    - `cancellation_log_id` becomes nullable;
    - new `reason → refund_reasons(code)` (existing rows become `cancellation`);
    - new `notes`;
-   - check `(reason = 'cancellation') = (cancellation_log_id is not null)`;
+   - check that a `cancellation` refund has a cancellation record; other reasons may have one too (a goodwill refund issued while cancelling, for example);
    - unique index on `stripe_refund_id`.
 3. **New function `record_payment_refund(payment, agent, amount, stripe_refund_id, reason, cancellation_log_id?, notes?)`.**
    - Same locking and balance check as today.
@@ -427,6 +427,16 @@ Applies to `agent_activity_log`, `dealer_contacts`, `search_assignments`, `agent
 
    Any agent can use it; there is no screen until a later phase.
 6. **The refunds-due list clears by derivation:** a refunded-guarantee search drops off once its `search_fee` payment has a `guarantee` refund.
+7. **Recording guarantee refunds from the refunds-due page: Phase 1 code, not the attention-engine phase** (Brett flagged the gap, 2026-10-11). It is a real-money gap: today Day-30 refunds are issued by hand in Stripe and nothing in the app records them, so `/internal/refunds-due` never shrinks. The fix is small and uses a page that already exists, so it ships with the rest of the Phase 1 code. The attention-engine phase only adds the alerting and ranking. Two buttons on each `/internal/refunds-due` row (agent-facing wording to be shown for sign-off):
+   - **Issue refund.** `recordGuaranteeRefund`, any agent:
+     1. it re-checks that the search is still `guarantee_status = 'refunded'` and finds its `search_fee` payment;
+     2. it calls `stripe.refunds.create` for the remaining balance (idempotency key `guarantee_<search id>`, so a double click can't refund twice);
+     3. it calls `record_payment_refund(…, 'guarantee')`.
+   - **Record a refund already issued in Stripe.** For refunds done by hand before this ships, or in an emergency:
+     1. the agent pastes the Stripe refund id;
+     2. the action retrieves it from Stripe and checks that it succeeded, belongs to that payment's `stripe_payment_intent_id`, and hasn't been recorded (`refunds.stripe_refund_id` is unique);
+     3. it records it with `record_payment_refund(…, 'guarantee')` for the refund's real amount.
+   - Either way the row leaves the list, and the refund shows the agent who processed it. Verified on a disposable account with a Stripe test-mode payment, never a tester.
 7. **Out of scope, flagged:** reconciling refunds made in the Stripe dashboard (a future `charge.refunded` handler).
 
 ### 8.2 Call-request resolution
@@ -1517,6 +1527,16 @@ select (select count(*) from public.agent_activity_log) as activity_rows,
 
 ### Step 7: refund reasons and refunds without a cancellation
 
+Changes from the earlier draft, added while writing the migration:
+- **New guards in `record_payment_refund`:**
+  - the reason must be active;
+  - a cancellation refund must have its cancellation record;
+  - any cancellation record must belong to the same customer as the payment.
+- **Rule relaxed (Brett, 2026-10-11):** only a `cancellation` refund *requires* a cancellation record; other reasons *may* have one. The agent-mediated cancellation flow (`resolveCancellation`) issues discretionary refunds in the same call, and its reasons include "Goodwill gesture" and "LEVR error". A guarantee-refunded search can also be cancelled with its refund issued there. A strict one-to-one rule would have recorded all of those as "cancellation" and lost the guarantee/goodwill distinction.
+- **Code consequence for the Phase 1 code:** `resolveCancellation` gains a per-refund reason (default `cancellation`) and calls `record_payment_refund`. The reason picker's agent-facing labels need sign-off.
+- `record_refund` keeps its exact signature as a wrapper (reason `cancellation`). Its one caller, `src/lib/agent-cancellation-actions.ts:190`, is unchanged.
+- These functions only **record** a refund that Stripe has already issued; they never call Stripe.
+
 ```sql
 create table public.refund_reasons (
   code text primary key,
@@ -1538,8 +1558,11 @@ alter table public.refunds
   add column reason text not null default 'cancellation' references public.refund_reasons (code),
   add column notes text check (notes is null or char_length(notes) <= 2000);
 alter table public.refunds alter column reason drop default; -- new rows must say why
-alter table public.refunds add constraint refunds_reason_matches_cancellation
-  check ((reason = 'cancellation') = (cancellation_log_id is not null));
+-- A cancellation refund must point at its cancellation. Other reasons MAY also point at one: the
+-- agent-mediated cancellation flow can issue goodwill or guarantee refunds in the same call, and
+-- the reason keeps that distinction for reporting.
+alter table public.refunds add constraint refunds_cancellation_reason_needs_record
+  check (reason <> 'cancellation' or cancellation_log_id is not null);
 create unique index refunds_stripe_refund_id_idx on public.refunds (stripe_refund_id);
 
 create function public.record_payment_refund(
@@ -1559,10 +1582,23 @@ begin
   if not public.agent_has_role(p_agent_id, 'agent') then
     raise exception 'agent % is not an active agent', p_agent_id;
   end if;
+  if not exists (select 1 from public.refund_reasons where code = p_reason and is_active) then
+    raise exception 'refund reason % is not an active refund reason', p_reason;
+  end if;
+  if p_reason = 'cancellation' and p_cancellation_log_id is null then
+    raise exception 'a cancellation refund needs its cancellation record';
+  end if;
 
   select * into v_payment from public.payments where id = p_payment_id for update;
   if not found then
     raise exception 'payments row % not found', p_payment_id;
+  end if;
+  if p_cancellation_log_id is not null and not exists (
+    select 1 from public.cancellation_log cl
+    join public.customer_searches s on s.id = cl.search_id
+    where cl.id = p_cancellation_log_id and s.customer_id = v_payment.customer_id
+  ) then
+    raise exception 'cancellation record % does not belong to the customer of payment %', p_cancellation_log_id, p_payment_id;
   end if;
   if p_amount_cents <= 0 then
     raise exception 'p_amount_cents must be positive';
@@ -1606,15 +1642,179 @@ $$;
 revoke execute on function public.record_payment_refund(uuid, uuid, integer, text, text, uuid, text)
   from public, anon, authenticated;
 grant execute on function public.record_payment_refund(uuid, uuid, integer, text, text, uuid, text) to service_role;
+revoke execute on function public.record_refund(uuid, uuid, uuid, integer, text) from public, anon, authenticated;
+grant execute on function public.record_refund(uuid, uuid, uuid, integer, text) to service_role;
 ```
 
-Verify:
+Verify (A, B, F read-only; C, D, D2 rolled back; E1/E2 fail before touching any row; E3's error rolls itself back). All use Brett's own customer row:
 
 ```sql
-select code from public.refund_reasons order by code; -- expect 5 rows
-select reason, count(*), count(*) filter (where cancellation_log_id is null) as without_cancellation
-from public.refunds group by reason; -- expect only cancellation rows, 0 without a cancellation
-select count(*) from pg_proc where proname = 'record_refund'; -- expect 1
+-- A. structure: expect 5 | YES | 1 | 1 | 0 | false
+select (select count(*) from public.refund_reasons) as reasons,
+       (select is_nullable from information_schema.columns
+         where table_schema = 'public' and table_name = 'refunds' and column_name = 'cancellation_log_id') as cancellation_optional,
+       (select count(*) from pg_proc where proname = 'record_refund') as record_refund_versions,
+       (select count(*) from pg_proc where proname = 'record_payment_refund') as new_function,
+       (select count(*) from public.refunds where reason <> 'cancellation' or cancellation_log_id is null) as unexpected_existing_rows,
+       has_function_privilege('authenticated', 'public.record_payment_refund(uuid, uuid, integer, text, text, uuid, text)', 'execute') as customer_can_call;
+
+-- B. grant check, all agent tables so far: expect 16 rows, every can_* false
+select c.relname as table_name, r.role_name,
+       has_table_privilege(r.role_name, c.oid, 'SELECT') as can_select,
+       has_table_privilege(r.role_name, c.oid, 'INSERT') as can_insert,
+       has_table_privilege(r.role_name, c.oid, 'UPDATE') as can_update,
+       has_table_privilege(r.role_name, c.oid, 'DELETE') as can_delete,
+       has_table_privilege(r.role_name, c.oid, 'TRUNCATE') as can_truncate
+from pg_class c cross join (values ('anon'), ('authenticated')) as r(role_name)
+where c.relnamespace = 'public'::regnamespace
+  and c.relname in ('agents', 'agent_activity_types', 'agent_activity_log', 'agent_alerts', 'agent_away_periods',
+                    'search_assignments', 'dealer_contacts', 'refund_reasons')
+order by 1, 2;
+
+-- C. a guarantee refund with no cancellation, as the website's role, rolled back.
+--    expect: 69900 | guarantee | true | true | 1
+begin;
+with s as (
+  insert into public.customer_searches (customer_id, make, model, model_year, paid_at)
+  select c.id, 'Toyota', 'Camry', 2026, now()
+  from public.customers c join auth.users u on u.id = c.id
+  where lower(u.email) = 'bjohnston@levrauto.com'
+  returning id, customer_id
+)
+select set_config('p7.search', (select id::text from s), true),
+       set_config('p7.customer', (select customer_id::text from s), true);
+with p as (
+  insert into public.payments (customer_id, search_id, payment_type, stripe_payment_intent_id, amount_cents)
+  values (current_setting('p7.customer')::uuid, current_setting('p7.search')::uuid, 'search_fee', 'pi_phase1_step7_check', 69900)
+  returning id
+)
+select set_config('p7.payment', (select id::text from p), true);
+set local role service_role;
+select public.record_payment_refund(current_setting('p7.payment')::uuid,
+  (select id from public.agents where lower(email) = 'bjohnston@levrauto.com'),
+  69900, 're_phase1_step7_check_1', 'guarantee', null, 'phase1 step7 check');
+set constraints all immediate;
+reset role;
+select p.refunded_cents, r.reason, r.cancellation_log_id is null as no_cancellation,
+       r.agent_id = (select id from public.agents where lower(email) = 'bjohnston@levrauto.com') as agent_recorded,
+       (select count(*) from public.agent_activity_log where action = 'refund_processed' and refund_id = r.id) as activity_rows
+from public.payments p join public.refunds r on r.payment_id = p.id
+where p.id = current_setting('p7.payment')::uuid;
+rollback;
+
+-- D. a cancellation refund through the OLD record_refund (the deployed code path), rolled back.
+--    expect: 20000 | cancellation | true
+begin;
+with s as (
+  insert into public.customer_searches (customer_id, make, model, model_year, paid_at)
+  select c.id, 'Toyota', 'Camry', 2026, now()
+  from public.customers c join auth.users u on u.id = c.id
+  where lower(u.email) = 'bjohnston@levrauto.com'
+  returning id, customer_id
+)
+select set_config('p7.search', (select id::text from s), true),
+       set_config('p7.customer', (select customer_id::text from s), true);
+with p as (
+  insert into public.payments (customer_id, search_id, payment_type, stripe_payment_intent_id, amount_cents)
+  values (current_setting('p7.customer')::uuid, current_setting('p7.search')::uuid, 'search_fee', 'pi_phase1_step7_check', 69900)
+  returning id
+)
+select set_config('p7.payment', (select id::text from p), true);
+with l as (
+  insert into public.cancellation_log (search_id, initiated_by, agent_id, reason_category, notes)
+  values (current_setting('p7.search')::uuid, 'agent',
+          (select id from public.agents where lower(email) = 'bjohnston@levrauto.com'), 'Other', 'phase1 step7 check')
+  returning id
+)
+select set_config('p7.log', (select id::text from l), true);
+set local role service_role;
+select public.record_refund(current_setting('p7.payment')::uuid, current_setting('p7.log')::uuid,
+  (select id from public.agents where lower(email) = 'bjohnston@levrauto.com'), 20000, 're_phase1_step7_check_2');
+set constraints all immediate;
+reset role;
+select p.refunded_cents, r.reason, r.cancellation_log_id = current_setting('p7.log')::uuid as linked_to_cancellation
+from public.payments p join public.refunds r on r.payment_id = p.id
+where p.id = current_setting('p7.payment')::uuid;
+rollback;
+
+-- D2. a GOODWILL refund linked to a cancellation is allowed and keeps its reason, rolled back.
+--     expect: 15000 | goodwill | true
+begin;
+with s as (
+  insert into public.customer_searches (customer_id, make, model, model_year, paid_at)
+  select c.id, 'Toyota', 'Camry', 2026, now()
+  from public.customers c join auth.users u on u.id = c.id
+  where lower(u.email) = 'bjohnston@levrauto.com'
+  returning id, customer_id
+)
+select set_config('p7.search', (select id::text from s), true),
+       set_config('p7.customer', (select customer_id::text from s), true);
+with p as (
+  insert into public.payments (customer_id, search_id, payment_type, stripe_payment_intent_id, amount_cents)
+  values (current_setting('p7.customer')::uuid, current_setting('p7.search')::uuid, 'search_fee', 'pi_phase1_step7_check', 69900)
+  returning id
+)
+select set_config('p7.payment', (select id::text from p), true);
+with l as (
+  insert into public.cancellation_log (search_id, initiated_by, agent_id, reason_category, notes)
+  values (current_setting('p7.search')::uuid, 'agent',
+          (select id from public.agents where lower(email) = 'bjohnston@levrauto.com'), 'Goodwill gesture', 'phase1 step7 check')
+  returning id
+)
+select set_config('p7.log', (select id::text from l), true);
+set local role service_role;
+select public.record_payment_refund(current_setting('p7.payment')::uuid,
+  (select id from public.agents where lower(email) = 'bjohnston@levrauto.com'),
+  15000, 're_phase1_step7_check_4', 'goodwill', current_setting('p7.log')::uuid);
+set constraints all immediate;
+reset role;
+select p.refunded_cents, r.reason, r.cancellation_log_id = current_setting('p7.log')::uuid as linked_to_cancellation
+from public.payments p join public.refunds r on r.payment_id = p.id
+where p.id = current_setting('p7.payment')::uuid;
+rollback;
+
+-- E1. a 'cancellation' refund without its cancellation record is refused
+--     (expect ERROR "a cancellation refund needs its cancellation record"). Fails before touching any row.
+select public.record_payment_refund(gen_random_uuid(),
+  (select id from public.agents where lower(email) = 'bjohnston@levrauto.com'),
+  100, 're_phase1_step7_check_x', 'cancellation');
+
+-- E2. unknown reason (expect ERROR "refund reason not_a_reason is not an active refund reason").
+select public.record_payment_refund(gen_random_uuid(),
+  (select id from public.agents where lower(email) = 'bjohnston@levrauto.com'),
+  100, 're_phase1_step7_check_x', 'not_a_reason');
+
+-- E3. over-refund is still refused (expect ERROR "... would exceed remaining balance of 69900 cents ...").
+--     The error rolls the whole query back, including the test search and payment; F confirms it.
+begin;
+with s as (
+  insert into public.customer_searches (customer_id, make, model, model_year, paid_at)
+  select c.id, 'Toyota', 'Camry', 2026, now()
+  from public.customers c join auth.users u on u.id = c.id
+  where lower(u.email) = 'bjohnston@levrauto.com'
+  returning id, customer_id
+)
+select set_config('p7.search', (select id::text from s), true),
+       set_config('p7.customer', (select customer_id::text from s), true);
+with p as (
+  insert into public.payments (customer_id, search_id, payment_type, stripe_payment_intent_id, amount_cents)
+  values (current_setting('p7.customer')::uuid, current_setting('p7.search')::uuid, 'search_fee', 'pi_phase1_step7_check', 69900)
+  returning id
+)
+select set_config('p7.payment', (select id::text from p), true);
+select public.record_payment_refund(current_setting('p7.payment')::uuid,
+  (select id from public.agents where lower(email) = 'bjohnston@levrauto.com'),
+  70000, 're_phase1_step7_check_3', 'goodwill');
+rollback;
+
+-- F. nothing left behind: expect 0 | 0 | 0 | 0 | 0
+select (select count(*) from public.payments where stripe_payment_intent_id = 'pi_phase1_step7_check') as test_payments,
+       (select count(*) from public.refunds where stripe_refund_id like 're_phase1_step7_check%') as test_refunds,
+       (select count(*) from public.cancellation_log where notes = 'phase1 step7 check') as test_cancellations,
+       (select count(*) from public.agent_activity_log) as activity_rows,
+       (select count(*) from public.customer_searches where make = 'Toyota' and model = 'Camry'
+          and customer_id = (select id from auth.users where lower(email) = 'bjohnston@levrauto.com')
+          and created_at > now() - interval '1 day') as leftover_test_searches;
 ```
 
 ### Step 8: attribution, call resolution and message-time columns
@@ -1832,7 +2032,7 @@ None of these is a clock. They are due dates or states, all computable from Phas
    - `confirmAvailability` / `confirmDepositReceived`;
    - `resolveNotificationCallback`;
    - customer message sends: `last_customer_message_at`.
-7. **Refunds:** `resolveCancellation` calls `record_payment_refund`; new `recordGuaranteeRefund`.
+7. **Refunds:** `resolveCancellation` calls `record_payment_refund` with a per-refund reason; `recordGuaranteeRefund` and the "record an existing Stripe refund" action, with both buttons on `/internal/refunds-due` (section 8.1 item 7).
 8. **Call requests:**
    - `resolveSwitchCall` / `resolveCancellationCall`;
    - queue filters;
