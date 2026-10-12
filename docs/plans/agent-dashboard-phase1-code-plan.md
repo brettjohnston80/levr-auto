@@ -1,6 +1,9 @@
 # Agent dashboard Phase 1: code plan
 
-**Status:** plan only (2026-10-12). No code has been written.
+**Status:** plan only (2026-10-12; revised the same day for Brett's agent sign-in decisions). No code has been written.
+- **Chunk 0 may proceed.**
+- **Chunk 1 (agent sign-in) is on hold until Brett approves this revision.**
+- **Step 11 (LEVRID)** is written for Brett to run: `supabase/migrations/20261012120000_agent_levrid.sql`.
 
 **Depends on:** the Phase 1 database work (Steps 1–10 plus 6b), applied and committed through `4f215fb`. The database plan is `docs/plans/agent-dashboard-phase1-plan.md`, cited below as "the DB plan".
 
@@ -54,7 +57,12 @@ Each chunk ends with a stop for Brett's review. Nothing moves on until he approv
 | # | Chunk | Screens? |
 |---|---|---|
 | 0 | Branch and safety rails | no |
-| 1 | Role-aware sign-in | no |
+| 1a | Agent accounts kept separate from customer accounts (Step 12 database: sign-up trigger, sign-in attempts table, relink function, activity types) | no |
+| 1b | `/agent` sign-in page with an internal look, generic errors and rate limiting | **yes** |
+| 1c | Invite → set password → enroll two-factor | **yes** |
+| 1d | Two-factor and agent-account checks on every agent page and agent action; customer sign-in refuses agent accounts | no |
+| 1e | Two-factor reset (leads for agents, admins for anyone) | no (internal route until Phase 3) |
+| 1f | Brett's own agent login (cutover; done on deploy day) | no |
 | 2 | Activity logging on every agent action | no |
 | 3 | Assignment at payment, the hourly sweep, and lead reassignment (server action only) | no |
 | 4 | Alert-email sweep | no |
@@ -75,20 +83,8 @@ Each chunk ends with a stop for Brett's review. Nothing moves on until he approv
   - a unit-style script calls `sendEmail` with five recipients (`x@levrauto-test.invalid`, `x@verify.invalid`, `x@levrauto.invalid`, a real address in local mode, a real address with `VERCEL_ENV=production` set) and checks the console output. Expected: suppressed / suppressed / suppressed / suppressed-not-production / send attempted. The production case runs with a fake ZeptoMail key so nothing goes out;
   - after pushing the branch, the Vercel deployments list shows **no** new deployment for it.
 
-### Chunk 1: role-aware sign-in
-- **Changes:** `getAuthorizedAgent()` returns `{ id, name, email, role, inRotation }`.
-  - It matches `agents.auth_user_id = user.id` first.
-  - If there's no match, it looks for an active agent with `lower(email) = lower(user.email)` and **no** `auth_user_id` yet, and links it (first sign-in of a newly added agent; open question C2). Deactivated agents return null.
-  - New `hasRole(agent, min)`, `requireAgent({ minRole })` and `getAuthorizedAgent({ minRole })`. All 19 current callers keep their current behaviour (minimum role agent).
-  - Lead-only and admin-only checks are added only where a later chunk needs them.
-- **Files:** `src/lib/agent-auth.ts`, and the 19 callers (type changes only, behaviour unchanged).
-- **Verified by:**
-  - headless Chrome with its own profile, signing in as three scratch logins against local dev:
-    1. scratch agent A, `auth_user_id` not yet set: `/internal/outreach` loads, and A's `auth_user_id` becomes A's login id (checked by query);
-    2. A again: loads through the id match (log line);
-    3. scratch customer C (not an agent): redirected to `/`;
-  - then A deactivated through `set_agent_active`, run by hand under the flag route, and A redirected to `/`;
-  - all scratch rows deleted, confirmed 0 by count. Brett's own row is not touched; it was already linked in Step 10.
+### Chunk 1: agent sign-in (replaced 2026-10-12; full design in section 7)
+Chunk 1 is now six small chunks, **1a–1f**, described in section 7. Each one ends with a stop for review. The role-aware checks from the earlier draft (`getAuthorizedAgent` returning the role, `hasRole`, `requireAgent({ minRole })`) are still part of 1d. **Link-by-email on first sign-in is dropped** (it was C2); agents are linked only by the invite.
 
 ### Chunk 2: activity logging on every agent action
 - **Changes:** new `src/lib/agent-activity.ts`, with `logAgentActivity()`, which calls the `log_agent_activity` database function. If the call itself fails:
@@ -320,7 +316,25 @@ The stored codes are the neutral ones Brett approved on 2026-10-11. The labels a
 - **Only the recipients change** (chunk 6).
 - **Optional addition, open question C5:** one line at the top, `This search is assigned to you.`
 
-### 3.6 Customer-facing wording
+### 3.6 Agent sign-in pages (`/agent`)
+| Where | Draft text |
+|---|---|
+| Page title | `LEVR Auto agent sign-in` |
+| Fields | `Work email` · `Password` |
+| Button | `Sign in` · busy `Signing in…` |
+| Two-factor step heading | `Enter your authenticator code` |
+| Two-factor field | `6-digit code` |
+| Two-factor button | `Verify` · busy `Verifying…` |
+| **Generic error (any wrong email, password or code, an unknown or deactivated agent, or a customer account)** | `That didn't work. Check your details and try again.` |
+| Too many attempts | `Too many sign-in attempts. Wait 15 minutes and try again.` |
+| Invite email subject | `You've been invited to the LEVR Auto agent dashboard` |
+| Invite email body | `{inviter name} added you as a LEVR Auto agent. Set your password and turn on two-factor sign-in to get started. This link works once and expires in 24 hours: {link}` |
+| Set-password page | heading `Set your password`; fields `New password` · `Confirm password`; the existing password rule text; button `Continue` |
+| Enroll page | heading `Turn on two-factor sign-in`; text `Scan this code with an authenticator app (such as Google Authenticator, 1Password or Authy), then enter the 6-digit code it shows.`; link `Can't scan? Enter this key instead: {secret}`; button `Turn on` |
+| Signed-in header (internal look) | `LEVR Auto · Agent` · `{agent name} (LEVRID {n})` · `Sign out` |
+| Two-factor reset done (to the agent, by email) | subject `Your LEVR Auto two-factor sign-in was reset`; body `{lead/admin name} reset your two-factor sign-in. The next time you sign in, you'll set it up again. If you didn't ask for this, contact {lead/admin name} straight away.` |
+
+### 3.7 Customer-facing wording
 **None.** No customer-facing text changes in Phase 1. The Day-30 refund email customers already get is unchanged. Stripe sends its own receipt for a refund, depending on the Stripe receipt setting, which is unchanged.
 
 ---
@@ -384,6 +398,11 @@ The stored codes are the neutral ones Brett approved on 2026-10-11. The labels a
 8. **Watch:**
    - the next scheduled `:15` sweep runs (cron log) with `assigned 0`;
    - the next real payment, if any, gets an agent within seconds (webhook) rather than waiting for the sweep.
+8b. **Brett's agent login cutover (Chunk 1f, section 7.7)**, after the sweep checks:
+   1. invite the new agent address;
+   2. Brett sets a password and enrolls two-factor;
+   3. run `relink_agent_login`;
+   4. check the old login can't reach `/internal/*` and the new one can, with two-factor.
 9. **Roll back** if anything in 5–8 is wrong: Vercel "Instant Rollback" to the previous production deployment. The database needs no rollback; the Phase 1 data stays valid and unused by the old code.
 
 ---
@@ -395,9 +414,7 @@ The stored codes are the neutral ones Brett approved on 2026-10-11. The labels a
 - (b) Only test assignment through rolled-back SQL, as in Steps 4 and 9. This doesn't exercise the webhook or sweep code.
 - (c) Add a local-only override to `is_test_customer`, which needs a migration. Not recommended.
 
-**C2. Linking a new agent's login.** You said case-insensitive email matching is no longer needed. But an agent added through `add_agent` has no `auth_user_id` until they first sign in.
-- (a) **Recommended:** link by email once, only when the agent's `auth_user_id` is still empty, then match by id forever after.
-- (b) Make `add_agent` require the login's user id up front, so you look it up in Supabase Auth before adding someone.
+**C2. Replaced (2026-10-12).** Agents are linked only by the invite (section 7). There is no link-by-email on sign-in.
 
 **C3. Reassignment before the Phase 3 screens.**
 - (a) **Recommended:** leads use `reassign_search` in the SQL Editor (one line, which I'll document) until Phase 3. The server action exists but has no button.
@@ -422,3 +439,220 @@ The stored codes are the neutral ones Brett approved on 2026-10-11. The labels a
 **C8. Pushing the branch.**
 - (a) **Recommended:** push it to GitHub after each approved chunk (backup and sync), with preview builds off for that branch.
 - (b) Keep it local only until deploy day.
+
+
+---
+
+## 7. Agent sign-in (Brett's decisions, 2026-10-12)
+
+### 7.1 Decisions
+1. **A separate agent sign-in** at `levrauto.com/agent`, with an internal look (no marketing header or footer). It lands on the agent dashboard (`/internal/outreach` until Phase 3). Customer sign-in (`/login`) is unchanged.
+2. **Sign-in is work email + password + required two-factor** (an authenticator-app code).
+   - Two-factor is enforced **server-side on every agent page and every agent action**, not just at sign-in.
+   - Every wrong sign-in detail gets the same generic error.
+   - Attempts are rate-limited.
+3. **Invite-only.** A lead or admin adds an agent, the agent gets an invite link, sets a password, and enrolls two-factor before reaching anything.
+   - Agents can never sign themselves up.
+   - The customer sign-up can never create or link an agent.
+4. **Agent and customer accounts are fully separate.** An agent login is never a customer login.
+5. **LEVRID** (Step 11, section 7.6).
+6. **Later, not now:** passkeys or hardware security keys as a second-factor option (section 7.8).
+
+### 7.2 What Supabase supports (from its docs, checked 2026-10-12)
+- **Two-factor (TOTP authenticator app)** is built in: `mfa.enroll({ factorType: 'totp' })` returns a QR code and a secret, then `mfa.challenge` and `mfa.verify`. "If the verification succeeds, the factor immediately becomes active." ([TOTP guide](https://supabase.com/docs/guides/auth/auth-mfa/totp))
+- **Assurance levels.** `aal1` = signed in with a password (or similar); `aal2` = a second factor also verified. The level is in the session token's `aal` claim, and server code can read it with `mfa.getAuthenticatorAssuranceLevel()`. ([MFA guide](https://supabase.com/docs/guides/auth/auth-mfa))
+  - The same guide shows enforcing it in RLS with `(select auth.jwt()->>'aal') = 'aal2'` as a *restrictive* policy.
+  - It recommends redirecting users at the wrong level to a sign-in step rather than returning an error.
+- **Admin factor reset:** `auth.admin.mfa.deleteFactor({ id, userId })` deletes a user's factor. It requires the service role, and it logs the user out of all active sessions if the factor was verified. ([JS reference](https://supabase.com/docs/reference/javascript/auth-admin-mfa-deletefactor))
+- **Invites and links:**
+  - `auth.admin.inviteUserByEmail` sends an invite. ([reference](https://supabase.com/docs/reference/javascript/auth-admin-inviteuserbyemail))
+  - `auth.admin.generateLink` creates invite, magic-link and recovery links "to be sent via a custom email provider". ([reference](https://supabase.com/docs/reference/javascript/auth-admin-generatelink))
+  - `auth.admin.createUser` creates a user server-side. ([reference](https://supabase.com/docs/reference/javascript/auth-admin-createuser))
+- **Where to store "this is an agent account":** `raw_app_meta_data` cannot be updated by the user, so it's a good place for authorization data. `raw_user_meta_data` can be changed by the signed-in user and must not be trusted. ([RLS guide](https://supabase.com/docs/guides/database/postgres/row-level-security), [Users](https://supabase.com/docs/guides/auth/users))
+- **Built-in rate limits** (per IP address):
+  - password sign-in 150 requests per 5 minutes, configurable;
+  - two-factor challenge/verify 15 per minute, **not configurable**.
+
+  ([Rate limits](https://supabase.com/docs/guides/auth/rate-limits))
+- **Hooks:** a per-user "MFA verification attempt" hook can reject repeated wrong codes, but it's on the **Teams/Enterprise** plans only ([MFA verification hook](https://supabase.com/docs/guides/auth/auth-hooks/mfa-verification-hook)). So per-account limits are built in our own code (section 7.4).
+- **Passkeys:** Supabase added passkey *sign-in* as a **beta** (changelog, May 2026). WebAuthn as a *second factor* is still marked experimental. ([changelog](https://supabase.com/changelog/46458-passkeys-for-supabase-auth-beta), [Swift MFA reference](https://supabase.com/docs/reference/swift/auth-mfa-api))
+- **Usernames:** Supabase Auth signs users in with an email (or phone) and password. There's no username field (same docs).
+
+### 7.3 Keeping agent and customer accounts separate
+Today, every new Supabase login gets a `customers` row from the `handle_new_user()` trigger. So inviting an agent would wrongly create a customer.
+
+**Step 12 (a migration, written after this plan is approved)** makes the separation structural:
+1. **Marking agent logins.** An agent login is created **server-side only**, with `auth.admin.createUser({ email, app_metadata: { account_type: 'agent', agent_id } })`. `app_metadata` can't be set or changed by the user, so a customer can never mark themselves as an agent.
+2. **The sign-up trigger.** `handle_new_user()` skips creating a `customers` row when `raw_app_meta_data->>'account_type' = 'agent'`. It only looks at `app_metadata`; a customer putting `account_type` in their own sign-up data changes nothing.
+3. **One login per agent.** `agents.auth_user_id` is set only by the invite step, which knows the new login's id, and by Brett's cutover function. A check refuses linking an `agents` row to a login that has a `customers` row.
+4. **`agent_signin_attempts`** (email hash, IP hash, time, outcome), for per-account and per-IP limits. It gets both locks.
+5. **New activity types:** `agent_invited`, `agent_two_factor_enrolled`, `agent_two_factor_reset`, `agent_login_relinked`.
+6. **A `relink_agent_login(p_actor, p_agent_id, p_new_auth_user_id)` function** (admin only, logged), used once for Brett's cutover (section 7.7).
+
+**What every agent page and action checks (Chunk 1d), on the server, every request:**
+1. A valid session (`getUser`, verified by Supabase).
+2. `app_metadata.account_type = 'agent'`.
+3. An **active** `agents` row whose `auth_user_id` is this login.
+4. The session's `aal` is `aal2`.
+
+- If any fails, the page redirects to `/agent` (or to the two-factor step when only 4 fails), and the action returns the generic "not authorized".
+- **Customer pages refuse agent accounts** the same way, so an agent login can't use `/account`.
+- **Database layer:** agent data is read with the service role, so RLS doesn't see the agent's session. The `aal2` check therefore lives in `getAuthorizedAgent()`, the one function all 19 agent entry points already go through. If agent pages ever move off the service role, the restrictive `aal2` RLS policy from Supabase's guide is the second layer.
+
+### 7.4 Sign-in, rate limiting and errors (Chunk 1b)
+- **`/agent` is its own route group** with an internal layout: no `SiteHeader` or `SiteFooter`. The root layout's header and footer move into a site route group so `/agent` and `/internal/*` don't get them.
+- **Steps:**
+  1. email + password (`signInWithPassword`);
+  2. if the account isn't an agent, or the password is wrong, the generic error;
+  3. if it's an agent with a verified TOTP factor, the code step (challenge + verify);
+  4. if it's an agent with no factor yet, straight to enrollment (an invited agent finishing setup).
+- **The same generic error** for a wrong email, a wrong password, a wrong code, an unknown or deactivated agent, or a customer account. The response shape and timing are kept the same, so nothing reveals which part was wrong.
+- **Rate limits:**
+  - Supabase's per-IP limits apply underneath (section 7.2);
+  - ours: 5 failed attempts per account per 15 minutes, and 20 per IP per 15 minutes, counted in `agent_signin_attempts`. Then `Too many sign-in attempts…` until the window passes;
+  - successful sign-ins are recorded too, for the team activity screen in Phase 3.
+
+### 7.5 Invite and two-factor recovery (Chunks 1c and 1e)
+**Invite flow:**
+1. A lead or admin adds the agent (until the Phase 3 screens: an internal CRON_SECRET-gated route, run like the seed route; open question C9). That runs `add_agent` (the agents row, with its LEVRID), then `auth.admin.createUser` with `app_metadata.account_type = 'agent'` and no password, then sets `agents.auth_user_id`.
+2. A one-time link from `auth.admin.generateLink({ type: 'recovery' })` is sent **by our own email** (ZeptoMail, wording in section 3.6) to `/agent/accept`, which verifies it on click (the same `/auth/confirm` pattern, so inbox scanners can't use it up).
+3. The agent sets a password (the existing password rule).
+4. Enrollment page: QR code and secret, then the first code. Nothing else is reachable until it verifies, which takes the session to `aal2`.
+5. Logged as `agent_invited` (by the inviter) and `agent_two_factor_enrolled`.
+
+**Two-factor recovery (lost phone):**
+- **Who can reset:** a lead for an agent; an admin for anyone. Never your own; the last admin is covered below.
+- **How:** the reset calls `auth.admin.mfa.deleteFactor`, which per Supabase also signs that agent out of every session. The next sign-in takes them to enrollment again. Logged as `agent_two_factor_reset`, and the agent gets the email in section 3.6.
+- **Before resetting,** the lead or admin confirms it's really the agent, by phone or video, never by email alone. This is a written rule in the team guide.
+- **Backup device:** agents may enroll a second authenticator (Supabase supports several factors), so a lost phone doesn't lock them out.
+- **No recovery codes:** Supabase doesn't provide them. Building our own isn't recommended now.
+- **The last admin losing their phone** (Brett, today): a break-glass step in the SQL Editor or a CRON_SECRET-gated route that deletes the factor with the service role, logged. Written up in CLAUDE.md before the deploy.
+
+### 7.6 Step 11: LEVRID (written; Brett runs it)
+**File:** `supabase/migrations/20261012120000_agent_levrid.sql`. Offline parser: 18 statements, 2 function bodies; the test block also parses.
+
+**What it does:**
+- `agents.levrid integer unique`, a plain sequential number starting at 1.
+- **Numbering.** A one-row `agent_levrid_counter` table holds the last number issued. A trigger on `agents` takes the next one inside the inserting transaction. Postgres sequences skip numbers when a transaction rolls back; this counter rolls back too, so rolled-back or failed adds never burn a number. The counter only goes up and LEVRIDs are unique, so a number is never issued twice, even if a row were ever deleted.
+- **Test agents** (`@levrauto-test.invalid`) get **no** LEVRID, so verification never uses up real numbers. Every other agent must have one (check constraint).
+- **Backfill:** existing non-test agents are numbered in creation order, so **Brett is 1**. The counter is set to the highest number.
+- **Guard:** a trigger refuses setting a LEVRID by hand on insert, and changing or clearing it on update. The backfill uses a transaction-local flag (`levr.levrid_admin`), switched off before commit.
+- **`add_agent`:** replaced with the same signature, adding the LEVRID to its `agent_added` activity row. Its return row already includes every agents column.
+- The counter table gets both locks.
+
+**Run:** paste the whole file in a new SQL Editor query and click Run. It's one transaction, so if it errors nothing is applied.
+
+**Verify:**
+
+```sql
+-- A. Brett and the counter: expect bjohnston@levrauto.com | 1 | 1 | 1
+select (select email from public.agents where levrid = 1) as levrid_1,
+       (select levrid from public.agents where lower(email) = 'bjohnston@levrauto.com') as brett_levrid,
+       (select last_value from public.agent_levrid_counter) as counter,
+       (select count(*) from pg_trigger where tgname = 'agents_levrid') as levrid_trigger;
+
+-- B. grant check including the counter table: expect 2 rows, every can_* false
+select c.relname as table_name, r.role_name,
+       has_table_privilege(r.role_name, c.oid, 'SELECT') as can_select,
+       has_table_privilege(r.role_name, c.oid, 'INSERT') as can_insert,
+       has_table_privilege(r.role_name, c.oid, 'UPDATE') as can_update,
+       has_table_privilege(r.role_name, c.oid, 'DELETE') as can_delete,
+       has_table_privilege(r.role_name, c.oid, 'TRUNCATE') as can_truncate
+from pg_class c cross join (values ('anon'), ('authenticated')) as r(role_name)
+where c.relnamespace = 'public'::regnamespace and c.relname = 'agent_levrid_counter'
+order by 1, 2;
+
+-- C. rules, rolled back. Run all lines together. Expect every row pass = true.
+begin;
+create temp table p11 (n int, test text, expected text, result text) on commit drop;
+do $$
+declare
+  v_brett uuid; v_real public.agents; v_real2 public.agents; v_test public.agents; v_tmp text;
+begin
+  select id into v_brett from public.agents where lower(email) = 'bjohnston@levrauto.com';
+  v_real := public.add_agent(v_brett, 'p11-real@verify.invalid', 'P11 Real');
+  insert into p11 values (1, 'next real agent gets LEVRID 2', '2', v_real.levrid::text);
+  v_real2 := public.add_agent(v_brett, 'p11-real2@verify.invalid', 'P11 Real 2');
+  insert into p11 values (2, 'and the one after gets 3', '3', v_real2.levrid::text);
+  v_test := public.add_agent(v_brett, 'p11-test@levrauto-test.invalid', 'P11 Test');
+  insert into p11 values (3, 'a test agent gets no LEVRID', 'null', coalesce(v_test.levrid::text, 'null'));
+  insert into p11 values (4, 'activity row records the LEVRID', '2',
+    (select details->>'levrid' from public.agent_activity_log
+      where action = 'agent_added' and details->>'agent_id' = v_real.id::text));
+  perform public.set_agent_active(v_brett, v_real.id, false);
+  insert into p11 values (5, 'deactivating keeps the LEVRID', '2',
+    (select levrid::text from public.agents where id = v_real.id));
+  begin update public.agents set levrid = 99 where id = v_real2.id; v_tmp := 'allowed';
+  exception when others then v_tmp := 'refused'; end;
+  insert into p11 values (6, 'changing a LEVRID by hand', 'refused', v_tmp);
+  begin insert into public.agents (email, name, levrid) values ('p11-x@verify.invalid', 'X', 50); v_tmp := 'allowed';
+  exception when others then v_tmp := 'refused'; end;
+  insert into p11 values (7, 'setting a LEVRID on insert by hand', 'refused', v_tmp);
+  begin update public.agents set levrid = null where id = v_real2.id; v_tmp := 'allowed';
+  exception when others then v_tmp := 'refused'; end;
+  insert into p11 values (8, 'clearing a real agent''s LEVRID', 'refused', v_tmp);
+  insert into p11 values (9, 'counter after two real adds', '3',
+    (select last_value::text from public.agent_levrid_counter));
+end $$;
+set constraints all immediate;
+select n, test, expected, result, (expected = result) as pass from p11 order by n;
+rollback;
+
+-- D. the rollback gave nothing away: expect 1 | 1 | 0 | 0
+select (select last_value from public.agent_levrid_counter) as counter,
+       (select max(levrid) from public.agents) as highest_levrid,
+       (select count(*) from public.agents where email like 'p11-%') as test_agents,
+       (select count(*) from public.agent_activity_log where action = 'agent_added') as agent_added_rows;
+```
+
+**Undo:**
+
+```sql
+begin;
+drop trigger agents_levrid on public.agents;
+drop function public.agents_levrid();
+alter table public.agents drop constraint agents_levrid_required;
+alter table public.agents drop column levrid;
+drop table public.agent_levrid_counter;
+-- then re-run the add_agent block from 20261011220000_agent_team_functions.sql as "create or replace"
+commit;
+```
+
+### 7.7 Separating Brett's agent login from his customer data (open question C10)
+- **Today:** `bjohnston@levrauto.com` is one Supabase login that is both a customer (it has a `customers` row, used by our rolled-back tests and possibly real customer history) and the agent (`agents.auth_user_id`, linked in Step 10).
+- **The agent record's id never changes** in any option below, so all agent history (activity rows, LEVRID 1, assignments) stays attached to it.
+
+| Option | What happens | For | Against |
+|---|---|---|---|
+| **A. New agent login, keep the old one as a customer (recommended)** | Create a new agent-only login (for example `brett@levrauto.com`, a Zoho alias) through the invite flow, then `relink_agent_login` points agent LEVRID 1 at it and updates `agents.email`. `bjohnston@levrauto.com` becomes a customer login only, with its `customers` row and history untouched. | Nothing customer-side moves; the agent history keeps its id; reversible by relinking again | Brett has two logins (one per role), which is the decision |
+| B. Keep `bjohnston@levrauto.com` as the agent login and move the customer data to a new customer login | Re-own every customer-side row (searches, offers, messages, payments, surveys) to a new `customers` row | `bjohnston@` stays the agent address | Re-owning customer history touches many tables, with real risk of a missed foreign key; not recommended |
+| C. Keep `bjohnston@levrauto.com` as the agent login and delete its customer side | Delete the customer row and its test-only data | Simple | Loses whatever customer history it holds; can't be undone |
+
+**Order for A, on deploy day (Chunk 1f):**
+1. Step 12 has run, and the sign-up trigger skips agent logins.
+2. Invite the new address; Brett sets a password and enrolls two-factor.
+3. An admin runs `relink_agent_login`. It's a SQL Editor step under the flag route, because Brett is the only admin.
+4. Check that `bjohnston@levrauto.com` can no longer reach `/internal/*`, and that the new login can.
+
+### 7.8 Later: passkeys and hardware security keys
+Supabase offers passkey **sign-in** as a beta, and WebAuthn as a **second factor** is experimental (section 7.2). When the second-factor version is generally available, add "security key or passkey" as another factor agents may enroll alongside the authenticator app. Nothing in this plan blocks that: the checks only require `aal2`, not a particular factor type.
+
+### 7.9 Open questions about sign-in
+
+**C9. Adding agents before the Phase 3 team screens.**
+- (a) **Recommended:** a CRON_SECRET-gated internal route (`POST /api/internal/invite-agent` with the actor's LEVRID, the email and the role), run by Brett with curl. It enforces the same rules as `add_agent`.
+- (b) Build a minimal invite form now, which goes against the "hold the team screens" decision.
+
+**C10. Brett's separate agent login:** options A/B/C in section 7.7; A is recommended.
+
+**C11. Agent usernames.**
+- (a) **Recommended:** the agent's **@levrauto.com work email**. Supabase signs in by email, invites and resets go to it, and when someone leaves, their work email is turned off too.
+- (b) A separate username. It would need our own username-to-email lookup in front of Supabase's email sign-in, and a separate place for invites and resets to go. More to build and more to get wrong, for no security gain.
+
+**C12. Two-factor reset rule.**
+- (a) **Recommended:** as you expected, leads for agents and admins for anyone, never your own. The last admin uses the break-glass step; the reset confirms identity by phone or video first; and agents are encouraged to enroll a backup device.
+- (b) Admins only.
+
+**C13. Session length for agents.** Supabase's session timeouts apply to the whole project, customers included.
+- (a) **Recommended:** keep the project setting, and add an agent-only idle sign-out in the app (for example 8 hours without activity).
+- (b) No extra limit.
