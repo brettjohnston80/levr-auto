@@ -37,8 +37,19 @@ Until then, agent management happens through the database functions (`add_agent`
 |---|---|
 | The branch builds a preview at all | **Preview builds turned off for this branch.** On the branch, `vercel.json` gets `"git": { "deploymentEnabled": { "agent-dashboard-phase1-code": false } }`. Pushing the branch to GitHub (for backup and sync) then creates no Vercel deployment. The setting names only this branch, so it's harmless once merged; it comes out at merge time anyway. |
 | The hourly jobs running from a preview | Vercel only runs cron jobs on the **production** deployment, so a preview never triggers them. Beyond that, the new sweep route returns `skipped: not production` unless `process.env.VERCEL_ENV === "production"` or it's running locally under `next dev`. |
-| Assigning real searches, sending emails, or calling Stripe from a preview | One helper, `src/lib/runtime-env.ts`, provides `isPreviewDeploy()`. Every new side-effecting path refuses to run on a preview: the payment-time assignment, the sweeps, alert emails, refund issuing and recording, and the assigned-agent call email. Stripe's webhook only points at `www`, so a preview never receives payments in the first place. |
+| Assigning real searches, sending emails, or calling Stripe from a preview | One helper, `src/lib/runtime-env.ts`, provides `isPreviewDeploy()` (how it tells local, preview and production apart is in section 1.1). Every new side-effecting path refuses to run on a preview: the payment-time assignment, the sweeps, alert emails, refund issuing and recording, and the assigned-agent call email. Stripe's webhook only points at `www`, so a preview never receives payments in the first place. |
 | Local testing reaching a real inbox or real money | Local `next dev` uses the production database, Stripe **test mode** keys, and the real ZeptoMail key. So:<br>(1) all test data is on disposable scratch accounts, created, used, deleted and confirmed by count;<br>(2) scratch agents are inserted with `in_rotation = false`, so no real payment can be assigned to one;<br>(3) outside production, agent and alert emails are only ever sent to `@levrauto-test.invalid` recipients, which `sendEmail` already suppresses. Any other recipient is logged, not sent. So local testing never emails Brett;<br>(4) refunds only touch payments on scratch accounts, in Stripe test mode. |
+
+### 1.1 Telling local, preview and production apart (found 2026-10-12)
+Brett's local `.env.local` contains `VERCEL_ENV="production"`, put there by `vercel env pull`. So `VERCEL_ENV` alone can't tell local dev from production. `src/lib/runtime-env.ts` therefore uses:
+
+| Helper | True when |
+|---|---|
+| `isLocalDev()` | `NODE_ENV === 'development'` (only `next dev` sets this) |
+| `isProductionDeploy()` | `NODE_ENV === 'production'` **and** `VERCEL_ENV === 'production'` **and** `VERCEL_REGION` is set. That variable is set only by Vercel's runtime and isn't in `.env.local`. |
+| `isPreviewDeploy()` | `NODE_ENV === 'production'` and `VERCEL_ENV === 'preview'` |
+
+Anything else, for example a local `next start`, counts as **not production**, so the side-effect guards stay on. Deploy day checks that `isProductionDeploy()` is true on the live site (the sweep's response reports it).
 
 **Testing assignment locally needs a "real" scratch customer.** `assign_search` deliberately skips test accounts (`@levrauto-test.invalid`, `@levrauto.invalid`), so a normal scratch customer can't exercise round-robin.
 
@@ -63,6 +74,7 @@ Each chunk ends with a stop for Brett's review. Nothing moves on until he approv
 | 1d | Two-factor and agent-account checks on every agent page and agent action; customer sign-in refuses agent accounts | no |
 | 1e | Two-factor reset (leads for agents, admins for anyone) | no (internal route until Phase 3) |
 | 1f | Brett's own agent login (cutover; done on deploy day) | no |
+| 1g | Minimal "Add agent" form (C9 answer): name, work email, role; sends the invite | **yes** |
 | 2 | Activity logging on every agent action | no |
 | 3 | Assignment at payment, the hourly sweep, and lead reassignment (server action only) | no |
 | 4 | Alert-email sweep | no |
@@ -73,7 +85,7 @@ Each chunk ends with a stop for Brett's review. Nothing moves on until he approv
 
 ### Chunk 0: branch and safety rails
 - **Changes:**
-  - create the branch;
+  - create the branch **in a separate git worktree** (`../levr-auto-phase1`), so Brett's running dev server in the main folder never sees branch files;
   - `vercel.json`: preview builds off for the branch;
   - new `src/lib/runtime-env.ts` (`isProductionDeploy()`, `isPreviewDeploy()`, `isLocalDev()`);
   - `src/lib/email.ts`: suppress every `.invalid` recipient (needs C1), and outside production never send agent or alert emails to anything but test-suffix recipients. The guard goes at the top, before the env checks, the same placement rule as the existing test-account guard.
@@ -333,6 +345,21 @@ The stored codes are the neutral ones Brett approved on 2026-10-11. The labels a
 | Enroll page | heading `Turn on two-factor sign-in`; text `Scan this code with an authenticator app (such as Google Authenticator, 1Password or Authy), then enter the 6-digit code it shows.`; link `Can't scan? Enter this key instead: {secret}`; button `Turn on` |
 | Signed-in header (internal look) | `LEVR Auto · Agent` · `{agent name} (LEVRID {n})` · `Sign out` |
 | Two-factor reset done (to the agent, by email) | subject `Your LEVR Auto two-factor sign-in was reset`; body `{lead/admin name} reset your two-factor sign-in. The next time you sign in, you'll set it up again. If you didn't ask for this, contact {lead/admin name} straight away.` |
+
+### 3.8 Add-agent form (Chunk 1g)
+| Where | Draft text |
+|---|---|
+| Page title | `Add an agent` |
+| Fields | `Name` · `Work email` · `Role` |
+| Role options | `Agent` (all leads and admins) · `Lead` and `Admin` (shown to admins only) |
+| Help line | `They'll get an email to set a password and turn on two-factor sign-in. The invite link works once and expires in 24 hours.` |
+| Button | `Send invite` · busy `Sending invite…` |
+| Success | `Invite sent to {email}. {name} is LEVRID {n}.` |
+| Error: not a work email | `Use a @levrauto.com work email.` |
+| Error: role not allowed | `Only admins can add a lead or an admin.` |
+| Error: already exists | `An agent with that email already exists.` |
+| Error: invite email failed | `{name} was added as LEVRID {n}, but the invite email didn't send: {message}.` plus a `Resend invite` button |
+| Resend success | `Invite sent again to {email}.` |
 
 ### 3.7 Customer-facing wording
 **None.** No customer-facing text changes in Phase 1. The Day-30 refund email customers already get is unchanged. Stripe sends its own receipt for a refund, depending on the Stripe receipt setting, which is unchanged.
@@ -639,20 +666,37 @@ Supabase offers passkey **sign-in** as a beta, and WebAuthn as a **second factor
 
 ### 7.9 Open questions about sign-in
 
-**C9. Adding agents before the Phase 3 team screens.**
+**C9. Answered (2026-10-12): a minimal "Add agent" form now (Chunk 1g).**
+- Fields: name, work email, role.
+- Leads can add agents; only admins can add leads or admins (the same rules `add_agent` enforces).
+- Behind agent sign-in and two-factor.
+- Plain styling, restyled with the Phase 3 shell.
+- It sends the invite.
+- Wording is in section 3.8.
+
+*Original question, kept for the record:* **C9. Adding agents before the Phase 3 team screens.**
 - (a) **Recommended:** a CRON_SECRET-gated internal route (`POST /api/internal/invite-agent` with the actor's LEVRID, the email and the role), run by Brett with curl. It enforces the same rules as `add_agent`.
 - (b) Build a minimal invite form now, which goes against the "hold the team screens" decision.
 
-**C10. Brett's separate agent login:** options A/B/C in section 7.7; A is recommended.
+**C10. Answered: option A.**
+- A new agent-only login, `brett@levrauto.com` (a Zoho alias Brett will set up and confirm receives mail; I'll ask for it before Chunk 1f's rehearsal).
+- `bjohnston@levrauto.com` stays a customer login with its data untouched.
+- LEVRID 1 moves to the new login on deploy day (1f).
 
-**C11. Agent usernames.**
+**C11. Answered: the @levrauto.com work email.** The Add-agent form only accepts `@levrauto.com` addresses in production; disposable test agents use `@levrauto-test.invalid`, and only outside production.
+
+*Original question:* **C11. Agent usernames.**
 - (a) **Recommended:** the agent's **@levrauto.com work email**. Supabase signs in by email, invites and resets go to it, and when someone leaves, their work email is turned off too.
 - (b) A separate username. It would need our own username-to-email lookup in front of Supabase's email sign-in, and a separate place for invites and resets to go. More to build and more to get wrong, for no security gain.
 
-**C12. Two-factor reset rule.**
+**C12. Answered:** leads reset two-factor for agents, admins for anyone, never their own.
+
+*Original question:* **C12. Two-factor reset rule.**
 - (a) **Recommended:** as you expected, leads for agents and admins for anyone, never your own. The last admin uses the break-glass step; the reset confirms identity by phone or video first; and agents are encouraged to enroll a backup device.
 - (b) Admins only.
 
-**C13. Session length for agents.** Supabase's session timeouts apply to the whole project, customers included.
+**C13. Answered:** agents are signed out after **8 hours idle**. The app tracks the last agent request, and on the next request past 8 hours it signs out and sends them to `/agent`.
+
+*Original question:* **C13. Session length for agents.** Supabase's session timeouts apply to the whole project, customers included.
 - (a) **Recommended:** keep the project setting, and add an agent-only idle sign-out in the app (for example 8 hours without activity).
 - (b) No extra limit.
