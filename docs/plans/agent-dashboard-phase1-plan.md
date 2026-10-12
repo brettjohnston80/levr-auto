@@ -2128,81 +2128,124 @@ select (select role from public.agents where lower(email) = 'bjohnston@levrauto.
        (select count(*) from public.search_assignments) as history_rows;
 ```
 
-### Step 10: backfill (one transaction, test accounts excluded)
+### Step 10: backfill (changes real rows; test accounts excluded)
+
+File: `20261011240000_phase1_backfill.sql`. It runs as one transaction through the documented flag route (no trigger dropped). Every part skips `is_test_customer()` accounts and sends no email.
+
+**Survey of the live data (2026-10-11, read-only):**
+- 4 paid searches, all test accounts (the review account ×3, tester5 ×1), so **0 searches to assign**.
+- Agent-attributed history: 2 approved articles. Agent messages exist only on test accounts.
+
+The preview below re-checks this at run time.
+
+**Preview, read-only. Run first:**
+
+```sql
+-- P1. every search the backfill would assign to Brett (paid, not yet assigned, not a test account)
+select s.id as search_id, u.email as customer_email, s.make, s.model, s.search_status, s.paid_at
+from public.customer_searches s
+join auth.users u on u.id = s.customer_id
+where s.paid_at is not null and s.assigned_agent_id is null
+  and not public.is_test_customer(s.customer_id)
+order by s.paid_at;
+
+-- P2. counts for every part of the backfill
+select
+  (select count(*) from public.customer_searches s
+    where s.paid_at is not null and s.assigned_agent_id is null and not public.is_test_customer(s.customer_id)) as searches_to_assign,
+  (select count(*) from public.customer_searches s
+    where s.paid_at is not null and public.is_test_customer(s.customer_id)) as test_searches_left_alone,
+  (select count(*) from public.qualifying_offers o join public.customer_searches s on s.id = o.customer_search_id
+    where not public.is_test_customer(s.customer_id)
+      and exists (select 1 from public.offer_messages m where m.qualifying_offer_id = o.id and m.author_type = 'customer')) as offers_getting_message_time,
+  (select count(*) from public.general_threads g
+    where not public.is_test_customer(g.customer_id)
+      and exists (select 1 from public.offer_messages m where m.customer_id = g.customer_id
+                  and m.qualifying_offer_id is null and m.author_type = 'customer')) as threads_getting_message_time,
+  (select count(*) from public.qualifying_offers o join public.customer_searches s on s.id = o.customer_search_id
+    where o.listing_id is not null and o.dealer_alias_id is null and not public.is_test_customer(s.customer_id)) as offers_getting_dealer_alias;
+
+-- P3. history rows that would be rebuilt into the activity log, by source (test accounts excluded)
+select 'purchase_status_log' as source, count(*) from public.purchase_status_log p
+  join public.customer_searches s on s.id = p.search_id where not public.is_test_customer(s.customer_id)
+union all select 'agent_bypass_log', count(*) from public.agent_bypass_log b
+  join public.customer_searches s on s.id = b.search_id where not public.is_test_customer(s.customer_id)
+union all select 'cancellation_log (agent)', count(*) from public.cancellation_log c
+  join public.customer_searches s on s.id = c.search_id where c.agent_id is not null and not public.is_test_customer(s.customer_id)
+union all select 'refunds', count(*) from public.refunds r
+  join public.payments p on p.id = r.payment_id where not public.is_test_customer(p.customer_id)
+union all select 'offer_messages (agent)', count(*) from public.offer_messages m
+  left join public.qualifying_offers o on o.id = m.qualifying_offer_id
+  left join public.customer_searches s on s.id = o.customer_search_id
+  where m.author_type = 'agent' and m.author_agent_id is not null
+    and not public.is_test_customer(coalesce(s.customer_id, m.customer_id))
+union all select 'withdrawn offers', count(*) from public.qualifying_offers o
+  join public.customer_searches s on s.id = o.customer_search_id
+  where o.withdrawn_by_agent_id is not null and not public.is_test_customer(s.customer_id)
+union all select 'dealer_aliases confirmed', count(*) from public.dealer_aliases where confirmed_by_agent_id is not null
+union all select 'salespeople added', count(*) from public.dealership_salespeople where added_by_agent_id is not null
+union all select 'articles approved', count(*) from public.articles where approved_by_agent_id is not null
+union all select 'social posts approved', count(*) from public.social_posts where approved_by_agent_id is not null
+order by 1;
+```
+
+**Verify after running:**
+
+```sql
+-- V1. Brett: expect bjohnston@levrauto.com | admin | true | true | true | true
+select email, role, in_rotation, active, auth_user_id is not null as linked_to_login,
+       public.agent_has_role(id, 'admin') as is_admin
+from public.agents where lower(email) = 'bjohnston@levrauto.com';
+
+-- V2. assignments: expect real_unassigned_paid 0 | test_searches_with_agent 0 | backfill_history = P2's searches_to_assign
+select
+  (select count(*) from public.customer_searches s
+    where s.paid_at is not null and s.assigned_agent_id is null and not public.is_test_customer(s.customer_id)) as real_unassigned_paid,
+  (select count(*) from public.customer_searches s
+    where s.assigned_agent_id is not null and public.is_test_customer(s.customer_id)) as test_searches_with_agent,
+  (select count(*) from public.search_assignments where method = 'backfill') as backfill_history;
+
+-- V3. rebuilt history, by source: counts should equal P3's non-zero rows
+select details->>'source' as source, action, count(*)
+from public.agent_activity_log where details->>'backfilled' = 'true'
+group by 1, 2 order by 1, 2;
+
+-- V4. test accounts untouched: expect 0 | 0 | 0
+select
+  (select count(*) from public.qualifying_offers o join public.customer_searches s on s.id = o.customer_search_id
+    where public.is_test_customer(s.customer_id)
+      and (o.last_customer_message_at is not null or o.dealer_alias_id is not null)) as test_offers_changed,
+  (select count(*) from public.general_threads g
+    where public.is_test_customer(g.customer_id) and g.last_customer_message_at is not null) as test_threads_changed,
+  (select count(*) from public.agent_activity_log a
+    where public.is_test_customer(coalesce(a.customer_id,
+            (select customer_id from public.customer_searches where id = a.search_id)))) as test_activity_rows;
+
+-- V5. the guard is still on: expect ERROR "role, in_rotation and active change only through ..."
+update public.agents set role = 'lead' where lower(email) = 'bjohnston@levrauto.com';
+```
+
+**Undo** (one transaction, flag route):
 
 ```sql
 begin;
 select set_config('levr.agent_admin', 'on', true);
 select set_config('levr.assignment', 'on', true);
-
--- 10a. Link agents to auth users; Brett = admin, in rotation until other agents exist.
-update public.agents a set auth_user_id = u.id
-from auth.users u
-where lower(u.email) = lower(a.email) and a.auth_user_id is null;
-
-update public.agents set role = 'admin', in_rotation = true
+delete from public.agent_activity_log where details->>'backfilled' = 'true';
+update public.customer_searches set assigned_agent_id = null, assigned_at = null
+where id in (select search_id from public.search_assignments where method = 'backfill');
+delete from public.search_assignments where method = 'backfill';
+-- 10c/10d: nothing else writes these columns until the Phase 1 code deploys, so clearing the
+-- non-test rows removes exactly what the backfill set.
+update public.qualifying_offers o set last_customer_message_at = null, dealer_alias_id = null
+from public.customer_searches s
+where s.id = o.customer_search_id and not public.is_test_customer(s.customer_id);
+update public.general_threads set last_customer_message_at = null where not public.is_test_customer(customer_id);
+update public.agents set role = 'agent', in_rotation = true, auth_user_id = null
 where lower(email) = 'bjohnston@levrauto.com';
-
--- 10b. Assign every paid, non-test search to Brett.
-with brett as (select id from public.agents where lower(email) = 'bjohnston@levrauto.com'),
-targets as (
-  select s.id, coalesce(s.paid_at, s.created_at) as at
-  from public.customer_searches s
-  join auth.users u on u.id = s.customer_id
-  where s.paid_at is not null and s.assigned_agent_id is null
-    and lower(u.email) not like '%@levrauto-test.invalid'
-    and lower(u.email) not like '%@levrauto.invalid'
-),
-upd as (
-  update public.customer_searches s set assigned_agent_id = (select id from brett), assigned_at = t.at
-  from targets t where s.id = t.id
-  returning s.id
-)
-insert into public.search_assignments (search_id, agent_id, method, reason)
-select id, (select id from brett), 'backfill', 'Phase 1 backfill: sole agent' from upd;
-
--- 10c. Last customer message times (exact).
-update public.qualifying_offers o set last_customer_message_at = m.latest
-from (select qualifying_offer_id, max(created_at) as latest from public.offer_messages
-      where author_type = 'customer' and qualifying_offer_id is not null group by qualifying_offer_id) m
-where m.qualifying_offer_id = o.id;
-
-update public.general_threads g set last_customer_message_at = m.latest
-from (select customer_id, max(created_at) as latest from public.offer_messages
-      where author_type = 'customer' and qualifying_offer_id is null group by customer_id) m
-where m.customer_id = g.customer_id;
-
--- 10d. Offer -> dealer alias, where the offer links a listing.
-update public.qualifying_offers o set dealer_alias_id = da.id
-from public.listings l
-join public.dealer_aliases da
-  on da.dealer_name = l.dealer_name
- and da.dealer_city_key = coalesce(l.dealer_city, '')
- and da.dealer_state_key = coalesce(l.dealer_state, '')
-where o.listing_id = l.id and o.dealer_alias_id is null;
-
--- 10e. Activity history only from rows that already record the agent (Q9: nothing inferred).
---      Sources: purchase_status_log, agent_bypass_log, cancellation_log (agent rows), refunds,
---      offer_messages (agent rows), withdrawn offers, dealer_aliases.confirmed_by_agent_id,
---      dealership_salespeople.added_by_agent_id, articles/social_posts.approved_by_agent_id.
---      Each insert sets details = {"backfilled": true, "source": "<table>"} and skips test-account
---      rows. The full statements are written out in the migration file.
+select set_config('levr.agent_admin', 'off', true);
+select set_config('levr.assignment', 'off', true);
 commit;
-```
-
-Verify:
-
-```sql
-select email, role, in_rotation, active, auth_user_id is not null as linked from public.agents;
--- expect Brett: admin, true, true, true
-select count(*) filter (where s.assigned_agent_id is null and s.paid_at is not null
-                          and lower(u.email) not like '%@levrauto-test.invalid'
-                          and lower(u.email) not like '%@levrauto.invalid') as real_unassigned,
-       count(*) filter (where s.assigned_agent_id is not null
-                          and lower(u.email) like '%@levrauto-test.invalid') as test_rows_touched
-from public.customer_searches s join auth.users u on u.id = s.customer_id;
--- expect real_unassigned = 0, test_rows_touched = 0
-select method, count(*) from public.search_assignments group by method; -- expect only backfill
 ```
 
 ---
