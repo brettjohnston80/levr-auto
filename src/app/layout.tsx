@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { DriveTransitionProvider } from "@/components/drive-transition-provider";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { SiteChrome } from "@/components/site-chrome";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -52,9 +53,9 @@ export default function RootLayout({
     >
       <body className="min-h-full overflow-x-hidden bg-zinc-950">
         <DriveTransitionProvider>
-          <SiteHeader />
-          <main className="flex-1">{children}</main>
-          <SiteFooter />
+          <SiteChrome header={<SiteHeader />} footer={<SiteFooter />}>
+            {children}
+          </SiteChrome>
         </DriveTransitionProvider>
       </body>
     </html>
