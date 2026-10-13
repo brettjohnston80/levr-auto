@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { agentSigninAction, type AgentSigninState } from "@/lib/agent-signin-actions";
@@ -87,6 +88,9 @@ export function AgentSigninForm({ initialStep }: { initialStep: AgentSigninState
           className={inputClass}
         />
       </label>
+      <Link href="/agent/forgot-password" className="block text-sm text-zinc-600 underline">
+        Forgot your password?
+      </Link>
       <Submit label="Sign in" busy="Signing in…" />
     </form>
   );
