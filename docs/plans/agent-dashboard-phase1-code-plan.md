@@ -414,6 +414,8 @@ The stored codes are the neutral ones Brett approved on 2026-10-11. The labels a
 
 ### 5.2 Deploy-day checklist (after the tester round, on Brett's go-ahead)
 1. **Brett confirms:** the tester round is over; any tester cleanup is done or deferred; every chunk is approved; all wording in section 3 is signed off.
+   - **Chunks 1b and 1d ship together, never 1b alone** (section 7.4).
+   - `AGENT_SIGNIN_HASH_SECRET` is set in Vercel Production (`vercel env ls production` shows it), or agent sign-in fails closed.
 2. **Counts before the deploy** (read-only query, saved):
    - real paid searches with no agent, expected = real paid searches since Step 10;
    - open `agent_alerts`;
@@ -566,6 +568,27 @@ Today, every new Supabase login gets a `customers` row from the `handle_new_user
   - Supabase's per-IP limits apply underneath (section 7.2);
   - ours: 5 failed attempts per account per 15 minutes, and 20 per IP per 15 minutes, counted in `agent_signin_attempts`. Then `Too many sign-in attempts…` until the window passes;
   - successful sign-ins are recorded too, for the team activity screen in Phase 3.
+
+**Chunk 1b review (Brett, 2026-10-12):**
+- **⚠ Chunk 1b must never deploy without Chunk 1d.** 1b lets an agent sign in with a password and code, but only 1d makes every agent page and action require the code (`aal2`). Deployed alone, an agent who stops after the password step would still reach agent pages through the old email check. The deploy-day checklist (section 5.2) treats 1b and 1d as one unit.
+- **The marketing header comes off `/internal/*` in Chunk 1d** (not Phase 3), using the same `SiteChrome` wrapper 1b added for `/agent`.
+- **Scrambling key:** emails and IPs in `agent_signin_attempts` are keyed with a dedicated secret, `AGENT_SIGNIN_HASH_SECRET` (at least 32 characters), not the service-role key. If it's missing, sign-in fails closed with the generic error. Brett adds it to `.env.local` and to Vercel Production himself.
+- **Wording changes, signed off:** heading `Agent sign-in` (the browser title stays `LEVR Auto agent sign-in`), and under Verify: `Lost access to your authenticator? Contact your lead.`
+
+**Forgot password: open question C15 (Brett to choose; not built).**
+- **(a) Recommended: self-serve reset by email to the work address.**
+  - **Why:** a password reset alone gets nobody in. The agent still needs their authenticator code (`aal2`), so a stolen inbox isn't enough. Self-serve saves a lead a call for the most common problem (a forgotten password).
+  - **Cost:** it reuses Chunk 1c's set-password page and one-time link (the `/auth/confirm` pattern), so it's small.
+  - **Leaks nothing:** the confirmation never says whether the address is an agent. It's rate-limited with the same counters as sign-in, and an email is only sent to an active agent's agent-only login.
+  - **Wording:**
+    - link under the password field: `Forgot your password?`;
+    - page heading `Reset your password`; field `Work email`; button `Send reset link` · busy `Sending…`;
+    - confirmation (always the same): `If that's an agent's work email, we've sent a link to reset the password. Check your inbox.`;
+    - email subject: `Reset your LEVR Auto agent password`;
+    - email body: `Use this link to set a new password for the LEVR Auto agent dashboard. It works once and expires in {expiry}. You'll still need your authenticator code to sign in. If you didn't ask for this, you can ignore this email: {link}`;
+    - set-password page: the same as the invite (`Set your password`, `New password` · `Confirm password`, the password rule, `Continue`).
+  - **Note:** the link lifetime is one project-wide Supabase setting, shared with customer sign-up and reset links (and with the invite, which section 3.6 says lasts 24 hours). `{expiry}` is filled from that setting, so the two emails can't disagree with it.
+- (b) No self-serve: a line under the password field, `Forgot your password? Contact your lead.`, and a lead or admin sends a fresh invite-style link (Chunk 1g's form or the 1e route). Simplest, but every forgotten password needs a person.
 
 ### 7.5 Invite and two-factor recovery (Chunks 1c and 1e)
 **Invite flow:**

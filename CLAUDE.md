@@ -153,6 +153,8 @@ Read this first; `docs/business/how-brett-works.md` covers how Brett wants work 
 - alert email subjects and bodies;
 - the assigned-agent call-request email, if its text changes.
 
+**`AGENT_SIGNIN_HASH_SECRET` (set by Brett 2026-10-12):** the key that scrambles emails and IP addresses in `agent_signin_attempts` (Chunk 1b). It's in Vercel **Production only, marked Sensitive**, and in `.env.local`. **Sensitive variables can't be downloaded, so `vercel env pull` won't bring it back: if `.env.local` is ever re-pulled, the line must be re-added by hand** (the same value, or a new one, which only resets the current 15-minute lockout windows). If it's missing, agent sign-in fails closed with the generic error. Never paste its value in chat. Check it with `vercel env ls production` (names only).
+
 **Flagged for the attention-engine phase:** surfacing an away agent's items (call requests included) to leads, and showing open `assignment_no_lead` alerts to admins.
 
 **Later cleanup migration:** drop `customers.assigned_agent_id`, and drop the `record_refund` wrapper once nothing calls it.
