@@ -43,12 +43,17 @@ export function AgentSigninForm({ initialStep }: { initialStep: AgentSigninState
             name="code"
             required
             inputMode="numeric"
+            pattern="[0-9 ]*"
             autoComplete="one-time-code"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
             maxLength={7}
             className={`${inputClass} tracking-widest`}
           />
         </label>
         <Submit label="Verify" busy="Verifying…" />
+        <p className="text-xs text-zinc-500">Lost access to your authenticator? Contact your lead.</p>
       </form>
     );
   }
@@ -59,11 +64,28 @@ export function AgentSigninForm({ initialStep }: { initialStep: AgentSigninState
       <ErrorLine message={state.error} />
       <label className="block text-sm font-medium text-zinc-700">
         Work email
-        <input type="email" name="email" required autoComplete="username" className={inputClass} />
+        <input
+          type="email"
+          name="email"
+          id="agent-email"
+          required
+          autoComplete="username"
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
+          className={inputClass}
+        />
       </label>
       <label className="block text-sm font-medium text-zinc-700">
         Password
-        <input type="password" name="password" required autoComplete="current-password" className={inputClass} />
+        <input
+          type="password"
+          name="password"
+          id="agent-password"
+          required
+          autoComplete="current-password"
+          className={inputClass}
+        />
       </label>
       <Submit label="Sign in" busy="Signing in…" />
     </form>

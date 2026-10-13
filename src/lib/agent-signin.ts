@@ -14,9 +14,10 @@ import { createAdminClient } from "./supabase/admin";
  * recorded, so it doesn't extend the window.
  *
  * Emails and IPs are stored only as keyed hashes (HMAC-SHA256), never raw.
- * The key is the server-only service-role key, so a leaked table can't be
- * matched against a list of guessed addresses. Rotating that key only resets
- * the current 15-minute windows.
+ * The key is a dedicated server-only secret, AGENT_SIGNIN_HASH_SECRET (Brett,
+ * 2026-10-12), so a leaked table can't be matched against a list of guessed
+ * addresses. Rotating it only resets the current 15-minute windows. If it's
+ * missing, sign-in fails closed with the generic error.
  */
 
 export const SIGNIN_WINDOW_MINUTES = 15;
@@ -32,8 +33,8 @@ export const AGENT_SIGNIN_TOO_MANY = "Too many sign-in attempts. Wait 15 minutes
 const MIN_FAILURE_MS = 900;
 
 function hashValue(kind: "email" | "ip", value: string): string {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!key) throw new Error("SUPABASE_SERVICE_ROLE_KEY is not set");
+  const key = process.env.AGENT_SIGNIN_HASH_SECRET;
+  if (!key || key.length < 32) throw new Error("AGENT_SIGNIN_HASH_SECRET is not set (or shorter than 32 characters)");
   return createHmac("sha256", key).update(`levr-agent-signin:${kind}:${value}`).digest("hex");
 }
 

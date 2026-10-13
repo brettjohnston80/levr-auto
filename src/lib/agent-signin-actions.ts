@@ -12,6 +12,7 @@ import {
   padFailure,
   recordSigninAttempt,
   signinKeys,
+  type SigninKeys,
 } from "./agent-signin";
 
 /**
@@ -53,7 +54,14 @@ async function passwordStep(formData: FormData): Promise<AgentSigninState> {
   const startedAt = Date.now();
   const email = normalizeSigninEmail(formData.get("email") as string | null);
   const password = (formData.get("password") as string | null) ?? "";
-  const keys = await signinKeys(email);
+  let keys: SigninKeys;
+  try {
+    keys = await signinKeys(email);
+  } catch (e) {
+    console.error("[agent-signin] cannot hash sign-in details", e instanceof Error ? e.message : e);
+    await padFailure(startedAt);
+    return { step: "password", error: AGENT_SIGNIN_GENERIC_ERROR };
+  }
 
   if (await isSigninRateLimited(keys)) {
     await padFailure(startedAt);
@@ -101,7 +109,14 @@ async function codeStep(formData: FormData): Promise<AgentSigninState> {
     return { step: "password", error: AGENT_SIGNIN_GENERIC_ERROR };
   }
 
-  const keys = await signinKeys(user.email ?? "");
+  let keys: SigninKeys;
+  try {
+    keys = await signinKeys(user.email ?? "");
+  } catch (e) {
+    console.error("[agent-signin] cannot hash sign-in details", e instanceof Error ? e.message : e);
+    await padFailure(startedAt);
+    return { step: "two_factor", error: AGENT_SIGNIN_GENERIC_ERROR };
+  }
   if (await isSigninRateLimited(keys)) {
     await padFailure(startedAt);
     return { step: "two_factor", error: AGENT_SIGNIN_TOO_MANY };
