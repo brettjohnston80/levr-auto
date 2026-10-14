@@ -11,7 +11,8 @@ import { isAgentAccount } from "./agent-accounts";
  *   1. a verified session (getUser, checked by Supabase);
  *   2. an agent-only login (app_metadata.account_type = 'agent');
  *   3. an ACTIVE agents row linked to this login (agents.auth_user_id);
- *   4. two-factor completed this session (aal2).
+ *   4. a verified authenticator on the login right now, and two-factor
+ *      completed this session (aal2).
  * The old "the signed-in email matches an agents row" check is gone: a customer
  * login can never be an agent, even with the same email.
  * The 8-hour idle sign-out (C13) happens in the proxy before this runs.
@@ -53,6 +54,13 @@ async function checkAgent(): Promise<AgentCheck> {
     .eq("active", true)
     .maybeSingle();
   if (!agent) return { ok: false, reason: "not_agent" };
+
+  // The login must have a verified authenticator RIGHT NOW (read fresh from
+  // Supabase by getUser above). A session that reached aal2 with an
+  // authenticator since removed by a two-factor reset still claims aal2 in its
+  // token until it expires (verified 2026-10-14), so it's refused here.
+  const hasVerifiedFactor = (user.factors ?? []).some((f) => f.status === "verified");
+  if (!hasVerifiedFactor) return { ok: false, reason: "needs_enroll" };
 
   const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
   if (aal?.currentLevel !== "aal2") {
