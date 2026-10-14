@@ -161,6 +161,10 @@ Chunk 1 is now six small chunks, **1a–1f**, described in section 7. Each one e
 
   It runs from the hourly sweep route, and straight after any `assignSearch` that returned an `alert_id`. Skipped on a preview. Outside production, only test-suffix recipients get mail (chunk 0).
 - **Files:** `src/lib/agent-alerts.ts` (new), `src/app/api/cron/agent-sweeps/route.ts`, `src/lib/search-assignment.ts`.
+- **Added in review (2026-10-14, Brett):**
+  - **Auto-resolve:** an open `assignment_failed` alert closes itself once the search has an agent (payment-time or sweep assignment, any switch path for the old and new search, or `reassignSearch`). `resolved_by_agent_id` stays null; `details` gains `auto_resolved: true` and `auto_resolved_by`.
+  - **Known gap, accepted for now:** a reassignment run directly in the SQL Editor (`reassign_search` outside the app) does **not** close the alert. Closing it there would need a database trigger; revisit with the Phase 3 alerts screen.
+  - The immediate lead-fallback / no-lead emails are tested with a test-only empty-rotation simulation (`AGENT_ASSIGN_SIMULATE_NO_ROTATION=1`, ignored in production), never by changing a real rotation.
 - **Verified by:**
   - scratch lead and admin agents (`@levrauto-test.invalid`, so sends are suppressed and logged), plus three scratch alerts:
     - one `assignment_lead_fallback` → leads;
@@ -193,6 +197,10 @@ Chunk 1 is now six small chunks, **1a–1f**, described in section 7. Each one e
   3. records it for its real amount, with reason `guarantee`.
 - **Cancellation reasons:** `resolveCancellation` takes a reason per refund line and calls `record_payment_refund` instead of `record_refund`.
 - **Who can use them:** any agent (decided).
+- **Decided in review (2026-10-14, Brett):**
+  - **Switch chains:** a guarantee refund follows the switch chain back to the original $699 payment.
+  - **$100 paid-switch fees are refunded too:** each fee on the chain is its own Stripe refund (its own idempotency key `guarantee_<search>_<payment>`), recorded with reason `guarantee`; the confirm and success texts show the total and each part. "Record a refund already issued in Stripe" accepts a refund of any fee on the chain.
+  - Part-refunded rows stay on the list, showing what's left.
 - **Files:**
   - `src/app/internal/refunds-due/page.tsx`;
   - `src/lib/refunds-due.ts` (remaining balance, refunded rows dropped);
