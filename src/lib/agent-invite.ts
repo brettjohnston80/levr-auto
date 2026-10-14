@@ -16,10 +16,24 @@ import { TEST_EMAIL_SUFFIX } from "./test-accounts";
 
 export type SetupPurpose = "invite" | "reset";
 
-// How long Supabase keeps a one-time link valid. This is the project's
-// "Email OTP Expiration" setting (Supabase dashboard → Authentication), shared
-// with customer sign-up and reset links. Keep this text in step with it.
-export const SETUP_LINK_LIFETIME = "24 hours";
+// How long a one-time link stays valid, in seconds. This MUST equal the
+// project's "Email OTP Expiration" setting (Supabase dashboard → Authentication
+// → Providers → Email), which also governs customer sign-up and reset links;
+// the emails' "expires in …" text is built from it. Brett chose to keep the
+// current setting (option (a), 2026-10-12). ⚠ 3600 is Supabase's default and is
+// NOT YET CONFIRMED against the dashboard; confirm before deploy.
+export const SETUP_LINK_LIFETIME_SECONDS = 3600;
+
+export function linkLifetimeText(seconds: number = SETUP_LINK_LIFETIME_SECONDS): string {
+  if (seconds % 3600 === 0) {
+    const h = seconds / 3600;
+    return h === 1 ? "1 hour" : `${h} hours`;
+  }
+  const m = Math.round(seconds / 60);
+  return m === 1 ? "1 minute" : `${m} minutes`;
+}
+
+export const SETUP_LINK_LIFETIME = linkLifetimeText();
 
 function siteUrl(): string {
   return (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(/\/+$/, "");

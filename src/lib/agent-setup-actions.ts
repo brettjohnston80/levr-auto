@@ -72,6 +72,29 @@ export async function setAgentPassword(_prev: FormState, formData: FormData): Pr
   redirect("/agent/enroll");
 }
 
+// 3a. /agent/enroll: start a new authenticator. Called ONCE from the browser
+// (a page render can happen more than once per visit, and each enroll call
+// creates a factor). Removes any earlier unfinished one first.
+export type EnrollStart = { ok: true; factorId: string; qrCode: string; secret: string } | { ok: false };
+
+export async function startAgentEnrollment(): Promise<EnrollStart> {
+  const login = await currentAgentLogin();
+  if (!login || (await verifiedTotpFactorId(login.supabase))) return { ok: false };
+  const { data: factors } = await login.supabase.auth.mfa.listFactors();
+  for (const f of factors?.all ?? []) {
+    if (f.status !== "verified") await login.supabase.auth.mfa.unenroll({ factorId: f.id });
+  }
+  const { data, error } = await login.supabase.auth.mfa.enroll({
+    factorType: "totp",
+    friendlyName: `Authenticator ${crypto.randomUUID().slice(0, 8)}`,
+  });
+  if (error || !data) {
+    console.error("[agent-enroll] could not start enrollment", error?.message);
+    return { ok: false };
+  }
+  return { ok: true, factorId: data.id, qrCode: data.totp.qr_code, secret: data.totp.secret };
+}
+
 // 3. /agent/enroll: confirm the first authenticator code.
 export async function enrollAgentFactor(_prev: FormState, formData: FormData): Promise<FormState> {
   const startedAt = Date.now();
