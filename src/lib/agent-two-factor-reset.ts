@@ -12,6 +12,9 @@ import { sendEmail } from "./email";
  *     emailed.
  * Before resetting, the lead/admin confirms it's really the agent by phone or
  * video, never by email alone (team guide rule).
+ * Called only from the "Reset two-factor" action on the Chunk 1g Add-agent page,
+ * with the actor taken from the signed-in session. There is deliberately no
+ * secret-gated route for this (Brett, 2026-10-14).
  */
 
 export type TwoFactorResetResult =
@@ -21,11 +24,11 @@ export type TwoFactorResetResult =
 const RANK: Record<string, number> = { agent: 1, lead: 2, admin: 3 };
 const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-// Wording: plan section 3.6 (pending sign-off).
+// Wording signed off by Brett 2026-10-14 ("right away").
 export function twoFactorResetEmail(actorName: string) {
   return {
     subject: "Your LEVR Auto two-factor sign-in was reset",
-    html: `<p>${escape(actorName)} reset your two-factor sign-in. The next time you sign in, you'll set it up again. If you didn't ask for this, contact ${escape(actorName)} straight away.</p>`,
+    html: `<p>${escape(actorName)} reset your two-factor sign-in. The next time you sign in, you'll set it up again. If you didn't ask for this, contact ${escape(actorName)} right away.</p>`,
   };
 }
 
