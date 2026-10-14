@@ -589,6 +589,12 @@ Today, every new Supabase login gets a `customers` row from the `handle_new_user
 - **Lead:** `revertPurchasedSearch` (undoes a closed deal); `mergeAliasIntoDealership` (not easily undone, changes ratings data); `/internal/admin` (oversight of every agent's work); `/internal/articles` and `/internal/social` (approving publishes publicly).
 - Team actions stay as the database already enforces them.
 
+**Chunk 1e review (Brett, 2026-10-14):**
+- **Step 14 applied:** `revoke_login_sessions(p_auth_user_id)` (security definer, service role only). The reset ends every session FIRST, then removes the authenticators: deleting an authenticator alone left an open two-factor session working (found by the 1e test). The agent check also refuses any login with no verified authenticator right now.
+- **No internal route for resets:** a shared secret plus a caller-supplied actor would let anyone with the secret act as any admin, and it would reuse the cron secret for a different job. The reset is a **"Reset two-factor" action on the Chunk 1g Add-agent page**, behind agent sign-in and two-factor, with the actor taken from the session and the same role rules. Until 1g, resets aren't needed (Brett is the only agent).
+- **Reset email wording signed off** with "right away": `{lead/admin name} reset your two-factor sign-in. The next time you sign in, you'll set it up again. If you didn't ask for this, contact {lead/admin name} right away.` Route-era messages signed off and kept for the 1g action: `You can't reset your own two-factor sign-in.`, `Only leads and admins can reset an agent's two-factor sign-in.`, `Only admins can reset a lead's or an admin's two-factor sign-in.`, `That agent hasn't set up a login yet.`, `Agent not found.`, `Could not sign the agent out: …`.
+- **C16 approved as tested.**
+
 **Forgot password: open question C15 (Brett to choose; not built).**
 - **(a) Recommended: self-serve reset by email to the work address.**
   - **Why:** a password reset alone gets nobody in. The agent still needs their authenticator code (`aal2`), so a stolen inbox isn't enough. Self-serve saves a lead a call for the most common problem (a forgotten password).
