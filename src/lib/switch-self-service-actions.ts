@@ -10,6 +10,7 @@ import { EXTENSION_FEE } from "@/lib/vehicle-data";
 import { isOfferedModelYear } from "@/lib/intake-vehicle-options";
 import { syncListingsForMakeModel } from "@/lib/marketcheck-sync";
 import { notifyAgentsOfCallRequest } from "@/lib/agent-call-notifications";
+import { resolveCallByCustomer } from "@/lib/call-resolution";
 
 export type SwitchActionResult = { ok: true } | { ok: false; error: string };
 
@@ -94,9 +95,17 @@ export async function requestSwitchCall(searchId: string): Promise<SwitchActionR
   const admin = createAdminClient();
   const { data: updated, error } = await admin
     .from("customer_searches")
-    .update({ switch_call_requested_at: new Date().toISOString() })
+    // A new request: none open, or the last one was resolved (Brett 2026-10-14). A resolved
+    // request starts afresh: its resolution is cleared here and stays in the activity log. The
+    // condition is re-checked under the row lock, so a double click records one request.
+    .update({
+      switch_call_requested_at: new Date().toISOString(),
+      switch_call_resolved_at: null,
+      switch_call_resolved_by_agent_id: null,
+      switch_call_outcome: null,
+    })
     .eq("id", searchId)
-    .is("switch_call_requested_at", null)
+    .or("switch_call_requested_at.is.null,switch_call_resolved_at.not.is.null")
     .select("id");
 
   if (error) {
@@ -201,6 +210,8 @@ export async function executeFreeSwitch(
   // now, after the response (never throws; the hourly sweep is the backstop).
   const newSearchId = (newSearch as { id: string }).id;
   after(() => assignSearchAtPayment(newSearchId, { previousSearchId: searchId }));
+  // An open switch call request on the old search is closed by the customer's own switch.
+  await resolveCallByCustomer(searchId, "switch");
 
   await admin
     .from("customers")

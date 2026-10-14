@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notifyAgentsOfCallRequest } from "@/lib/agent-call-notifications";
+import { resolveCallByCustomer } from "@/lib/call-resolution";
 
 export type CancellationActionResult = { ok: true } | { ok: false; error: string };
 
@@ -77,6 +78,9 @@ export async function cancelSearch(searchId: string): Promise<CancellationAction
     return { ok: false, error: `Failed to cancel: ${error.message}` };
   }
 
+  // An open cancellation call request is closed by the customer's own cancellation.
+  await resolveCallByCustomer(searchId, "cancellation");
+
   revalidatePath("/account");
   return { ok: true };
 }
@@ -94,9 +98,17 @@ export async function requestCancellationCall(searchId: string): Promise<Cancell
   const admin = createAdminClient();
   const { data: updated, error } = await admin
     .from("customer_searches")
-    .update({ cancellation_call_requested_at: new Date().toISOString() })
+    // A new request: none open, or the last one was resolved (Brett 2026-10-14). A resolved
+    // request starts afresh: its resolution is cleared here and stays in the activity log. The
+    // condition is re-checked under the row lock, so a double click records one request.
+    .update({
+      cancellation_call_requested_at: new Date().toISOString(),
+      cancellation_call_resolved_at: null,
+      cancellation_call_resolved_by_agent_id: null,
+      cancellation_call_outcome: null,
+    })
     .eq("id", searchId)
-    .is("cancellation_call_requested_at", null)
+    .or("cancellation_call_requested_at.is.null,cancellation_call_resolved_at.not.is.null")
     .select("id");
 
   if (error) {

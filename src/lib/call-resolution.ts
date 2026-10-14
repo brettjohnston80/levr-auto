@@ -73,3 +73,39 @@ export async function resolveCallAutomatically(searchId: string, callType: CallT
     console.error("[call-resolution] automatic resolution failed", { searchId, callType, error: e instanceof Error ? e.message : String(e) });
   }
 }
+
+/**
+ * The CUSTOMER switched or cancelled on their own while a call request was open (Brett,
+ * 2026-10-14): resolved automatically as switched / cancelled with no agent named, and one
+ * activity row noting the customer did it (call_request_resolved_by_customer; Step 16 lets that
+ * one activity type have no agent). Never throws.
+ */
+export async function resolveCallByCustomer(searchId: string, callType: CallType): Promise<void> {
+  const prefix = callType === "switch" ? "switch_call" : "cancellation_call";
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("customer_searches")
+      .update({
+        [`${prefix}_resolved_at`]: new Date().toISOString(),
+        [`${prefix}_resolved_by_agent_id`]: null,
+        [`${prefix}_outcome`]: AUTOMATIC_OUTCOME[callType],
+      })
+      .eq("id", searchId)
+      .not(`${prefix}_requested_at`, "is", null)
+      .is(`${prefix}_resolved_at`, null)
+      .select("id, customer_id");
+    if (error) throw new Error(error.message);
+    if (!data || data.length === 0) return; // no open request
+    const { error: logError } = await admin.rpc("log_agent_activity", {
+      p_agent_id: null,
+      p_action: "call_request_resolved_by_customer",
+      p_search_id: searchId,
+      p_customer_id: data[0].customer_id,
+      p_details: { call_type: callType, outcome: AUTOMATIC_OUTCOME[callType], by: "customer" },
+    });
+    if (logError) console.error("[agent-activity-failed]", { action: "call_request_resolved_by_customer", searchId, error: logError.message });
+  } catch (e) {
+    console.error("[call-resolution] customer resolution failed", { searchId, callType, error: e instanceof Error ? e.message : String(e) });
+  }
+}

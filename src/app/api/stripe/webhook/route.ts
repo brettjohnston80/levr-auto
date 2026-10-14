@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { syncListingsForMakeModel } from "@/lib/marketcheck-sync";
 import { addDays, effectiveDeadline } from "@/lib/day60-extension";
 import { recordPayment } from "@/lib/payments";
+import { resolveCallByCustomer } from "@/lib/call-resolution";
 import { assignSearchAtPayment } from "@/lib/search-assignment";
 import { FLAT_PRICE, EXTENSION_FEE } from "@/lib/vehicle-data";
 
@@ -226,6 +227,8 @@ async function handleSwitchFeePayment(session: Stripe.Checkout.Session): Promise
     // A replay never gets here (the switch refuses to run twice).
     const newSearchId = newSearch.id as string;
     after(() => assignSearchAtPayment(newSearchId, { previousSearchId: oldSearchId }));
+    // The customer's own paid switch closes an open switch call request on the old search.
+    await resolveCallByCustomer(oldSearchId, "switch");
 
     const paymentIntentId = paymentIntentIdFromSession(session);
     if (paymentIntentId) {

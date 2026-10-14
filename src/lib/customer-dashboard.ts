@@ -507,7 +507,7 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
   const { data: searches, error: searchesError } = await supabase
     .from("customer_searches")
     .select(
-      "id, make, model, model_year, trim, colors, required_options, search_status, guarantee_status, paid_at, finalized_at, solidified_at, call_requested_at, switch_call_requested_at, paused_at, search_deadline_at, auto_renew_enabled, cancellation_call_requested_at, purchased_at"
+      "id, make, model, model_year, trim, colors, required_options, search_status, guarantee_status, paid_at, finalized_at, solidified_at, call_requested_at, switch_call_requested_at, switch_call_resolved_at, cancellation_call_resolved_at, paused_at, search_deadline_at, auto_renew_enabled, cancellation_call_requested_at, purchased_at"
     )
     .eq("customer_id", customerId)
     .order("created_at", { ascending: true });
@@ -588,11 +588,13 @@ export async function getCustomerDashboard(customerId: string): Promise<Dashboar
     finalizedAt: search.finalized_at,
     solidifiedAt: search.solidified_at,
     callRequestedAt: search.call_requested_at,
-    switchCallRequestedAt: search.switch_call_requested_at,
+    // Only an OPEN request counts: once an agent (or the customer's own switch/cancel) resolves
+    // it, the customer can ask again (Brett, 2026-10-14).
+    switchCallRequestedAt: search.switch_call_resolved_at ? null : search.switch_call_requested_at,
     pausedAt: search.paused_at,
     searchDeadlineAt: search.search_deadline_at,
     autoRenewEnabled: search.auto_renew_enabled,
-    cancellationCallRequestedAt: search.cancellation_call_requested_at,
+    cancellationCallRequestedAt: search.cancellation_call_resolved_at ? null : search.cancellation_call_requested_at,
     purchasedAt: search.purchased_at,
     survey: (() => {
       const s = surveyBySearchId.get(search.id);
