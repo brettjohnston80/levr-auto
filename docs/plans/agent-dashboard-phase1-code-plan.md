@@ -442,13 +442,123 @@ The stored codes are the neutral ones Brett approved on 2026-10-11. The labels a
 8. **Watch:**
    - the next scheduled `:15` sweep runs (cron log) with `assigned 0`;
    - the next real payment, if any, gets an agent within seconds (webhook) rather than waiting for the sweep.
-8b. **Brett's agent login cutover (Chunk 1f, section 7.7): proposed 2026-10-14, pending Brett's approval; it replaces the order below.** Part A runs BEFORE step 3 (old access still works), Part B straight after step 4 (Ready), before the sweep:
+8b. **Brett's agent login cutover (Chunk 1f, section 7.7): APPROVED 2026-10-14; the full runbook is section 5.3.** Part A runs BEFORE step 3 (old access still works), Part B straight after step 4 (Ready), before the sweep:
    - **Part A, before the merge:** `scripts/agent-cutover-prepare.mjs` (on the branch dev server) adds a temporary holder row (a test agent) and the new agent-only login `brett@levrauto.com` linked to it, and writes a one-time setup link to a private file. Brett sets a password, enrolls two-factor and signs in again with both, on the branch's local server against the production database. His `bjohnston@` access is untouched.
    - **Part B, right after Ready:** one SQL Editor transaction removes the holder and runs `relink_agent_login` (actor LEVRID 1, no flag route needed: it sets its own). Brett signs in at `www.levrauto.com/agent`.
    - **Rollback after Part B:** Vercel Instant Rollback, then put `bjohnston@levrauto.com` back on LEVRID 1's email (today's code matches agents by email).
    - Rehearsed with stand-in test accounts, 24/24 (2026-10-14).
    - *Original order, kept for the record:* invite the new address; Brett sets a password and enrolls; run `relink_agent_login`; check old and new. It couldn't work as written: the setup pages need the login linked to an active agent row, and linking it to LEVRID 1 ends the old access before two-factor is proven.
 9. **Roll back** if anything in 5–8 is wrong: Vercel "Instant Rollback" to the previous production deployment. The database needs no rollback; the Phase 1 data stays valid and unused by the old code.
+
+
+### 5.3 Brett's cutover to brett@levrauto.com (Chunk 1f runbook, approved 2026-10-14)
+Rehearsed with stand-in test accounts, 24/24 (2026-10-14). Part A runs before checklist step 3 (the merge); Part B straight after step 4 (Ready), before step 5. Starting state (checked read-only 2026-10-14): LEVRID 1 is admin, in rotation, linked to `bjohnston@` (a customer login with 1 customer record); no `brett@` login exists.
+
+**Part A, before the merge (Brett's old access keeps working throughout)**
+1. Have your authenticator app ready, ideally plus a backup device, and your password manager. Allow about 15 minutes.
+2. Tell Claude to go. Claude starts the branch dev server on port 3100 and runs `scripts/agent-cutover-prepare.mjs --new-email brett@levrauto.com --levrid 1 --base http://localhost:3100`. It adds the holder row and the `brett@levrauto.com` login, and writes `~/Downloads/levr-agent-setup-link.html` (private file, link works once, lasts 1 hour). Claude shows you the ids it prints.
+3. Open that file on this Mac and click "Open the setup page", then Continue.
+4. Set your password.
+5. Scan the QR code with your authenticator, and with the backup device too before you type a code. Enter the code. The entry will be named "levrauto.com".
+6. You'll land on `/internal/outreach` showing "Brett Johnston (new login, temporary)". This is local code against the real database, so just look; don't click any actions.
+7. Click Sign out, go to `http://localhost:3100/agent`, and sign in with `brett@levrauto.com`, your password and a code. You should land on the dashboard again. **This is the two-factor proof.**
+8. Run this check in the SQL Editor:
+   ```sql
+   select a.email                                   as holder_email,
+          a.levrid                                  as holder_levrid,
+          a.in_rotation                             as holder_in_rotation,
+          u.email                                   as new_login_email,
+          u.raw_app_meta_data ->> 'account_type'    as new_login_type,
+          (select count(*) from auth.mfa_factors f
+            where f.user_id = u.id and f.status = 'verified') as verified_authenticators,
+          (select count(*) from public.customers c where c.id = u.id) as new_login_customer_rows,
+          (select b.email from public.agents b where b.levrid = 1)   as levrid1_email_still
+   from public.agents a
+   join auth.users u on u.id = a.auth_user_id
+   where a.email = 'brett-cutover-holder@levrauto-test.invalid';
+   ```
+   Expected: 1 row with
+   - `holder_levrid` null, `holder_in_rotation` false;
+   - `new_login_email` brett@levrauto.com, `new_login_type` agent;
+   - `verified_authenticators` 1 (a backup device that scanned the same QR code shares that one);
+   - `new_login_customer_rows` 0;
+   - `levrid1_email_still` bjohnston@levrauto.com.
+9. Check that `www.levrauto.com/internal/outreach` still opens for you as `bjohnston@`.
+
+If the link expires, Claude reruns the script for a fresh one. If you abandon Part A, run this, then delete `brett@levrauto.com` under Supabase → Authentication → Users:
+```sql
+begin;
+delete from public.agent_activity_log
+where agent_id = (select id from public.agents where email = 'brett-cutover-holder@levrauto-test.invalid');
+delete from public.agents where email = 'brett-cutover-holder@levrauto-test.invalid'
+returning email as removed_holder_email;
+commit;
+```
+Expected: one `removed_holder_email` row.
+
+**Deploy:** checklist steps 1–4 (counts, merge and push, wait for Ready). Your `bjohnston@` agent access ends at that moment. That's fine, because Part B doesn't need the app.
+
+**Part B, right after Ready**
+10. Run this as one block in the SQL Editor:
+    ```sql
+    begin;
+
+    -- 1. Remove the temporary holder (its own activity rows first).
+    delete from public.agent_activity_log
+    where agent_id = (select id from public.agents where email = 'brett-cutover-holder@levrauto-test.invalid');
+    delete from public.agents
+    where email = 'brett-cutover-holder@levrauto-test.invalid';
+
+    -- 2. Move LEVRID 1 to the new login (logged as agent_login_relinked, by LEVRID 1).
+    select r.levrid       as moved_levrid,
+           r.email        as moved_email,
+           r.auth_user_id as moved_login_id
+    from public.relink_agent_login(
+      (select id from public.agents where levrid = 1),
+      (select id from public.agents where levrid = 1),
+      (select id from auth.users where lower(email) = 'brett@levrauto.com')
+    ) r;
+
+    commit;
+    ```
+    Expected: one row with `moved_levrid` 1, `moved_email` brett@levrauto.com, and `moved_login_id` the new login id from step 2. No flag route is needed; the function sets its own.
+11. Run this check:
+    ```sql
+    select a.levrid                                  as after_levrid,
+           a.email                                   as after_agent_email,
+           a.role                                    as after_role,
+           a.active                                  as after_active,
+           a.in_rotation                             as after_in_rotation,
+           u.email                                   as after_login_email,
+           u.raw_app_meta_data ->> 'account_type'    as after_login_type,
+           (select count(*) from auth.mfa_factors f
+             where f.user_id = u.id and f.status = 'verified')            as after_verified_authenticators,
+           (select count(*) from public.agents h
+             where h.email = 'brett-cutover-holder@levrauto-test.invalid') as holder_rows_left,
+           (select count(*) from public.agent_activity_log l
+             where l.agent_id = a.id and l.action = 'agent_login_relinked') as relink_log_rows,
+           (select count(*) from public.customers c
+             where c.id = (select o.id from auth.users o where lower(o.email) = 'bjohnston@levrauto.com')) as old_login_customer_rows
+    from public.agents a
+    join auth.users u on u.id = a.auth_user_id
+    where a.levrid = 1;
+    ```
+    Expected: 1 row with
+    - `after_levrid` 1, `after_agent_email` brett@levrauto.com, `after_role` admin, `after_active` true, `after_in_rotation` true;
+    - `after_login_email` brett@levrauto.com, `after_login_type` agent;
+    - `after_verified_authenticators` 1, `holder_rows_left` 0, `relink_log_rows` 1, `old_login_customer_rows` 1.
+
+    Your activity count goes from 2 to 3 (the relink row).
+12. At `www.levrauto.com/agent`, sign in with `brett@levrauto.com`, your password and a code. You should land on `/internal/outreach` with the header "Brett Johnston (LEVRID 1)". On `/internal/agents`, your row should say "Two-factor on" and there should be no holder row.
+13. At `www.levrauto.com/login`, sign in as `bjohnston@`. It should open `/account` as a customer, and `/internal` should send you to `/agent`.
+14. Carry on with checklist step 5 (the sweep) and the rest.
+
+**If step 12 fails:** use Vercel Instant Rollback to the previous deployment, then run:
+```sql
+update public.agents set email = 'bjohnston@levrauto.com' where levrid = 1
+returning levrid as rolled_back_levrid, email as rolled_back_email;
+```
+Expected: one row, 1 / bjohnston@levrauto.com. Today's code finds agents by email, so `bjohnston@` reaches `/internal` again; the rehearsal proved this against Brett's dev server running `main`. When we redeploy later, set the email back to `brett@levrauto.com`.
 
 ---
 
@@ -603,7 +713,7 @@ Today, every new Supabase login gets a `customers` row from the `handle_new_user
 - **A LEVRID is spent when someone is added**, so adding with a typo'd email uses up that number. The fix is to deactivate that row and add the person again. Editing an agent's email can come with the Phase 3 team screen.
 - **For the Phase 3 shell:** long emails wrap mid-address in the Work email column; handle it in the new layout.
 
-**Found in the 1f rehearsal (2026-10-14): sign-outs that should be this browser only.** `signOut()` ends every session on the login by default. A customer (or Brett's old login) refused at `/agent` was signed out of their other devices too, and an idle device would sign an agent out of the device they were actively using. The refusals (agent sign-in, customer `/login` refusing an agent, setup-link accept) and the 8-hour idle sign-out now use `scope: "local"`; the header Sign out is unchanged. Branch commit `eace17f`, pending Brett's review.
+**Found in the 1f rehearsal (2026-10-14), approved by Brett the same day: sign-outs that should be this browser only.** `signOut()` ends every session on the login by default. A customer (or Brett's old login) refused at `/agent` was signed out of their other devices too, and an idle device would sign an agent out of the device they were actively using. The refusals (agent sign-in, customer `/login` refusing an agent, setup-link accept) and the 8-hour idle sign-out now use `scope: "local"`; the header Sign out is unchanged. Branch commit `eace17f`, approved and pushed with the prepare script (`113f9f2`). **Chunk 1 (1a–1g, 1f rehearsed) is complete.**
 
 **Forgot password: open question C15 (Brett to choose; not built).**
 - **(a) Recommended: self-serve reset by email to the work address.**
