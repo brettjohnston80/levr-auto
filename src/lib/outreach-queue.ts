@@ -888,6 +888,7 @@ export async function getSwitchCallQueue(): Promise<SwitchCallQueueSearch[]> {
     .from("customer_searches")
     .select("id, make, model, customer_id, switch_call_requested_at")
     .not("switch_call_requested_at", "is", null)
+    .is("switch_call_resolved_at", null)
     .neq("search_status", "switched")
     .order("switch_call_requested_at", { ascending: true });
 
@@ -938,6 +939,7 @@ export async function getCancellationCallQueue(): Promise<CancellationCallQueueS
     .from("customer_searches")
     .select("id, make, model, customer_id, cancellation_call_requested_at")
     .not("cancellation_call_requested_at", "is", null)
+    .is("cancellation_call_resolved_at", null)
     .neq("search_status", "cancelled")
     .order("cancellation_call_requested_at", { ascending: true });
 

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getAuthorizedAgent } from "./agent-auth";
 import { createAdminClient } from "./supabase/admin";
 import { getStripe } from "./stripe";
+import { resolveCallAutomatically } from "./call-resolution";
 
 export interface CustomerPaymentForRefund {
   id: string;
@@ -82,27 +83,6 @@ export interface RefundLineItem {
   reason?: string;
 }
 
-export interface RefundReasonOption {
-  code: string;
-  label: string;
-}
-
-/** The active refund reasons, for the per-refund Reason picker (labels from refund_reasons). */
-export async function getRefundReasonOptions(): Promise<RefundReasonOption[] | { error: string }> {
-  const agent = await getAuthorizedAgent();
-  if (!agent) return { error: "Not authorized." };
-  const { data, error } = await createAdminClient()
-    .from("refund_reasons")
-    .select("code, label")
-    .eq("is_active", true);
-  if (error) return { error: error.message };
-  // A fixed order (the five reasons were added at the same moment, so created_at can't order
-  // them); any reason added later goes after these, by label.
-  const ORDER = ["cancellation", "guarantee", "goodwill", "duplicate_charge", "other"];
-  const rank = (code: string) => (ORDER.includes(code) ? ORDER.indexOf(code) : ORDER.length);
-  return ((data ?? []) as RefundReasonOption[]).sort((x, y) => rank(x.code) - rank(y.code) || x.label.localeCompare(y.label));
-}
-
 export type ResolveCancellationResult =
   | { ok: true; refundsIssued: number }
   | { ok: false; error: string };
@@ -158,6 +138,9 @@ export async function resolveCancellation(
     .select("id")
     .eq("search_id", searchId)
     .single();
+
+  // An open cancellation call request on this search is resolved by the cancellation itself.
+  await resolveCallAutomatically(searchId, "cancellation", agent.id);
 
   if (logError || !logRow) {
     return {

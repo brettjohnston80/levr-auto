@@ -26,7 +26,7 @@ export type AssignOutcome =
 // "sweep") makes that caller's assign_search call fail (it calls a function name that doesn't
 // exist), so a test can show the payment still completes, the failure alert is raised once, and
 // nothing is ever assigned.
-function forcedFailure(source: "payment" | "sweep"): boolean {
+function forcedFailure(source: "payment" | "sweep" | "call_request"): boolean {
   return !isProductionDeploy() && (process.env.AGENT_ASSIGN_FORCE_FAIL ?? "").split(",").includes(source);
 }
 
@@ -58,7 +58,7 @@ async function simulatedNoRotation(searchId: string): Promise<{ data: unknown; e
  */
 export async function assignSearch(
   searchId: string,
-  source: "payment" | "sweep",
+  source: "payment" | "sweep" | "call_request",
   opts: { previousSearchId?: string } = {},
 ): Promise<AssignOutcome> {
   try {

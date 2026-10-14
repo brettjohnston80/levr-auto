@@ -50,7 +50,8 @@ export type AgentActivityCode =
   | "platform_marked_posted"
   | "agent_invited"
   | "agent_two_factor_enrolled"
-  | "agent_two_factor_reset";
+  | "agent_two_factor_reset"
+  | "call_request_resolved";
 
 export interface ActivityLinks {
   searchId?: string | null;

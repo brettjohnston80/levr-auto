@@ -35,10 +35,12 @@ import { ConfirmAvailabilityButton } from "@/components/confirm-availability-but
 import { ConfirmDepositForm } from "@/components/confirm-deposit-form";
 import { CheckSigningStatusButton } from "@/components/check-signing-status-button";
 import { AgentSwitchSearchForm } from "@/components/agent-switch-search-form";
+import { ResolveCallRequestForm } from "@/components/resolve-call-request-form";
 import { AgentFinalizeSearchForm } from "@/components/agent-finalize-search-form";
 import { AgentBypassLookup } from "@/components/agent-bypass-lookup";
 import { AgentCancellationResolutionForm } from "@/components/agent-cancellation-resolution-form";
 import { AgentCancellationLookup } from "@/components/agent-cancellation-lookup";
+import { getRefundReasons } from "@/lib/refund-reasons";
 import { AgentRevertPurchasedLookup } from "@/components/agent-revert-purchased-lookup";
 import { AgentDeliveryEstimate } from "@/components/agent-delivery-estimate";
 import { AgentUndecidedFinalizeForm } from "@/components/agent-undecided-finalize-form";
@@ -366,6 +368,7 @@ export default async function OutreachQueuePage() {
     inventoryBlockedQueue,
     offerActivityQueue,
     generalActivityQueue,
+    refundReasons,
   ] = await Promise.all([
     getOutreachQueue(),
     getFinalizationQueue(),
@@ -378,6 +381,7 @@ export default async function OutreachQueuePage() {
     getInventoryBlockedQueue(),
     getCustomerOfferActivityQueue(),
     getGeneralThreadActivityQueue(),
+    getRefundReasons(),
   ]);
   const activityCount = offerActivityQueue.length + generalActivityQueue.length;
 
@@ -640,7 +644,7 @@ export default async function OutreachQueuePage() {
             any of their payments — not just for calls already in the queue below.
           </p>
           <div className="mt-4">
-            <AgentCancellationLookup />
+            <AgentCancellationLookup reasonOptions={refundReasons} />
           </div>
         </div>
 
@@ -715,6 +719,7 @@ export default async function OutreachQueuePage() {
                     makeModelOptions={makeModelOptions}
                     modelYearOptions={modelYearOptions}
                   />
+                  <ResolveCallRequestForm searchId={search.id} callType="switch" />
                 </div>
               ))}
             </div>
@@ -740,7 +745,8 @@ export default async function OutreachQueuePage() {
                   <p className="mt-1 text-xs text-zinc-500">
                     Requested {formatDate(search.cancellationCallRequestedAt)}
                   </p>
-                  <AgentCancellationResolutionForm searchId={search.id} customerId={search.customerId} />
+                  <AgentCancellationResolutionForm searchId={search.id} customerId={search.customerId} reasonOptions={refundReasons} />
+                  <ResolveCallRequestForm searchId={search.id} callType="cancellation" />
                 </div>
               ))}
             </div>

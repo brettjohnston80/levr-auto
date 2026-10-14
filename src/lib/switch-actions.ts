@@ -7,6 +7,7 @@ import { isOfferedModelYear } from "./intake-vehicle-options";
 import { syncListingsForMakeModel } from "./marketcheck-sync";
 import { after } from "next/server";
 import { assignSearchAtPayment } from "./search-assignment";
+import { resolveCallAutomatically } from "./call-resolution";
 
 export interface SwitchSearchResult {
   ok: boolean;
@@ -110,6 +111,8 @@ export async function switchCustomerSearch(formData: FormData): Promise<SwitchSe
   // now, after the response (never throws; the hourly sweep is the backstop).
   const newSearchId = (newSearch as { id?: string } | null)?.id;
   if (newSearchId) after(() => assignSearchAtPayment(newSearchId, { previousSearchId: oldSearchId }));
+  // An open switch call request on this search is resolved by the switch itself (outcome switched).
+  await resolveCallAutomatically(oldSearchId, "switch", agent.id);
 
   // Guarded "set only if null" write — the equivalent of a
   // coalesce(free_switch_used_at, now()) update, since supabase-js's

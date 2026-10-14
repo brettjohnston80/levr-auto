@@ -1,7 +1,15 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email";
+import { isProductionDeploy, runtimeEnv } from "@/lib/runtime-env";
+import { assignSearch } from "@/lib/search-assignment";
 
+// Phase 1 Chunk 6 (plan section 3.5, Q6): the email now goes ONLY to the search's assigned agent,
+// with "This search is assigned to you." on top. With no agent assigned: a real customer's search
+// is assigned first (assign_search), then emailed to whoever got it; a test account's (never
+// auto-assigned), or one assignment leaves unassigned, goes to leads (admins when there's no lead)
+// without that line. An away agent still gets it.
+//
 // Closes a real gap (investigated 2026-09-20): requestFinalizationCall /
 // requestSwitchCall / requestCancellationCall previously only wrote a
 // call_requested_at-style timestamp and sat passively in one of the three
@@ -58,6 +66,8 @@ export function buildCallRequestEmail(params: {
   customerEmail: string | null;
   customerPhone: string | null;
   outreachUrl: string;
+  /** True when the email goes to the search's assigned agent: adds "This search is assigned to you." */
+  assignedToRecipient?: boolean;
 }): { subject: string; html: string } {
   const { callType, make, model, modelYear, customerName, customerEmail, customerPhone, outreachUrl } = params;
   const copy = CALL_TYPE_COPY[callType];
@@ -75,6 +85,7 @@ export function buildCallRequestEmail(params: {
   return {
     subject: `${who} requested a ${copy.subjectNoun} — ${vehicle}`,
     html:
+      (params.assignedToRecipient ? "<p>This search is assigned to you.</p>" : "") +
       `<p>${who} asked for a call to ${copy.verb} ${vehicle} search.</p>` +
       (contactLines ? `<ul>${contactLines}</ul>` : "") +
       `<p><a href="${outreachUrl}">Open this request on /internal/outreach</a>.</p>`,
@@ -84,41 +95,61 @@ export function buildCallRequestEmail(params: {
 export interface NotifyAgentsResult {
   sent: number;
   errors: string[];
+  /** Who it went to, and why (assigned agent, or the leads/admins fallback). */
+  recipients: string[];
+  route: "assigned" | "fallback" | "none";
 }
 
 /**
- * Best-effort, never throws -- the whole body is wrapped, same convention
- * as notifications.ts's own logNotificationEvent(). Callers invoke this
- * AFTER their own call_requested_at-style write has already succeeded, so
- * a notification failure here must never surface as a failure of the
- * customer-facing action -- the call request itself is already recorded
- * and already visible in the agent queue regardless of whether this email
- * goes out. Callers `await` it directly (no fire-and-forget, no external
- * .catch()) since a Server Action's execution isn't guaranteed to survive
- * past its own return in every runtime this could deploy to.
+ * Best-effort, never throws: callers invoke this AFTER their own call_requested_at-style write
+ * has succeeded, so a notification failure must never fail the customer's action (the request is
+ * already recorded and visible in the agent queue). Callers `await` it directly.
  */
 export async function notifyAgentsOfCallRequest(params: {
   callType: CallRequestType;
+  searchId: string;
   customerId: string;
   make: string | null;
   model: string | null;
   modelYear: number | null;
 }): Promise<NotifyAgentsResult> {
-  const result: NotifyAgentsResult = { sent: 0, errors: [] };
+  const result: NotifyAgentsResult = { sent: 0, errors: [], recipients: [], route: "none" };
   try {
     const admin = createAdminClient();
 
-    const [{ data: agents }, { data: customer }] = await Promise.all([
-      admin.from("agents").select("email, name").eq("active", true),
-      admin
-        .from("customers")
-        .select("email, first_name, last_name, phone")
-        .eq("id", params.customerId)
-        .maybeSingle(),
+    const [{ data: search }, { data: customer }, { data: login }] = await Promise.all([
+      admin.from("customer_searches").select("assigned_agent_id").eq("id", params.searchId).maybeSingle(),
+      admin.from("customers").select("email, first_name, last_name, phone").eq("id", params.customerId).maybeSingle(),
+      admin.auth.admin.getUserById(params.customerId),
     ]);
+    const isTestCustomer = (login?.user?.email ?? "").toLowerCase().endsWith(".invalid");
 
-    if (!agents || agents.length === 0) {
-      result.errors.push("No active agents to notify");
+    // The assigned agent, if still active.
+    const assignedAgent = async (agentId: string | null | undefined) => {
+      if (!agentId) return null;
+      const { data } = await admin.from("agents").select("email, name, active").eq("id", agentId).maybeSingle();
+      return data?.active ? data : null;
+    };
+    let agent = await assignedAgent(search?.assigned_agent_id);
+    // No agent yet: a real customer's search is assigned first (never on a preview build, which
+    // shares the production database). A test account is never auto-assigned.
+    if (!agent && !isTestCustomer && runtimeEnv() !== "preview") {
+      const outcome = await assignSearch(params.searchId, "call_request");
+      if (outcome.ok && outcome.agentId) agent = await assignedAgent(outcome.agentId);
+    }
+
+    let recipients: { email: string; name: string }[];
+    if (agent) {
+      recipients = [{ email: agent.email, name: agent.name }];
+      result.route = "assigned";
+    } else {
+      const { data, error } = await admin.rpc("agent_alert_recipients", { p_audience: "leads" });
+      if (error) throw new Error(`Could not load leads: ${error.message}`);
+      recipients = (data ?? []) as { email: string; name: string }[];
+      result.route = "fallback";
+    }
+    if (recipients.length === 0) {
+      result.errors.push("Nobody to notify");
       return result;
     }
 
@@ -134,16 +165,20 @@ export async function notifyAgentsOfCallRequest(params: {
       customerEmail: customer?.email ?? null,
       customerPhone: customer?.phone ?? null,
       outreachUrl,
+      assignedToRecipient: result.route === "assigned",
     });
 
-    for (const agent of agents) {
+    for (const r of recipients) {
       try {
-        await sendEmail({ to: agent.email, toName: agent.name, subject, html, audience: "agent" });
+        await sendEmail({ to: r.email, toName: r.name, subject, html, audience: "agent" });
         result.sent += 1;
+        result.recipients.push(r.email);
       } catch (err) {
-        result.errors.push(`Send to ${agent.email} failed: ${err instanceof Error ? err.message : "unknown error"}`);
+        result.errors.push(`Send to ${r.email} failed: ${err instanceof Error ? err.message : "unknown error"}`);
       }
     }
+    // One searchable line per request (test and Vercel logs).
+    console.log("[call-request-email]", JSON.stringify({ searchId: params.searchId, callType: params.callType, route: result.route, recipients: result.recipients, subject, ...(isProductionDeploy() ? {} : { html }) }));
   } catch (err) {
     result.errors.push(`notifyAgentsOfCallRequest failed: ${err instanceof Error ? err.message : "unknown error"}`);
   }

@@ -119,6 +119,7 @@ export async function requestFinalizationCall(searchId: string): Promise<Finaliz
   // never once per click.
   if (updated && updated.length > 0) {
     await notifyAgentsOfCallRequest({
+      searchId,
       callType: "finalization",
       customerId: check.customerId,
       make: check.make,

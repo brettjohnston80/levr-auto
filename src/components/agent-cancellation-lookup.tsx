@@ -9,6 +9,7 @@ import {
 } from "@/lib/agent-bypass-lookup";
 import { AgentCancellationResolutionForm } from "@/components/agent-cancellation-resolution-form";
 import { agentSearchStatusLabel } from "@/lib/search-status-copy";
+import type { RefundReasonOption } from "@/lib/refund-reasons";
 
 type Mode = "search" | "results" | "searches" | "resolve";
 
@@ -19,7 +20,7 @@ type Mode = "search" | "results" | "searches" | "resolve";
 // disambiguated customer list -> their searches), not a new lookup, per
 // the approved plan. Terminates in the same AgentCancellationResolutionForm
 // the queue rows use.
-export function AgentCancellationLookup() {
+export function AgentCancellationLookup({ reasonOptions }: { reasonOptions: RefundReasonOption[] }) {
   const [mode, setMode] = useState<Mode>("search");
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
@@ -76,7 +77,7 @@ export function AgentCancellationLookup() {
           {selectedSearch.make} {selectedSearch.model} search (currently{" "}
           {agentSearchStatusLabel(selectedSearch)}).
         </p>
-        <AgentCancellationResolutionForm searchId={selectedSearch.id} customerId={selectedCustomer.id} />
+        <AgentCancellationResolutionForm searchId={selectedSearch.id} customerId={selectedCustomer.id} reasonOptions={reasonOptions} />
         <button type="button" onClick={reset} className="mt-3 text-sm text-zinc-400 underline hover:text-white">
           Start over
         </button>

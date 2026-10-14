@@ -105,6 +105,7 @@ export async function requestSwitchCall(searchId: string): Promise<SwitchActionR
 
   if (updated && updated.length > 0) {
     await notifyAgentsOfCallRequest({
+      searchId,
       callType: "switch",
       customerId: check.userId,
       make: check.make,

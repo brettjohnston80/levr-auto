@@ -105,6 +105,7 @@ export async function requestCancellationCall(searchId: string): Promise<Cancell
 
   if (updated && updated.length > 0) {
     await notifyAgentsOfCallRequest({
+      searchId,
       callType: "cancellation",
       customerId: check.customerId,
       make: check.make,

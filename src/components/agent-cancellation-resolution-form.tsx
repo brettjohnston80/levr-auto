@@ -3,11 +3,10 @@
 import { useEffect, useState } from "react";
 import {
   getCustomerPaymentsForCancellation,
-  getRefundReasonOptions,
   resolveCancellation,
   type CustomerPaymentForRefund,
-  type RefundReasonOption,
 } from "@/lib/agent-cancellation-actions";
+import type { RefundReasonOption } from "@/lib/refund-reasons";
 import { CANCELLATION_REASON_CATEGORIES } from "@/lib/cancellation-reasons";
 
 function formatCents(cents: number): string {
@@ -31,9 +30,12 @@ const PAYMENT_TYPE_LABEL: Record<string, string> = {
 export function AgentCancellationResolutionForm({
   searchId,
   customerId,
+  reasonOptions,
 }: {
   searchId: string;
   customerId: string;
+  /** Loaded once per page on the server (getRefundReasons), shared by every form. */
+  reasonOptions: RefundReasonOption[];
 }) {
   const [payments, setPayments] = useState<CustomerPaymentForRefund[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -41,7 +43,6 @@ export function AgentCancellationResolutionForm({
   const [notes, setNotes] = useState("");
   const [refundInputs, setRefundInputs] = useState<Record<string, string>>({});
   const [refundReasons, setRefundReasons] = useState<Record<string, string>>({});
-  const [reasonOptions, setReasonOptions] = useState<RefundReasonOption[]>([{ code: "cancellation", label: "Cancellation" }]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ refundsIssued: number } | null>(null);
@@ -56,8 +57,6 @@ export function AgentCancellationResolutionForm({
         return;
       }
       setPayments(res);
-      const reasons = await getRefundReasonOptions();
-      if (!cancelled && !("error" in reasons) && reasons.length > 0) setReasonOptions(reasons);
     })();
     return () => {
       cancelled = true;
