@@ -7,7 +7,7 @@ import type { UnconfirmedAlias } from "@/lib/dealership-queue";
 
 type RowMode = "idle" | "confirm-new" | "merge";
 
-function UnconfirmedAliasRow({ alias }: { alias: UnconfirmedAlias }) {
+function UnconfirmedAliasRow({ alias, canMerge }: { alias: UnconfirmedAlias; canMerge: boolean }) {
   const [mode, setMode] = useState<RowMode>("idle");
   const [name, setName] = useState(alias.dealerName);
   const [city, setCity] = useState(alias.dealerCity ?? "");
@@ -75,13 +75,16 @@ function UnconfirmedAliasRow({ alias }: { alias: UnconfirmedAlias }) {
           >
             Confirm as new
           </button>
-          <button
-            type="button"
-            onClick={() => setMode(mode === "merge" ? "idle" : "merge")}
-            className="rounded border border-white/15 px-2 py-1 text-xs text-zinc-300 hover:bg-white/5"
-          >
-            Merge into existing
-          </button>
+          {/* Merging is lead-only (C16): the server refuses it for agents too. */}
+          {canMerge && (
+            <button
+              type="button"
+              onClick={() => setMode(mode === "merge" ? "idle" : "merge")}
+              className="rounded border border-white/15 px-2 py-1 text-xs text-zinc-300 hover:bg-white/5"
+            >
+              Merge into existing
+            </button>
+          )}
         </div>
       </div>
 
@@ -135,7 +138,7 @@ function UnconfirmedAliasRow({ alias }: { alias: UnconfirmedAlias }) {
   );
 }
 
-export function UnconfirmedAliasQueue({ aliases }: { aliases: UnconfirmedAlias[] }) {
+export function UnconfirmedAliasQueue({ aliases, canMerge }: { aliases: UnconfirmedAlias[]; canMerge: boolean }) {
   if (aliases.length === 0) {
     return <p className="text-sm text-zinc-500">No unconfirmed dealer identities right now.</p>;
   }
@@ -143,7 +146,7 @@ export function UnconfirmedAliasQueue({ aliases }: { aliases: UnconfirmedAlias[]
   return (
     <div className="space-y-2">
       {aliases.map((alias) => (
-        <UnconfirmedAliasRow key={alias.id} alias={alias} />
+        <UnconfirmedAliasRow key={alias.id} alias={alias} canMerge={canMerge} />
       ))}
     </div>
   );

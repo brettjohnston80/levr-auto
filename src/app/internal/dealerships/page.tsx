@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireAgent } from "@/lib/agent-auth";
+import { hasRole, requireAgent } from "@/lib/agent-auth";
 import { getUnconfirmedAliases, getConfirmedDealerships } from "@/lib/dealership-queue";
 import { UnconfirmedAliasQueue } from "@/components/unconfirmed-alias-queue";
 import { DealershipsList } from "@/components/dealerships-list";
@@ -31,7 +31,7 @@ export default async function DealershipsPage() {
             Unconfirmed dealer identities <span className="text-sm font-normal text-zinc-500">({unconfirmed.length})</span>
           </h2>
           <div className="mt-4">
-            <UnconfirmedAliasQueue aliases={unconfirmed} />
+            <UnconfirmedAliasQueue aliases={unconfirmed} canMerge={hasRole(agent, "lead")} />
           </div>
         </div>
 

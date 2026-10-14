@@ -39,7 +39,7 @@ export interface AdminSearchRow {
  * somehow isn't found in the auth.users listing.
  */
 export async function getAdminSearches(): Promise<AdminSearchRow[]> {
-  const agent = await getAuthorizedAgent();
+  const agent = await getAuthorizedAgent({ minRole: "lead" });
   if (!agent) {
     throw new Error("Not authorized.");
   }

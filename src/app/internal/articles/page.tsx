@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function InternalArticlesPage() {
-  const agent = await requireAgent();
+  const agent = await requireAgent({ minRole: "lead" });
   const drafts = await getDraftArticles();
 
   return (

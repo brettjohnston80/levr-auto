@@ -384,7 +384,7 @@ export interface RevertPurchasedSearchResult {
  * judgment call worth a note, unlike the confirm-popup-only forward action.
  */
 export async function revertPurchasedSearch(searchId: string, reason: string): Promise<RevertPurchasedSearchResult> {
-  const agent = await getAuthorizedAgent();
+  const agent = await getAuthorizedAgent({ minRole: "lead" });
   if (!agent) {
     return { ok: false, error: "Not authorized." };
   }

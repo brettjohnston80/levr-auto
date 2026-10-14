@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function InternalSocialPage() {
-  const agent = await requireAgent();
+  const agent = await requireAgent({ minRole: "lead" });
   const [drafts, worklist] = await Promise.all([getDraftSocialPosts(), getPostingWorklist()]);
 
   return (

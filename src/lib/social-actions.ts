@@ -19,7 +19,7 @@ export interface SocialPostEdits {
 
 /** Persists in-progress edits without changing status -- guarded to only ever touch a still-'draft' row. */
 export async function updateSocialPostDraft(postId: string, edits: SocialPostEdits): Promise<SocialActionResult> {
-  const agent = await getAuthorizedAgent();
+  const agent = await getAuthorizedAgent({ minRole: "lead" });
   if (!agent) {
     return { ok: false, error: "Not authorized." };
   }
@@ -56,7 +56,7 @@ export async function updateSocialPostDraft(postId: string, edits: SocialPostEdi
  * pattern as approveArticle.
  */
 export async function approveSocialPost(postId: string, edits: SocialPostEdits): Promise<SocialActionResult> {
-  const agent = await getAuthorizedAgent();
+  const agent = await getAuthorizedAgent({ minRole: "lead" });
   if (!agent) {
     return { ok: false, error: "Not authorized." };
   }
@@ -100,7 +100,7 @@ export async function approveSocialPost(postId: string, edits: SocialPostEdits):
  * doc comment) -- it can never surface a different testimonial or deal.
  */
 export async function regenerateSocialPost(postId: string): Promise<SocialActionResult> {
-  const agent = await getAuthorizedAgent();
+  const agent = await getAuthorizedAgent({ minRole: "lead" });
   if (!agent) {
     return { ok: false, error: "Not authorized." };
   }
@@ -123,7 +123,7 @@ export async function regenerateSocialPost(postId: string): Promise<SocialAction
 
 /** Uploads a manually-attached image for a social post -- same upload pattern as submitFinancingChoice. */
 export async function attachSocialPostImage(postId: string, formData: FormData): Promise<SocialActionResult> {
-  const agent = await getAuthorizedAgent();
+  const agent = await getAuthorizedAgent({ minRole: "lead" });
   if (!agent) {
     return { ok: false, error: "Not authorized." };
   }
@@ -163,7 +163,7 @@ export async function markPlatformPosted(
   sourceId: string,
   platform: Platform
 ): Promise<SocialActionResult> {
-  const agent = await getAuthorizedAgent();
+  const agent = await getAuthorizedAgent({ minRole: "lead" });
   if (!agent) {
     return { ok: false, error: "Not authorized." };
   }

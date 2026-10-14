@@ -56,7 +56,7 @@ export async function confirmAliasAsNewDealership(
  * confirmed alias to a second dealership).
  */
 export async function mergeAliasIntoDealership(aliasId: string, dealershipId: string): Promise<ActionResult> {
-  const agent = await getAuthorizedAgent();
+  const agent = await getAuthorizedAgent({ minRole: "lead" });
   if (!agent) {
     return { ok: false, error: "Not authorized." };
   }

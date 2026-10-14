@@ -23,7 +23,7 @@ export interface ArticleEdits {
  * accidentally overwrite an already-approved article).
  */
 export async function updateArticleDraft(articleId: string, edits: ArticleEdits): Promise<ArticleActionResult> {
-  const agent = await getAuthorizedAgent();
+  const agent = await getAuthorizedAgent({ minRole: "lead" });
   if (!agent) {
     return { ok: false, error: "Not authorized." };
   }
@@ -70,7 +70,7 @@ export async function updateArticleDraft(articleId: string, edits: ArticleEdits)
  * getPublishedArticleBySlug() already treat 'approved' as live.
  */
 export async function approveArticle(articleId: string, edits: ArticleEdits): Promise<ArticleActionResult> {
-  const agent = await getAuthorizedAgent();
+  const agent = await getAuthorizedAgent({ minRole: "lead" });
   if (!agent) {
     return { ok: false, error: "Not authorized." };
   }
@@ -133,7 +133,7 @@ export async function approveArticle(articleId: string, edits: ArticleEdits): Pr
  * article an agent already approved in another tab.
  */
 export async function regenerateArticleDraft(articleId: string): Promise<ArticleActionResult> {
-  const agent = await getAuthorizedAgent();
+  const agent = await getAuthorizedAgent({ minRole: "lead" });
   if (!agent) {
     return { ok: false, error: "Not authorized." };
   }
@@ -161,7 +161,7 @@ export async function regenerateArticleDraft(articleId: string): Promise<Article
  * two source types never collide in the bucket listing.
  */
 export async function attachArticleImage(articleId: string, formData: FormData): Promise<ArticleActionResult> {
-  const agent = await getAuthorizedAgent();
+  const agent = await getAuthorizedAgent({ minRole: "lead" });
   if (!agent) {
     return { ok: false, error: "Not authorized." };
   }

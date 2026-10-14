@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { RefreshInventoryButton } from "@/components/refresh-inventory-button";
-import { requireAgent } from "@/lib/agent-auth";
+import { hasRole, requireAgent } from "@/lib/agent-auth";
 import {
   getOutreachQueue,
   getCustomerOfferActivityQueue,
@@ -644,6 +644,8 @@ export default async function OutreachQueuePage() {
           </div>
         </div>
 
+        {/* Undoing "purchased" is lead-only (C16): the server refuses it for agents too. */}
+        {hasRole(agent, "lead") && (
         <div className="mt-10">
           <h2 className="text-lg font-semibold text-white">Revert a purchased search</h2>
           <p className="mt-1 text-sm text-zinc-400">
@@ -654,6 +656,7 @@ export default async function OutreachQueuePage() {
             <AgentRevertPurchasedLookup />
           </div>
         </div>
+        )}
 
         <div id="finalization-calls" className="mt-10">
           <h2 className="text-lg font-semibold text-white">
