@@ -84,7 +84,8 @@ async function passwordStep(formData: FormData): Promise<AgentSigninState> {
 
   if (!isAgentAccount(data.user) || !(await activeAgentForLogin(data.user.id))) {
     // A customer login, or an agent login that isn't (or is no longer) an active agent.
-    await supabase.auth.signOut();
+    // This browser only: the person's other sessions are none of this attempt's business.
+    await supabase.auth.signOut({ scope: "local" });
     return fail();
   }
 
@@ -106,7 +107,7 @@ async function codeStep(formData: FormData): Promise<AgentSigninState> {
   } = await supabase.auth.getUser();
   if (!user || !isAgentAccount(user) || !(await activeAgentForLogin(user.id))) {
     // Session gone or not an agent: start over at the password step.
-    if (user) await supabase.auth.signOut();
+    if (user) await supabase.auth.signOut({ scope: "local" });
     await padFailure(startedAt);
     return { step: "password", error: AGENT_SIGNIN_GENERIC_ERROR };
   }

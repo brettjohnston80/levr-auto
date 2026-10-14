@@ -14,7 +14,7 @@ async function attemptLogin(email: string, password: string) {
   // Supabase's own wrong-details message, so customer sign-in never reveals
   // which addresses are agents.
   if (!error && data.user?.app_metadata?.account_type === "agent") {
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: "local" }); // this browser only, not the agent's other sessions
     return { ok: false, error: "Invalid login credentials" };
   }
   return { ok: !error, error: error?.message };

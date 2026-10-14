@@ -37,8 +37,8 @@ export async function acceptAgentLink(_prev: FormState, formData: FormData): Pro
   if (error || !data.user) return { error: AGENT_LINK_INVALID };
   const login = await currentAgentLogin();
   if (!login || !isAgentAccount(data.user)) {
-    // A customer's reset link, or an agent no longer active: refuse and sign out.
-    await supabase.auth.signOut();
+    // A customer's reset link, or an agent no longer active: refuse and sign this browser out.
+    await supabase.auth.signOut({ scope: "local" });
     return { error: AGENT_LINK_INVALID };
   }
   redirect("/agent/set-password");

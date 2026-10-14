@@ -68,7 +68,8 @@ export async function updateSession(request: NextRequest) {
   const signedInAt = user.last_sign_in_at ? Date.parse(user.last_sign_in_at) : 0;
   const lastSeen = Math.max(Number.isFinite(cookieSeen) ? cookieSeen : 0, Number.isFinite(signedInAt) ? signedInAt : 0);
   if (now - lastSeen > idleLimitMs()) {
-    await supabase.auth.signOut();
+    // This device only: another device the agent is actively using stays signed in.
+    await supabase.auth.signOut({ scope: "local" });
     const res = redirectTo("/agent");
     res.cookies.delete(AGENT_LAST_SEEN_COOKIE);
     return res;
