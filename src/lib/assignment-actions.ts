@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getAuthorizedAgent } from "./agent-auth";
 import { createAdminClient } from "./supabase/admin";
+import { resolveAssignmentFailedAlerts } from "./agent-alerts";
 
 /**
  * Lead reassignment (Phase 1, Chunk 3; plan open question C3). Leads and admins only, checked
@@ -28,6 +29,7 @@ export async function reassignSearch(
     p_reason: trimmed,
   });
   if (error) return { ok: false, error: error.message };
+  await resolveAssignmentFailedAlerts([String(searchId)], "reassigned by a lead");
   revalidatePath("/internal/outreach");
   revalidatePath("/internal/admin");
   return { ok: true };

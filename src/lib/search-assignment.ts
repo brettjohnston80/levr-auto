@@ -1,7 +1,7 @@
 import "server-only";
 import { createAdminClient } from "./supabase/admin";
 import { isProductionDeploy, runtimeEnv } from "./runtime-env";
-import { raiseAssignmentFailedAlert, sendPendingAgentAlerts } from "./agent-alerts";
+import { raiseAssignmentFailedAlert, resolveAssignmentFailedAlerts, sendPendingAgentAlerts } from "./agent-alerts";
 
 /**
  * Search assignment (Phase 1, Chunk 3; plan section 4).
@@ -30,12 +30,41 @@ function forcedFailure(source: "payment" | "sweep"): boolean {
   return !isProductionDeploy() && (process.env.AGENT_ASSIGN_FORCE_FAIL ?? "").split(",").includes(source);
 }
 
-/** Calls assign_search for one search. Never throws. */
-export async function assignSearch(searchId: string, source: "payment" | "sweep"): Promise<AssignOutcome> {
+// Test-only, never honoured in production: AGENT_ASSIGN_SIMULATE_NO_ROTATION=1 stands in for
+// assign_search as if nobody were in rotation, without touching anyone's real rotation. It never
+// assigns; it writes the alert assign_search would write (lead fallback, naming the persistent test
+// admin as the lead; or, for a search whose model is "NoLead", the no-lead alert to admins) and
+// returns its id, so the test can see the immediate email go out.
+async function simulatedNoRotation(searchId: string): Promise<{ data: unknown; error: { message: string } | null } | null> {
+  if (isProductionDeploy() || process.env.AGENT_ASSIGN_SIMULATE_NO_ROTATION !== "1") return null;
+  const admin = createAdminClient();
+  const { data: s } = await admin.from("customer_searches").select("model").eq("id", searchId).single();
+  const noLead = s?.model === "NoLead";
+  const { data: lead } = await admin.from("agents").select("id").eq("email", "claude-verify-admin@levrauto-test.invalid").single();
+  const { data: alert, error } = await admin
+    .from("agent_alerts")
+    .insert(noLead
+      ? { kind: "assignment_no_lead", audience: "admins", search_id: searchId, details: { simulated: true } }
+      : { kind: "assignment_lead_fallback", audience: "leads", search_id: searchId, agent_id: lead?.id, details: { simulated: true } })
+    .select("id")
+    .single();
+  if (error) return { data: null, error };
+  return { data: { method: noLead ? "simulated_no_lead" : "simulated_lead_fallback", agent_id: null, alert_id: alert.id }, error: null };
+}
+
+/**
+ * Calls assign_search for one search. Never throws. `previousSearchId` (a switch) is the search
+ * this one replaced: once the new search has an agent, failure alerts on either are closed.
+ */
+export async function assignSearch(
+  searchId: string,
+  source: "payment" | "sweep",
+  opts: { previousSearchId?: string } = {},
+): Promise<AssignOutcome> {
   try {
     const admin = createAdminClient();
     const fn = forcedFailure(source) ? "assign_search_forced_missing" : "assign_search";
-    const { data, error } = await admin.rpc(fn, { p_search_id: searchId });
+    const { data, error } = (await simulatedNoRotation(searchId)) ?? (await admin.rpc(fn, { p_search_id: searchId }));
     if (error) {
       console.error("[assignment-failed]", { source, searchId, error: error.message });
       await alertFailure(searchId, source, error.message);
@@ -46,6 +75,10 @@ export async function assignSearch(searchId: string, source: "payment" | "sweep"
     console.log("[assignment]", JSON.stringify({ source, searchId, method: result.method, agentId: result.agent_id ?? null }));
     // A lead-fallback or no-lead alert goes out now rather than at the next hourly sweep.
     if (result.alert_id) await sendPendingAgentAlerts({ onlyAlertIds: [result.alert_id] });
+    // The search has an agent now (newly, or already): any earlier failure alert is out of date.
+    if (result.agent_id) {
+      await resolveAssignmentFailedAlerts([searchId, opts.previousSearchId ?? ""], `${source} assignment (${result.method})`);
+    }
     return { ok: true, method: result.method ?? "unknown", agentId: result.agent_id ?? null, alertId: result.alert_id ?? null };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
@@ -62,13 +95,16 @@ async function alertFailure(searchId: string, source: string, message: string): 
   if (alertId) await sendPendingAgentAlerts({ onlyAlertIds: [alertId] });
 }
 
-/** Payment-time assignment. Skipped on a preview build (which shares the production database). */
-export async function assignSearchAtPayment(searchId: string): Promise<void> {
+/**
+ * Payment-time assignment (a $699 payment, or a switch: then `previousSearchId` is the old search).
+ * Skipped on a preview build (which shares the production database).
+ */
+export async function assignSearchAtPayment(searchId: string, opts: { previousSearchId?: string } = {}): Promise<void> {
   if (runtimeEnv() === "preview") {
     console.log("[assignment] skipped on a preview build", { searchId });
     return;
   }
-  await assignSearch(searchId, "payment");
+  await assignSearch(searchId, "payment", opts);
 }
 
 /**

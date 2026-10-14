@@ -199,7 +199,7 @@ export async function executeFreeSwitch(
   // The new paid row inherits the old row's agent; if the old row was never assigned, assign it
   // now, after the response (never throws; the hourly sweep is the backstop).
   const newSearchId = (newSearch as { id: string }).id;
-  after(() => assignSearchAtPayment(newSearchId));
+  after(() => assignSearchAtPayment(newSearchId, { previousSearchId: searchId }));
 
   await admin
     .from("customers")

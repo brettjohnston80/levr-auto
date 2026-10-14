@@ -273,3 +273,42 @@ export async function raiseAssignmentFailedAlert(searchId: string, source: strin
     return null;
   }
 }
+
+/**
+ * Closes any open assignment_failed alert on these searches once one of them has an agent (the
+ * sweep, a payment-time retry, a switch, or a lead's reassignment). Recorded as automatic:
+ * resolved_by_agent_id stays null and details gain auto_resolved / auto_resolved_by. Without
+ * this, an alert for a search that's since been assigned would stay open and block a real new
+ * failure alert for it. Returns how many were closed. Never throws.
+ */
+export async function resolveAssignmentFailedAlerts(searchIds: string[], how: string): Promise<number> {
+  const ids = searchIds.filter(Boolean);
+  if (ids.length === 0) return 0;
+  try {
+    const admin = createAdminClient();
+    const { data: open, error } = await admin
+      .from("agent_alerts")
+      .select("id, details")
+      .in("search_id", ids)
+      .eq("kind", "assignment_failed")
+      .is("resolved_at", null);
+    if (error) throw new Error(error.message);
+    let closed = 0;
+    for (const row of open ?? []) {
+      const details = { ...((row.details as Record<string, unknown>) ?? {}), auto_resolved: true, auto_resolved_by: how };
+      const { data: done, error: updateError } = await admin
+        .from("agent_alerts")
+        .update({ resolved_at: new Date().toISOString(), resolved_by_agent_id: null, details })
+        .eq("id", row.id)
+        .is("resolved_at", null)
+        .select("id");
+      if (updateError) throw new Error(updateError.message);
+      closed += done?.length ?? 0;
+    }
+    if (closed) console.log("[agent-alert-auto-resolved]", JSON.stringify({ searchIds: ids, how, closed }));
+    return closed;
+  } catch (e) {
+    console.error("[agent-alert-failed] could not auto-resolve", { searchIds: ids, error: e instanceof Error ? e.message : String(e) });
+    return 0;
+  }
+}

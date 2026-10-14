@@ -109,7 +109,7 @@ export async function switchCustomerSearch(formData: FormData): Promise<SwitchSe
   // The new paid row inherits the old row's agent; if the old row was never assigned, assign it
   // now, after the response (never throws; the hourly sweep is the backstop).
   const newSearchId = (newSearch as { id?: string } | null)?.id;
-  if (newSearchId) after(() => assignSearchAtPayment(newSearchId));
+  if (newSearchId) after(() => assignSearchAtPayment(newSearchId, { previousSearchId: oldSearchId }));
 
   // Guarded "set only if null" write — the equivalent of a
   // coalesce(free_switch_used_at, now()) update, since supabase-js's

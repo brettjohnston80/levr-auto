@@ -225,7 +225,7 @@ async function handleSwitchFeePayment(session: Stripe.Checkout.Session): Promise
     // row was never assigned, assign the new one now, after the response, like a $699 payment.
     // A replay never gets here (the switch refuses to run twice).
     const newSearchId = newSearch.id as string;
-    after(() => assignSearchAtPayment(newSearchId));
+    after(() => assignSearchAtPayment(newSearchId, { previousSearchId: oldSearchId }));
 
     const paymentIntentId = paymentIntentIdFromSession(session);
     if (paymentIntentId) {
