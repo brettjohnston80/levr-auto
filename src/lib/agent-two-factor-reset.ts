@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "./supabase/admin";
 import { sendEmail } from "./email";
+import { logAgentActivity } from "./agent-activity";
 
 /**
  * Two-factor reset (Phase 1, Chunk 1e; plan section 7.5, C12).
@@ -71,10 +72,11 @@ export async function resetAgentTwoFactor(params: {
     removed++;
   }
 
-  await admin.rpc("log_agent_activity", {
-    p_agent_id: actor.id,
-    p_action: "agent_two_factor_reset",
-    p_details: { agent_id: subject.id, levrid: subject.levrid, factors_removed: removed, sessions_ended: sessionsEnded ?? 0 },
+  await logAgentActivity(actor.id, "agent_two_factor_reset", {}, {
+    agent_id: subject.id,
+    levrid: subject.levrid,
+    factors_removed: removed,
+    sessions_ended: sessionsEnded ?? 0,
   });
 
   let emailed = false;

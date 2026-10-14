@@ -65,6 +65,8 @@ export function LogOfferForm({ searchId, listings }: { searchId: string; listing
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
+  // Recorded on the activity row (details.ai_parsed) when the AI parse pre-filled this form.
+  const [aiParsed, setAiParsed] = useState(false);
 
   function handleListingSelect(id: string) {
     setSelectedListingId(id);
@@ -129,6 +131,7 @@ export function LogOfferForm({ searchId, listings }: { searchId: string; listing
     }
 
     const { parsed } = res;
+    setAiParsed(true);
     if (parsed.dealerName) setDealerName(parsed.dealerName);
     if (parsed.dealerContact) setDealerContact(parsed.dealerContact);
     if (parsed.offerPriceCents != null) setOfferPrice((parsed.offerPriceCents / 100).toString());
@@ -155,6 +158,7 @@ export function LogOfferForm({ searchId, listings }: { searchId: string; listing
       .map((a) => ({ description: a.description.trim(), amountCents: Math.round(parseFloat(a.amount) * 100) }));
 
     const formData = new FormData();
+    if (aiParsed) formData.set("ai_parsed", "1");
     formData.set("customer_search_id", searchId);
     formData.set("listing_id", selectedListingId);
     formData.set("dealer_name", dealerName);

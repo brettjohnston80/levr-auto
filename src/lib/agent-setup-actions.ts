@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { createClient } from "./supabase/server";
 import { createAdminClient } from "./supabase/admin";
+import { logAgentActivity } from "./agent-activity";
 import { isAgentAccount } from "./agent-accounts";
 import { cameFromSetupLink, currentAgentLogin, verifiedTotpFactorId } from "./agent-session";
 import { createAgentSetupLink, resetEmail } from "./agent-invite";
@@ -128,12 +129,7 @@ export async function enrollAgentFactor(_prev: FormState, formData: FormData): P
     return { error: AGENT_SIGNIN_GENERIC_ERROR };
   }
   await recordSigninAttempt(keys, "two_factor", true);
-  const admin = createAdminClient();
-  await admin.rpc("log_agent_activity", {
-    p_agent_id: login.agent.id,
-    p_action: "agent_two_factor_enrolled",
-    p_details: { agent_id: login.agent.id, levrid: login.agent.levrid },
-  });
+  await logAgentActivity(login.agent.id, "agent_two_factor_enrolled", {}, { agent_id: login.agent.id, levrid: login.agent.levrid });
   redirect("/internal/outreach");
 }
 

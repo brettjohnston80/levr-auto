@@ -4,6 +4,7 @@ import "server-only";
 import { revalidatePath } from "next/cache";
 import { getAuthorizedAgent } from "./agent-auth";
 import { createAdminClient } from "./supabase/admin";
+import { logAgentActivity } from "./agent-activity";
 
 interface ActionResult {
   ok: boolean;
@@ -32,7 +33,7 @@ export async function confirmAliasAsNewDealership(
   }
 
   const admin = createAdminClient();
-  const { error } = await admin.rpc("confirm_dealer_alias_as_new", {
+  const { data: confirmed, error } = await admin.rpc("confirm_dealer_alias_as_new", {
     p_alias_id: aliasId,
     p_name: name.trim(),
     p_city: city.trim(),
@@ -43,6 +44,13 @@ export async function confirmAliasAsNewDealership(
   if (error) {
     return { ok: false, error: error.message };
   }
+
+  await logAgentActivity(agent.id, "dealer_alias_confirmed", { dealerAliasId: aliasId }, {
+    dealership_id: (confirmed as { dealership_id?: string } | null)?.dealership_id ?? null,
+    name: name.trim(),
+    city: city.trim(),
+    state: state.trim(),
+  });
 
   revalidatePath("/internal/dealerships");
   return { ok: true };
@@ -80,6 +88,8 @@ export async function mergeAliasIntoDealership(aliasId: string, dealershipId: st
   if (!data || data.length === 0) {
     return { ok: false, error: "This alias has already been confirmed." };
   }
+
+  await logAgentActivity(agent.id, "dealer_alias_merged", { dealerAliasId: aliasId }, { dealership_id: dealershipId });
 
   revalidatePath("/internal/dealerships");
   return { ok: true };
@@ -121,6 +131,12 @@ export async function addSalesperson(
     return { ok: false, error: error.message };
   }
 
+  await logAgentActivity(agent.id, "salesperson_added", {}, {
+    salesperson_id: data.id,
+    dealership_id: dealershipId,
+    name: name.trim(),
+  });
+
   revalidatePath("/internal/dealerships");
   return { ok: true, id: data.id };
 }
@@ -141,14 +157,24 @@ export async function updateSalesperson(
   }
 
   const admin = createAdminClient();
-  const { error } = await admin
+  const { data: changed, error } = await admin
     .from("dealership_salespeople")
     .update({ name: name.trim(), phone: phone.trim() || null, email: email.trim() || null })
-    .eq("id", salespersonId);
+    .eq("id", salespersonId)
+    .select("dealership_id");
 
   if (error) {
     return { ok: false, error: error.message };
   }
+  if (!changed || changed.length === 0) {
+    return { ok: false, error: "That salesperson no longer exists." };
+  }
+
+  await logAgentActivity(agent.id, "salesperson_updated", {}, {
+    salesperson_id: salespersonId,
+    dealership_id: changed[0].dealership_id,
+    name: name.trim(),
+  });
 
   revalidatePath("/internal/dealerships");
   return { ok: true };
@@ -161,11 +187,24 @@ export async function removeSalesperson(salespersonId: string): Promise<ActionRe
   }
 
   const admin = createAdminClient();
-  const { error } = await admin.from("dealership_salespeople").delete().eq("id", salespersonId);
+  const { data: removed, error } = await admin
+    .from("dealership_salespeople")
+    .delete()
+    .eq("id", salespersonId)
+    .select("dealership_id, name");
 
   if (error) {
     return { ok: false, error: error.message };
   }
+  if (!removed || removed.length === 0) {
+    return { ok: false, error: "That salesperson no longer exists." };
+  }
+
+  await logAgentActivity(agent.id, "salesperson_removed", {}, {
+    salesperson_id: salespersonId,
+    dealership_id: removed[0].dealership_id,
+    name: removed[0].name,
+  });
 
   revalidatePath("/internal/dealerships");
   return { ok: true };

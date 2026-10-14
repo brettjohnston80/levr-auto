@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "./supabase/server";
 import { createAdminClient } from "./supabase/admin";
 import { getAuthorizedAgent } from "./agent-auth";
+import { logAgentActivity } from "./agent-activity";
 import { getCustomerUnreadThreadCount } from "./offer-messages";
 import { CLOSED_SEND_ERROR, threadIsOpen, validateMessageBody } from "./offer-messages-shared";
 
@@ -36,6 +37,7 @@ async function loadOfferContext(admin: ReturnType<typeof createAdminClient>, off
   return {
     offerStatus: offer.status as string,
     customerId: search.customer_id as string,
+    searchId: offer.customer_search_id as string,
     searchStatus: search.search_status as string,
   };
 }
@@ -77,7 +79,7 @@ export async function sendCustomerMessage(offerId: string, body: string): Promis
   const at = inserted.created_at as string;
   const { error: stateError } = await admin
     .from("qualifying_offers")
-    .update({ last_message_at: at, customer_activity_at: at, customer_messages_read_at: at })
+    .update({ last_message_at: at, customer_activity_at: at, customer_messages_read_at: at, last_customer_message_at: at })
     .eq("id", offerId);
   if (stateError) console.error("sendCustomerMessage: thread state update failed", stateError.message);
 
@@ -151,13 +153,24 @@ export async function sendAgentMessage(
     .eq("id", offerId);
   if (stateError) console.error("sendAgentMessage: thread state update failed", stateError.message);
 
+  let reviewed = false;
   if (seenActivityAt) {
-    await admin
+    const { data: rev } = await admin
       .from("qualifying_offers")
       .update({ agent_reviewed_at: new Date().toISOString() })
       .eq("id", offerId)
-      .eq("customer_activity_at", seenActivityAt);
+      .eq("customer_activity_at", seenActivityAt)
+      .select("id");
+    reviewed = (rev ?? []).length > 0;
   }
+
+  // One row per reply; a reply that also clears the review flag says so (reviewed: true).
+  await logAgentActivity(
+    agent.id,
+    "message_sent",
+    { searchId: ctx.searchId, customerId: ctx.customerId, qualifyingOfferId: offerId },
+    { thread: "offer", length: valid.text.length, reviewed },
+  );
 
   revalidate();
   return { ok: true };
@@ -191,7 +204,7 @@ export async function sendCustomerGeneralMessage(body: string): Promise<OfferMes
   const { error: stateError } = await admin
     .from("general_threads")
     .upsert(
-      { customer_id: userId, last_message_at: at, customer_activity_at: at, customer_messages_read_at: at },
+      { customer_id: userId, last_message_at: at, customer_activity_at: at, customer_messages_read_at: at, last_customer_message_at: at },
       { onConflict: "customer_id" },
     );
   if (stateError) console.error("sendCustomerGeneralMessage: thread state update failed", stateError.message);
@@ -233,13 +246,18 @@ export async function sendAgentGeneralMessage(
     .upsert({ customer_id: customerId, last_message_at: at, last_agent_message_at: at }, { onConflict: "customer_id" });
   if (stateError) console.error("sendAgentGeneralMessage: thread state update failed", stateError.message);
 
+  let reviewed = false;
   if (seenActivityAt) {
-    await admin
+    const { data: rev } = await admin
       .from("general_threads")
       .update({ agent_reviewed_at: new Date().toISOString() })
       .eq("customer_id", customerId)
-      .eq("customer_activity_at", seenActivityAt);
+      .eq("customer_activity_at", seenActivityAt)
+      .select("customer_id");
+    reviewed = (rev ?? []).length > 0;
   }
+
+  await logAgentActivity(agent.id, "message_sent", { customerId }, { thread: "general", length: valid.text.length, reviewed });
 
   revalidate();
   return { ok: true };
@@ -265,6 +283,7 @@ export async function markGeneralActivityReviewed(
   if (!updated) {
     return { ok: false, error: "The customer changed this since the page loaded — refresh to see the latest." };
   }
+  await logAgentActivity(agent.id, "activity_reviewed", { customerId }, { thread: "general" });
   revalidatePath("/internal/outreach");
   return { ok: true };
 }

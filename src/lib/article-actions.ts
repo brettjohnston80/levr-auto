@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { getAuthorizedAgent } from "@/lib/agent-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logAgentActivity } from "@/lib/agent-activity";
 import { scheduledPublishAt } from "@/lib/article-schedule";
 import { generateArticleDraft } from "@/lib/article-generation";
 
@@ -50,6 +51,8 @@ export async function updateArticleDraft(articleId: string, edits: ArticleEdits)
   if (!updated) {
     return { ok: false, error: "This article is no longer a draft -- reload the page." };
   }
+
+  await logAgentActivity(agent.id, "article_saved", {}, { article_id: articleId });
 
   revalidatePath("/internal/articles");
   return { ok: true };
@@ -119,6 +122,8 @@ export async function approveArticle(articleId: string, edits: ArticleEdits): Pr
     return { ok: false, error: "This article is no longer a draft -- reload the page." };
   }
 
+  await logAgentActivity(agent.id, "article_approved", {}, { article_id: articleId, published_at: publishedAt.toISOString() });
+
   revalidatePath("/internal/articles");
   revalidatePath("/articles");
   revalidatePath("/sitemap.xml");
@@ -149,6 +154,8 @@ export async function regenerateArticleDraft(articleId: string): Promise<Article
   if (!result.ok) {
     return result;
   }
+
+  await logAgentActivity(agent.id, "article_regenerated", {}, { article_id: articleId });
 
   revalidatePath("/internal/articles");
   return { ok: true };
@@ -190,6 +197,8 @@ export async function attachArticleImage(articleId: string, formData: FormData):
   if (updateError) {
     return { ok: false, error: `Uploaded but failed to save: ${updateError.message}` };
   }
+
+  await logAgentActivity(agent.id, "article_image_attached", {}, { article_id: articleId, image_storage_path: path });
 
   revalidatePath("/internal/articles");
   return { ok: true };

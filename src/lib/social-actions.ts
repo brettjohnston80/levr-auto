@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { getAuthorizedAgent } from "@/lib/agent-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logAgentActivity } from "@/lib/agent-activity";
 import { regenerateSocialPostContent } from "@/lib/social-generation";
 import { markPlatformPosted as markPlatformPostedShared, type PostingSourceType } from "@/lib/social-posting";
 import type { Platform } from "@/lib/social-schedule";
@@ -45,6 +46,8 @@ export async function updateSocialPostDraft(postId: string, edits: SocialPostEdi
   if (!updated) {
     return { ok: false, error: "This post is no longer a draft -- reload the page." };
   }
+
+  await logAgentActivity(agent.id, "social_post_saved", {}, { social_post_id: postId });
 
   revalidatePath("/internal/social");
   return { ok: true };
@@ -88,6 +91,8 @@ export async function approveSocialPost(postId: string, edits: SocialPostEdits):
     return { ok: false, error: "This post is no longer a draft -- reload the page." };
   }
 
+  await logAgentActivity(agent.id, "social_post_approved", {}, { social_post_id: postId });
+
   revalidatePath("/internal/social");
   return { ok: true };
 }
@@ -116,6 +121,8 @@ export async function regenerateSocialPost(postId: string): Promise<SocialAction
   if (!result.ok) {
     return result;
   }
+
+  await logAgentActivity(agent.id, "social_post_regenerated", {}, { social_post_id: postId });
 
   revalidatePath("/internal/social");
   return { ok: true };
@@ -153,6 +160,8 @@ export async function attachSocialPostImage(postId: string, formData: FormData):
     return { ok: false, error: `Uploaded but failed to save: ${updateError.message}` };
   }
 
+  await logAgentActivity(agent.id, "social_post_image_attached", {}, { social_post_id: postId, image_storage_path: path });
+
   revalidatePath("/internal/social");
   return { ok: true };
 }
@@ -172,6 +181,8 @@ export async function markPlatformPosted(
   if (!result.ok) {
     return result;
   }
+
+  await logAgentActivity(agent.id, "platform_marked_posted", {}, { source_type: sourceType, source_id: sourceId, platform });
 
   revalidatePath("/internal/social");
   return { ok: true };

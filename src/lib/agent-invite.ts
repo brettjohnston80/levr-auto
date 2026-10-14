@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "./supabase/admin";
 import { createAgentLogin, isAgentAccount, linkAgentLogin } from "./agent-accounts";
 import { sendEmail } from "./email";
+import { logAgentActivity } from "./agent-activity";
 import { isProductionDeploy } from "./runtime-env";
 import { TEST_EMAIL_SUFFIX } from "./test-accounts";
 
@@ -188,5 +189,10 @@ export async function resendAgentInvite(params: {
   }
   const sent = await sendInvite(params.actorAgentId, agent.email, params.baseUrl);
   if (!sent.ok) return { ok: false, error: `The invite email didn't send: ${sent.error}` };
+  // A first-time link is logged by link_agent_login (agent_invited); a resend to an existing
+  // login is logged here, so every invite email has one row.
+  if (agent.auth_user_id) {
+    await logAgentActivity(params.actorAgentId, "agent_invited", {}, { agent_id: agent.id, email: agent.email, resent: true });
+  }
   return { ok: true, email: agent.email };
 }

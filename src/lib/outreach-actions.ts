@@ -13,6 +13,8 @@ import { isOfferedModelYear } from "./intake-vehicle-options";
 import { MODEL_YEAR_INVENTORY_BLOCK_ENABLED, loadInventoryBlock } from "./inventory-block";
 import { AGENT_INVENTORY_BLOCK_REFUSAL } from "./inventory-block-copy";
 import { logNotificationEvent } from "./notifications";
+import { logAgentActivity } from "./agent-activity";
+import { getOrCreateDealerAlias } from "./dealer-aliases";
 
 export interface LogOfferResult {
   ok: boolean;
@@ -113,7 +115,7 @@ export async function logQualifyingOffer(formData: FormData): Promise<LogOfferRe
 
   const { data: search, error: searchError } = await admin
     .from("customer_searches")
-    .select("id, zip, pickup_travel_choice, pickup_travel_miles")
+    .select("id, customer_id, zip, pickup_travel_choice, pickup_travel_miles")
     .eq("id", customerSearchId)
     .maybeSingle();
 
@@ -141,10 +143,16 @@ export async function logQualifyingOffer(formData: FormData): Promise<LogOfferRe
     }
   }
 
+  // The dealer's alias (Chunk 2): from the linked listing's dealer identity, or the typed
+  // dealer for an off-lot offer. Never fails the offer: left empty if it can't be resolved.
+  const dealerAliasId = await resolveOfferDealerAlias(admin, listingId, dealerName, dealerCity, dealerState);
+
   const { data: newOffer, error: insertError } = await admin
     .from("qualifying_offers")
     .insert({
       customer_search_id: customerSearchId,
+      logged_by_agent_id: agent.id,
+      dealer_alias_id: dealerAliasId,
       listing_id: listingId,
       dealer_name: dealerName,
       dealer_contact: dealerContact,
@@ -173,6 +181,22 @@ export async function logQualifyingOffer(formData: FormData): Promise<LogOfferRe
     eventType: "offer_logged",
     eventData: { dealerName, offerPriceCents, msrpCents },
   });
+
+  // Logged as soon as the offer exists, so a later add-on or PDF failure can't skip it.
+  await logAgentActivity(
+    agent.id,
+    "offer_logged",
+    { searchId: customerSearchId, customerId: search.customer_id as string, qualifyingOfferId: newOffer.id, dealerAliasId },
+    {
+      dealer_name: dealerName,
+      offer_price_cents: offerPriceCents,
+      msrp_cents: msrpCents,
+      addons: addons.map((a) => ({ description: a.description, amount_cents: a.amountCents })),
+      offer_sheet_attached: pdf instanceof File && pdf.size > 0,
+      ai_parsed: formData.get("ai_parsed") === "1",
+    },
+  );
+
 
   if (addons.length > 0) {
     const { error: addonsError } = await admin.from("offer_addons").insert(
@@ -220,6 +244,52 @@ export async function logQualifyingOffer(formData: FormData): Promise<LogOfferRe
   return { ok: true };
 }
 
+async function resolveOfferDealerAlias(
+  admin: ReturnType<typeof createAdminClient>,
+  listingId: string | null,
+  dealerName: string,
+  dealerCity: string | null,
+  dealerState: string | null,
+): Promise<string | null> {
+  try {
+    if (listingId) {
+      const { data: listing } = await admin
+        .from("listings")
+        .select("dealer_name, dealer_city, dealer_state, mc_dealer_id")
+        .eq("id", listingId)
+        .maybeSingle();
+      if (listing?.dealer_name) {
+        return await getOrCreateDealerAlias(
+          listing.dealer_name as string,
+          (listing.dealer_city as string | null) ?? null,
+          (listing.dealer_state as string | null) ?? null,
+          (listing.mc_dealer_id as number | null) ?? null,
+        );
+      }
+    }
+    return await getOrCreateDealerAlias(dealerName, dealerCity, dealerState, null);
+  } catch (e) {
+    console.error("logQualifyingOffer: dealer alias not resolved", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+/** The activity-log links for an offer: its search and customer. Null links if not found. */
+// Two plain reads: an embedded join is ambiguous here (customer_searches also points back at
+// qualifying_offers through purchased_qualifying_offer_id), and PostgREST refuses it.
+async function offerLinks(admin: ReturnType<typeof createAdminClient>, offerId: string) {
+  const { data } = await admin.from("qualifying_offers").select("customer_search_id").eq("id", offerId).maybeSingle();
+  const searchId = (data?.customer_search_id as string | undefined) ?? null;
+  const links = searchId ? await searchLinks(admin, searchId) : { searchId: null, customerId: null };
+  return { qualifyingOfferId: offerId, ...links };
+}
+
+/** The activity-log links for a search: the search and its customer. */
+async function searchLinks(admin: ReturnType<typeof createAdminClient>, searchId: string) {
+  const { data } = await admin.from("customer_searches").select("customer_id").eq("id", searchId).maybeSingle();
+  return { searchId, customerId: (data?.customer_id as string | undefined) ?? null };
+}
+
 export interface MarkVehicleSoldResult {
   ok: boolean;
   error?: string;
@@ -256,6 +326,8 @@ export async function markOfferVehicleSold(offerId: string): Promise<MarkVehicle
   if (!updated) {
     return { ok: false, error: "Already marked sold." };
   }
+
+  await logAgentActivity(agent.id, "offer_vehicle_marked_sold", await offerLinks(admin, offerId));
 
   revalidatePath("/internal/outreach");
   return { ok: true };
@@ -365,6 +437,13 @@ export async function markSearchPurchased(searchId: string, offerId: string): Pr
   if (logError) {
     console.error("Failed to log purchase status change:", logError);
   }
+
+  await logAgentActivity(
+    agent.id,
+    "search_marked_purchased",
+    await offerLinks(admin, offerId),
+    { dealer_name: offer.dealer_name ?? null },
+  );
 
   revalidatePath("/internal/outreach");
   revalidatePath("/account");
@@ -510,6 +589,8 @@ export async function withdrawAcceptedOffer(offerId: string, reason: string): Pr
     eventData: { dealerName: (offer.dealer_name as string | null) ?? "the dealership" },
   });
 
+  await logAgentActivity(agent.id, "offer_released", await offerLinks(admin, offerId), { reason: trimmedReason });
+
   revalidatePath("/internal/outreach");
   revalidatePath("/account");
   revalidatePath("/account/deal");
@@ -552,6 +633,8 @@ export async function markOfferActivityReviewed(
   if (!updated) {
     return { ok: false, error: "The customer changed this since the page loaded — refresh to see the latest." };
   }
+
+  await logAgentActivity(agent.id, "activity_reviewed", await offerLinks(admin, offerId), { thread: "offer" });
 
   revalidatePath("/internal/outreach");
   return { ok: true };
@@ -598,15 +681,25 @@ export async function logOfferAddon(formData: FormData): Promise<LogOfferAddonRe
     return { ok: false, error: "That offer no longer exists." };
   }
 
-  const { error: insertError } = await admin.from("offer_addons").insert({
-    qualifying_offer_id: offerId,
+  const { data: addon, error: insertError } = await admin
+    .from("offer_addons")
+    .insert({
+      qualifying_offer_id: offerId,
+      description,
+      amount_cents: amountCents,
+    })
+    .select("id")
+    .single();
+
+  if (insertError || !addon) {
+    return { ok: false, error: `Failed to save add-on: ${insertError?.message}` };
+  }
+
+  await logAgentActivity(agent.id, "offer_addon_added", await offerLinks(admin, offerId), {
+    addon_id: addon.id,
     description,
     amount_cents: amountCents,
   });
-
-  if (insertError) {
-    return { ok: false, error: `Failed to save add-on: ${insertError.message}` };
-  }
 
   revalidatePath("/internal/outreach");
   return { ok: true };
@@ -646,7 +739,7 @@ export async function resolveAddonRemoval(
     })
     .eq("id", addonId)
     .eq("removal_status", "pending")
-    .select("id")
+    .select("id, qualifying_offer_id, description")
     .maybeSingle();
 
   if (updateError) {
@@ -655,6 +748,13 @@ export async function resolveAddonRemoval(
   if (!updated) {
     return { ok: false, error: "This request is no longer pending." };
   }
+
+  await logAgentActivity(agent.id, "addon_removal_resolved", await offerLinks(admin, updated.qualifying_offer_id as string), {
+    addon_id: addonId,
+    description: updated.description,
+    outcome,
+    dealer_response: dealerResponse,
+  });
 
   revalidatePath("/internal/outreach");
   revalidatePath("/account");
@@ -702,7 +802,11 @@ export async function confirmAvailability(offerId: string): Promise<ConfirmAvail
   }
 
   const { error } = await admin.from("deal_progress").upsert(
-    { qualifying_offer_id: offerId, availability_reconfirmed_at: new Date().toISOString() },
+    {
+      qualifying_offer_id: offerId,
+      availability_reconfirmed_at: new Date().toISOString(),
+      availability_confirmed_by_agent_id: agent.id,
+    },
     { onConflict: "qualifying_offer_id" }
   );
 
@@ -715,6 +819,8 @@ export async function confirmAvailability(offerId: string): Promise<ConfirmAvail
     eventType: "deal_progress_update",
     eventData: { dealerName: offerCheck.dealerName, milestone: "availability_reconfirmed" },
   });
+
+  await logAgentActivity(agent.id, "availability_confirmed", await offerLinks(admin, offerId));
 
   revalidatePath("/internal/outreach");
   revalidatePath("/account");
@@ -759,6 +865,7 @@ export async function confirmDepositReceived(
       qualifying_offer_id: offerId,
       deposit_amount_cents: amountCents,
       deposit_confirmed_at: new Date().toISOString(),
+      deposit_confirmed_by_agent_id: agent.id,
     },
     { onConflict: "qualifying_offer_id" }
   );
@@ -772,6 +879,8 @@ export async function confirmDepositReceived(
     eventType: "deal_progress_update",
     eventData: { dealerName: offerCheck.dealerName, milestone: "deposit_confirmed" },
   });
+
+  await logAgentActivity(agent.id, "deposit_confirmed", await offerLinks(admin, offerId), { amount_cents: amountCents });
 
   revalidatePath("/internal/outreach");
   revalidatePath("/account");
@@ -815,6 +924,7 @@ export async function checkServiceAgreementSigningStatus(offerId: string): Promi
     return { ok: false, error: "No service agreement has been created for this offer yet." };
   }
   if (doc.signed_at) {
+    await logAgentActivity(agent.id, "signing_status_checked", await offerLinks(admin, offerId), { signed: true, recorded_now: false });
     return { ok: true, signed: true };
   }
 
@@ -829,6 +939,7 @@ export async function checkServiceAgreementSigningStatus(offerId: string): Promi
   }
 
   if (!status.includes("completed")) {
+    await logAgentActivity(agent.id, "signing_status_checked", await offerLinks(admin, offerId), { signed: false, provider_status: status });
     return { ok: true, signed: false };
   }
 
@@ -841,6 +952,8 @@ export async function checkServiceAgreementSigningStatus(offerId: string): Promi
   if (updateError) {
     return { ok: false, error: `Failed to record signature: ${updateError.message}` };
   }
+
+  await logAgentActivity(agent.id, "signing_status_checked", await offerLinks(admin, offerId), { signed: true, recorded_now: true });
 
   revalidatePath("/internal/outreach");
   revalidatePath("/account");
@@ -947,6 +1060,13 @@ export async function finalizeSearchByAgent(
   if (!updated) {
     return { ok: false, error: "This search is no longer awaiting finalization." };
   }
+
+  await logAgentActivity(agent.id, "search_finalized_by_agent", await searchLinks(admin, searchId), {
+    trim: details.trim || null,
+    colors: details.colors,
+    required_options: details.requiredOptions,
+    ...(yearToWrite != null ? { model_year: yearToWrite } : {}),
+  });
 
   revalidatePath("/internal/outreach");
   revalidatePath("/account");
@@ -1061,6 +1181,16 @@ export async function finalizeUndecidedSearch(
     };
   }
 
+  await logAgentActivity(agent.id, "undecided_search_finalized", await searchLinks(admin, searchId), {
+    make,
+    model,
+    model_year: input.modelYear,
+    trim: input.trim,
+    colors: input.colors,
+    required_options: input.requiredOptions,
+    pickup_travel: input.pickupTravel,
+  });
+
   // Same on-demand sync the webhook normally does at payment time for a
   // known make/model -- this is the first point real inventory data is
   // possible for this search.
@@ -1097,10 +1227,10 @@ export async function resolveNotificationCallback(eventId: string): Promise<Reso
   const admin = createAdminClient();
   const { data: updated, error } = await admin
     .from("notification_events")
-    .update({ flag_resolved_at: new Date().toISOString() })
+    .update({ flag_resolved_at: new Date().toISOString(), flag_resolved_by_agent_id: agent.id })
     .eq("id", eventId)
     .is("flag_resolved_at", null)
-    .select("id");
+    .select("id, customer_id, customer_search_id, event_type");
 
   if (error) {
     return { ok: false, error: error.message };
@@ -1108,6 +1238,13 @@ export async function resolveNotificationCallback(eventId: string): Promise<Reso
   if (!updated || updated.length === 0) {
     return { ok: false, error: "Already resolved." };
   }
+
+  await logAgentActivity(
+    agent.id,
+    "notification_flag_resolved",
+    { searchId: updated[0].customer_search_id as string, customerId: updated[0].customer_id as string },
+    { notification_event_id: eventId, event_type: updated[0].event_type },
+  );
 
   revalidatePath("/internal/outreach");
   return { ok: true };
@@ -1205,6 +1342,12 @@ export async function setOfferDeliveryEstimate(formData: FormData): Promise<SetD
   if (error) return { ok: false, error: `Failed to save: ${error.message}` };
   if (!data) return { ok: false, error: "That offer is no longer open." };
 
+  await logAgentActivity(agent.id, "delivery_estimate_set", await offerLinks(admin, offerId), {
+    status: parsed.columns.delivery_estimate_status,
+    cents: parsed.columns.delivery_estimate_cents ?? null,
+    note: parsed.columns.delivery_estimate_note ?? null,
+  });
+
   revalidatePath("/internal/outreach");
   revalidatePath("/account/deal");
   return { ok: true };
@@ -1240,6 +1383,12 @@ export async function refreshSearchInventory(searchId: string): Promise<RefreshI
   try {
     const result = await syncListingsForMakeModel(search.make, search.model, {
       freshWithinHours: DEFAULT_FRESH_WITHIN_HOURS,
+    });
+    await logAgentActivity(agent.id, "inventory_refreshed", await searchLinks(admin, searchId), {
+      make: search.make,
+      model: search.model,
+      refreshed: !result.skipped,
+      upserted: result.skipped ? 0 : result.upserted,
     });
     revalidatePath("/internal/outreach");
     return result.skipped
