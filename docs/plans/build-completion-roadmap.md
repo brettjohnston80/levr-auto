@@ -1,4 +1,4 @@
-# Build completion roadmap (added 2026-10-15, Brett)
+# Build completion roadmap (added 2026-10-14, Brett)
 
 The final steps once building is complete, in this order, **before costing out running the business**.
 
