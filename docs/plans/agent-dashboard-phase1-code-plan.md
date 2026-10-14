@@ -415,6 +415,7 @@ The stored codes are the neutral ones Brett approved on 2026-10-11. The labels a
 ### 5.2 Deploy-day checklist (after the tester round, on Brett's go-ahead)
 1. **Brett confirms:** the tester round is over; any tester cleanup is done or deferred; every chunk is approved; all wording in section 3 is signed off.
    - **Chunks 1b and 1d ship together, never 1b alone** (section 7.4).
+   - **Chunk 1f (Brett moved to `brett@levrauto.com`, password set and two-factor enrolled) completes before or at the same moment as the deploy, never after**, so Brett is never locked out: once 1d is live, `bjohnston@levrauto.com` (a customer login) can no longer reach `/internal`. Brett is the only admin, so there is no one else to let him back in.
    - `AGENT_SIGNIN_HASH_SECRET` is set in Vercel Production (`vercel env ls production` shows it), or agent sign-in fails closed.
 2. **Counts before the deploy** (read-only query, saved):
    - real paid searches with no agent, expected = real paid searches since Step 10;
@@ -574,6 +575,17 @@ Today, every new Supabase login gets a `customers` row from the `handle_new_user
 - **The marketing header comes off `/internal/*` in Chunk 1d** (not Phase 3), using the same `SiteChrome` wrapper 1b added for `/agent`.
 - **Scrambling key:** emails and IPs in `agent_signin_attempts` are keyed with a dedicated secret, `AGENT_SIGNIN_HASH_SECRET` (at least 32 characters), not the service-role key. If it's missing, sign-in fails closed with the generic error. Brett adds it to `.env.local` and to Vercel Production himself.
 - **Wording changes, signed off:** heading `Agent sign-in` (the browser title stays `LEVR Auto agent sign-in`), and under Verify: `Lost access to your authenticator? Contact your lead.`
+
+**Chunk 1d review (Brett, 2026-10-13):**
+- **Agent header wording signed off:** `LEVR Auto · Agent` · `{agent name} (LEVRID {n})` · `Sign out`, busy `Signing out…`. A test agent with no LEVRID shows just the name.
+- **The pages' own "Signed in as … (email)" lines are removed when the Phase 3 shell lands** (the header now says who is signed in). Not before.
+- Agreed: the idle timer counts from the later of the last request and the last sign-in; agent logins are sent away from customer pages; Brett's current agent access ends at deploy until 1f moves him to `brett@levrauto.com`.
+- The three page-only loaders (`getAdminSearches`, `getUnconfirmedAliases`, `getConfirmedDealerships`) are no longer server actions; all 41 remaining agent actions were called directly with no session, a customer session and a password-only agent session: 123 of 123 refused with "Not authorized.", no table changed.
+
+**C16. Role-gated pages and actions (proposed 2026-10-13; Brett to choose; not applied).** Rule of thumb: everything an agent needs to work a customer's deal stays open to every agent (refunds included, Brett's rule); things that publish publicly or undo someone else's work go to leads; nothing today needs admin. Each gate is set on the page (`requireAgent({ minRole })`) AND in each action (`getAuthorizedAgent({ minRole })`).
+- **Agent:** `/internal/outreach` and its actions; `/internal/refunds-due` and the cancellation refund form; customer lookup; extension bypass and agent-comped switch (fee waivers, reason required and logged; the two to make lead if waivers should be tighter); `/internal/dealerships` confirm and salespeople.
+- **Lead:** `revertPurchasedSearch` (undoes a closed deal); `mergeAliasIntoDealership` (not easily undone, changes ratings data); `/internal/admin` (oversight of every agent's work); `/internal/articles` and `/internal/social` (approving publishes publicly).
+- Team actions stay as the database already enforces them.
 
 **Forgot password: open question C15 (Brett to choose; not built).**
 - **(a) Recommended: self-serve reset by email to the work address.**
