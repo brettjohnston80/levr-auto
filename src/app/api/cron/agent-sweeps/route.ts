@@ -2,14 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isProductionDeploy } from "@/lib/runtime-env";
 import { assignUnassignedPaidSearches, sweepScope } from "@/lib/search-assignment";
+import { alertScope, sendPendingAgentAlerts } from "@/lib/agent-alerts";
 
 /**
- * Vercel Cron target, hourly at :15 (vercel.json; plan section 4). For now it runs the
- * assignment sweep; the follow-up and alert-email sweeps join it in later chunks.
+ * Vercel Cron target, hourly at :15 (vercel.json; plan section 4). It runs the assignment sweep,
+ * then the alert-email sweep (Chunk 4); the follow-up sweep joins it in a later chunk.
  *
  * - Auth: Authorization: Bearer $CRON_SECRET, like every cron route.
  * - Where it runs: production sweeps everything; a preview build never runs it; anywhere else
- *   (local) only a run limited to named searches (?only=<id>,<id>) is allowed. See sweepScope().
+ *   (local) only a run limited to named searches (?only=<id>,<id>) and/or named alerts
+ *   (?alerts=<id>,<id>) is allowed. See sweepScope() and alertScope().
  * - Never overlaps itself: it claims the job lock first (cron_job_locks, Step 15) and returns
  *   "skipped" if another run holds it. The lock lasts LOCK_SECONDS, well past the longest run
  *   (the function stops itself at RUN_BUDGET_MS, inside maxDuration), and is released in a
@@ -27,8 +29,11 @@ export async function GET(request: NextRequest) {
 
   const onlyParam = request.nextUrl.searchParams.get("only");
   const onlySearchIds = onlyParam ? onlyParam.split(",").map((s) => s.trim()).filter(Boolean) : null;
+  const alertsParam = request.nextUrl.searchParams.get("alerts");
+  const onlyAlertIds = alertsParam ? alertsParam.split(",").map((s) => s.trim()).filter(Boolean) : null;
   const scope = sweepScope(onlySearchIds);
-  if (!scope.allowed) {
+  const alertsAllowed = alertScope(onlyAlertIds);
+  if (!scope.allowed && !alertsAllowed.allowed) {
     return NextResponse.json({ ok: true, skipped: scope.reason });
   }
 
@@ -56,13 +61,18 @@ export async function GET(request: NextRequest) {
     // without calling assign_search, so a test can check the selection on a real-style customer
     // without assigning it to a real agent.
     const dryRun = !isProductionDeploy() && request.nextUrl.searchParams.get("dry_run") === "1";
-    const assignment = await assignUnassignedPaidSearches({
-      onlySearchIds: onlySearchIds ?? undefined,
-      deadline: started + RUN_BUDGET_MS,
-      dryRun,
-    });
-    console.log("[agent-sweeps]", JSON.stringify({ job, ms: Date.now() - started, ...assignment }));
-    return NextResponse.json({ ok: true, ms: Date.now() - started, assignment });
+    const assignment = scope.allowed
+      ? await assignUnassignedPaidSearches({
+          onlySearchIds: onlySearchIds ?? undefined,
+          deadline: started + RUN_BUDGET_MS,
+          dryRun,
+        })
+      : null;
+    // Alerts last, so any raised by this run's assignments go out in the same run. A dry run
+    // sends nothing.
+    const alerts = alertsAllowed.allowed && !dryRun ? await sendPendingAgentAlerts({ onlyAlertIds: onlyAlertIds ?? undefined }) : null;
+    console.log("[agent-sweeps]", JSON.stringify({ job, ms: Date.now() - started, assignment, alerts }));
+    return NextResponse.json({ ok: true, ms: Date.now() - started, assignment, alerts });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error("[agent-sweeps] failed", message);

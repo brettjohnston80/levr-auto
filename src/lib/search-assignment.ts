@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "./supabase/admin";
 import { isProductionDeploy, runtimeEnv } from "./runtime-env";
+import { raiseAssignmentFailedAlert, sendPendingAgentAlerts } from "./agent-alerts";
 
 /**
  * Search assignment (Phase 1, Chunk 3; plan section 4).
@@ -21,32 +22,44 @@ export type AssignOutcome =
   | { ok: true; method: string; agentId: string | null; alertId: string | null }
   | { ok: false; error: string };
 
-// Test-only switch, never honoured in production: AGENT_ASSIGN_FORCE_FAIL="payment" makes the
-// payment-time call fail (it calls a function name that doesn't exist), so the test can show the
-// payment still completes and the sweep picks the search up.
-function forcedPaymentFailure(): boolean {
-  return !isProductionDeploy() && (process.env.AGENT_ASSIGN_FORCE_FAIL ?? "").split(",").includes("payment");
+// Test-only switch, never honoured in production: AGENT_ASSIGN_FORCE_FAIL="payment" (and/or
+// "sweep") makes that caller's assign_search call fail (it calls a function name that doesn't
+// exist), so a test can show the payment still completes, the failure alert is raised once, and
+// nothing is ever assigned.
+function forcedFailure(source: "payment" | "sweep"): boolean {
+  return !isProductionDeploy() && (process.env.AGENT_ASSIGN_FORCE_FAIL ?? "").split(",").includes(source);
 }
 
 /** Calls assign_search for one search. Never throws. */
 export async function assignSearch(searchId: string, source: "payment" | "sweep"): Promise<AssignOutcome> {
   try {
     const admin = createAdminClient();
-    const fn = source === "payment" && forcedPaymentFailure() ? "assign_search_forced_missing" : "assign_search";
+    const fn = forcedFailure(source) ? "assign_search_forced_missing" : "assign_search";
     const { data, error } = await admin.rpc(fn, { p_search_id: searchId });
     if (error) {
       console.error("[assignment-failed]", { source, searchId, error: error.message });
+      await alertFailure(searchId, source, error.message);
       return { ok: false, error: error.message };
     }
     const result = (data ?? {}) as { method?: string; agent_id?: string | null; alert_id?: string | null };
     // One searchable line per call, so a test (or Vercel logs) can count calls per search.
     console.log("[assignment]", JSON.stringify({ source, searchId, method: result.method, agentId: result.agent_id ?? null }));
+    // A lead-fallback or no-lead alert goes out now rather than at the next hourly sweep.
+    if (result.alert_id) await sendPendingAgentAlerts({ onlyAlertIds: [result.alert_id] });
     return { ok: true, method: result.method ?? "unknown", agentId: result.agent_id ?? null, alertId: result.alert_id ?? null };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error("[assignment-failed]", { source, searchId, error: message });
+    await alertFailure(searchId, source, message);
     return { ok: false, error: message };
   }
+}
+
+// A failed assignment for a real customer raises one assignment_failed alert (one open per
+// search, so the hourly retries don't repeat it) and emails it straight away. Never throws.
+async function alertFailure(searchId: string, source: string, message: string): Promise<void> {
+  const alertId = await raiseAssignmentFailedAlert(searchId, source, message);
+  if (alertId) await sendPendingAgentAlerts({ onlyAlertIds: [alertId] });
 }
 
 /** Payment-time assignment. Skipped on a preview build (which shares the production database). */
