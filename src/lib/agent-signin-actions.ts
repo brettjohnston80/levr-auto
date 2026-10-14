@@ -1,6 +1,8 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
+import { AGENT_LAST_SEEN_COOKIE } from "./supabase/middleware";
 import { createClient } from "./supabase/server";
 import { createAdminClient } from "./supabase/admin";
 import { isAgentAccount } from "./agent-accounts";
@@ -141,4 +143,13 @@ async function codeStep(formData: FormData): Promise<AgentSigninState> {
 /** The one form action: the hidden "step" field says which step was submitted. */
 export async function agentSigninAction(_prev: AgentSigninState, formData: FormData): Promise<AgentSigninState> {
   return formData.get("step") === "two_factor" ? codeStep(formData) : passwordStep(formData);
+}
+
+/** Sign out of the agent dashboard (the header's Sign out). */
+export async function agentSignOut(): Promise<void> {
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+  const jar = await cookies();
+  jar.delete(AGENT_LAST_SEEN_COOKIE);
+  redirect("/agent");
 }

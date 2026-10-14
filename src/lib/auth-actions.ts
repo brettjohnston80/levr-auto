@@ -9,7 +9,14 @@ import { passwordProblem } from "@/lib/password-rules";
 
 async function attemptLogin(email: string, password: string) {
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  // Agent logins sign in at /agent only (Phase 1, Chunk 1d). Refused here with
+  // Supabase's own wrong-details message, so customer sign-in never reveals
+  // which addresses are agents.
+  if (!error && data.user?.app_metadata?.account_type === "agent") {
+    await supabase.auth.signOut();
+    return { ok: false, error: "Invalid login credentials" };
+  }
   return { ok: !error, error: error?.message };
 }
 

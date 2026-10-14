@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { searchDealerships, type DealershipSearchResult } from "@/lib/dealership-queue";
+import { searchDealerships, type DealershipSearchResult } from "@/lib/dealership-search-actions";
 
 // Simpler than agent-bypass-lookup.ts's two-stage customer lookup -- merging
 // an alias only needs one level (pick the target dealership directly), no

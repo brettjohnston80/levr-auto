@@ -1,6 +1,8 @@
-"use server";
-
 import "server-only";
+
+// A page data loader for /internal/admin. Deliberately NOT "use server": only
+// the server-rendered page calls it, so it must not be callable from a browser
+// as a server action (Chunk 1d).
 import { getAuthorizedAgent } from "./agent-auth";
 import { createAdminClient } from "./supabase/admin";
 import { isTestEmail } from "./test-accounts";

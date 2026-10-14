@@ -3,8 +3,9 @@
 import { usePathname } from "next/navigation";
 
 /**
- * The marketing header and footer, left out on the internal agent sign-in
- * pages (/agent and below; Phase 1, Chunk 1b). The plan's route-group move of
+ * The marketing header and footer, left out on the internal agent pages:
+ * sign-in (/agent and below; Chunk 1b) and the agent dashboard pages
+ * (/internal and below; Chunk 1d), which have their own agent header. The plan's route-group move of
  * every page is deferred to the Phase 3 shell; this keeps the 1b change to
  * one wrapper instead of moving every route folder.
  */
@@ -18,7 +19,7 @@ export function SiteChrome({
   children: React.ReactNode;
 }) {
   const pathname = usePathname() ?? "";
-  const internal = pathname === "/agent" || pathname.startsWith("/agent/");
+  const internal = ["/agent", "/internal"].some((p) => pathname === p || pathname.startsWith(`${p}/`));
   if (internal) return <main className="flex-1">{children}</main>;
   return (
     <>
