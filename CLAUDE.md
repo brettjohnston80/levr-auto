@@ -155,6 +155,8 @@ Read this first; `docs/business/how-brett-works.md` covers how Brett wants work 
 
 **`AGENT_SIGNIN_HASH_SECRET` (set by Brett 2026-10-12):** the key that scrambles emails and IP addresses in `agent_signin_attempts` (Chunk 1b). It's in Vercel **Production only, marked Sensitive**, and in `.env.local`. **Sensitive variables can't be downloaded, so `vercel env pull` won't bring it back: if `.env.local` is ever re-pulled, the line must be re-added by hand** (the same value, or a new one, which only resets the current 15-minute lockout windows). If it's missing, agent sign-in fails closed with the generic error. Never paste its value in chat. Check it with `vercel env ls production` (names only).
 
+**One-time link lifetime (Chunk 1c, Brett's option (a), 2026-10-12):** agent invite and reset links last as long as Supabase's **Email OTP Expiration** setting (Dashboard → Authentication → Providers → Email). **That one setting also governs customer sign-up confirmation and password-reset links.** The agent emails say "expires in …" from `SETUP_LINK_LIFETIME_SECONDS` in `src/lib/agent-invite.ts`, which **must equal that setting**. Change both together, never one. ⚠ The constant is set to Supabase's default of 3600 (1 hour), **not yet confirmed against the dashboard**; confirm it before deploy.
+
 **Flagged for the attention-engine phase:** surfacing an away agent's items (call requests included) to leads, and showing open `assignment_no_lead` alerts to admins.
 
 **Later cleanup migration:** drop `customers.assigned_agent_id`, and drop the `record_refund` wrapper once nothing calls it.
