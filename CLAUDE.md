@@ -104,7 +104,7 @@ Plan: `docs/plans/agent-dashboard-phase1-plan.md` (database) and `docs/plans/age
 
 ### Agent dashboard Phase 1 — code (branch `agent-dashboard-phase1-code`)
 - **Where:** git worktree `/Users/brettjohnston/Projects/levr-auto-phase1`. Claude's dev server there is `npx next dev --webpack -p 3100` (never Brett's `:3000`); production builds there need `next build --webpack` (Turbopack refuses the worktree's linked `node_modules`). Preview builds are off for this branch (`vercel.json` branch setting, removed in the merge commit).
-- **Hashes:** pushed to `origin` at **`bf21a38`** (Chunks 0–5). Local: Chunk 6 committed as `d871da0`, plus uncommitted Chunk 6 review work (asking again, customer-closed requests) that waits on Step 16. **Nothing from the branch is deployed.** Deploy only after the tester round, on Brett's go-ahead (code plan section 5.2).
+- **Hashes:** pushed to `origin` at **`d617bb4`** (Chunks 0–6). **Nothing from the branch is deployed.** Deploy only after the tester round, on Brett's go-ahead (code plan section 5.2).
 
 | Chunk | What it does | Status |
 |---|---|---|
@@ -114,7 +114,7 @@ Plan: `docs/plans/agent-dashboard-phase1-plan.md` (database) and `docs/plans/age
 | 3 | Assignment at payment and the hourly sweep (see below) | approved, pushed |
 | 4 | Alert-email sweep (see below) | approved, pushed |
 | 5 | Guarantee refunds on `/internal/refunds-due`; per-refund Reason on the cancellation form | approved, pushed |
-| 6 | Call-request resolution; call-request email to the assigned agent only | built and tested (15/15 + 4/4); Brett's review answers (ask again; customer-closed requests) built, waiting on Step 16 and a rerun; then push |
+| 6 | Call-request resolution; call-request email to the assigned agent only; asking again after a resolution; the customer's own switch/cancel closes an open request (Step 16) | approved, pushed (24/24 + 4/4, 2026-10-14) |
 | 7 | Queue fixes: the callback queue's 1,000-row limit (paging), the admin table's Assigned agent column from `customer_searches.assigned_agent_id` (paged), the vehicle-consultation queue dropping cancelled searches | not started |
 | 8 | Deploy rehearsal: full build, one end-to-end pass of chunks 3–7, written diff summary, the filled-in deploy checklist; no push | not started |
 
@@ -134,7 +134,7 @@ Plan: `docs/plans/agent-dashboard-phase1-plan.md` (database) and `docs/plans/age
 - **Assignment (Chunk 3):** after the Stripe webhook records a $699 payment, and after every switch path (paid-switch webhook, agent switch, free switch), `assignSearchAtPayment` runs **after the response** (`after()`), never throws, and is skipped on a preview. A switched search keeps its agent inside the database; the extra call then answers `already_assigned`. **Hourly sweep** `/api/cron/agent-sweeps` at `:15`: takes `cron_job_locks` (600 s, released in `finally`), leaves test customers out of its query up front, pages 500 at a time (cap 2,000, stops after 240 s), and never reassigns. Outside production it only runs on named searches (`?only=`); a non-production `?dry_run=1` lists what it would assign. Leads reassign with `reassignSearch` (no screen until Phase 3).
 - **Alert emails (Chunk 4):** `sendPendingAgentAlerts` claims up to 50 un-notified alerts with one conditional update, emails each audience (`agent_alert_recipients`: leads, or admins when there's no active lead; test agents never receive), and undoes the claim if nothing went out. Runs in the `:15` sweep and straight after an assignment that raised an alert. An `assignment_failed` alert (real customers only, one open per search) closes itself once the search gets an agent (payment, sweep, any switch, or a lead's reassignment). **Known gap, accepted:** a reassignment run directly in the SQL Editor doesn't close it. Wording (plan 3.4) signed off.
 - **Guarantee refunds (Chunk 5):** `/internal/refunds-due` "Issue refund" refunds everything left on the search's $699 fee **and any $100 paid-switch fees on its switch chain** (followed back to the original search), each fee its own Stripe refund with idempotency key `guarantee_<search>_<payment>`, recorded with reason `guarantee` and the agent on the refund row. "Record a refund already issued in Stripe" accepts a refund of any fee on the chain that succeeded and isn't recorded yet. A row leaves the list once its $699 has a guarantee refund and nothing is left; part-refunded rows stay. The cancellation form has a Reason per refund line (refund reasons loaded once per page on the server; default Cancellation). Wording signed off.
-- **Call resolution (Chunk 6):** "Mark call resolved" on switch and cancellation call cards with neutral outcomes (`no_switch` / `not_cancelled` / `call_not_completed` / `other`), optional note, one `call_request_resolved` activity row; switching or cancelling from the card resolves automatically (`switched` / `cancelled`). The call-request email goes **only to the assigned agent**, starting "This search is assigned to you."; an unassigned real customer's search is assigned first; a test account's, or one still unassigned, goes to leads (admins if no lead) without that line. **After Step 16 and the rerun:** a resolved request can be asked for again (fresh request, emailed the same way), and the customer's own switch or cancellation closes an open request with no agent named. Wording signed off.
+- **Call resolution (Chunk 6):** "Mark call resolved" on switch and cancellation call cards with neutral outcomes (`no_switch` / `not_cancelled` / `call_not_completed` / `other`), optional note, one `call_request_resolved` activity row; switching or cancelling from the card resolves automatically (`switched` / `cancelled`). The call-request email goes **only to the assigned agent**, starting "This search is assigned to you."; an unassigned real customer's search is assigned first; a test account's, or one still unassigned, goes to leads (admins if no lead) without that line. A resolved request can be asked for again (a fresh request, emailed the same way; the earlier resolution stays in the activity log), and the customer's own free switch, paid switch or cancellation closes an open request with no agent named (`call_request_resolved_by_customer`). Wording signed off.
 
 **Agent-facing wording:** everything in Chunks 1–6 is signed off, including the Step 16 activity label `Call request closed: the customer switched or cancelled` (2026-10-14).
 
@@ -185,10 +185,10 @@ After building is complete and **before costing out running the business**:
 2. **Agent training and reference materials:** onboarding/training plus a "how do I…" quick reference, matched to the roles (agent, lead, admin).
 3. **Then costing.**
 
-**Running documents** (created and backfilled with everything approved in Phase 1 once Chunk 6 is wrapped, then updated as each chunk is approved): `docs/business/site-language-inventory.md` (every approved wording, by page/flow/email, where it appears, date approved) and `docs/business/agent-process-reference.md` (each agent workflow, written for agents). **Not created yet.**
+**Running documents** (created 2026-10-14 and backfilled with everything approved in Phase 1; **update both in the same commit as each chunk's approval**): `docs/business/site-language-inventory.md` (every approved wording, by page/flow/email, where it appears, date approved) and `docs/business/agent-process-reference.md` (each agent workflow, written for agents).
 
 ### All open follow-ups, in priority order
-1. Chunk 6 rerun (Step 16 applied) → push branch and `main`; the two running documents; then Chunk 7, Chunk 8; deploy after the tester round.
+1. Chunk 7 (queue fixes), then Chunk 8 (deploy rehearsal); deploy after the tester round.
 2. Tester round: triage tester notes as they arrive.
 3. Wave 2 configurator: Cowork re-pass, the import mapping step, the name-only MarketCheck check, imports.
 4. Launch items above.

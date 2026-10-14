@@ -1,0 +1,106 @@
+# Agent process reference
+
+How each agent workflow works, written for the people who use it. One section per workflow: what it's for, who can do it, the steps, and what the customer sees. It feeds the agent training and quick-reference materials (`docs/plans/build-completion-roadmap.md`).
+
+**How to keep it current:** when a chunk is approved, add or update its workflows here in the same commit. Wording quoted here matches `docs/business/site-language-inventory.md`.
+
+**Status:** backfilled with agent dashboard Phase 1 (approved 2026-10-11 to 2026-10-14). These workflows are built on the branch `agent-dashboard-phase1-code` and **go live at the Phase 1 deploy** (after the tester round). Until then the live site works the old way.
+
+**Roles:** every agent has one role. **Agent** works customers' deals. **Lead** can also add agents, reset an agent's two-factor sign-in, reassign searches, approve articles and social posts, merge dealerships, undo a purchase, and see the admin table. **Admin** can do everything a lead can, plus add leads and admins and reset a lead's or admin's two-factor sign-in. Separately, being **in rotation** means new paid searches can be assigned to you; leads and admins are out of rotation unless set otherwise.
+
+---
+
+## 1. Signing in
+- **For:** every agent, every time.
+- **Steps:**
+  1. Go to `levrauto.com/agent` (not the customer log-in page; customer accounts can't sign in there, and agent accounts can't use customer pages).
+  2. Enter your work email (`@levrauto.com`) and password, then **Sign in**.
+  3. Enter the 6-digit code from your authenticator app.
+  4. You land on the outreach page (`/internal/outreach`).
+- **Good to know:**
+  - Any wrong detail gives the same message: "That didn't work. Check your details and try again." After 5 failed tries on your account (or 20 from one network) in 15 minutes, you're asked to wait 15 minutes.
+  - After **8 hours with no activity** you're signed out on that browser and sign in again. Your other devices aren't affected.
+  - The header shows your name and LEVRID, and **Sign out**.
+- **Customer sees:** nothing.
+
+## 2. Setting up your account (new agents)
+- **For:** a new agent, once.
+- **Steps:**
+  1. Open the invite email ("You've been invited to the LEVR Auto agent dashboard") and click the link. It works once and lasts **1 hour**; if it has expired, ask your lead to send a new invite.
+  2. Click **Continue**.
+  3. Set a password (at least 8 characters, with an uppercase letter, a lowercase letter, a number and a special character).
+  4. Turn on two-factor sign-in: scan the QR code with an authenticator app (Google Authenticator, 1Password, Authy…), or use "Can't scan? Enter this key instead". Adding the same code to a second, backup device is a good idea. Enter the 6-digit code and **Turn on**.
+- **Customer sees:** nothing.
+
+## 3. Forgot your password
+- **For:** any agent.
+- **Steps:** on `/agent`, **Forgot your password?** → enter your work email → **Send reset link** → open the email ("Reset your LEVR Auto agent password", link lasts 1 hour) → set a new password. You still need your authenticator code to sign in.
+- **Lost your authenticator** (new phone, deleted app): you can't fix that yourself. Contact your lead (see section 5).
+
+## 4. Adding an agent
+- **For:** leads (agents) and admins (agents, leads and admins).
+- **Steps:**
+  1. Open **Add an agent** (`/internal/agents`).
+  2. Enter name, work email (`@levrauto.com`) and role; **Send invite**.
+  3. You'll see "Invite sent to {email}. {name} is LEVRID {n}." The new agent follows section 2.
+  4. If the email didn't send, use **Resend invite** on the confirmation.
+- **Good to know:**
+  - A LEVRID is used up the moment someone is added. If you mistyped the email, ask an admin to deactivate that agent and add them again.
+  - New agents are in rotation by default; new leads and admins aren't.
+  - The agents list shows each person's sign-in status: "Two-factor on", "Invite not finished", "No login yet".
+- **Customer sees:** nothing.
+
+## 5. Resetting someone's two-factor sign-in
+- **For:** leads (for agents) and admins (for anyone). Never your own.
+- **Steps:**
+  1. **Confirm it's really them, by phone or video.**
+  2. On **Add an agent**, find them in the list and click **Reset two-factor**, then **Reset**.
+  3. They're signed out everywhere and get an email ("Your LEVR Auto two-factor sign-in was reset"). Next time they sign in they set up two-factor again.
+- **Customer sees:** nothing.
+
+## 6. How searches get assigned to you
+- **For:** information; nothing to do.
+- **How it works:**
+  - When a customer pays, their search is assigned automatically within seconds: to the agent who already has the customer's other search, otherwise to whoever in rotation was assigned least recently.
+  - If nobody is in rotation, it goes to a lead and leads get an email ("Search assigned to {lead}: nobody is in rotation"). If there's no lead either, it stays unassigned and admins get an email ("A paid search has no agent").
+  - If anything stops the automatic assignment, an hourly check at :15 past the hour picks it up, and leads get "Automatic assignment failed for a paid search". That alert closes itself once the search has an agent.
+  - When a customer switches vehicles, the new search stays with the same agent.
+  - Test accounts are never assigned.
+- **Reassigning** a search to someone else: leads and admins (a screen for it comes with the Phase 3 dashboard).
+- **Customer sees:** nothing about assignment itself.
+
+## 7. Call requests (finalization, switch, cancellation)
+- **For:** the assigned agent.
+- **How you hear about it:** an email "{customer} requested a {finalization / switch / cancellation} call — {vehicle}", starting "This search is assigned to you." It has the customer's name, email and phone, and a link to the request on the outreach page. If the search has no agent yet, the email goes to leads (or admins) instead.
+- **Steps for a switch or cancellation call:**
+  1. Call the customer.
+  2. If they switch or cancel, do it from the card ("Switch this customer to a different make/model", or the cancellation form). The request closes itself.
+  3. Otherwise click **Mark call resolved**, pick the outcome ("Didn't switch" / "Didn't cancel", "Couldn't complete the call", or "Other"), add a note if useful, and **Resolve**. The card leaves the list.
+- **Good to know:**
+  - If the customer switches or cancels on their own while the request is open, it closes itself (outcome switched or cancelled, no agent named).
+  - A customer can ask for another call after a request is resolved; it arrives as a new request and a new email.
+- **Customer sees:** they asked for the call on their account page; once it's resolved they can ask again.
+
+## 8. Cancelling a search with refunds
+- **For:** any agent, usually during a cancellation call.
+- **Steps:**
+  1. On the cancellation call card (or by looking the customer up), choose the cancellation **Reason** and add notes.
+  2. For each payment you're refunding, enter the amount and pick its refund **Reason** (Cancellation by default; or Day-30 guarantee, Goodwill, Duplicate charge, Other).
+  3. **Cancel search & resolve.** Each refund goes back through Stripe and is recorded with your name.
+- **Customer sees:** the search cancelled on their account; Stripe sends its own refund receipt.
+
+## 9. Day-30 guarantee refunds
+- **For:** any agent.
+- **What it's for:** a search that got no offer below Total Suggested Retail Price by Day 30 is due its fee back. These appear on **Refunds due** (`/internal/refunds-due`) with the amount refundable: the $699 plus any $100 paid-switch fees.
+- **Steps:**
+  1. Click **Issue refund**, check the confirmation ("Refund {amount} to {customer} for the Day-30 guarantee? … can't be undone."), then **Refund {amount}**.
+  2. You'll see "{customer}: Refunded {amount}. Stripe refund re_…", and the row leaves the list.
+- **If a refund was already made directly in Stripe:** click **Record a refund already issued in Stripe**, paste the refund ID (starts with `re_`), **Record refund**. It's checked against Stripe first: it must belong to this search's fee, have gone through, and not be recorded already.
+- **If you see "The refund went through in Stripe (re_…) but couldn't be recorded here":** don't refund again. Use **Record a refund already issued in Stripe** with that ID.
+- **Good to know:** clicking twice can't refund twice. A partly refunded search stays on the list showing what's left.
+- **Customer sees:** the money back on their card; Stripe sends its own receipt.
+
+## 10. Alerts
+- **For:** leads (and admins when there's no lead; some alerts go to admins only).
+- **What arrives by email:** the assignment alerts described in section 6, plus "An agent action wasn't recorded in the activity log" (the action itself went through; only the history is affected).
+- **What to do:** follow the email (put someone in rotation, reassign, or nothing for the activity-log one). An alerts screen comes with the Phase 3 dashboard.
