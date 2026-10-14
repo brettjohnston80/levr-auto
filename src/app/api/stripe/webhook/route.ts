@@ -1,10 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { syncListingsForMakeModel } from "@/lib/marketcheck-sync";
 import { addDays, effectiveDeadline } from "@/lib/day60-extension";
 import { recordPayment } from "@/lib/payments";
+import { assignSearchAtPayment } from "@/lib/search-assignment";
 import { FLAT_PRICE, EXTENSION_FEE } from "@/lib/vehicle-data";
 
 // Extracts a PaymentIntent id from a Checkout Session's payment_intent
@@ -107,6 +108,12 @@ export async function POST(request: Request) {
     // no-data fallback, and the customer has already paid either way.
     if (data.length > 0) {
       const { make, model } = data[0];
+
+      // Assign an agent (Phase 1, Chunk 3) after the response is sent, so it can never fail,
+      // delay or roll back the payment: paid_at is already saved, and any error is only logged
+      // ([assignment-failed]) for the hourly sweep to pick up. Runs only when this delivery
+      // newly marked the search paid, so a Stripe replay never calls it again.
+      after(() => assignSearchAtPayment(searchId));
 
       const paymentIntentId = paymentIntentIdFromSession(session);
       if (paymentIntentId) {
