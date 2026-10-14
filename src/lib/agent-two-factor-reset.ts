@@ -18,7 +18,7 @@ import { sendEmail } from "./email";
  */
 
 export type TwoFactorResetResult =
-  | { ok: true; agentId: string; sessionsEnded: number; factorsRemoved: number; emailed: boolean }
+  | { ok: true; agentId: string; agentName: string; sessionsEnded: number; factorsRemoved: number; emailed: boolean }
   | { ok: false; error: string };
 
 const RANK: Record<string, number> = { agent: 1, lead: 2, admin: 3 };
@@ -85,5 +85,5 @@ export async function resetAgentTwoFactor(params: {
   } catch (e) {
     console.error("[agent-2fa-reset] email failed", e instanceof Error ? e.message : e);
   }
-  return { ok: true, agentId: subject.id, sessionsEnded: sessionsEnded ?? 0, factorsRemoved: removed, emailed };
+  return { ok: true, agentId: subject.id, agentName: subject.name, sessionsEnded: sessionsEnded ?? 0, factorsRemoved: removed, emailed };
 }
