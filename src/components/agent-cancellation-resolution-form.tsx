@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import {
   getCustomerPaymentsForCancellation,
+  getRefundReasonOptions,
   resolveCancellation,
   type CustomerPaymentForRefund,
+  type RefundReasonOption,
 } from "@/lib/agent-cancellation-actions";
 import { CANCELLATION_REASON_CATEGORIES } from "@/lib/cancellation-reasons";
 
@@ -38,6 +40,8 @@ export function AgentCancellationResolutionForm({
   const [reasonCategory, setReasonCategory] = useState("");
   const [notes, setNotes] = useState("");
   const [refundInputs, setRefundInputs] = useState<Record<string, string>>({});
+  const [refundReasons, setRefundReasons] = useState<Record<string, string>>({});
+  const [reasonOptions, setReasonOptions] = useState<RefundReasonOption[]>([{ code: "cancellation", label: "Cancellation" }]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ refundsIssued: number } | null>(null);
@@ -52,6 +56,8 @@ export function AgentCancellationResolutionForm({
         return;
       }
       setPayments(res);
+      const reasons = await getRefundReasonOptions();
+      if (!cancelled && !("error" in reasons) && reasons.length > 0) setReasonOptions(reasons);
     })();
     return () => {
       cancelled = true;
@@ -63,7 +69,11 @@ export function AgentCancellationResolutionForm({
     setError(null);
 
     const refundLineItems = Object.entries(refundInputs)
-      .map(([paymentId, value]) => ({ paymentId, amountCents: Math.round(parseFloat(value) * 100) }))
+      .map(([paymentId, value]) => ({
+        paymentId,
+        amountCents: Math.round(parseFloat(value) * 100),
+        reason: refundReasons[paymentId] ?? "cancellation",
+      }))
       .filter((item) => Number.isFinite(item.amountCents) && item.amountCents > 0);
 
     const res = await resolveCancellation(searchId, reasonCategory, notes, refundLineItems);
@@ -132,19 +142,37 @@ export function AgentCancellationResolutionForm({
                   {payment.searchModel} — {formatCents(payment.amountCents)} charged,{" "}
                   {formatCents(payment.remainingCents)} refundable
                 </span>
-                <input
-                  type="number"
-                  min="0"
-                  max={payment.remainingCents / 100}
-                  step="0.01"
-                  placeholder="$0.00"
-                  disabled={payment.remainingCents === 0}
-                  value={refundInputs[payment.id] ?? ""}
-                  onChange={(e) =>
-                    setRefundInputs((prev) => ({ ...prev, [payment.id]: e.target.value }))
-                  }
-                  className="w-24 rounded-md border border-white/10 bg-zinc-900 px-2 py-1 text-right text-white disabled:opacity-40"
-                />
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-1 text-zinc-400">
+                    Reason
+                    <select
+                      value={refundReasons[payment.id] ?? "cancellation"}
+                      disabled={payment.remainingCents === 0}
+                      onChange={(e) => setRefundReasons((prev) => ({ ...prev, [payment.id]: e.target.value }))}
+                      className="rounded-md border border-white/10 bg-zinc-900 px-2 py-1 text-white disabled:opacity-40"
+                    >
+                      {reasonOptions.map((o) => (
+                        <option key={o.code} value={o.code}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max={payment.remainingCents / 100}
+                    step="0.01"
+                    placeholder="$0.00"
+                    aria-label="Refund amount"
+                    disabled={payment.remainingCents === 0}
+                    value={refundInputs[payment.id] ?? ""}
+                    onChange={(e) =>
+                      setRefundInputs((prev) => ({ ...prev, [payment.id]: e.target.value }))
+                    }
+                    className="w-24 rounded-md border border-white/10 bg-zinc-900 px-2 py-1 text-right text-white disabled:opacity-40"
+                  />
+                </div>
               </div>
             ))}
           </div>

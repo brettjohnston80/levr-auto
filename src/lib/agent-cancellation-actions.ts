@@ -78,6 +78,29 @@ export async function getCustomerPaymentsForCancellation(customerId: string): Pr
 export interface RefundLineItem {
   paymentId: string;
   amountCents: number;
+  /** refund_reasons.code; defaults to "cancellation". */
+  reason?: string;
+}
+
+export interface RefundReasonOption {
+  code: string;
+  label: string;
+}
+
+/** The active refund reasons, for the per-refund Reason picker (labels from refund_reasons). */
+export async function getRefundReasonOptions(): Promise<RefundReasonOption[] | { error: string }> {
+  const agent = await getAuthorizedAgent();
+  if (!agent) return { error: "Not authorized." };
+  const { data, error } = await createAdminClient()
+    .from("refund_reasons")
+    .select("code, label")
+    .eq("is_active", true);
+  if (error) return { error: error.message };
+  // A fixed order (the five reasons were added at the same moment, so created_at can't order
+  // them); any reason added later goes after these, by label.
+  const ORDER = ["cancellation", "guarantee", "goodwill", "duplicate_charge", "other"];
+  const rank = (code: string) => (ORDER.includes(code) ? ORDER.indexOf(code) : ORDER.length);
+  return ((data ?? []) as RefundReasonOption[]).sort((x, y) => rank(x.code) - rank(y.code) || x.label.localeCompare(y.label));
 }
 
 export type ResolveCancellationResult =
@@ -174,12 +197,13 @@ export async function resolveCancellation(
       };
     }
 
+    // Same key on a retry returns the same Stripe refund rather than a second one.
     let refund;
     try {
-      refund = await getStripe().refunds.create({
-        payment_intent: payment.stripe_payment_intent_id,
-        amount: item.amountCents,
-      });
+      refund = await getStripe().refunds.create(
+        { payment_intent: payment.stripe_payment_intent_id, amount: item.amountCents },
+        { idempotencyKey: `cancellation_${logRow.id}_${item.paymentId}_${item.amountCents}` },
+      );
     } catch (err) {
       return {
         ok: false,
@@ -187,12 +211,15 @@ export async function resolveCancellation(
       };
     }
 
-    const { error: recordError } = await admin.rpc("record_refund", {
+    // Every refund issued while cancelling is linked to the cancellation record, whatever its
+    // reason (a goodwill refund on the same call keeps that distinction for reporting).
+    const { error: recordError } = await admin.rpc("record_payment_refund", {
       p_payment_id: item.paymentId,
-      p_cancellation_log_id: logRow.id,
       p_agent_id: agent.id,
       p_amount_cents: item.amountCents,
       p_stripe_refund_id: refund.id,
+      p_reason: item.reason || "cancellation",
+      p_cancellation_log_id: logRow.id,
     });
 
     if (recordError) {
