@@ -221,6 +221,12 @@ async function handleSwitchFeePayment(session: Stripe.Checkout.Session): Promise
   console.log(`Stripe webhook: switched search ${oldSearchId} to ${newMake} ${newModel} for session ${session.id}`);
 
   if (newSearch) {
+    // The new (paid) row inherits the old row's agent inside switch_customer_search. If the old
+    // row was never assigned, assign the new one now, after the response, like a $699 payment.
+    // A replay never gets here (the switch refuses to run twice).
+    const newSearchId = newSearch.id as string;
+    after(() => assignSearchAtPayment(newSearchId));
+
     const paymentIntentId = paymentIntentIdFromSession(session);
     if (paymentIntentId) {
       await recordPayment(admin, {

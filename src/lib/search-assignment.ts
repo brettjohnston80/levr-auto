@@ -58,6 +58,24 @@ export async function assignSearchAtPayment(searchId: string): Promise<void> {
   await assignSearch(searchId, "payment");
 }
 
+/**
+ * Ids of every test customer: an auth email ending ".invalid", the same rule as
+ * is_test_customer() (Step 15). Read from auth.users, never customers.email (which isn't unique
+ * and is only a copy). Pages through every user.
+ */
+export async function testCustomerIds(): Promise<Set<string>> {
+  const admin = createAdminClient();
+  const ids = new Set<string>();
+  for (let page = 1; ; page++) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) throw new Error(`Could not list users: ${error.message}`);
+    const users = data?.users ?? [];
+    for (const u of users) if ((u.email ?? "").toLowerCase().endsWith(".invalid")) ids.add(u.id);
+    if (users.length < 1000) break;
+  }
+  return ids;
+}
+
 // Searches that have ended never need an agent.
 const ENDED_STATUSES = ["switched", "cancelled", "closed"];
 const PAGE = 500;
@@ -68,6 +86,8 @@ export interface SweepCounts {
   assigned: number;
   byMethod: Record<string, number>;
   skippedTest: number;
+  testCustomersExcluded: number; // test customers whose searches were left out of the query
+  wouldAssign?: string[]; // dry run only: the searches it would have passed to assign_search
   unassigned: number;
   errors: { searchId: string; error: string }[];
   stoppedEarly: boolean;
@@ -79,15 +99,24 @@ export interface SweepCounts {
  * searches are never selected, so the sweep never reassigns anything. `onlySearchIds` limits a
  * run to those searches (local and test runs). Stops at `deadline` (ms since epoch) or 2,000.
  */
-export async function assignUnassignedPaidSearches(opts: { onlySearchIds?: string[]; deadline: number }): Promise<SweepCounts> {
+export async function assignUnassignedPaidSearches(opts: { onlySearchIds?: string[]; deadline: number; dryRun?: boolean }): Promise<SweepCounts> {
   const admin = createAdminClient();
-  const counts: SweepCounts = { examined: 0, assigned: 0, byMethod: {}, skippedTest: 0, unassigned: 0, errors: [], stoppedEarly: false };
+  const counts: SweepCounts = { examined: 0, assigned: 0, byMethod: {}, skippedTest: 0, testCustomersExcluded: 0, unassigned: 0, errors: [], stoppedEarly: false };
+  if (opts.dryRun) counts.wouldAssign = [];
   let after: { paidAt: string; id: string } | null = null;
+
+  // Test customers are never auto-assigned, so their searches are left out of the query instead
+  // of being sent to assign_search every hour. assign_search still refuses them (the final word);
+  // this only saves the calls. The list is small (test accounts), so it goes in the filter while it
+  // stays short and is applied in code either way.
+  const testIds = await testCustomerIds();
+  const testIdList = [...testIds];
+  counts.testCustomersExcluded = testIds.size;
 
   while (counts.examined < MAX_PER_RUN) {
     let q = admin
       .from("customer_searches")
-      .select("id, paid_at")
+      .select("id, paid_at, customer_id")
       .not("paid_at", "is", null)
       .is("assigned_agent_id", null)
       .not("search_status", "in", `(${ENDED_STATUSES.join(",")})`)
@@ -95,17 +124,23 @@ export async function assignUnassignedPaidSearches(opts: { onlySearchIds?: strin
       .order("id", { ascending: true })
       .limit(PAGE);
     if (opts.onlySearchIds) q = q.in("id", opts.onlySearchIds.length ? opts.onlySearchIds : ["00000000-0000-0000-0000-000000000000"]);
+    if (testIdList.length > 0 && testIdList.length <= 200) q = q.filter("customer_id", "not.in", `(${testIdList.join(",")})`);
     if (after) q = q.or(`paid_at.gt."${after.paidAt}",and(paid_at.eq."${after.paidAt}",id.gt.${after.id})`);
     const { data, error } = await q;
     if (error) throw new Error(`Could not load unassigned searches: ${error.message}`);
-    const rows = (data ?? []) as { id: string; paid_at: string }[];
+    const rows = (data ?? []) as { id: string; paid_at: string; customer_id: string }[];
 
     for (const row of rows) {
       if (Date.now() > opts.deadline || counts.examined >= MAX_PER_RUN) {
         counts.stoppedEarly = true;
         return counts;
       }
+      if (testIds.has(row.customer_id)) continue; // only reached when the list was too long for the filter
       counts.examined++;
+      if (opts.dryRun) {
+        counts.wouldAssign!.push(row.id);
+        continue;
+      }
       const r = await assignSearch(row.id, "sweep");
       if (!r.ok) {
         counts.errors.push({ searchId: row.id, error: r.error });

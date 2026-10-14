@@ -1,5 +1,7 @@
 "use server";
 
+import { after } from "next/server";
+import { assignSearchAtPayment } from "./search-assignment";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -193,6 +195,11 @@ export async function executeFreeSwitch(
   if (rpcError || !newSearch) {
     return { ok: false, error: `Failed to switch: ${rpcError?.message ?? "unknown error"}` };
   }
+
+  // The new paid row inherits the old row's agent; if the old row was never assigned, assign it
+  // now, after the response (never throws; the hourly sweep is the backstop).
+  const newSearchId = (newSearch as { id: string }).id;
+  after(() => assignSearchAtPayment(newSearchId));
 
   await admin
     .from("customers")

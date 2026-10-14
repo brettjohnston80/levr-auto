@@ -52,9 +52,14 @@ export async function GET(request: NextRequest) {
     if (!isProductionDeploy() && request.nextUrl.searchParams.get("force_error") === "1") {
       throw new Error("forced test error");
     }
+    // Test-only: ?dry_run=1 (ignored in production) lists the searches the sweep would assign
+    // without calling assign_search, so a test can check the selection on a real-style customer
+    // without assigning it to a real agent.
+    const dryRun = !isProductionDeploy() && request.nextUrl.searchParams.get("dry_run") === "1";
     const assignment = await assignUnassignedPaidSearches({
       onlySearchIds: onlySearchIds ?? undefined,
       deadline: started + RUN_BUDGET_MS,
+      dryRun,
     });
     console.log("[agent-sweeps]", JSON.stringify({ job, ms: Date.now() - started, ...assignment }));
     return NextResponse.json({ ok: true, ms: Date.now() - started, assignment });

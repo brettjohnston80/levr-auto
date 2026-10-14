@@ -5,6 +5,8 @@ import { getAuthorizedAgent } from "./agent-auth";
 import { createAdminClient } from "./supabase/admin";
 import { isOfferedModelYear } from "./intake-vehicle-options";
 import { syncListingsForMakeModel } from "./marketcheck-sync";
+import { after } from "next/server";
+import { assignSearchAtPayment } from "./search-assignment";
 
 export interface SwitchSearchResult {
   ok: boolean;
@@ -89,7 +91,7 @@ export async function switchCustomerSearch(formData: FormData): Promise<SwitchSe
     return { ok: false, error: "This search has already been switched." };
   }
 
-  const { error: rpcError } = await admin.rpc("switch_customer_search", {
+  const { data: newSearch, error: rpcError } = await admin.rpc("switch_customer_search", {
     p_old_search_id: oldSearchId,
     p_new_make: newMake,
     p_new_model: newModel,
@@ -103,6 +105,11 @@ export async function switchCustomerSearch(formData: FormData): Promise<SwitchSe
   if (rpcError) {
     return { ok: false, error: `Failed to switch: ${rpcError.message}` };
   }
+
+  // The new paid row inherits the old row's agent; if the old row was never assigned, assign it
+  // now, after the response (never throws; the hourly sweep is the backstop).
+  const newSearchId = (newSearch as { id?: string } | null)?.id;
+  if (newSearchId) after(() => assignSearchAtPayment(newSearchId));
 
   // Guarded "set only if null" write — the equivalent of a
   // coalesce(free_switch_used_at, now()) update, since supabase-js's
