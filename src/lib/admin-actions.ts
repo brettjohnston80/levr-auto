@@ -6,6 +6,8 @@ import "server-only";
 import { getAuthorizedAgent } from "./agent-auth";
 import { createAdminClient } from "./supabase/admin";
 import { isTestEmail } from "./test-accounts";
+import { isProductionDeploy } from "./runtime-env";
+import { chunks, fetchAllPages } from "./supabase/paged";
 
 export interface AdminSearchRow {
   id: string;
@@ -24,8 +26,10 @@ export interface AdminSearchRow {
 
 /**
  * Every customer_searches row, unfiltered -- the /internal/admin table's
- * data source. No pagination per spec; flag if real row counts make that
- * wrong.
+ * data source. Read in pages of 1,000 (PostgREST's silent limit), so the
+ * table really shows every search (Phase 1 Chunk 7). The Assigned agent
+ * column reads customer_searches.assigned_agent_id (Phase 1 Step 4);
+ * customers.assigned_agent_id is unused.
  *
  * Customer identity is resolved through auth.users, not customers.email --
  * customers.email is denormalized/non-unique (see CLAUDE.md's "Key
@@ -46,29 +50,33 @@ export async function getAdminSearches(): Promise<AdminSearchRow[]> {
 
   const admin = createAdminClient();
 
-  const { data: searches, error: searchesError } = await admin
-    .from("customer_searches")
-    .select("id, customer_id, make, model, search_status, paid_at, search_deadline_at, paused_at")
-    .order("created_at", { ascending: false });
-
-  if (searchesError) {
-    throw new Error(`Failed to load admin searches: ${searchesError.message}`);
+  let searches;
+  try {
+    searches = await fetchAllPages((from, to) =>
+      admin
+        .from("customer_searches")
+        .select("id, customer_id, make, model, search_status, paid_at, search_deadline_at, paused_at, assigned_agent_id")
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
+        .range(from, to),
+    );
+  } catch (e) {
+    throw new Error(`Failed to load admin searches: ${e instanceof Error ? e.message : String(e)}`);
   }
-  if (!searches || searches.length === 0) {
+  if (searches.length === 0) {
     return [];
   }
 
-  const customerIds = [...new Set(searches.map((s) => s.customer_id))];
-  const { data: customers, error: customersError } = await admin
-    .from("customers")
-    .select("id, email, first_name, last_name, assigned_agent_id")
-    .in("id", customerIds);
-
-  if (customersError) {
-    throw new Error(`Failed to load customers for admin table: ${customersError.message}`);
+  const customers: { id: string; email: string | null; first_name: string | null; last_name: string | null }[] = [];
+  for (const ids of chunks([...new Set(searches.map((s) => s.customer_id))])) {
+    const { data, error: customersError } = await admin.from("customers").select("id, email, first_name, last_name").in("id", ids);
+    if (customersError) {
+      throw new Error(`Failed to load customers for admin table: ${customersError.message}`);
+    }
+    customers.push(...(data ?? []));
   }
 
-  const agentIds = [...new Set((customers ?? []).map((c) => c.assigned_agent_id).filter((id): id is string => id !== null))];
+  const agentIds = [...new Set(searches.map((s) => s.assigned_agent_id).filter((id): id is string => id !== null))];
   const agentNameById = new Map<string, string>();
   if (agentIds.length > 0) {
     const { data: agents, error: agentsError } = await admin.from("agents").select("id, name").in("id", agentIds);
@@ -80,27 +88,33 @@ export async function getAdminSearches(): Promise<AdminSearchRow[]> {
     }
   }
 
-  // Batch-resolve real emails from auth.users -- perPage:1000 covers this
-  // project's current scale in one call; the same pagination gotcha noted
-  // elsewhere in this codebase (default listUsers() only returns page 1)
-  // is why this is explicit rather than a bare call.
+  // Real emails from auth.users, page by page until a short page (listUsers
+  // returns one page per call; one call used to stop at the first 1,000
+  // users). Test-only, never honoured in production:
+  // AGENT_ADMIN_USERS_PAGE_SIZE makes the pages small, so a test can show
+  // the paging works without creating 1,000 users.
+  const forcedPageSize = isProductionDeploy() ? NaN : Number(process.env.AGENT_ADMIN_USERS_PAGE_SIZE);
+  const perPage = Number.isInteger(forcedPageSize) && forcedPageSize > 0 ? forcedPageSize : 1000;
   const emailById = new Map<string, string>();
-  const { data: usersPage, error: usersError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-  if (usersError) {
-    throw new Error(`Failed to load auth users for admin table: ${usersError.message}`);
-  }
-  for (const u of usersPage.users) {
-    if (u.email) {
-      emailById.set(u.id, u.email);
+  for (let page = 1; ; page++) {
+    const { data: usersPage, error: usersError } = await admin.auth.admin.listUsers({ page, perPage });
+    if (usersError) {
+      throw new Error(`Failed to load auth users for admin table: ${usersError.message}`);
     }
+    for (const u of usersPage.users) {
+      if (u.email) {
+        emailById.set(u.id, u.email);
+      }
+    }
+    if (usersPage.users.length < perPage) break;
   }
 
-  const customerById = new Map((customers ?? []).map((c) => [c.id, c]));
+  const customerById = new Map(customers.map((c) => [c.id, c]));
 
   return searches.map((search) => {
     const customer = customerById.get(search.customer_id);
     const resolvedEmail = customer ? (emailById.get(customer.id) ?? customer.email) : null;
-    const assignedAgentName = customer?.assigned_agent_id ? (agentNameById.get(customer.assigned_agent_id) ?? null) : null;
+    const assignedAgentName = search.assigned_agent_id ? (agentNameById.get(search.assigned_agent_id) ?? null) : null;
 
     return {
       id: search.id,

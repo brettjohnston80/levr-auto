@@ -1,3 +1,4 @@
+import { chunks, fetchAllPages } from "./supabase/paged";
 import { deliveryEstimateStandard, type DeliveryEstimate, type DeliveryEstimateStatus } from "./delivery-estimate";
 import { getLastSyncedAt } from "./marketcheck-sync";
 import "server-only";
@@ -1123,6 +1124,9 @@ export async function getVehicleConsultationQueue(): Promise<VehicleConsultation
     .select("id, customer_id, paid_at")
     .is("make", null)
     .not("paid_at", "is", null)
+    // Only searches still waiting for their vehicle to be chosen; a cancelled (or otherwise
+    // ended) undecided search drops out (Phase 1 Chunk 7).
+    .eq("search_status", "awaiting_finalization")
     .order("paid_at", { ascending: true });
 
   if (searchesError) {
@@ -1254,26 +1258,37 @@ export interface NotificationCallbackQueueItem {
 export async function getNotificationCallbackQueue(): Promise<NotificationCallbackQueueItem[]> {
   const supabase = createAdminClient();
 
-  const { data: allUnresolved, error } = await supabase
-    .from("notification_events")
-    .select("id, customer_id, customer_search_id, event_type, agent_callback_requested_at, flagged_no_deliverable_channel, created_at")
-    .is("flag_resolved_at", null)
-    .order("created_at", { ascending: true });
-
-  if (error) {
-    throw new Error(`Failed to load notification callback queue: ${error.message}`);
+  // Only the events that need an agent (a callback request or an undeliverable flag), filtered in
+  // the database and paged (Phase 1 Chunk 7). Before, every unresolved event was read and filtered
+  // here, and the read stopped silently at 1,000 rows, so newer callbacks went missing.
+  let events;
+  try {
+    events = await fetchAllPages((from, to) =>
+      supabase
+        .from("notification_events")
+        .select("id, customer_id, customer_search_id, event_type, agent_callback_requested_at, flagged_no_deliverable_channel, created_at")
+        .is("flag_resolved_at", null)
+        .or("agent_callback_requested_at.not.is.null,flagged_no_deliverable_channel.eq.true")
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to),
+    );
+  } catch (e) {
+    throw new Error(`Failed to load notification callback queue: ${e instanceof Error ? e.message : String(e)}`);
   }
-
-  const events = (allUnresolved ?? []).filter((e) => e.agent_callback_requested_at || e.flagged_no_deliverable_channel);
   if (events.length === 0) return [];
 
-  const searchIds = [...new Set(events.map((e) => e.customer_search_id))];
-  const { data: searches } = await supabase.from("customer_searches").select("id, make, model").in("id", searchIds);
-  const searchById = new Map((searches ?? []).map((s) => [s.id, s]));
+  const searchById = new Map<string, { id: string; make: string | null; model: string | null }>();
+  for (const ids of chunks([...new Set(events.map((e) => e.customer_search_id))])) {
+    const { data } = await supabase.from("customer_searches").select("id, make, model").in("id", ids);
+    for (const s of data ?? []) searchById.set(s.id, s);
+  }
 
-  const customerIds = [...new Set(events.map((e) => e.customer_id))];
-  const { data: customers } = await supabase.from("customers").select("id, email").in("id", customerIds);
-  const customerEmailById = new Map((customers ?? []).map((c) => [c.id, c.email as string]));
+  const customerEmailById = new Map<string, string>();
+  for (const ids of chunks([...new Set(events.map((e) => e.customer_id))])) {
+    const { data } = await supabase.from("customers").select("id, email").in("id", ids);
+    for (const c of data ?? []) customerEmailById.set(c.id, c.email as string);
+  }
 
   return events.map((e) => {
     const search = searchById.get(e.customer_search_id);
