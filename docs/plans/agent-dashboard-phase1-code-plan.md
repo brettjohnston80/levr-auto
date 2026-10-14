@@ -442,11 +442,12 @@ The stored codes are the neutral ones Brett approved on 2026-10-11. The labels a
 8. **Watch:**
    - the next scheduled `:15` sweep runs (cron log) with `assigned 0`;
    - the next real payment, if any, gets an agent within seconds (webhook) rather than waiting for the sweep.
-8b. **Brett's agent login cutover (Chunk 1f, section 7.7)**, after the sweep checks:
-   1. invite the new agent address;
-   2. Brett sets a password and enrolls two-factor;
-   3. run `relink_agent_login`;
-   4. check the old login can't reach `/internal/*` and the new one can, with two-factor.
+8b. **Brett's agent login cutover (Chunk 1f, section 7.7): proposed 2026-10-14, pending Brett's approval; it replaces the order below.** Part A runs BEFORE step 3 (old access still works), Part B straight after step 4 (Ready), before the sweep:
+   - **Part A, before the merge:** `scripts/agent-cutover-prepare.mjs` (on the branch dev server) adds a temporary holder row (a test agent) and the new agent-only login `brett@levrauto.com` linked to it, and writes a one-time setup link to a private file. Brett sets a password, enrolls two-factor and signs in again with both, on the branch's local server against the production database. His `bjohnston@` access is untouched.
+   - **Part B, right after Ready:** one SQL Editor transaction removes the holder and runs `relink_agent_login` (actor LEVRID 1, no flag route needed: it sets its own). Brett signs in at `www.levrauto.com/agent`.
+   - **Rollback after Part B:** Vercel Instant Rollback, then put `bjohnston@levrauto.com` back on LEVRID 1's email (today's code matches agents by email).
+   - Rehearsed with stand-in test accounts, 24/24 (2026-10-14).
+   - *Original order, kept for the record:* invite the new address; Brett sets a password and enrolls; run `relink_agent_login`; check old and new. It couldn't work as written: the setup pages need the login linked to an active agent row, and linking it to LEVRID 1 ends the old access before two-factor is proven.
 9. **Roll back** if anything in 5–8 is wrong: Vercel "Instant Rollback" to the previous production deployment. The database needs no rollback; the Phase 1 data stays valid and unused by the old code.
 
 ---
@@ -594,6 +595,15 @@ Today, every new Supabase login gets a `customers` row from the `handle_new_user
 - **No internal route for resets:** a shared secret plus a caller-supplied actor would let anyone with the secret act as any admin, and it would reuse the cron secret for a different job. The reset is a **"Reset two-factor" action on the Chunk 1g Add-agent page**, behind agent sign-in and two-factor, with the actor taken from the session and the same role rules. Until 1g, resets aren't needed (Brett is the only agent).
 - **Reset email wording signed off** with "right away": `{lead/admin name} reset your two-factor sign-in. The next time you sign in, you'll set it up again. If you didn't ask for this, contact {lead/admin name} right away.` Route-era messages signed off and kept for the 1g action: `You can't reset your own two-factor sign-in.`, `Only leads and admins can reset an agent's two-factor sign-in.`, `Only admins can reset a lead's or an admin's two-factor sign-in.`, `That agent hasn't set up a login yet.`, `Agent not found.`, `Could not sign the agent out: …`.
 - **C16 approved as tested.**
+
+**Chunk 1g review (Brett, 2026-10-14): approved, branch pushed at `5aef2c9`.**
+- **Wording signed off as shown**, including the help line with "1 hour" and all the new list, status and reset text.
+- **Test agents are shown with a TEST badge outside production only**; in production they're hidden (Step 13).
+- **Rotation defaults confirmed by test:** the form sends no rotation value for a real `@levrauto.com` address (`add_agent` then defaults agent = in rotation, lead/admin = out), and `false` for a test address. Checked at both layers: the real `addAgent` with the database call captured (nothing written), and `add_agent` called directly with test addresses (no LEVRID spent).
+- **A LEVRID is spent when someone is added**, so adding with a typo'd email uses up that number. The fix is to deactivate that row and add the person again. Editing an agent's email can come with the Phase 3 team screen.
+- **For the Phase 3 shell:** long emails wrap mid-address in the Work email column; handle it in the new layout.
+
+**Found in the 1f rehearsal (2026-10-14): sign-outs that should be this browser only.** `signOut()` ends every session on the login by default. A customer (or Brett's old login) refused at `/agent` was signed out of their other devices too, and an idle device would sign an agent out of the device they were actively using. The refusals (agent sign-in, customer `/login` refusing an agent, setup-link accept) and the 8-hour idle sign-out now use `scope: "local"`; the header Sign out is unchanged. Branch commit `eace17f`, pending Brett's review.
 
 **Forgot password: open question C15 (Brett to choose; not built).**
 - **(a) Recommended: self-serve reset by email to the work address.**
