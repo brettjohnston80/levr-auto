@@ -579,6 +579,8 @@ Today, every new Supabase login gets a `customers` row from the `handle_new_user
 **Chunk 1d review (Brett, 2026-10-13):**
 - **Agent header wording signed off:** `LEVR Auto · Agent` · `{agent name} (LEVRID {n})` · `Sign out`, busy `Signing out…`. A test agent with no LEVRID shows just the name.
 - **The pages' own "Signed in as … (email)" lines are removed when the Phase 3 shell lands** (the header now says who is signed in). Not before.
+- **For the Phase 3 shell (Brett, 2026-10-13):** the `/internal` pages are dark while the `/agent` sign-in pages are light, so pick one look for both; and on phones the agent header wraps onto two lines (logo, then name and Sign out), which the shell should fit on one.
+- **Link lifetime confirmed:** Supabase Email OTP Expiration is 3600 seconds, so the emails say "expires in 1 hour" (`SETUP_LINK_LIFETIME_SECONDS`).
 - Agreed: the idle timer counts from the later of the last request and the last sign-in; agent logins are sent away from customer pages; Brett's current agent access ends at deploy until 1f moves him to `brett@levrauto.com`.
 - The three page-only loaders (`getAdminSearches`, `getUnconfirmedAliases`, `getConfirmedDealerships`) are no longer server actions; all 41 remaining agent actions were called directly with no session, a customer session and a password-only agent session: 123 of 123 refused with "Not authorized.", no table changed.
 
