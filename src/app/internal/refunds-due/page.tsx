@@ -43,6 +43,7 @@ export default async function RefundsDuePage() {
             resolvedLabel: formatDate(row.resolvedAt),
             paymentId: row.paymentId,
             remainingCents: row.remainingCents,
+            parts: row.parts.map((p) => ({ kind: p.kind, amountCents: p.remainingCents })),
           }))}
         />
       </div>

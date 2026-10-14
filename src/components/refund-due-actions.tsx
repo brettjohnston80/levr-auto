@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { issueGuaranteeRefund, recordExistingGuaranteeRefund } from "@/lib/guarantee-refund-actions";
-import { formatRefundAmount } from "@/lib/refund-format";
+import { describeRefundParts, formatRefundAmount, type RefundPartKind } from "@/lib/refund-format";
 
 export interface RefundDueRow {
   id: string;
@@ -12,6 +12,8 @@ export interface RefundDueRow {
   resolvedLabel: string;
   paymentId: string | null;
   remainingCents: number;
+  /** Each fee with money left: the $699 first, then any $100 switch fees. */
+  parts: { kind: RefundPartKind; amountCents: number }[];
 }
 
 /**
@@ -23,13 +25,24 @@ export function RefundsDueList({ initialRows }: { initialRows: RefundDueRow[] })
   const [rows, setRows] = useState(initialRows);
   const [done, setDone] = useState<{ who: string; message: string }[]>([]);
 
-  function onDone(row: RefundDueRow, message: string, refundedCents: number) {
-    setDone((d) => [{ who: row.customerName ?? row.customerEmail ?? "Customer", message }, ...d]);
+  // partKind: the fee a recorded refund belongs to; otherwise the refunded amount comes off the
+  // front ($699 first), the order Issue refund works in.
+  function onDone(row: RefundDueRow, message: string | null, refundedCents: number, partKind?: RefundPartKind) {
+    if (message) setDone((d) => [{ who: row.customerName ?? row.customerEmail ?? "Customer", message }, ...d]);
     setRows((rs) =>
       rs.flatMap((r) => {
         if (r.id !== row.id) return [r];
         const remaining = r.remainingCents - refundedCents;
-        return remaining > 0 ? [{ ...r, remainingCents: remaining }] : [];
+        // Fees are refunded in order ($699 first), so take the refunded amount off the front.
+        let left = refundedCents;
+        const ordered = partKind ? [...r.parts.filter((p) => p.kind === partKind), ...r.parts.filter((p) => p.kind !== partKind)] : r.parts;
+        const parts = ordered.flatMap((p) => {
+          const take = Math.min(left, p.amountCents);
+          left -= take;
+          return p.amountCents - take > 0 ? [{ ...p, amountCents: p.amountCents - take }] : [];
+        });
+        parts.sort((x, y) => (x.kind === y.kind ? 0 : x.kind === "search_fee" ? -1 : 1)); // $699 first
+        return remaining > 0 ? [{ ...r, remainingCents: remaining, parts }] : [];
       }),
     );
   }
@@ -66,7 +79,7 @@ export function RefundsDueList({ initialRows }: { initialRows: RefundDueRow[] })
   );
 }
 
-function RefundDueItem({ row, onDone }: { row: RefundDueRow; onDone: (row: RefundDueRow, message: string, refundedCents: number) => void }) {
+function RefundDueItem({ row, onDone }: { row: RefundDueRow; onDone: (row: RefundDueRow, message: string | null, refundedCents: number, partKind?: RefundPartKind) => void }) {
   const [mode, setMode] = useState<"idle" | "confirm" | "record">("idle");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,6 +102,8 @@ function RefundDueItem({ row, onDone }: { row: RefundDueRow; onDone: (row: Refun
     else {
       setError(res.error);
       setMode("idle");
+      // Part of it went through before the error: show what's left.
+      if (res.refundedCents) onDone(row, null, res.refundedCents);
     }
   }
 
@@ -101,7 +116,7 @@ function RefundDueItem({ row, onDone }: { row: RefundDueRow; onDone: (row: Refun
     inFlight.current = false;
     setBusy(false);
     if (res.ok) {
-      onDone(row, res.message, res.amountCents);
+      onDone(row, res.message, res.amountCents, res.partKind);
       setRefundId("");
       setMode("idle");
     } else setError(res.error);
@@ -126,7 +141,9 @@ function RefundDueItem({ row, onDone }: { row: RefundDueRow; onDone: (row: Refun
         {mode === "confirm" ? (
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
             <p className="text-amber-200">
-              {`Refund ${amount} to ${who} for the Day-30 guarantee? This sends the money back through Stripe and can't be undone.`}
+              {row.parts.length > 1 || row.parts[0]?.kind === "switch_fee"
+                ? `Refund ${amount} to ${who} for the Day-30 guarantee (${describeRefundParts(row.parts)})? This sends the money back through Stripe and can't be undone.`
+                : `Refund ${amount} to ${who} for the Day-30 guarantee? This sends the money back through Stripe and can't be undone.`}
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <button

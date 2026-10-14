@@ -13,6 +13,14 @@ export interface RefundDueSearch {
   /** The $699 search-fee payment the guarantee refunds, or null when none is recorded. */
   paymentId: string | null;
   amountCents: number;
+  /** Everything still refundable: the $699 plus any $100 paid-switch fees on the chain. */
+  remainingCents: number;
+  /** Each fee with money left, $699 first (for the confirm text). */
+  parts: RefundPart[];
+}
+
+export interface RefundPart {
+  kind: "search_fee" | "switch_fee";
   remainingCents: number;
 }
 
@@ -27,25 +35,36 @@ export interface GuaranteePayment {
 
 type Admin = ReturnType<typeof createAdminClient>;
 
+export interface GuaranteePayments {
+  /** The $699 search fee (on the original search of a switch chain), or null. */
+  searchFee: GuaranteePayment | null;
+  /** Every $100 paid-switch fee on the chain (each lands on the search the switch created). */
+  switchFees: GuaranteePayment[];
+}
+
+const PAYMENT_COLUMNS = "id, search_id, customer_id, stripe_payment_intent_id, amount_cents, refunded_cents, payment_type";
+
 /**
- * The $699 search-fee payment a search's Day-30 guarantee refunds. Usually it's on the search
- * itself; after a switch the fee sits on the search it replaced (the replacement was paid by a
- * switch fee, or free), so this follows the switch chain back (old.superseded_by_id = this one)
- * until it finds one. At most 20 steps, so a bad chain can never loop.
+ * Every fee the Day-30 guarantee refunds for a search (decided by Brett 2026-10-14): the $699
+ * search fee and any $100 paid-switch fees, following the switch chain back (old.superseded_by_id
+ * = this one) to the original search. At most 20 steps, so a bad chain can never loop.
  */
-export async function findGuaranteePayment(admin: Admin, searchId: string): Promise<GuaranteePayment | null> {
+export async function findGuaranteePayments(admin: Admin, searchId: string): Promise<GuaranteePayments> {
+  const result: GuaranteePayments = { searchFee: null, switchFees: [] };
   let current: string | null = searchId;
   for (let step = 0; current && step < 20; step++) {
-    const { data: payment, error } = await admin
+    const { data: payments, error } = await admin
       .from("payments")
-      .select("id, search_id, customer_id, stripe_payment_intent_id, amount_cents, refunded_cents")
+      .select(PAYMENT_COLUMNS)
       .eq("search_id", current)
-      .eq("payment_type", "search_fee")
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    if (error) throw new Error(`Could not load the payment: ${error.message}`);
-    if (payment) return payment as GuaranteePayment;
+      .in("payment_type", ["search_fee", "switch_fee"])
+      .order("created_at", { ascending: true });
+    if (error) throw new Error(`Could not load the payments: ${error.message}`);
+    for (const p of (payments ?? []) as (GuaranteePayment & { payment_type: string })[]) {
+      if (p.payment_type === "switch_fee") result.switchFees.push(p);
+      else if (!result.searchFee) result.searchFee = p;
+    }
+    if (result.searchFee) break;
     const { data: previous }: { data: { id: string } | null } = await admin
       .from("customer_searches")
       .select("id")
@@ -53,7 +72,8 @@ export async function findGuaranteePayment(admin: Admin, searchId: string): Prom
       .maybeSingle();
     current = previous?.id ?? null;
   }
-  return null;
+  result.switchFees.reverse(); // oldest switch first
+  return result;
 }
 
 /**
@@ -110,8 +130,11 @@ export async function getRefundsDueQueue(): Promise<RefundDueSearch[]> {
   const rows: RefundDueSearch[] = [];
   for (const search of realSearches) {
     const customer = customerById.get(search.customer_id);
-    const payment = await findGuaranteePayment(admin, search.id);
-    const remainingCents = payment ? payment.amount_cents - payment.refunded_cents : 0;
+    const { searchFee: payment, switchFees } = await findGuaranteePayments(admin, search.id);
+    const parts: RefundPart[] = [];
+    if (payment && payment.amount_cents > payment.refunded_cents) parts.push({ kind: "search_fee", remainingCents: payment.amount_cents - payment.refunded_cents });
+    if (payment) for (const f of switchFees) if (f.amount_cents > f.refunded_cents) parts.push({ kind: "switch_fee", remainingCents: f.amount_cents - f.refunded_cents });
+    const remainingCents = parts.reduce((sum, x) => sum + x.remainingCents, 0);
     if (payment && remainingCents === 0) {
       const { count } = await admin
         .from("refunds")
@@ -131,6 +154,7 @@ export async function getRefundsDueQueue(): Promise<RefundDueSearch[]> {
       paymentId: payment?.id ?? null,
       amountCents: payment?.amount_cents ?? 0,
       remainingCents,
+      parts,
     });
   }
   return rows;
