@@ -178,6 +178,7 @@ Review: `docs/research/configurator-wave2-review-2026-10-14.md`; Brett's decisio
 3. MarketCheck licensing/pricing (production tier ~ $749/mo + data fee; `LISTING_PHOTOS_ENABLED` is false).
 4. Stripe live mode — **waits for the offer-entry phase** (then: live keys, live webhook at the `www` URL, receipts, a real payment + refund test).
 5. Preview/Production database split (both point at the production Supabase today).
+6. **The guarantee for manufacturer-set-price makes (before Lucid or Polestar go live; Brett, 2026-10-15).** Lucid sells direct and Polestar through an agency model, so agents may be unable to get below Total Suggested Retail Price and every customer could qualify for the Day-30 refund. Decide: separate guarantee terms, different customer-facing copy, or holding those makes back. See Wave 2 D8.
 
 ### End-of-build sequence (Brett, 2026-10-14; roadmap: `docs/plans/build-completion-roadmap.md`)
 After building is complete and **before costing out running the business**:
