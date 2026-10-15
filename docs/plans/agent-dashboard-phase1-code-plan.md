@@ -283,11 +283,17 @@ Found by a codebase-wide sweep after a test cleanup hit PostgREST's silent 1,000
 - the offer-activity and general-thread queues' customer lookups (`outreach-queue.ts`, `.in("id", customerIds)` with names).
 
 ### Chunk 8: deploy rehearsal (no push)
+**Rehearsed 2026-10-14/15:** merge onto `main` with no conflicts (27 commits, 89 files), `tsc`, `next build --webpack` and lint (the same 9 older errors as `main`) all clean; every chunk's tests passed in one pass (two harness-only stops reran clean: c6-A 24/24, the 1f rehearsal 24/24); the six changed job routes checked under production settings against a stub database (no `?only=` → `scoped: false` and the same queries as `main`; `?only=` → `[job-scoped]` log, `scoped: true` with the ids); cleanup by count 0, Brett's activity 2 → 2.
 - Full `next build`, `tsc --noEmit` and lint.
 - One local end-to-end pass of chunks 3–7 together, on fresh scratch accounts.
 - A written diff summary for Brett.
 - The `vercel.json` branch setting is removed in the merge commit.
 - The deploy-day checklist (section 5) is filled in with the exact commands.
+- **Where the changed scheduled jobs run (added 2026-10-14, `src/lib/job-scope.ts`):** the Day-60 reminder, pause and resume-reminder jobs, the notification digest and the article reminder (their code changed in Phase 1) follow the same rule as the assignment sweep:
+  - **production:** runs the whole job, as Vercel Cron does. A manual call with `?only=<id>,<id>` (it needs `CRON_SECRET`) **is honoured, not ignored**: it limits that run to the named ids. Vercel Cron never sends `?only=`, so scheduled runs are always the whole job;
+  - **preview build:** never runs;
+  - **local and anything else:** refused unless `?only=` names the ids.
+  - **A scoped run is always visible (Brett, 2026-10-14):** it logs `[job-scoped] {job} scoped ids=…`, and its JSON response includes `scoped: true` and the ids, so a manual run is never mistaken for a scheduled one. An unscoped run returns `scoped: false`. The agent sweep does the same for `?only=` (searches) and `?alerts=` (alerts).
 
 ---
 
@@ -423,6 +429,7 @@ The stored codes are the neutral ones Brett approved on 2026-10-11. The labels a
   - the assignment sweep pages 500 at a time, with a soft cap of 2,000 searches a run;
   - alerts go 50 at a time.
   - Each run returns its counts in the JSON response, so a manual run shows exactly what happened.
+- **A manual run limited to named ids** (`?only=`, and `?alerts=` for the sweep) works in production too: it is logged as `[job-scoped]` and its response says `scoped: true` with the ids (see Chunk 8). Scheduled runs never send it.
 
 ---
 

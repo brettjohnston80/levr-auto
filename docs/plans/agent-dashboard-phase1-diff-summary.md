@@ -1,6 +1,6 @@
 # Agent dashboard Phase 1: what the deploy changes (written for Brett, 2026-10-14)
 
-The branch `agent-dashboard-phase1-code` against `main`: **89 files** under `src/`, `scripts/` and `vercel.json` (45 new, 44 changed; about 4,900 lines added, 500 removed). The database side (Steps 1–16) is already applied in production; nothing in the deploy changes the database. A merge rehearsal (2026-10-14) rebased the branch onto `main` with no conflicts, and the merged result type-checks and builds; lint shows the same 9 older errors as `main`, none new.
+The branch `agent-dashboard-phase1-code` against `main`: **89 files** under `src/`, `scripts/` and `vercel.json` (45 new, 44 changed; about 5,040 lines added, 530 removed). The database side (Steps 1–16) is already applied in production; nothing in the deploy changes the database. A merge rehearsal (2026-10-14, repeated 2026-10-15 on the final branch tip) rebased the branch (27 commits) onto `main` with no conflicts, and the merged result type-checks and builds; lint shows the same 9 older errors as `main`, none new.
 
 ## What customers notice
 Almost nothing, by design. No customer-facing wording changes (plan section 3.7).
@@ -21,7 +21,7 @@ Almost nothing, by design. No customer-facing wording changes (plan section 3.7)
 
 ## Behind the scenes
 - **Safety rails:** the app tells local, preview and production apart; preview builds never run side effects; agent email outside production is logged, never sent; `.invalid` addresses never receive email. *(Chunk 0)*
-- **Scheduled jobs:** the new `agent-sweeps` cron at `15 * * * *`. The Day-60 reminder, pause and resume-reminder jobs, the notification digest and the article reminder run unchanged in production, but outside production they now run only on the ids named in `?only=` (so testing can never touch real or tester data). *(Chunk 8)*
+- **Scheduled jobs:** the new `agent-sweeps` cron at `15 * * * *`. The Day-60 reminder, pause and resume-reminder jobs, the notification digest and the article reminder run unchanged when Vercel Cron starts them in production. Outside production they run only on the ids named in `?only=`, so testing can never touch real or tester data. In production a manual call with `?only=` (it needs `CRON_SECRET`) limits that run to the named ids; such a run is logged as `[job-scoped]` and its response says `scoped: true` with the ids, so it can't be mistaken for a scheduled run. *(Chunk 8)*
 - **Paging helpers** (`src/lib/supabase/paged.ts`) for reads past 1,000 rows and long id lists.
 - **`vercel.json`:** adds the `agent-sweeps` cron; the branch's "no preview builds" line is removed in the merge commit.
 
