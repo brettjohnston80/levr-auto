@@ -1,4 +1,4 @@
-import { jobScope } from "@/lib/job-scope";
+import { jobScope, scopeReport } from "@/lib/job-scope";
 import { NextRequest, NextResponse } from "next/server";
 import { sendNotificationDigests } from "@/lib/notification-digest";
 
@@ -20,10 +20,14 @@ export async function GET(request: NextRequest) {
   if (!scope.allowed) {
     return NextResponse.json({ ok: true, skipped: scope.reason });
   }
+  // A scoped run (?only=) is logged and says so in the response, so it is never taken for a
+  // scheduled one.
+  const report = scopeReport("notification-digest", scope.onlyIds);
   const summary = await sendNotificationDigests({ onlyCustomerIds: scope.onlyIds });
 
   return NextResponse.json({
     ok: true,
+    ...report,
     sent: summary.sent,
     errors: summary.errors,
   });

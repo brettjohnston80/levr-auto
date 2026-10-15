@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isProductionDeploy } from "@/lib/runtime-env";
 import { assignUnassignedPaidSearches, sweepScope } from "@/lib/search-assignment";
 import { alertScope, sendPendingAgentAlerts } from "@/lib/agent-alerts";
+import { scopeReport } from "@/lib/job-scope";
 
 /**
  * Vercel Cron target, hourly at :15 (vercel.json; plan section 4). It runs the assignment sweep,
@@ -50,6 +51,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: true, skipped: "another run is in progress" });
   }
 
+  // A scoped run (?only= / ?alerts=) is logged and says so in the response, so it is never taken
+  // for a scheduled one.
+  const report = scopeReport(job, { searches: onlySearchIds, alerts: onlyAlertIds });
   const started = Date.now();
   try {
     // Test-only: ?force_error=1 (ignored in production) throws mid-run, to show the lock is still
@@ -71,8 +75,8 @@ export async function GET(request: NextRequest) {
     // Alerts last, so any raised by this run's assignments go out in the same run. A dry run
     // sends nothing.
     const alerts = alertsAllowed.allowed && !dryRun ? await sendPendingAgentAlerts({ onlyAlertIds: onlyAlertIds ?? undefined }) : null;
-    console.log("[agent-sweeps]", JSON.stringify({ job, ms: Date.now() - started, assignment, alerts }));
-    return NextResponse.json({ ok: true, ms: Date.now() - started, assignment, alerts });
+    console.log("[agent-sweeps]", JSON.stringify({ job, ...report, ms: Date.now() - started, assignment, alerts }));
+    return NextResponse.json({ ok: true, ...report, ms: Date.now() - started, assignment, alerts });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error("[agent-sweeps] failed", message);

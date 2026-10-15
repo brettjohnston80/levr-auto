@@ -1,4 +1,4 @@
-import { jobScope } from "@/lib/job-scope";
+import { jobScope, scopeReport } from "@/lib/job-scope";
 import { NextRequest, NextResponse } from "next/server";
 import { sendDay60Reminders } from "@/lib/day60-extension";
 
@@ -20,10 +20,14 @@ export async function GET(request: NextRequest) {
   if (!scope.allowed) {
     return NextResponse.json({ ok: true, skipped: scope.reason });
   }
+  // A scoped run (?only=) is logged and says so in the response, so it is never taken for a
+  // scheduled one.
+  const report = scopeReport("day60-deadline-reminder", scope.onlyIds);
   const summary = await sendDay60Reminders({ onlySearchIds: scope.onlyIds });
 
   return NextResponse.json({
     ok: true,
+    ...report,
     remindersSent: summary.remindersSent,
     errors: summary.errors,
   });
