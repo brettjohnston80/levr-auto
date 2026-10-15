@@ -104,7 +104,7 @@ Plan: `docs/plans/agent-dashboard-phase1-plan.md` (database) and `docs/plans/age
 
 ### Agent dashboard Phase 1 — code (branch `agent-dashboard-phase1-code`)
 - **Where:** git worktree `/Users/brettjohnston/Projects/levr-auto-phase1`. Claude's dev server there is `npx next dev --webpack -p 3100` (never Brett's `:3000`); production builds there need `next build --webpack` (Turbopack refuses the worktree's linked `node_modules`). Preview builds are off for this branch (`vercel.json` branch setting, removed in the merge commit).
-- **Hashes:** pushed to `origin` at **`d617bb4`** (Chunks 0–6). **Nothing from the branch is deployed.** Deploy only after the tester round, on Brett's go-ahead (code plan section 5.2).
+- **Hashes:** pushed to `origin` at **`6e46944`** (Chunks 0–7). **Nothing from the branch is deployed.** Deploy only after the tester round, on Brett's go-ahead (code plan section 5.2).
 
 | Chunk | What it does | Status |
 |---|---|---|
@@ -115,7 +115,7 @@ Plan: `docs/plans/agent-dashboard-phase1-plan.md` (database) and `docs/plans/age
 | 4 | Alert-email sweep (see below) | approved, pushed |
 | 5 | Guarantee refunds on `/internal/refunds-due`; per-refund Reason on the cancellation form | approved, pushed |
 | 6 | Call-request resolution; call-request email to the assigned agent only; asking again after a resolution; the customer's own switch/cancel closes an open request (Step 16) | approved, pushed (24/24 + 4/4, 2026-10-14) |
-| 7 | Queue fixes: the callback queue's 1,000-row limit (paging), the admin table's Assigned agent column from `customer_searches.assigned_agent_id` (paged), the vehicle-consultation queue dropping cancelled searches | not started |
+| 7 | Queue fixes: the callback queue filters to events needing an agent in the database and pages (5 of 5 callbacks past the first 1,000 events, was 0); the admin table reads every search in pages of 1,000 (1,012 of 1,012 rows, was 999), its Assigned agent column reads `customer_searches.assigned_agent_id`, and login emails are resolved page by page; the vehicle-consultation queue keeps only `awaiting_finalization` searches. Shared helper `src/lib/supabase/paged.ts` (`fetchAllPages`, `chunks`) | approved, pushed (2026-10-14) |
 | 8 | Deploy rehearsal: full build, one end-to-end pass of chunks 3–7, written diff summary, the filled-in deploy checklist; no push | not started |
 
 **Sign-in model (Chunk 1; code plan section 7):**
@@ -188,7 +188,7 @@ After building is complete and **before costing out running the business**:
 **Running documents** (created 2026-10-14 and backfilled with everything approved in Phase 1; **update both in the same commit as each chunk's approval**): `docs/business/site-language-inventory.md` (every approved wording, by page/flow/email, where it appears, date approved) and `docs/business/agent-process-reference.md` (each agent workflow, written for agents).
 
 ### All open follow-ups, in priority order
-1. Chunk 7 (queue fixes), then Chunk 8 (deploy rehearsal); deploy after the tester round.
+1. Chunk 8 (deploy rehearsal; plan and checklist first, Brett approves); the codebase-wide sweep for unpaged queries (Brett chooses what to fix now vs. in the offer-entry phase); deploy after the tester round.
 2. Tester round: triage tester notes as they arrive.
 3. Wave 2 configurator: Cowork re-pass, the import mapping step, the name-only MarketCheck check, imports.
 4. Launch items above.
