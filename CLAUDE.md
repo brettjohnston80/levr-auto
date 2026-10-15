@@ -185,6 +185,8 @@ After building is complete and **before costing out running the business**:
 2. **Agent training and reference materials:** onboarding/training plus a "how do I…" quick reference, matched to the roles (agent, lead, admin).
 3. **Then costing.**
 
+**System models** (Mermaid, `docs/business/system-models/`, for the final review and training; roadmap lists the set): a Phase 1 pilot comes after the Chunk 8 rehearsal is reviewed (context diagram, search state machine, payment-to-assignment sequence, traceability matrix for assignment and sign-in); Brett picks notation and detail, then they're kept current with each approval.
+
 **Running documents** (created 2026-10-14 and backfilled with everything approved in Phase 1; **update both in the same commit as each chunk's approval**): `docs/business/site-language-inventory.md` (every approved wording, by page/flow/email, where it appears, date approved) and `docs/business/agent-process-reference.md` (each agent workflow, written for agents).
 
 ### All open follow-ups, in priority order
