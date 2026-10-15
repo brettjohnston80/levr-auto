@@ -104,7 +104,7 @@ Plan: `docs/plans/agent-dashboard-phase1-plan.md` (database) and `docs/plans/age
 
 ### Agent dashboard Phase 1 — code (branch `agent-dashboard-phase1-code`)
 - **Where:** git worktree `/Users/brettjohnston/Projects/levr-auto-phase1`. Claude's dev server there is `npx next dev --webpack -p 3100` (never Brett's `:3000`); production builds there need `next build --webpack` (Turbopack refuses the worktree's linked `node_modules`). Preview builds are off for this branch (`vercel.json` branch setting, removed in the merge commit).
-- **Hashes:** pushed to `origin` at **`1d95e28`** (Chunks 0–8). **Nothing from the branch is deployed.** Deploy only after the tester round, on Brett's go-ahead (code plan section 5.2).
+- **Hashes:** pushed to `origin` at **`1d95e28`** (Chunks 0–8). **Phase 1 is ready to deploy, pending the end of the tester round (Brett, 2026-10-15).** No new build work until Brett says. **Nothing from the branch is deployed.** Deploy only after the tester round, on Brett's go-ahead (code plan section 5.2).
 
 | Chunk | What it does | Status |
 |---|---|---|
@@ -186,7 +186,7 @@ After building is complete and **before costing out running the business**:
 2. **Agent training and reference materials:** onboarding/training plus a "how do I…" quick reference, matched to the roles (agent, lead, admin).
 3. **Then costing.**
 
-**System models** (Mermaid, `docs/business/system-models/`, for the final review and training; roadmap lists the set): **Phase 1 pilot reviewed by Brett 2026-10-15; conventions in its README** (context diagram split into people-and-money and services-and-jobs; short labels on diagrams with a code table underneath, plus plain-language no-code versions for agent training; one state machine per object; per-area traceability plus a master VCRM, `05-verification-matrix.md`, with statuses verified by test / by inspection / not yet verified). **Four assignment rules are "not yet verified"** (continuity, lead fallback, no-lead, deactivated agents) until Brett runs the rolled-back assignment test written 2026-10-15, before deploy day. Kept current with each approval.
+**System models** (Mermaid, `docs/business/system-models/`, for the final review and training; roadmap lists the set): **Phase 1 pilot reviewed by Brett 2026-10-15; conventions in its README** (context diagram split into people-and-money and services-and-jobs; short labels on diagrams with a code table underneath, plus plain-language no-code versions for agent training; one state machine per object; per-area traceability plus a master VCRM, `05-verification-matrix.md`, with statuses verified by test / by inspection / not yet verified). The four assignment rules no scripted run had covered (continuity, lead fallback, no-lead, deactivated agents) were verified by a rolled-back SQL test Brett ran 2026-10-15 (passed; test and results in the code plan, Chunk 8): all 27 Phase 1 requirements are now verified (26 by test, 1 by inspection). Kept current with each approval.
 
 **Running documents** (created 2026-10-14 and backfilled with everything approved in Phase 1; **update both in the same commit as each chunk's approval**): `docs/business/site-language-inventory.md` (every approved wording, by page/flow/email, where it appears, date approved) and `docs/business/agent-process-reference.md` (each agent workflow, written for agents).
 

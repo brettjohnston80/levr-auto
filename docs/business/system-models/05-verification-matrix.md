@@ -13,20 +13,20 @@
 
 | Area | Requirements | ✅ by test | 🔍 by inspection | ⚠ not yet verified |
 |---|---|---|---|---|
-| Agent assignment (`04`, A1–A14) | 14 | 9 | 1 | 4 |
+| Agent assignment (`04`, A1–A14) | 14 | 13 | 1 | 0 |
 | Agent sign-in (`04`, S1–S13) | 13 | 13 | 0 | 0 |
-| **Total** | **27** | **22** | **1** | **4** |
+| **Total** | **27** | **26** | **1** | **0** |
 
 ## Every requirement
 
 | ID | Requirement | Method | Evidence | Status |
 |---|---|---|---|---|
 | A1 | Test accounts (any `.invalid` customer) are never auto-assigned | Test | c3-A, c3-B, c3-switch | ✅ |
-| A2 | Continuity: a customer's next search goes to the agent of their other search, if active and in rotation | — | rolled-back assignment test, part A (written 2026-10-15, not yet run) | ⚠ |
+| A2 | Continuity: a customer's next search goes to the agent of their other search, if active and in rotation | Test | rolled-back assignment test, part A (Brett, 2026-10-15) | ✅ |
 | A3 | Round-robin over everyone in rotation, least recently assigned first | Test | Step 4 database test D | ✅ |
-| A4 | Nobody in rotation → least-recently-assigned active lead, with a lead alert | — | rolled-back assignment test, part C (not yet run); alert email ✅ by c4-simulate | ⚠ |
-| A5 | No active lead → unassigned, admin alert; admins never picked by the system | — | rolled-back assignment test, part D (not yet run); alert email ✅ by c4-simulate | ⚠ |
-| A6 | Deactivated agents are never assigned | — | rolled-back assignment test, part B (not yet run) | ⚠ |
+| A4 | Nobody in rotation → least-recently-assigned active lead, with a lead alert | Test | rolled-back assignment test, part C (Brett, 2026-10-15); alert email by c4-simulate | ✅ |
+| A5 | No active lead → unassigned, admin alert; admins never picked by the system | Test | rolled-back assignment test, part D (Brett, 2026-10-15); alert email by c4-simulate | ✅ |
+| A6 | Deactivated agents are never assigned | Test | rolled-back assignment test, part B (Brett, 2026-10-15) | ✅ |
 | A7 | A switched search keeps its agent | Test | c3-switch | ✅ |
 | A8 | Assignment at payment never delays or undoes the payment | Test | c3-A, c3-B | ✅ |
 | A9 | Hourly backstop at :15: one run at a time, bounded, never reassigns | Test | c3-A | ✅ |

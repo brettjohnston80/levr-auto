@@ -295,6 +295,143 @@ Found by a codebase-wide sweep after a test cleanup hit PostgREST's silent 1,000
   - **local and anything else:** refused unless `?only=` names the ids.
   - **A scoped run is always visible (Brett, 2026-10-14):** it logs `[job-scoped] {job} scoped ids=…`, and its JSON response includes `scoped: true` and the ids, so a manual run is never mistaken for a scheduled one. An unscoped run returns `scoped: false`. The agent sweep does the same for `?only=` (searches) and `?alerts=` (alerts).
 
+
+**Assignment rules test, rolled back (written and run 2026-10-15).** It covers the four assignment rules no scripted run had exercised (traceability A2, A4, A5, A6): continuity; a deactivated agent being skipped; lead fallback when nobody is in rotation; and no lead (unassigned, with an admin alert, and an active admin never picked).
+- **How it avoids touching Brett:** the stand-in agents use non-test `claude-verify-assign-…@levrauto.com` addresses (because `assign_search` ignores `@levrauto-test.invalid` agents), and they exist only inside the transaction. For C and D, `is_test_agent_email()` is redefined inside the transaction so it also counts Brett's address as a test agent, which means nobody real is in rotation without his row ever being updated. The `rollback` restores everything, the function included. Searches go on Brett's own customer record, as in Step 4's test D.
+- **Run by Brett in the SQL Editor, 2026-10-15. Passed:** `continuity | true | round_robin | true | true | lead_fallback | true | assignment_lead_fallback / leads | unassigned | true | assignment_no_lead / admins | true | new_history_rows 3 | brett_row_unchanged true`. After-check: `0 | 0 | 0 | 1 | admin / in rotation true / active true | false | 0` (no stand-ins, searches or history left; LEVRID counter 1; Brett's row unchanged; the function restored; no open alerts).
+- A2, A4, A5 and A6 are now verified by test in `docs/business/system-models/04-traceability-assignment-signin.md` and `05-verification-matrix.md`.
+
+```sql
+-- Phase 1 assignment test, rolled back (2026-10-15). Covers the four rules no run has exercised:
+--   A. continuity        B. a deactivated agent is skipped
+--   C. lead fallback when nobody is in rotation        D. no lead: unassigned + admin alert
+-- Run ALL lines together as one query. Everything ends in ROLLBACK, so nothing is kept.
+-- Your agent row is never updated. Stand-in agents use NON-test addresses, because assign_search
+-- ignores @levrauto-test.invalid agents. For C and D, is_test_agent_email() is redefined INSIDE this
+-- transaction so it also counts your address as a test agent; the ROLLBACK restores the original.
+-- Searches go on your own customer record (bjohnston@levrauto.com), as in Step 4's test D.
+begin;
+
+-- 0. Starting state, for the end checks.
+select set_config('assigntest.brett_row', (select row_to_json(a)::text from public.agents a where a.levrid = 1), true);
+select set_config('assigntest.customer', (select c.id::text from public.customers c join auth.users u on u.id = c.id
+                                          where lower(u.email) = 'bjohnston@levrauto.com'), true);
+
+-- 1. Stand-in agents (flag route, stand-in rows only). Older created_at so they sort ahead of you on ties.
+select set_config('levr.agent_admin', 'on', true);
+insert into public.agents (email, name, role, in_rotation, created_at) values
+  ('claude-verify-assign-cont@levrauto.com',  'CLAUDE VERIFY STAND-IN CONTINUITY',  'agent', true,  '2000-01-02'),
+  ('claude-verify-assign-rr@levrauto.com',    'CLAUDE VERIFY STAND-IN ROUND-ROBIN', 'agent', true,  '2000-01-01'),
+  ('claude-verify-assign-lead@levrauto.com',  'CLAUDE VERIFY STAND-IN LEAD',        'lead',  false, '2000-01-01'),
+  ('claude-verify-assign-admin@levrauto.com', 'CLAUDE VERIFY STAND-IN ADMIN',       'admin', false, '2000-01-01');
+select set_config('levr.agent_admin', 'off', true);
+select set_config('assigntest.cont',  (select id::text from public.agents where email = 'claude-verify-assign-cont@levrauto.com'), true);
+select set_config('assigntest.rr',    (select id::text from public.agents where email = 'claude-verify-assign-rr@levrauto.com'), true);
+select set_config('assigntest.lead',  (select id::text from public.agents where email = 'claude-verify-assign-lead@levrauto.com'), true);
+select set_config('assigntest.admin', (select id::text from public.agents where email = 'claude-verify-assign-admin@levrauto.com'), true);
+
+-- 2. Searches on your customer record: an earlier search already with the continuity stand-in,
+--    then four paid, unassigned searches (one per part).
+select set_config('levr.assignment', 'on', true);
+insert into public.customer_searches (customer_id, make, model, model_year, paid_at, assigned_agent_id, assigned_at)
+values (current_setting('assigntest.customer')::uuid, 'Toyota', 'Camry', 2026, now() - interval '2 days',
+        current_setting('assigntest.cont')::uuid, now() - interval '1 day');
+select set_config('levr.assignment', 'off', true);
+with s as (insert into public.customer_searches (customer_id, make, model, model_year, paid_at)
+           values (current_setting('assigntest.customer')::uuid, 'Toyota', 'Camry', 2026, now()) returning id)
+select set_config('assigntest.s1', (select id::text from s), true);
+with s as (insert into public.customer_searches (customer_id, make, model, model_year, paid_at)
+           values (current_setting('assigntest.customer')::uuid, 'Toyota', 'Camry', 2026, now()) returning id)
+select set_config('assigntest.s2', (select id::text from s), true);
+with s as (insert into public.customer_searches (customer_id, make, model, model_year, paid_at)
+           values (current_setting('assigntest.customer')::uuid, 'Toyota', 'Camry', 2026, now()) returning id)
+select set_config('assigntest.s3', (select id::text from s), true);
+with s as (insert into public.customer_searches (customer_id, make, model, model_year, paid_at)
+           values (current_setting('assigntest.customer')::uuid, 'Toyota', 'Camry', 2026, now()) returning id)
+select set_config('assigntest.s4', (select id::text from s), true);
+
+-- A. Continuity: the customer's other search has an active, in-rotation agent.
+set local role service_role;          -- the role the website uses
+select set_config('assigntest.a', public.assign_search(current_setting('assigntest.s1')::uuid)::text, true);
+reset role;
+
+-- B. Deactivate that agent: continuity must skip it, and round-robin picks the other stand-in.
+select set_config('levr.agent_admin', 'on', true);
+update public.agents set active = false, in_rotation = false where id = current_setting('assigntest.cont')::uuid;
+select set_config('levr.agent_admin', 'off', true);
+set local role service_role;
+select set_config('assigntest.b', public.assign_search(current_setting('assigntest.s2')::uuid)::text, true);
+reset role;
+
+-- C. Nobody in rotation: take the round-robin stand-in out, and (inside this transaction only)
+--    count your address as a test agent, so you don't count as "in rotation". Your row is untouched.
+select set_config('levr.agent_admin', 'on', true);
+update public.agents set in_rotation = false where id = current_setting('assigntest.rr')::uuid;
+select set_config('levr.agent_admin', 'off', true);
+do $do$
+declare v_brett text := (select lower(email) from public.agents where levrid = 1);
+begin
+  execute format($f$create or replace function public.is_test_agent_email(p_email text) returns boolean
+    language sql immutable set search_path = '' as $b$ select lower(coalesce(p_email, '')) like '%%@levrauto-test.invalid' or lower(coalesce(p_email, '')) = %L $b$$f$, v_brett);
+end
+$do$;
+set local role service_role;
+select set_config('assigntest.c', public.assign_search(current_setting('assigntest.s3')::uuid)::text, true);
+reset role;
+
+-- D. No active lead either: deactivate the lead stand-in. The admin stand-in (active) must not be picked.
+select set_config('levr.agent_admin', 'on', true);
+update public.agents set active = false where id = current_setting('assigntest.lead')::uuid;
+select set_config('levr.agent_admin', 'off', true);
+set local role service_role;
+select set_config('assigntest.d', public.assign_search(current_setting('assigntest.s4')::uuid)::text, true);
+reset role;
+
+set constraints all immediate;
+
+-- Results. Expected (one row):
+--   a_method continuity | a_to_continuity_standin true
+--   b_method round_robin | b_to_round_robin_standin true | b_not_to_deactivated true
+--   c_method lead_fallback | c_to_lead_standin true | c_lead_alert assignment_lead_fallback / leads
+--   d_method unassigned | d_search_unassigned true | d_admin_alert assignment_no_lead / admins | d_admin_standin_not_picked true
+--   new_history_rows 3 | brett_row_unchanged true
+select current_setting('assigntest.a')::jsonb->>'method' as a_method,
+       (current_setting('assigntest.a')::jsonb->>'agent_id') = current_setting('assigntest.cont') as a_to_continuity_standin,
+       current_setting('assigntest.b')::jsonb->>'method' as b_method,
+       (current_setting('assigntest.b')::jsonb->>'agent_id') = current_setting('assigntest.rr') as b_to_round_robin_standin,
+       (current_setting('assigntest.b')::jsonb->>'agent_id') is distinct from current_setting('assigntest.cont') as b_not_to_deactivated,
+       current_setting('assigntest.c')::jsonb->>'method' as c_method,
+       (current_setting('assigntest.c')::jsonb->>'agent_id') = current_setting('assigntest.lead') as c_to_lead_standin,
+       (select al.kind || ' / ' || al.audience from public.agent_alerts al
+         where al.search_id = current_setting('assigntest.s3')::uuid and al.resolved_at is null) as c_lead_alert,
+       current_setting('assigntest.d')::jsonb->>'method' as d_method,
+       (select s.assigned_agent_id is null from public.customer_searches s
+         where s.id = current_setting('assigntest.s4')::uuid) as d_search_unassigned,
+       (select al.kind || ' / ' || al.audience from public.agent_alerts al
+         where al.search_id = current_setting('assigntest.s4')::uuid and al.resolved_at is null) as d_admin_alert,
+       not exists (select 1 from public.customer_searches s
+                    where s.customer_id = current_setting('assigntest.customer')::uuid
+                      and s.assigned_agent_id = current_setting('assigntest.admin')::uuid) as d_admin_standin_not_picked,
+       (select count(*) from public.search_assignments sa
+         where sa.search_id in (current_setting('assigntest.s1')::uuid, current_setting('assigntest.s2')::uuid,
+                                current_setting('assigntest.s3')::uuid, current_setting('assigntest.s4')::uuid)) as new_history_rows,
+       (select row_to_json(a)::text from public.agents a where a.levrid = 1) = current_setting('assigntest.brett_row') as brett_row_unchanged;
+
+rollback;
+```
+
+```sql
+-- After the test (read-only). Expected: 0 | 0 | 0 | 1 | admin / in rotation true / active true | false | 0
+select (select count(*) from public.agents where email like 'claude-verify-assign-%@levrauto.com')        as standin_agents_left,
+       (select count(*) from public.customer_searches s join auth.users u on u.id = s.customer_id
+         where lower(u.email) = 'bjohnston@levrauto.com')                                                 as searches_on_your_customer_record,
+       (select count(*) from public.search_assignments)                                                   as assignment_history_rows,
+       (select last_value from public.agent_levrid_counter)                                               as levrid_counter,
+       (select role || ' / in rotation ' || in_rotation || ' / active ' || active from public.agents where levrid = 1) as your_agent_row,
+       public.is_test_agent_email('bjohnston@levrauto.com')                                               as your_address_counts_as_test,
+       (select count(*) from public.agent_alerts where resolved_at is null)                               as open_alerts;
+```
+
 ---
 
 ## 3. Wording for sign-off (exact draft text)
