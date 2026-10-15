@@ -441,7 +441,7 @@ The stored codes are the neutral ones Brett approved on 2026-10-11. The labels a
 | A merge conflict with `main` work during the round | The branch is rebased on `main` before the rehearsal (chunk 8); any conflict is shown to Brett |
 
 ### 5.2 Deploy-day checklist (after the tester round, on Brett's go-ahead; revised 2026-10-14)
-Exact commands, ids and SQL are filled in by the Chunk 8 rehearsal.
+Commands, ids and SQL filled in by the Chunk 8 rehearsal (2026-10-14). Ids checked read-only that day: LEVRID 1's agent row `9c1b5cde-e8bf-4928-be66-529f13197e85`, linked to the `bjohnston@` login `3213ecaa-c459-4c6e-8109-1a0cf59bde50`; no `brett@` login yet.
 
 0. **Brett's go-ahead:**
    - the tester round is over; tester cleanup is done or deferred;
@@ -449,13 +449,34 @@ Exact commands, ids and SQL are filled in by the Chunk 8 rehearsal.
    - **turn off `ALLOW_TEST_SEEDING`** in Vercel Production once tester cleanup is done;
    - Stripe stays in test mode (live mode waits for the offer-entry phase);
    - **Chunks 1b and 1d ship together, never 1b alone** (section 7.4), and **the 1f cutover completes before or at the deploy, never after** (section 5.3): once 1d is live, `bjohnston@levrauto.com` (a customer login) can no longer reach `/internal`, and Brett is the only admin.
-1. **Migrations (read-only check):** Steps 1–16 are applied (`assign_search`, `claim_cron_job`, `record_payment_refund`, `revoke_login_sessions`, the `call_request_resolved_by_customer` activity type, `agent_activity_log.agent_id` nullable). No migration runs on the day.
-2. **Environment:** `vercel env ls production` lists every variable the code reads (including `AGENT_SIGNIN_HASH_SECRET`) and none of the test-only switches (`AGENT_*_FORCE_*`, `AGENT_ASSIGN_SIMULATE_NO_ROTATION`, `AGENT_ADMIN_USERS_PAGE_SIZE`, `AGENT_IDLE_LIMIT_MS_OVERRIDE`); `NEXT_PUBLIC_SITE_URL` is `https://www.levrauto.com`; Supabase Email OTP Expiration is still 3600 (matches `SETUP_LINK_LIFETIME_SECONDS`).
-3. **Record baseline counts** (read-only query, saved):
-   - real paid searches with no agent;
-   - open `agent_alerts`;
-   - `agent_activity_log` rows;
-   - LEVRID 1's row (admin, in rotation, linked to `bjohnston@`).
+1. **Migrations (read-only check in the SQL Editor):** Steps 1–16 are applied. No migration runs on the day.
+   ```sql
+   select (select count(distinct p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname in ('assign_search', 'reassign_search', 'claim_cron_job', 'release_cron_job',
+             'record_payment_refund', 'revoke_login_sessions', 'relink_agent_login', 'link_agent_login', 'log_agent_activity',
+             'agent_alert_recipients', 'is_test_customer'))                                        as phase1_functions,
+          (select is_nullable from information_schema.columns where table_schema = 'public'
+             and table_name = 'agent_activity_log' and column_name = 'agent_id')                    as activity_agent_nullable,
+          (select count(*) from public.agent_activity_types where code = 'call_request_resolved_by_customer') as step16_activity_type,
+          (select count(*) from public.refund_reasons where is_active)                               as active_refund_reasons;
+   ```
+   Expected: `phase1_functions` 11, `activity_agent_nullable` YES, `step16_activity_type` 1, `active_refund_reasons` 5. (Checked from the app 2026-10-14 by reading every Phase 1 table and calling the read-only functions: all present.)
+2. **Environment:** `vercel env ls production` (names only) lists every variable the code reads (including `AGENT_SIGNIN_HASH_SECRET`) and none of the test-only switches (`AGENT_*_FORCE_*`, `AGENT_ASSIGN_SIMULATE_NO_ROTATION`, `AGENT_ADMIN_USERS_PAGE_SIZE`, `AGENT_IDLE_LIMIT_MS_OVERRIDE`); `NEXT_PUBLIC_SITE_URL` is `https://www.levrauto.com`; Supabase Email OTP Expiration is still 3600 (matches `SETUP_LINK_LIFETIME_SECONDS`).
+3. **Record baseline counts** (read-only; save the result and the time):
+   ```sql
+   select now()                                                                   as baseline_at,
+          (select count(*) from public.customer_searches s join auth.users u on u.id = s.customer_id
+            where s.paid_at is not null and s.search_status not in ('switched', 'cancelled', 'closed')
+              and lower(u.email) not like '%.invalid')                            as real_paid_active,
+          (select count(*) from public.customer_searches s join auth.users u on u.id = s.customer_id
+            where s.paid_at is not null and s.search_status not in ('switched', 'cancelled', 'closed')
+              and lower(u.email) not like '%.invalid' and s.assigned_agent_id is null) as real_paid_no_agent,
+          (select count(*) from public.agent_alerts where resolved_at is null)       as open_alerts,
+          (select count(*) from public.agent_activity_log)                          as activity_rows,
+          (select a.role || ' / in rotation ' || a.in_rotation || ' / active ' || a.active || ' / ' || a.email
+             from public.agents a where a.levrid = 1)                                as levrid1;
+   ```
+   On 2026-10-14 (rehearsal): 0 real paid active searches, 0 with no agent, 0 open alerts; LEVRID 1 admin / in rotation true / active true / bjohnston@levrauto.com.
 4. **1f Part A, before the merge** (section 5.3; Brett's old access keeps working): Claude runs `scripts/agent-cutover-prepare.mjs` on the branch's local server; Brett sets his password, enrolls his authenticator (plus a backup device) and signs in once on the local branch server.
 5. **Merge and push:** rebase the branch on `main`, remove the branch's `git.deploymentEnabled` line from `vercel.json` in the merge commit, merge into `main`, push. Vercel builds production.
 6. **Wait for Ready:** the `x-vercel-id` region is `pdx1`; the cron list shows `agent-sweeps` at `15 * * * *`.
@@ -465,18 +486,34 @@ Exact commands, ids and SQL are filled in by the Chunk 8 rehearsal.
    curl -s -H "Authorization: Bearer $CRON_SECRET" https://www.levrauto.com/api/cron/agent-sweeps
    ```
    Expected: `assignment.assigned` and `assignment.examined` = the step 3 count of real paid searches with no agent; `assignment.testCustomersExcluded` > 0; `alerts.claimed` 0 unless nobody is in rotation.
-9. **Checks after the sweep** (read-only):
-   - real paid searches with no agent = **0**;
-   - new `search_assignments` rows = `assigned`, method `round_robin` or `continuity`;
-   - test-account searches with an agent = **0**;
-   - the `agent-sweeps` lock in `cron_job_locks` is released;
-   - no `[assignment-failed]`, `[agent-alert-failed]` or `[agent-activity-failed]` lines in production logs for the last 15 minutes.
+9. **Checks after the sweep** (read-only; put the step 3 `baseline_at` time in):
+   ```sql
+   select (select count(*) from public.customer_searches s join auth.users u on u.id = s.customer_id
+            where s.paid_at is not null and s.search_status not in ('switched', 'cancelled', 'closed')
+              and lower(u.email) not like '%.invalid' and s.assigned_agent_id is null) as real_paid_no_agent_after,
+          (select string_agg(method || ' ' || n, ', ') from (select method, count(*) n from public.search_assignments
+             where created_at > '<baseline_at>' group by method) m)                      as new_assignments_by_method,
+          (select count(*) from public.customer_searches s join auth.users u on u.id = s.customer_id
+            where lower(u.email) like '%.invalid' and s.assigned_agent_id is not null
+              and s.assigned_at > '<baseline_at>')                                      as test_searches_newly_assigned,
+          (select locked_until <= now() from public.cron_job_locks where job = 'agent-sweeps') as sweep_lock_released;
+   ```
+   Expected: `real_paid_no_agent_after` 0; `new_assignments_by_method` matches `assigned` (`round_robin` / `continuity`); `test_searches_newly_assigned` 0; `sweep_lock_released` true. Then the production logs for the last 15 minutes show no `[assignment-failed]`, `[agent-alert-failed]` or `[agent-activity-failed]` lines.
 10. **Smoke test as Brett:** `/internal/outreach`, `/internal/agents` load; `/internal/admin` shows assigned agents; `/internal/refunds-due` loads (no money buttons clicked); sign out and back in.
 11. **Watch:** the next scheduled `:15` sweep (`assigned` 0); the next real payment gets an agent within seconds; any alert email reaches Brett's inbox.
-12. **Roll back** if anything in 6–11 is wrong: Vercel Instant Rollback to the previous production deployment, then the prepared SQL that relinks LEVRID 1 to `bjohnston@` (the old code matches agents by email). The database needs no other rollback: the Phase 1 data stays valid and the old code doesn't read it.
+12. **Roll back** if anything in 6–11 is wrong:
+    1. Vercel Instant Rollback to the previous production deployment.
+    2. If Part B (step 7) already ran, put LEVRID 1's email back so the old code (which matches agents by email) lets `bjohnston@` in:
+       ```sql
+       update public.agents set email = 'bjohnston@levrauto.com'
+       where id = '9c1b5cde-e8bf-4928-be66-529f13197e85' and levrid = 1
+       returning levrid as rolled_back_levrid, email as rolled_back_email;
+       ```
+       Expected: one row, 1 / bjohnston@levrauto.com. When redeploying later, set it back to `brett@levrauto.com`.
+    3. The database needs no other rollback: production already runs `main` with every Phase 1 migration applied today, and the old code doesn't read the new data.
 
 ### 5.3 Brett's cutover to brett@levrauto.com (Chunk 1f runbook, approved 2026-10-14)
-Rehearsed with stand-in test accounts, 24/24 (2026-10-14). Part A runs before checklist step 3 (the merge); Part B straight after step 4 (Ready), before step 5. Starting state (checked read-only 2026-10-14): LEVRID 1 is admin, in rotation, linked to `bjohnston@` (a customer login with 1 customer record); no `brett@` login exists.
+Rehearsed with stand-in test accounts, 24/24 (2026-10-14). Part A runs before checklist step 5 (the merge); Part B straight after step 6 (Ready), before step 8 (the first sweep). Ids (read-only, 2026-10-14): LEVRID 1 = agent row `9c1b5cde-e8bf-4928-be66-529f13197e85`, login `bjohnston@` = `3213ecaa-c459-4c6e-8109-1a0cf59bde50`. Starting state (checked read-only 2026-10-14): LEVRID 1 is admin, in rotation, linked to `bjohnston@` (a customer login with 1 customer record); no `brett@` login exists.
 
 **Part A, before the merge (Brett's old access keeps working throughout)**
 1. Have your authenticator app ready, ideally plus a backup device, and your password manager. Allow about 15 minutes.
@@ -520,7 +557,7 @@ commit;
 ```
 Expected: one `removed_holder_email` row.
 
-**Deploy:** checklist steps 1–4 (counts, merge and push, wait for Ready). Your `bjohnston@` agent access ends at that moment. That's fine, because Part B doesn't need the app.
+**Deploy:** checklist steps 5–6 (merge and push, wait for Ready). Your `bjohnston@` agent access ends at that moment. That's fine, because Part B doesn't need the app.
 
 **Part B, right after Ready**
 10. Run this as one block in the SQL Editor:
@@ -575,7 +612,7 @@ Expected: one `removed_holder_email` row.
     Your activity count goes from 2 to 3 (the relink row).
 12. At `www.levrauto.com/agent`, sign in with `brett@levrauto.com`, your password and a code. You should land on `/internal/outreach` with the header "Brett Johnston (LEVRID 1)". On `/internal/agents`, your row should say "Two-factor on" and there should be no holder row.
 13. At `www.levrauto.com/login`, sign in as `bjohnston@`. It should open `/account` as a customer, and `/internal` should send you to `/agent`.
-14. Carry on with checklist step 5 (the sweep) and the rest.
+14. Carry on with checklist step 8 (the sweep) and the rest.
 
 **If step 12 fails:** use Vercel Instant Rollback to the previous deployment, then run:
 ```sql
