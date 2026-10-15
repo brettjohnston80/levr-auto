@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminClient } from "./supabase/admin";
+import { chunks as chunkList } from "./supabase/paged";
 import { sendEmail } from "./email";
 import { composeEventLine, DAILY_UPDATE_EVENT_TYPES, type NotificationEventType } from "./notifications";
 import { hasUnreadForCustomer } from "./offer-messages";
@@ -42,11 +43,8 @@ function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-function chunks<T>(items: T[]): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < items.length; i += IN_CHUNK) out.push(items.slice(i, i + IN_CHUNK));
-  return out;
-}
+// Id lists go in the request URL, so long ones are split (shared helper since Phase 1 Chunk 7b).
+const chunks = <T,>(items: T[]): T[][] => chunkList(items, IN_CHUNK);
 
 // Listed when there's an agent reply the customer hasn't read AND this
 // thread hasn't been listed since that reply.

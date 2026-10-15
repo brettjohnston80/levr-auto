@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { createAdminClient } from "./supabase/admin";
+import { chunks } from "./supabase/paged";
 import { agentFirstName, threadIsOpen, type OfferMessage } from "./offer-messages-shared";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
@@ -69,18 +70,22 @@ export async function loadMessagesForOffers(
   const byOffer = new Map<string, OfferMessage[]>();
   if (offerIds.length === 0) return byOffer;
 
+  // Chunked by offer id as well (Phase 1 Chunk 7b): the ids go in the request URL, and about 650
+  // or more are refused. Each offer's messages land in one chunk, oldest first.
   const rows: MessageRow[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await admin
-      .from("offer_messages")
-      .select(MESSAGE_COLUMNS)
-      .in("qualifying_offer_id", offerIds)
-      .order("created_at", { ascending: true })
-      .order("id", { ascending: true })
-      .range(from, from + PAGE - 1);
-    if (error) throw new Error(`Failed to load messages: ${error.message}`);
-    rows.push(...((data ?? []) as MessageRow[]));
-    if (!data || data.length < PAGE) break;
+  for (const idChunk of chunks(offerIds)) {
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await admin
+        .from("offer_messages")
+        .select(MESSAGE_COLUMNS)
+        .in("qualifying_offer_id", idChunk)
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) throw new Error(`Failed to load messages: ${error.message}`);
+      rows.push(...((data ?? []) as MessageRow[]));
+      if (!data || data.length < PAGE) break;
+    }
   }
 
   const messages = await toOfferMessages(admin, rows, viewer);
@@ -105,19 +110,22 @@ export async function loadGeneralMessages(
   const byCustomer = new Map<string, OfferMessage[]>();
   if (customerIds.length === 0) return byCustomer;
 
+  // Chunked by customer id as well (Chunk 7b), for the same reason.
   const rows: MessageRow[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await admin
-      .from("offer_messages")
-      .select(MESSAGE_COLUMNS)
-      .is("qualifying_offer_id", null)
-      .in("customer_id", customerIds)
-      .order("created_at", { ascending: true })
-      .order("id", { ascending: true })
-      .range(from, from + PAGE - 1);
-    if (error) throw new Error(`Failed to load general messages: ${error.message}`);
-    rows.push(...((data ?? []) as MessageRow[]));
-    if (!data || data.length < PAGE) break;
+  for (const idChunk of chunks(customerIds)) {
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await admin
+        .from("offer_messages")
+        .select(MESSAGE_COLUMNS)
+        .is("qualifying_offer_id", null)
+        .in("customer_id", idChunk)
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) throw new Error(`Failed to load general messages: ${error.message}`);
+      rows.push(...((data ?? []) as MessageRow[]));
+      if (!data || data.length < PAGE) break;
+    }
   }
 
   const messages = await toOfferMessages(admin, rows, viewer);

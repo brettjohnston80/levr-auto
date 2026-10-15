@@ -1,6 +1,7 @@
 "use server";
 
 import { createAdminClient } from "./supabase/admin";
+import { fetchAllPages, fetchByIds } from "./supabase/paged";
 import { haversineMiles } from "./geo";
 import { INVENTORY_RADIUS_MILES } from "./inventory-radius";
 
@@ -36,14 +37,14 @@ export async function countNearbyInventory(
 ): Promise<InventoryCountResult> {
   const admin = createAdminClient();
 
-  const { data: listings, error: listingsError } = await admin
-    .from("listings")
-    .select("dealer_zip")
-    .eq("make", make)
-    .eq("model", model);
-
-  if (listingsError) {
-    return { ok: false, error: listingsError.message };
+  // Paged (Phase 1 Chunk 7b): a popular model passes 1,000 listings, and the count shown to the
+  // customer at intake must include them all. The dealer ZIPs are then looked up in chunks.
+  let listings: { dealer_zip: string | null }[];
+  try {
+    listings = await fetchAllPages((from, to) =>
+      admin.from("listings").select("dealer_zip").eq("make", make).eq("model", model).order("id").range(from, to));
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
 
   const dealerZips = Array.from(
@@ -51,10 +52,15 @@ export async function countNearbyInventory(
   );
   const zipsToLookup = Array.from(new Set([...dealerZips, zip]));
 
-  const { data: coords, error: coordsError } = await admin
-    .from("zip_coordinates")
-    .select("zip, latitude, longitude")
-    .in("zip", zipsToLookup);
+  let coords: { zip: string; latitude: number; longitude: number }[];
+  let coordsError: { message: string } | null = null;
+  try {
+    coords = await fetchByIds(zipsToLookup, (zips, from, to) =>
+      admin.from("zip_coordinates").select("zip, latitude, longitude").in("zip", zips).order("zip").range(from, to), 500);
+  } catch (e) {
+    coords = [];
+    coordsError = { message: e instanceof Error ? e.message : String(e) };
+  }
 
   if (coordsError) {
     return { ok: false, error: coordsError.message };

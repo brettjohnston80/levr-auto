@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminClient } from "./supabase/admin";
+import { fetchByIds } from "./supabase/paged";
 import { sendEmail } from "./email";
 import { getStripe } from "./stripe";
 import { recordPayment } from "./payments";
@@ -89,12 +90,12 @@ export async function sendDay60Reminders(): Promise<Day60ReminderSummary> {
   const summary: Day60ReminderSummary = { remindersSent: [], errors: [] };
   if (due.length === 0) return summary;
 
+  // In chunks (Phase 1 Chunk 7b): about 650 or more ids in one request are refused, and the old
+  // read ignored that error, so every customer would have been skipped as "No customer email".
   const customerIds = [...new Set(due.map((s) => s.customer_id))];
-  const { data: customers } = await supabase
-    .from("customers")
-    .select("id, email, first_name, last_name")
-    .in("id", customerIds);
-  const customerById = new Map((customers ?? []).map((c) => [c.id, c]));
+  const customers = await fetchByIds(customerIds, (ids, from, to) =>
+    supabase.from("customers").select("id, email, first_name, last_name").in("id", ids).order("id").range(from, to));
+  const customerById = new Map(customers.map((c) => [c.id, c]));
 
   for (const search of due) {
     const customer = customerById.get(search.customer_id);
@@ -420,12 +421,12 @@ export async function sendResumeReminders(): Promise<ResumeReminderSummary> {
   const summary: ResumeReminderSummary = { remindersSent: [], errors: [] };
   if (due.length === 0) return summary;
 
+  // In chunks (Phase 1 Chunk 7b): about 650 or more ids in one request are refused, and the old
+  // read ignored that error, so every customer would have been skipped as "No customer email".
   const customerIds = [...new Set(due.map((s) => s.customer_id))];
-  const { data: customers } = await supabase
-    .from("customers")
-    .select("id, email, first_name, last_name")
-    .in("id", customerIds);
-  const customerById = new Map((customers ?? []).map((c) => [c.id, c]));
+  const customers = await fetchByIds(customerIds, (ids, from, to) =>
+    supabase.from("customers").select("id, email, first_name, last_name").in("id", ids).order("id").range(from, to));
+  const customerById = new Map(customers.map((c) => [c.id, c]));
 
   for (const search of due) {
     const customer = customerById.get(search.customer_id);

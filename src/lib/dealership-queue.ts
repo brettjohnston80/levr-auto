@@ -7,6 +7,7 @@ import "server-only";
 import { getAuthorizedAgent } from "./agent-auth";
 import { createAdminClient } from "./supabase/admin";
 import { dealerIdentityKey } from "./dealer-aliases";
+import { fetchAllPages } from "./supabase/paged";
 
 /**
  * LEVRating Phase A -- listings stays untouched raw sourced data (no
@@ -18,10 +19,14 @@ import { dealerIdentityKey } from "./dealer-aliases";
  */
 async function getListingCountsByIdentity(): Promise<Map<string, number>> {
   const admin = createAdminClient();
-  const { data, error } = await admin.from("listings").select("dealer_name, dealer_city, dealer_state");
-
-  if (error) {
-    throw new Error(`Failed to load listings for dealer counts: ${error.message}`);
+  // Every listing, in pages (Phase 1 Chunk 7b): one read stopped at 1,000 of ~5,000 listings, so
+  // most dealers showed too few listings, or none.
+  let data;
+  try {
+    data = await fetchAllPages((from, to) =>
+      admin.from("listings").select("dealer_name, dealer_city, dealer_state").order("vin").range(from, to));
+  } catch (e) {
+    throw new Error(`Failed to load listings for dealer counts: ${e instanceof Error ? e.message : String(e)}`);
   }
 
   const counts = new Map<string, number>();
@@ -50,17 +55,22 @@ export async function getUnconfirmedAliases(): Promise<UnconfirmedAlias[]> {
   }
 
   const admin = createAdminClient();
-  const [{ data: aliases, error: aliasError }, counts] = await Promise.all([
-    admin
-      .from("dealer_aliases")
-      .select("id, dealer_name, dealer_city, dealer_state, created_at")
-      .is("dealership_id", null)
-      .order("created_at", { ascending: true }),
-    getListingCountsByIdentity(),
-  ]);
-
-  if (aliasError) {
-    throw new Error(`Failed to load unconfirmed dealer aliases: ${aliasError.message}`);
+  // Paged (Chunk 7b): unconfirmed aliases grow with every make synced.
+  let aliases, counts;
+  try {
+    [aliases, counts] = await Promise.all([
+      fetchAllPages((from, to) =>
+        admin
+          .from("dealer_aliases")
+          .select("id, dealer_name, dealer_city, dealer_state, created_at")
+          .is("dealership_id", null)
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to)),
+      getListingCountsByIdentity(),
+    ]);
+  } catch (e) {
+    throw new Error(`Failed to load unconfirmed dealer aliases: ${e instanceof Error ? e.message : String(e)}`);
   }
 
   const rows = (aliases ?? []).map((a) => ({

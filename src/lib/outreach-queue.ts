@@ -1,7 +1,7 @@
-import { chunks, fetchAllPages } from "./supabase/paged";
 import { deliveryEstimateStandard, type DeliveryEstimate, type DeliveryEstimateStatus } from "./delivery-estimate";
 import { getLastSyncedAt } from "./marketcheck-sync";
 import "server-only";
+import { chunks, fetchAllPages, fetchByIds } from "./supabase/paged";
 import { createAdminClient } from "./supabase/admin";
 import { buildTrimOptions, filterListingsToCommittedYear, type TrimOption } from "./finalize-trims";
 import {
@@ -380,31 +380,42 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
     ...new Map(searches.map((s) => [`${s.make}::${s.model}`, { make: s.make, model: s.model }])).values(),
   ];
 
-  const [{ data: customers }, listingsByPair, { data: offers, error: offersError }] = await Promise.all([
-    supabase.from("customers").select("id, email").in("id", customerIds),
-    Promise.all(
-      distinctMakeModels.map(async ({ make, model }) => {
-        const { data } = await supabase
-          .from("listings")
+  // Paged and chunked (Phase 1 Chunk 7b): a popular model's listings pass 1,000 rows, and the
+  // customer, search and offer id lists go in the request URL (about 650 ids or more is refused).
+  let customers, listingsByPair, offers;
+  try {
+    [customers, listingsByPair, offers] = await Promise.all([
+      fetchByIds(customerIds, (ids, from, to) =>
+        supabase.from("customers").select("id, email").in("id", ids).order("id").range(from, to)),
+      Promise.all(
+        distinctMakeModels.map(async ({ make, model }) => {
+          const data = await fetchAllPages((from, to) =>
+            supabase
+              .from("listings")
+              .select(
+                "id, vin, trim, year, color, price_cents, msrp_cents, dealer_name, dealer_phone, dealer_website, dealer_city, dealer_state, dealer_zip, dealer_street:raw_data->dealer->>street, stock_no:raw_data->>stock_no"
+              )
+              .eq("make", make)
+              .eq("model", model)
+              .order("id")
+              .range(from, to),
+          );
+          const lastSyncedAt = await getLastSyncedAt(make, model);
+          return { make, model, listings: data, lastSyncedAt: lastSyncedAt?.toISOString() ?? null };
+        })
+      ),
+      fetchByIds(searchIds, (ids, from, to) =>
+        supabase
+          .from("qualifying_offers")
           .select(
-            "id, vin, trim, year, color, price_cents, msrp_cents, dealer_name, dealer_phone, dealer_website, dealer_city, dealer_state, dealer_zip, dealer_street:raw_data->dealer->>street, stock_no:raw_data->>stock_no"
+            "id, customer_search_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at, vehicle_sold_at, withdrawn_at, withdrawn_by_agent_id, withdrawal_reason, customer_highlighted_at, handoff_method, dealer_zip, delivery_estimate_status, delivery_estimate_cents, delivery_estimate_note, delivery_estimate_requested_by"
           )
-          .eq("make", make)
-          .eq("model", model);
-        const lastSyncedAt = await getLastSyncedAt(make, model);
-        return { make, model, listings: data ?? [], lastSyncedAt: lastSyncedAt?.toISOString() ?? null };
-      })
-    ),
-    supabase
-      .from("qualifying_offers")
-      .select(
-        "id, customer_search_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at, vehicle_sold_at, withdrawn_at, withdrawn_by_agent_id, withdrawal_reason, customer_highlighted_at, handoff_method, dealer_zip, delivery_estimate_status, delivery_estimate_cents, delivery_estimate_note, delivery_estimate_requested_by"
-      )
-      .in("customer_search_id", searchIds),
-  ]);
-
-  if (offersError) {
-    throw new Error(`Failed to load qualifying offers: ${offersError.message}`);
+          .in("customer_search_id", ids)
+          .order("id")
+          .range(from, to)),
+    ]);
+  } catch (e) {
+    throw new Error(`Failed to load the outreach queue: ${e instanceof Error ? e.message : String(e)}`);
   }
 
   // Names for the "Released by ..." line on withdrawn offers -- only
@@ -422,15 +433,19 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
   const addonsByOfferId = new Map<string, OutreachAddon[]>();
 
   if (offerIds.length > 0) {
-    const { data: addons, error: addonsError } = await supabase
-      .from("offer_addons")
-      .select(
-        "id, qualifying_offer_id, description, amount_cents, removal_status, removal_requested_at, dealer_response"
-      )
-      .in("qualifying_offer_id", offerIds);
-
-    if (addonsError) {
-      throw new Error(`Failed to load offer add-ons: ${addonsError.message}`);
+    let addons;
+    try {
+      addons = await fetchByIds(offerIds, (ids, from, to) =>
+        supabase
+          .from("offer_addons")
+          .select(
+            "id, qualifying_offer_id, description, amount_cents, removal_status, removal_requested_at, dealer_response"
+          )
+          .in("qualifying_offer_id", ids)
+          .order("id")
+          .range(from, to));
+    } catch (e) {
+      throw new Error(`Failed to load offer add-ons: ${e instanceof Error ? e.message : String(e)}`);
     }
 
     for (const addon of addons ?? []) {
@@ -451,27 +466,32 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
   const serviceAgreementSignedAtByOfferId = new Map<string, string>();
 
   if (offerIds.length > 0) {
-    const [{ data: progressRows, error: progressError }, { data: docs, error: docsError }] =
-      await Promise.all([
-        supabase
-          .from("deal_progress")
-          .select(
-            "qualifying_offer_id, availability_reconfirmed_at, deposit_amount_cents, deposit_confirmed_at, financing_choice, financing_income_range, financing_down_payment_cents, financing_desired_term_months"
-          )
-          .in("qualifying_offer_id", offerIds),
-        supabase
-          .from("documents")
-          .select("qualifying_offer_id, type, storage_path, uploaded_at, signed_at")
-          .in("type", ["financing_proof", "service_agreement"])
-          .in("qualifying_offer_id", offerIds)
-          .order("uploaded_at", { ascending: false }),
+    // Chunked by offer id (Chunk 7b). Each offer's documents land in one chunk, newest first, so
+    // "the most recent upload per offer" below still holds.
+    let progressRows, docs;
+    try {
+      [progressRows, docs] = await Promise.all([
+        fetchByIds(offerIds, (ids, from, to) =>
+          supabase
+            .from("deal_progress")
+            .select(
+              "qualifying_offer_id, availability_reconfirmed_at, deposit_amount_cents, deposit_confirmed_at, financing_choice, financing_income_range, financing_down_payment_cents, financing_desired_term_months"
+            )
+            .in("qualifying_offer_id", ids)
+            .order("qualifying_offer_id")
+            .range(from, to)),
+        fetchByIds(offerIds, (ids, from, to) =>
+          supabase
+            .from("documents")
+            .select("qualifying_offer_id, type, storage_path, uploaded_at, signed_at")
+            .in("type", ["financing_proof", "service_agreement"])
+            .in("qualifying_offer_id", ids)
+            .order("uploaded_at", { ascending: false })
+            .order("id")
+            .range(from, to)),
       ]);
-
-    if (progressError) {
-      throw new Error(`Failed to load deal progress: ${progressError.message}`);
-    }
-    if (docsError) {
-      throw new Error(`Failed to load documents: ${docsError.message}`);
+    } catch (e) {
+      throw new Error(`Failed to load deal progress or documents: ${e instanceof Error ? e.message : String(e)}`);
     }
 
     // Most recent upload per offer, if the customer resubmitted more than once.
@@ -521,36 +541,39 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
   // negotiating against a preference list that is quietly missing rows.
   const SELECTION_PAGE_SIZE = 1000;
   const selectionsBySearchId = new Map<string, OutreachSelection[]>();
-  for (let from = 0; ; from += SELECTION_PAGE_SIZE) {
-    const { data, error } = await supabase
-      .from("search_option_selections")
-      .select(
-        "id, search_id, category, question_kind, selection, rank_position, excluded, package_name, package_price_cents, package_contents, price_unknown, available_on_trims",
-      )
-      .in("search_id", searchIds)
-      .order("id")
-      .range(from, from + SELECTION_PAGE_SIZE - 1);
-    if (error) {
-      throw new Error(`Failed to load configurator selections: ${error.message}`);
+  // Chunked by search id too (Chunk 7b): the id list goes in the request URL.
+  for (const idChunk of chunks(searchIds)) {
+    for (let from = 0; ; from += SELECTION_PAGE_SIZE) {
+      const { data, error } = await supabase
+        .from("search_option_selections")
+        .select(
+          "id, search_id, category, question_kind, selection, rank_position, excluded, package_name, package_price_cents, package_contents, price_unknown, available_on_trims",
+        )
+        .in("search_id", idChunk)
+        .order("id")
+        .range(from, from + SELECTION_PAGE_SIZE - 1);
+      if (error) {
+        throw new Error(`Failed to load configurator selections: ${error.message}`);
+      }
+      for (const row of data ?? []) {
+        const list = selectionsBySearchId.get(row.search_id as string) ?? [];
+        list.push({
+          id: row.id as string,
+          category: row.category as string,
+          questionKind: row.question_kind as "ranked" | "feature",
+          selection: row.selection as string,
+          rankPosition: (row.rank_position as number | null) ?? null,
+          excluded: row.excluded === true,
+          packageName: (row.package_name as string | null) ?? null,
+          packagePriceCents: (row.package_price_cents as number | null) ?? null,
+          packageContents: (row.package_contents as string[] | null) ?? null,
+          priceUnknown: row.price_unknown === true,
+          availableOnTrims: (row.available_on_trims as string[] | null) ?? null,
+        });
+        selectionsBySearchId.set(row.search_id as string, list);
+      }
+      if (!data || data.length < SELECTION_PAGE_SIZE) break;
     }
-    for (const row of data ?? []) {
-      const list = selectionsBySearchId.get(row.search_id as string) ?? [];
-      list.push({
-        id: row.id as string,
-        category: row.category as string,
-        questionKind: row.question_kind as "ranked" | "feature",
-        selection: row.selection as string,
-        rankPosition: (row.rank_position as number | null) ?? null,
-        excluded: row.excluded === true,
-        packageName: (row.package_name as string | null) ?? null,
-        packagePriceCents: (row.package_price_cents as number | null) ?? null,
-        packageContents: (row.package_contents as string[] | null) ?? null,
-        priceUnknown: row.price_unknown === true,
-        availableOnTrims: (row.available_on_trims as string[] | null) ?? null,
-      });
-      selectionsBySearchId.set(row.search_id as string, list);
-    }
-    if (!data || data.length < SELECTION_PAGE_SIZE) break;
   }
   for (const list of selectionsBySearchId.values()) {
     list.sort(compareSelections);
@@ -561,29 +584,32 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
   // search order would send an agent down a list that is quietly missing
   // entries.
   const trimPrefsBySearchId = new Map<string, OutreachTrimPreference[]>();
-  for (let from = 0; ; from += SELECTION_PAGE_SIZE) {
-    const { data, error } = await supabase
-      .from("search_trim_preferences")
-      .select("id, search_id, trim, model_year, rank_position, excluded, configurator_trim_id")
-      .in("search_id", searchIds)
-      .order("id")
-      .range(from, from + SELECTION_PAGE_SIZE - 1);
-    if (error) {
-      throw new Error(`Failed to load trim preferences: ${error.message}`);
+  // Chunked by search id too (Chunk 7b): the id list goes in the request URL.
+  for (const idChunk of chunks(searchIds)) {
+    for (let from = 0; ; from += SELECTION_PAGE_SIZE) {
+      const { data, error } = await supabase
+        .from("search_trim_preferences")
+        .select("id, search_id, trim, model_year, rank_position, excluded, configurator_trim_id")
+        .in("search_id", idChunk)
+        .order("id")
+        .range(from, from + SELECTION_PAGE_SIZE - 1);
+      if (error) {
+        throw new Error(`Failed to load trim preferences: ${error.message}`);
+      }
+      for (const row of data ?? []) {
+        const list = trimPrefsBySearchId.get(row.search_id as string) ?? [];
+        list.push({
+          id: row.id as string,
+          trim: row.trim as string,
+          modelYear: (row.model_year as number | null) ?? null,
+          rankPosition: (row.rank_position as number | null) ?? null,
+          excluded: row.excluded === true,
+          configuratorTrimId: (row.configurator_trim_id as string | null) ?? null,
+        });
+        trimPrefsBySearchId.set(row.search_id as string, list);
+      }
+      if (!data || data.length < SELECTION_PAGE_SIZE) break;
     }
-    for (const row of data ?? []) {
-      const list = trimPrefsBySearchId.get(row.search_id as string) ?? [];
-      list.push({
-        id: row.id as string,
-        trim: row.trim as string,
-        modelYear: (row.model_year as number | null) ?? null,
-        rankPosition: (row.rank_position as number | null) ?? null,
-        excluded: row.excluded === true,
-        configuratorTrimId: (row.configurator_trim_id as string | null) ?? null,
-      });
-      trimPrefsBySearchId.set(row.search_id as string, list);
-    }
-    if (!data || data.length < SELECTION_PAGE_SIZE) break;
   }
   for (const list of trimPrefsBySearchId.values()) {
     list.sort(compareTrimPreferences);
@@ -592,31 +618,34 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
   // Combination preferences (2026-09-19, Phase 4) -- same pagination
   // reasoning as trim preferences and selections above.
   const combinationPrefsBySearchId = new Map<string, OutreachCombinationPreference[]>();
-  for (let from = 0; ; from += SELECTION_PAGE_SIZE) {
-    const { data, error } = await supabase
-      .from("search_combination_preferences")
-      .select("id, search_id, trim, model_year, exterior_color, interior, seating, rank_position, excluded")
-      .in("search_id", searchIds)
-      .order("id")
-      .range(from, from + SELECTION_PAGE_SIZE - 1);
-    if (error) {
-      throw new Error(`Failed to load combination preferences: ${error.message}`);
+  // Chunked by search id too (Chunk 7b): the id list goes in the request URL.
+  for (const idChunk of chunks(searchIds)) {
+    for (let from = 0; ; from += SELECTION_PAGE_SIZE) {
+      const { data, error } = await supabase
+        .from("search_combination_preferences")
+        .select("id, search_id, trim, model_year, exterior_color, interior, seating, rank_position, excluded")
+        .in("search_id", idChunk)
+        .order("id")
+        .range(from, from + SELECTION_PAGE_SIZE - 1);
+      if (error) {
+        throw new Error(`Failed to load combination preferences: ${error.message}`);
+      }
+      for (const row of data ?? []) {
+        const list = combinationPrefsBySearchId.get(row.search_id as string) ?? [];
+        list.push({
+          id: row.id as string,
+          trim: row.trim as string,
+          modelYear: (row.model_year as number | null) ?? null,
+          exteriorColor: (row.exterior_color as string | null) ?? null,
+          interior: (row.interior as string | null) ?? null,
+          seating: (row.seating as string | null) ?? null,
+          rankPosition: (row.rank_position as number | null) ?? null,
+          excluded: row.excluded === true,
+        });
+        combinationPrefsBySearchId.set(row.search_id as string, list);
+      }
+      if (!data || data.length < SELECTION_PAGE_SIZE) break;
     }
-    for (const row of data ?? []) {
-      const list = combinationPrefsBySearchId.get(row.search_id as string) ?? [];
-      list.push({
-        id: row.id as string,
-        trim: row.trim as string,
-        modelYear: (row.model_year as number | null) ?? null,
-        exteriorColor: (row.exterior_color as string | null) ?? null,
-        interior: (row.interior as string | null) ?? null,
-        seating: (row.seating as string | null) ?? null,
-        rankPosition: (row.rank_position as number | null) ?? null,
-        excluded: row.excluded === true,
-      });
-      combinationPrefsBySearchId.set(row.search_id as string, list);
-    }
-    if (!data || data.length < SELECTION_PAGE_SIZE) break;
   }
   for (const list of combinationPrefsBySearchId.values()) {
     list.sort(compareCombinationPreferences);
@@ -814,19 +843,26 @@ export async function getFinalizationQueue(): Promise<FinalizationQueueSearch[]>
     ...new Map(searches.map((s) => [`${s.make}::${s.model}`, { make: s.make, model: s.model }])).values(),
   ];
 
-  const [{ data: customers }, listingsByPair] = await Promise.all([
-    supabase.from("customers").select("id, email").in("id", customerIds),
+  // Paged and chunked (Phase 1 Chunk 7b): the customer /finalize page already pages its listings,
+  // so the agent's trim options must too, or the two would disagree for a popular model.
+  const [customers, listingsByPair] = await Promise.all([
+    fetchByIds(customerIds, (ids, from, to) =>
+      supabase.from("customers").select("id, email").in("id", ids).order("id").range(from, to)),
     Promise.all(
       distinctMakeModels.map(async ({ make, model }) => {
-        const { data } = await supabase
-          .from("listings")
-          // powertrain: buildTrimOptions splits a trim MarketCheck uses for
-          // gas and hybrid alike, so agents see the customer's choices.
-          .select("trim, price_cents, year, powertrain:raw_data->build->>powertrain_type")
-          .eq("make", make)
-          .eq("model", model)
-          .not("trim", "is", null);
-        return { make, model, listings: data ?? [] };
+        const data = await fetchAllPages((from, to) =>
+          supabase
+            .from("listings")
+            // powertrain: buildTrimOptions splits a trim MarketCheck uses for
+            // gas and hybrid alike, so agents see the customer's choices.
+            .select("trim, price_cents, year, powertrain:raw_data->build->>powertrain_type")
+            .eq("make", make)
+            .eq("model", model)
+            .not("trim", "is", null)
+            .order("id")
+            .range(from, to),
+        );
+        return { make, model, listings: data };
       })
     ),
   ]);
@@ -902,8 +938,7 @@ export async function getSwitchCallQueue(): Promise<SwitchCallQueueSearch[]> {
   }
 
   const customerIds = [...new Set(searches.map((s) => s.customer_id))];
-  const { data: customers } = await supabase.from("customers").select("id, email").in("id", customerIds);
-  const customerEmailById = new Map((customers ?? []).map((c) => [c.id, c.email as string]));
+  const customerEmailById = await customerEmailsById(supabase, customerIds);
 
   return searches.map((search) => ({
     id: search.id,
@@ -953,8 +988,7 @@ export async function getCancellationCallQueue(): Promise<CancellationCallQueueS
   }
 
   const customerIds = [...new Set(searches.map((s) => s.customer_id))];
-  const { data: customers } = await supabase.from("customers").select("id, email").in("id", customerIds);
-  const customerEmailById = new Map((customers ?? []).map((c) => [c.id, c.email as string]));
+  const customerEmailById = await customerEmailsById(supabase, customerIds);
 
   return searches.map((search) => ({
     id: search.id,
@@ -1019,8 +1053,7 @@ export async function getOverdueFollowUpQueue(): Promise<OverdueFollowUpSearch[]
   }
 
   const customerIds = [...new Set(searches.map((s) => s.customer_id))];
-  const { data: customers } = await supabase.from("customers").select("id, email").in("id", customerIds);
-  const customerEmailById = new Map((customers ?? []).map((c) => [c.id, c.email as string]));
+  const customerEmailById = await customerEmailsById(supabase, customerIds);
 
   return searches.map((search) => ({
     id: search.id,
@@ -1074,8 +1107,7 @@ export async function getPausedSearchesQueue(): Promise<PausedSearch[]> {
   }
 
   const customerIds = [...new Set(searches.map((s) => s.customer_id))];
-  const { data: customers } = await supabase.from("customers").select("id, email").in("id", customerIds);
-  const customerEmailById = new Map((customers ?? []).map((c) => [c.id, c.email as string]));
+  const customerEmailById = await customerEmailsById(supabase, customerIds);
 
   const now = Date.now();
 
@@ -1138,8 +1170,7 @@ export async function getVehicleConsultationQueue(): Promise<VehicleConsultation
   }
 
   const customerIds = [...new Set(searches.map((s) => s.customer_id))];
-  const { data: customers } = await supabase.from("customers").select("id, email").in("id", customerIds);
-  const customerEmailById = new Map((customers ?? []).map((c) => [c.id, c.email as string]));
+  const customerEmailById = await customerEmailsById(supabase, customerIds);
 
   return searches.map((search) => ({
     id: search.id,
@@ -1202,8 +1233,7 @@ export async function getInventoryBlockedQueue(): Promise<InventoryBlockedQueueS
   );
 
   const customerIds = [...new Set(searches.map((s) => s.customer_id))];
-  const { data: customers } = await supabase.from("customers").select("id, email").in("id", customerIds);
-  const customerEmailById = new Map((customers ?? []).map((c) => [c.id, c.email as string]));
+  const customerEmailById = await customerEmailsById(supabase, customerIds);
 
   return searches.flatMap((search) => {
     const modelYear = (search.model_year as number | null) ?? null;
@@ -1544,4 +1574,15 @@ export async function getGeneralThreadActivityQueue(): Promise<GeneralThreadActi
       };
     })
     .sort((a, b) => new Date(b.customerActivityAt).getTime() - new Date(a.customerActivityAt).getTime());
+}
+
+/**
+ * Customer emails for a list of customer ids, in chunks (Phase 1 Chunk 7b): the ids go in the
+ * request URL, and about 650 or more are refused outright. Shared by the call, follow-up, paused,
+ * consultation and blocked queues. Throws on error instead of quietly showing "unknown customer".
+ */
+async function customerEmailsById(supabase: ReturnType<typeof createAdminClient>, customerIds: string[]): Promise<Map<string, string>> {
+  const customers = await fetchByIds(customerIds, (ids, from, to) =>
+    supabase.from("customers").select("id, email").in("id", ids).order("id").range(from, to));
+  return new Map(customers.map((c) => [c.id as string, c.email as string]));
 }
