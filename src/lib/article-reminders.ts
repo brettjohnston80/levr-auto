@@ -33,14 +33,17 @@ export interface ArticleReminderSummary {
  * retries the whole notification rather than silently treating an agent
  * who didn't get the email as notified.
  */
-export async function sendArticleReminders(): Promise<ArticleReminderSummary> {
+export async function sendArticleReminders(opts: { onlyArticleIds?: string[] } = {}): Promise<ArticleReminderSummary> {
   const admin = createAdminClient();
   const summary: ArticleReminderSummary = { remindersSent: [], errors: [] };
 
-  const { data: drafts, error: draftsError } = await admin
+  let query = admin
     .from("articles")
     .select("id, slug, title, scheduled_month, reminder_last_threshold_days")
     .eq("status", "draft");
+  // A local or scoped run touches only the named articles (see job-scope.ts).
+  if (opts.onlyArticleIds) query = query.in("id", opts.onlyArticleIds);
+  const { data: drafts, error: draftsError } = await query;
 
   if (draftsError) {
     throw new Error(`Failed to load draft articles: ${draftsError.message}`);

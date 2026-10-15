@@ -1,3 +1,4 @@
+import { jobScope } from "@/lib/job-scope";
 import { NextRequest, NextResponse } from "next/server";
 import { sendDay60Reminders } from "@/lib/day60-extension";
 
@@ -14,7 +15,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const summary = await sendDay60Reminders();
+  // Outside production only the search ids in ?only= (job-scope.ts); production runs everything.
+  const scope = jobScope(request);
+  if (!scope.allowed) {
+    return NextResponse.json({ ok: true, skipped: scope.reason });
+  }
+  const summary = await sendDay60Reminders({ onlySearchIds: scope.onlyIds });
 
   return NextResponse.json({
     ok: true,

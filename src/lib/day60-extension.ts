@@ -57,16 +57,19 @@ export interface Day60ReminderSummary {
  * Journey step 8 discussion), so adding a soft check here would be false
  * confidence, not real protection.
  */
-export async function sendDay60Reminders(): Promise<Day60ReminderSummary> {
+export async function sendDay60Reminders(opts: { onlySearchIds?: string[] } = {}): Promise<Day60ReminderSummary> {
   const supabase = createAdminClient();
 
-  const { data: searches, error } = await supabase
+  let query = supabase
     .from("customer_searches")
     .select(
       "id, make, model, customer_id, solidified_at, search_deadline_at, deadline_reminder_sent_for, auto_renew_enabled"
     )
     .eq("search_status", "searching")
     .not("solidified_at", "is", null);
+  // A local or scoped run touches only the named searches (see job-scope.ts).
+  if (opts.onlySearchIds) query = query.in("id", opts.onlySearchIds);
+  const { data: searches, error } = await query;
 
   if (error) {
     throw new Error(`Failed to load searches for Day-60 reminder: ${error.message}`);
@@ -330,14 +333,16 @@ async function attemptAutoRenewCharge(
  * first (attemptAutoRenewCharge) -- success skips the pause entirely and
  * extends normally, any failure falls straight into the pause flow below.
  */
-export async function pauseOverdueSearches(): Promise<Day60PauseSummary> {
+export async function pauseOverdueSearches(opts: { onlySearchIds?: string[] } = {}): Promise<Day60PauseSummary> {
   const supabase = createAdminClient();
 
-  const { data: searches, error } = await supabase
+  let query = supabase
     .from("customer_searches")
     .select("id, customer_id, solidified_at, search_deadline_at, auto_renew_enabled")
     .eq("search_status", "searching")
     .not("solidified_at", "is", null);
+  if (opts.onlySearchIds) query = query.in("id", opts.onlySearchIds);
+  const { data: searches, error } = await query;
 
   if (error) {
     throw new Error(`Failed to load searches for Day-60 pause: ${error.message}`);
@@ -389,14 +394,16 @@ export interface ResumeReminderSummary {
  * resume, since the new paused_at naturally stops matching the stored
  * value.
  */
-export async function sendResumeReminders(): Promise<ResumeReminderSummary> {
+export async function sendResumeReminders(opts: { onlySearchIds?: string[] } = {}): Promise<ResumeReminderSummary> {
   const supabase = createAdminClient();
 
-  const { data: searches, error } = await supabase
+  let query = supabase
     .from("customer_searches")
     .select("id, make, model, customer_id, paused_at, resume_reminder_sent_for")
     .eq("search_status", "paused")
     .not("paused_at", "is", null);
+  if (opts.onlySearchIds) query = query.in("id", opts.onlySearchIds);
+  const { data: searches, error } = await query;
 
   if (error) {
     throw new Error(`Failed to load searches for resume reminder: ${error.message}`);
