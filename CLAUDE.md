@@ -104,7 +104,7 @@ Plan: `docs/plans/agent-dashboard-phase1-plan.md` (database) and `docs/plans/age
 
 ### Agent dashboard Phase 1 — code (branch `agent-dashboard-phase1-code`)
 - **Where:** git worktree `/Users/brettjohnston/Projects/levr-auto-phase1`. Claude's dev server there is `npx next dev --webpack -p 3100` (never Brett's `:3000`); production builds there need `next build --webpack` (Turbopack refuses the worktree's linked `node_modules`). Preview builds are off for this branch (`vercel.json` branch setting, removed in the merge commit).
-- **Hashes:** pushed to `origin` at **`6e46944`** (Chunks 0–7). **Nothing from the branch is deployed.** Deploy only after the tester round, on Brett's go-ahead (code plan section 5.2).
+- **Hashes:** pushed to `origin` at **`1d95e28`** (Chunks 0–8). **Nothing from the branch is deployed.** Deploy only after the tester round, on Brett's go-ahead (code plan section 5.2).
 
 | Chunk | What it does | Status |
 |---|---|---|
@@ -116,7 +116,7 @@ Plan: `docs/plans/agent-dashboard-phase1-plan.md` (database) and `docs/plans/age
 | 5 | Guarantee refunds on `/internal/refunds-due`; per-refund Reason on the cancellation form | approved, pushed |
 | 6 | Call-request resolution; call-request email to the assigned agent only; asking again after a resolution; the customer's own switch/cancel closes an open request (Step 16) | approved, pushed (24/24 + 4/4, 2026-10-14) |
 | 7 | Queue fixes: the callback queue filters to events needing an agent in the database and pages (5 of 5 callbacks past the first 1,000 events, was 0); the admin table reads every search in pages of 1,000 (1,012 of 1,012 rows, was 999), its Assigned agent column reads `customer_searches.assigned_agent_id`, and login emails are resolved page by page; the vehicle-consultation queue keeps only `awaiting_finalization` searches. Shared helper `src/lib/supabase/paged.ts` (`fetchAllPages`, `chunks`) | approved, pushed (2026-10-14) |
-| 8 | Deploy rehearsal: full build, one end-to-end pass of every chunk's tests, written diff summary (`docs/plans/agent-dashboard-phase1-diff-summary.md`), the filled-in deploy checklist; the changed scheduled jobs run only on named ids outside production, and a scoped run is logged `[job-scoped]` and returns `scoped: true` with the ids | rehearsed 2026-10-14/15, awaiting Brett's review; branch commits `7a8b3bb`, `1d95e28` not pushed |
+| 8 | Deploy rehearsal: full build, one end-to-end pass of every chunk's tests, written diff summary (`docs/plans/agent-dashboard-phase1-diff-summary.md`), the filled-in deploy checklist; the changed scheduled jobs run only on named ids outside production, and a scoped run is logged `[job-scoped]` and returns `scoped: true` with the ids | approved 2026-10-15, pushed (`1d95e28`). Chunk 1 sign-in tests re-run on the final branch code 2026-10-15, all passing (tests updated for Chunk 1g's `addAgent`/`resendAgentInvite` and the Add-agent page's two-factor reset; 48 agent actions × 3 sessions refused) |
 
 **Sign-in model (Chunk 1; code plan section 7):**
 - **`/agent`** is its own sign-in (internal look, no marketing header/footer); it lands on `/internal/outreach` until the Phase 3 shell. Customer `/login` is unchanged.
@@ -186,7 +186,7 @@ After building is complete and **before costing out running the business**:
 2. **Agent training and reference materials:** onboarding/training plus a "how do I…" quick reference, matched to the roles (agent, lead, admin).
 3. **Then costing.**
 
-**System models** (Mermaid, `docs/business/system-models/`, for the final review and training; roadmap lists the set): a Phase 1 pilot comes after the Chunk 8 rehearsal is reviewed (context diagram, search state machine, payment-to-assignment sequence, traceability matrix for assignment and sign-in); Brett picks notation and detail, then they're kept current with each approval.
+**System models** (Mermaid, `docs/business/system-models/`, for the final review and training; roadmap lists the set): **Phase 1 pilot built 2026-10-15, awaiting Brett's review** (context diagram, search state machine, payment-to-assignment sequence, traceability matrix for assignment and sign-in; choices in its README). The matrix found four assignment rules no run has exercised (continuity, lead fallback, no-lead, deactivated agents; only round-robin was tested in Step 4); a rolled-back SQL test is proposed. After Brett picks notation and detail, they're kept current with each approval.
 
 **Running documents** (created 2026-10-14 and backfilled with everything approved in Phase 1; **update both in the same commit as each chunk's approval**): `docs/business/site-language-inventory.md` (every approved wording, by page/flow/email, where it appears, date approved) and `docs/business/agent-process-reference.md` (each agent workflow, written for agents).
 
