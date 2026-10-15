@@ -2,65 +2,98 @@
 
 **Pilot, 2026-10-15.** Drawn from the Phase 1 branch (`agent-dashboard-phase1-code` at `1d95e28`). The live site runs `main` until the Phase 1 deploy, so the agent sign-in, assignment and alert pieces shown here aren't live yet.
 
-**How to read it:** the box in the middle is the system we build and run. Everything outside it is a person, a company's service, or a scheduled trigger that the system talks to. Each arrow says what passes between them.
+**How to read it:** the box in the middle is the system we build and run. Everything outside it is a person, a company's service, or a scheduled trigger. Each arrow says what passes between them. It's drawn as two diagrams (Brett, 2026-10-15): **people and money**, then **services and jobs**.
+
+## 1. People and money
 
 ```mermaid
 flowchart LR
-  %% People
   Customer(["Customer<br/>(browser or phone)"])
   Agent(["Agent / lead / admin<br/>(signs in at /agent)"])
   Dealer(["Dealers<br/>(phone and email, outside the system)"])
+  Social(["Social platforms<br/>(posted by hand)"])
 
-  subgraph LEVR["LEVR Auto system (www.levrauto.com on Vercel, Portland region)"]
+  subgraph LEVR["LEVR Auto system"]
     direction TB
     Site["Customer website<br/>intake, Matchmaker, Your Car, Your Deal, messages"]
     Internal["Agent dashboard<br/>/internal pages"]
-    Jobs["Scheduled jobs<br/>15 Vercel Cron routes"]
-    DB[("Supabase<br/>database, logins, files")]
-    Site --- DB
-    Internal --- DB
-    Jobs --- DB
+    Day60["Day-60 job<br/>(scheduled)"]
   end
 
-  %% Outside services
   Stripe["Stripe<br/>payments and refunds<br/>(test mode until the offer-entry phase)"]
-  MC["MarketCheck<br/>dealer inventory<br/>(500 calls/month)"]
   Zepto["ZeptoMail<br/>all email"]
-  Anthropic["Anthropic Claude API<br/>reads dealer offers, drafts articles and posts"]
-  PandaDoc["PandaDoc<br/>service-agreement e-sign<br/>(sandbox key; launch decision 1)"]
-  Mapbox["Mapbox<br/>Your Deal map"]
-  Cron(["Vercel Cron<br/>the clock"])
-  Social(["Social platforms<br/>(posted by hand)"])
 
   Customer -- "signs up, pays, picks options, reads offers, messages" --> Site
   Site -- "offers, updates, guarantee timeline" --> Customer
   Agent -- "logs offers, resolves calls, refunds, manages agents" --> Internal
   Agent -. "calls and emails" .-> Dealer
   Dealer -. "offer sheets and replies" .-> Agent
+  Internal -. "approved captions, copied by hand" .-> Social
 
-  Site -- "checkout" --> Stripe
+  Site -- "$699 checkout, $100 switch and extension fees" --> Stripe
   Stripe -- "payment-completed webhook" --> Site
-  Internal -- "refunds" --> Stripe
-  Jobs -- "auto-renew charges" --> Stripe
-
-  Jobs -- "inventory syncs" --> MC
-  Site -- "on-demand syncs at payment and switches" --> MC
-  Internal -- "Refresh inventory" --> MC
+  Internal -- "refunds (guarantee and cancellation)" --> Stripe
+  Day60 -- "auto-renew $100 charges (saved card)" --> Stripe
 
   Site -- "customer emails" --> Zepto
-  Jobs -- "reminders, daily updates, alert emails" --> Zepto
   Internal -- "invites, resets, call-request emails" --> Zepto
-  DB -- "sign-up and password-reset emails (Supabase Auth SMTP)" --> Zepto
-  Zepto --> Customer
-  Zepto --> Agent
+  Zepto -- "emails" --> Customer
+  Zepto -- "emails and alerts" --> Agent
+```
 
+| From → to | Code behind it |
+|---|---|
+| Customer → Stripe checkout | `createCheckoutSession` (`src/lib/payment-actions.ts`), `createSwitchFeeCheckoutSession`, `createExtensionCheckoutSession` |
+| Stripe → webhook | `src/app/api/stripe/webhook/route.ts` (`search_payment`, `switch_fee`, `extension_fee`) |
+| Day-60 job → auto-renew | `attemptAutoRenewCharge` (`src/lib/day60-extension.ts`) |
+| Agent → refunds | `issueGuaranteeRefund`, `recordExistingGuaranteeRefund` (`guarantee-refund-actions.ts`), `resolveCancellation` |
+| Emails | `sendEmail` (`src/lib/email.ts`); `.invalid` recipients never sent |
+
+## 2. Services and jobs
+
+```mermaid
+flowchart LR
+  Cron(["Vercel Cron<br/>the clock"])
+
+  subgraph LEVR["LEVR Auto system (Vercel, Portland region)"]
+    direction TB
+    Jobs["Scheduled jobs<br/>15 Vercel Cron routes"]
+    Site["Customer website"]
+    Internal["Agent dashboard"]
+    DB[("Supabase<br/>database, logins, files")]
+  end
+
+  subgraph OUT["Outside services"]
+    direction TB
+    MC["MarketCheck<br/>dealer inventory<br/>(500 calls/month)"]
+    Anthropic["Anthropic Claude API<br/>reads dealer offers,<br/>drafts articles and posts"]
+    Zepto["ZeptoMail<br/>all email"]
+    PandaDoc["PandaDoc<br/>service-agreement e-sign<br/>(sandbox key, launch decision 1)"]
+    Mapbox["Mapbox<br/>Your Deal map"]
+  end
+
+  Cron -- "runs each job" --> Jobs
+  Jobs -- "inventory syncs" --> MC
+  Site -- "syncs at payment and switches" --> MC
+  Internal -- "Refresh inventory" --> MC
   Internal -- "dealer reply text or PDF" --> Anthropic
   Jobs -- "article and social drafts" --> Anthropic
+  Jobs -- "reminders, updates, alerts" --> Zepto
+  DB -- "sign-up and reset emails" --> Zepto
   Site -- "service agreement" --> PandaDoc
   Site -- "map tiles" --> Mapbox
-  Cron -- "runs each job on its schedule" --> Jobs
-  Internal -. "approved captions, copied by hand" .-> Social
+  Site --- DB
+  Internal --- DB
+  Jobs --- DB
 ```
+
+| From → to | Code behind it |
+|---|---|
+| Jobs | `vercel.json`; each job's route under `src/app/api/cron/` (table below) |
+| MarketCheck | `syncListingsForMakeModel` (`marketcheck-sync.ts`), `marketcheck-scheduler.ts`, `refreshSearchInventory` |
+| Anthropic | `parseDealerOffer` (`offer-parsing-actions.ts`), `article-generation.ts`, `social-generation.ts` |
+| PandaDoc | `src/lib/pandadoc/client.ts`, `service-agreement-actions.ts` |
+| Auth emails ("sign-up and reset emails") | Supabase Auth, custom SMTP set to ZeptoMail (dashboard setting) |
 
 ## What each outside party sees
 
