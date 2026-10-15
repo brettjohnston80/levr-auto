@@ -262,6 +262,24 @@ Chunk 1 is now six small chunks, **1a–1f**, described in section 7. Each one e
   - **screenshots** of the admin table, desktop and phone, in `~/Downloads/agent-phase1-chunk7/`;
   - everything deleted afterwards and confirmed 0.
 
+### Chunk 7b: unpaged reads and long id lists (added 2026-10-14, Brett)
+Found by a codebase-wide sweep after a test cleanup hit PostgREST's silent 1,000-row limit. Two failure modes:
+- **Row limit:** a plain read returns at most 1,000 rows and cuts the rest off silently.
+- **Id-list length:** a `.in()` lookup puts every id in the request URL; measured 2026-10-14, 600 uuids work and about **650 or more are refused ("Bad Request")**. Most call sites ignored that error, so they quietly showed "unknown customer" or skipped everyone.
+
+**Fixed in 7b** (shared helpers in `src/lib/supabase/paged.ts`: `fetchAllPages`, `chunks`, `fetchByIds`):
+1. `dealership-queue.ts` listing counts per dealer (every listing; ~6,000 already, so `/internal/dealerships` counts were wrong on the live site too).
+2. `dealership-queue.ts` unconfirmed dealer aliases (390, growing with every make).
+3. `outreach-queue.ts` listings per searched make/model (dealer list and the Log Offer listing dropdown; Civic 715).
+4. `outreach-queue.ts` listings per make/model for the agent finalization form's trims.
+5. `inventory-count.ts` intake "matching listings near you" count (customer-facing), plus its dealer-ZIP lookup.
+6. Long id lists: `outreach-queue.ts` customers, offers, add-ons, deal progress and documents for active searches; the customer lookup in all six other agent queues (switch calls, cancellation calls, overdue follow-ups, paused, consultation, blocked); `day60-extension.ts` both customer lookups. `notification-digest.ts` already chunked its lists; it now uses the shared helper.
+
+**Left for the offer-entry phase** (they only grow with real-customer volume; each needs more than 1,000 rows in one state, or ~650 ids, before anything is lost):
+- reads of all searches in one state: `outreach-queue.ts` active searches, finalization calls, switch calls, cancellation calls, overdue follow-ups, paused, consultation, blocked; `day60-extension.ts` reminders, pause and resume reminders; `guarantee-assessment.ts`; `search-solidification.ts`; `post-deal-survey.ts`; `refunds-due.ts`; `social-generation.ts` testimonial and deal selectors; `offer-sheet-cleanup.ts`;
+- `notification-digest.ts` pending daily-update events (more than 1,000 a day);
+- the offer-activity and general-thread queues' customer lookups (`outreach-queue.ts`, `.in("id", customerIds)` with names).
+
 ### Chunk 8: deploy rehearsal (no push)
 - Full `next build`, `tsc --noEmit` and lint.
 - One local end-to-end pass of chunks 3–7 together, on fresh scratch accounts.
@@ -420,44 +438,40 @@ The stored codes are the neutral ones Brett approved on 2026-10-11. The labels a
 | Refund buttons move real money | Production Stripe is still in test mode until the live-mode launch item. Once live, Issue refund moves real money, so the wording says so, and it needs the confirm step plus the idempotency key |
 | A merge conflict with `main` work during the round | The branch is rebased on `main` before the rehearsal (chunk 8); any conflict is shown to Brett |
 
-### 5.2 Deploy-day checklist (after the tester round, on Brett's go-ahead)
-1. **Brett confirms:** the tester round is over; any tester cleanup is done or deferred; every chunk is approved; all wording in section 3 is signed off.
-   - **Chunks 1b and 1d ship together, never 1b alone** (section 7.4).
-   - **Chunk 1f (Brett moved to `brett@levrauto.com`, password set and two-factor enrolled) completes before or at the same moment as the deploy, never after**, so Brett is never locked out: once 1d is live, `bjohnston@levrauto.com` (a customer login) can no longer reach `/internal`. Brett is the only admin, so there is no one else to let him back in.
-   - `AGENT_SIGNIN_HASH_SECRET` is set in Vercel Production (`vercel env ls production` shows it), or agent sign-in fails closed.
-2. **Counts before the deploy** (read-only query, saved):
-   - real paid searches with no agent, expected = real paid searches since Step 10;
+### 5.2 Deploy-day checklist (after the tester round, on Brett's go-ahead; revised 2026-10-14)
+Exact commands, ids and SQL are filled in by the Chunk 8 rehearsal.
+
+0. **Brett's go-ahead:**
+   - the tester round is over; tester cleanup is done or deferred;
+   - every chunk is approved (0–7b and the Chunk 8 rehearsal) and all wording in section 3 is signed off;
+   - **turn off `ALLOW_TEST_SEEDING`** in Vercel Production once tester cleanup is done;
+   - Stripe stays in test mode (live mode waits for the offer-entry phase);
+   - **Chunks 1b and 1d ship together, never 1b alone** (section 7.4), and **the 1f cutover completes before or at the deploy, never after** (section 5.3): once 1d is live, `bjohnston@levrauto.com` (a customer login) can no longer reach `/internal`, and Brett is the only admin.
+1. **Migrations (read-only check):** Steps 1–16 are applied (`assign_search`, `claim_cron_job`, `record_payment_refund`, `revoke_login_sessions`, the `call_request_resolved_by_customer` activity type, `agent_activity_log.agent_id` nullable). No migration runs on the day.
+2. **Environment:** `vercel env ls production` lists every variable the code reads (including `AGENT_SIGNIN_HASH_SECRET`) and none of the test-only switches (`AGENT_*_FORCE_*`, `AGENT_ASSIGN_SIMULATE_NO_ROTATION`, `AGENT_ADMIN_USERS_PAGE_SIZE`, `AGENT_IDLE_LIMIT_MS_OVERRIDE`); `NEXT_PUBLIC_SITE_URL` is `https://www.levrauto.com`; Supabase Email OTP Expiration is still 3600 (matches `SETUP_LINK_LIFETIME_SECONDS`).
+3. **Record baseline counts** (read-only query, saved):
+   - real paid searches with no agent;
    - open `agent_alerts`;
-   - `agent_activity_log` rows.
-3. **Merge and push:** rebase the branch on `main`, remove the branch's `vercel.json` setting, merge into `main`, push. Vercel builds production.
-4. **Wait for the deployment to be Ready.** Check the `x-vercel-id` region is `pdx1`, and that the cron list shows `agent-sweeps` at `15 * * * *`.
-5. **Run the first sweep by hand:**
+   - `agent_activity_log` rows;
+   - LEVRID 1's row (admin, in rotation, linked to `bjohnston@`).
+4. **1f Part A, before the merge** (section 5.3; Brett's old access keeps working): Claude runs `scripts/agent-cutover-prepare.mjs` on the branch's local server; Brett sets his password, enrolls his authenticator (plus a backup device) and signs in once on the local branch server.
+5. **Merge and push:** rebase the branch on `main`, remove the branch's `git.deploymentEnabled` line from `vercel.json` in the merge commit, merge into `main`, push. Vercel builds production.
+6. **Wait for Ready:** the `x-vercel-id` region is `pdx1`; the cron list shows `agent-sweeps` at `15 * * * *`.
+7. **1f Part B, straight after Ready, before the sweep** (section 5.3): one SQL Editor transaction removes the holder row and runs `relink_agent_login`; Brett signs in at `www.levrauto.com/agent` as `brett@`; `bjohnston@` is refused at `/internal`.
+8. **First sweep by hand:**
    ```
    curl -s -H "Authorization: Bearer $CRON_SECRET" https://www.levrauto.com/api/cron/agent-sweeps
    ```
-   Expected response:
-   - `assigned` = the count from step 2;
-   - `skipped_test` = the number of paid test-account searches;
-   - `alerts_sent` = 0, or the number of alerts if nobody was in rotation.
-6. **Check after the sweep** (read-only):
+   Expected: `assignment.assigned` and `assignment.examined` = the step 3 count of real paid searches with no agent; `assignment.testCustomersExcluded` > 0; `alerts.claimed` 0 unless nobody is in rotation.
+9. **Checks after the sweep** (read-only):
    - real paid searches with no agent = **0**;
-   - `search_assignments` rows added = `assigned`, with method `round_robin` or `continuity`;
+   - new `search_assignments` rows = `assigned`, method `round_robin` or `continuity`;
    - test-account searches with an agent = **0**;
-   - no `[agent-activity-failed]` or error lines in production logs for the last 15 minutes.
-7. **Smoke test as Brett:**
-   - `/internal/outreach` and `/internal/admin` load, and the admin table shows assigned agents;
-   - `/internal/refunds-due` loads; no money buttons are clicked unless a real refund is due.
-8. **Watch:**
-   - the next scheduled `:15` sweep runs (cron log) with `assigned 0`;
-   - the next real payment, if any, gets an agent within seconds (webhook) rather than waiting for the sweep.
-8b. **Brett's agent login cutover (Chunk 1f, section 7.7): APPROVED 2026-10-14; the full runbook is section 5.3.** Part A runs BEFORE step 3 (old access still works), Part B straight after step 4 (Ready), before the sweep:
-   - **Part A, before the merge:** `scripts/agent-cutover-prepare.mjs` (on the branch dev server) adds a temporary holder row (a test agent) and the new agent-only login `brett@levrauto.com` linked to it, and writes a one-time setup link to a private file. Brett sets a password, enrolls two-factor and signs in again with both, on the branch's local server against the production database. His `bjohnston@` access is untouched.
-   - **Part B, right after Ready:** one SQL Editor transaction removes the holder and runs `relink_agent_login` (actor LEVRID 1, no flag route needed: it sets its own). Brett signs in at `www.levrauto.com/agent`.
-   - **Rollback after Part B:** Vercel Instant Rollback, then put `bjohnston@levrauto.com` back on LEVRID 1's email (today's code matches agents by email).
-   - Rehearsed with stand-in test accounts, 24/24 (2026-10-14).
-   - *Original order, kept for the record:* invite the new address; Brett sets a password and enrolls; run `relink_agent_login`; check old and new. It couldn't work as written: the setup pages need the login linked to an active agent row, and linking it to LEVRID 1 ends the old access before two-factor is proven.
-9. **Roll back** if anything in 5–8 is wrong: Vercel "Instant Rollback" to the previous production deployment. The database needs no rollback; the Phase 1 data stays valid and unused by the old code.
-
+   - the `agent-sweeps` lock in `cron_job_locks` is released;
+   - no `[assignment-failed]`, `[agent-alert-failed]` or `[agent-activity-failed]` lines in production logs for the last 15 minutes.
+10. **Smoke test as Brett:** `/internal/outreach`, `/internal/agents` load; `/internal/admin` shows assigned agents; `/internal/refunds-due` loads (no money buttons clicked); sign out and back in.
+11. **Watch:** the next scheduled `:15` sweep (`assigned` 0); the next real payment gets an agent within seconds; any alert email reaches Brett's inbox.
+12. **Roll back** if anything in 6–11 is wrong: Vercel Instant Rollback to the previous production deployment, then the prepared SQL that relinks LEVRID 1 to `bjohnston@` (the old code matches agents by email). The database needs no other rollback: the Phase 1 data stays valid and the old code doesn't read it.
 
 ### 5.3 Brett's cutover to brett@levrauto.com (Chunk 1f runbook, approved 2026-10-14)
 Rehearsed with stand-in test accounts, 24/24 (2026-10-14). Part A runs before checklist step 3 (the merge); Part B straight after step 4 (Ready), before step 5. Starting state (checked read-only 2026-10-14): LEVRID 1 is admin, in rotation, linked to `bjohnston@` (a customer login with 1 customer record); no `brett@` login exists.
