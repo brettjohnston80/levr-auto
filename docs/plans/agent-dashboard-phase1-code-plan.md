@@ -584,8 +584,25 @@ The stored codes are the neutral ones Brett approved on 2026-10-11. The labels a
 | Refund buttons move real money | Production Stripe is still in test mode until the live-mode launch item. Once live, Issue refund moves real money, so the wording says so, and it needs the confirm step plus the idempotency key |
 | A merge conflict with `main` work during the round | The branch is rebased on `main` before the rehearsal (chunk 8); any conflict is shown to Brett |
 
-### 5.2 Deploy-day checklist (after the tester round, on Brett's go-ahead; revised 2026-10-14)
+### 5.2 Deploy-day checklist and walkthrough script (after the tester round, on Brett's go-ahead; revised 2026-10-15)
 Commands, ids and SQL filled in by the Chunk 8 rehearsal (2026-10-14). Ids checked read-only that day: LEVRID 1's agent row `9c1b5cde-e8bf-4928-be66-529f13197e85`, linked to the `bjohnston@` login `3213ecaa-c459-4c6e-8109-1a0cf59bde50`; no `brett@` login yet.
+
+**Deploy day is one walkthrough session of about 90 minutes (Brett, 2026-10-15), not only the cutover.** Part 1 is the deploy and the cutover (steps 0–9, unchanged). Part 2 (step 10) is a guided tour of every screen, flow and email Phase 1 changed, on the live site, with what to see and check at each stop. Part 3 (steps 11–13) is cleanup, watching and rollback. Brett drives; Claude runs only the steps marked **(Claude)**, and only once Brett says go on the day.
+
+**Ground rules for the whole session:**
+- **No real money moves.** Stripe stays in test mode; before typing a card on any checkout page, check it shows Stripe's **"Test mode"** label, and use only Stripe's test card `4242 4242 4242 4242` (any future date, any CVC). No live-mode key is set anywhere.
+- **No real customer gets an email.** The only customer used is a disposable walkthrough customer on a `.invalid` address, which never receives email. Agent emails go to Brett's own two addresses.
+- **Off limits all session:** `tester1`–`tester11@levrauto-test.invalid`, `brett-deal-review@levrauto-test.invalid`, `test-verification@levrauto.invalid`, and every real customer. Look at their rows on the agent pages if they appear; never click an action on them.
+- **On real rows, look only.** No Approve on articles or social posts, no Merge on dealerships, no Log offer, no Mark purchased.
+- Two browsers (or two Chrome profiles): **Browser A** for Brett (`brett@`), **Browser B** for the training agent and the walkthrough customer. One browser shares one sign-in, so signing in as someone else in the same browser signs the other person out.
+
+**Before the day (prep):**
+- P1. **The training agent's mailbox:** create the Zoho alias `training@levrauto.com`, delivering to Brett's inbox (Brett, before the day). The tour adds **"LEVR Training Agent"** (`training@levrauto.com`, role Agent), which uses up **LEVRID 2** (Brett, 2026-10-15). It's a **permanent** training and demo agent, not a throwaway: taken out of rotation as soon as it's added, deactivated at the end of the session, and **never deleted**, so it can be reactivated for later walkthroughs and the agent training materials.
+- P2. An authenticator app for the training agent (a second entry on your phone is fine).
+- P3. **MarketCheck:** the walkthrough customer pays for a Toyota Camry. The payment webhook's inventory sync runs for it (test accounts aren't skipped there yet), costing up to 3 calls, or none if Camry was synced in the last 24 hours. Accepted by Brett (2026-10-15).
+
+**Part 1: deploy and cutover (about 20 minutes)**
+
 
 0. **Brett's go-ahead:**
    - the tester round is over; tester cleanup is done or deferred;
@@ -643,9 +660,206 @@ Commands, ids and SQL filled in by the Chunk 8 rehearsal (2026-10-14). Ids check
           (select locked_until <= now() from public.cron_job_locks where job = 'agent-sweeps') as sweep_lock_released;
    ```
    Expected: `real_paid_no_agent_after` 0; `new_assignments_by_method` matches `assigned` (`round_robin` / `continuity`); `test_searches_newly_assigned` 0; `sweep_lock_released` true. Then the production logs for the last 15 minutes show no `[assignment-failed]`, `[agent-alert-failed]` or `[agent-activity-failed]` lines.
-10. **Smoke test as Brett:** `/internal/outreach`, `/internal/agents` load; `/internal/admin` shows assigned agents; `/internal/refunds-due` loads (no money buttons clicked); sign out and back in.
-11. **Watch:** the next scheduled `:15` sweep (`assigned` 0); the next real payment gets an agent within seconds; any alert email reaches Brett's inbox.
-12. **Roll back** if anything in 6–11 is wrong:
+10. **Guided tour (Part 2, about 60 minutes).** Do the stops in order; each says what to do, what you should see (wording exactly as signed off, from `docs/business/site-language-inventory.md`) and what to check. Note anything off and carry on unless it's marked **stop**. Write down Brett's activity count first (step 7 left it at 3) so step 11 can compare.
+
+    **W1. Agent sign-in, Browser A** (`www.levrauto.com/agent`)
+    - Do: sign out, then sign in as `brett@levrauto.com` with a **wrong** password, once only.
+    - See: tab title "LEVR Auto agent sign-in", heading "Agent sign-in", fields "Work email" and "Password", a "Forgot your password?" link; the error "That didn't work. Check your details and try again."
+    - Do: sign in with the right password.
+    - See: "Enter your authenticator code", the field "6-digit code", the line "Lost access to your authenticator? Contact your lead."
+    - Do: enter the code. See: you land on `/internal/outreach`; the header reads "LEVR Auto · Agent", "Brett Johnston (LEVRID 1)" and "Sign out", with no marketing header or footer.
+    - Check: one wrong try is fine; five in 15 minutes locks you out for 15 minutes ("Too many sign-in attempts. Wait 15 minutes and try again."), so don't test the lock here.
+
+    **W2. Every `/internal` page as an admin, Browser A**
+    - Do: open each page in turn: `/internal/outreach`, `/internal/agents`, `/internal/admin`, `/internal/refunds-due`, `/internal/dealerships`, `/internal/articles`, `/internal/social`.
+    - See: every page opens with the agent header (as an admin you pass every role gate).
+    - Check on `/internal/agents`: title "Add an agent"; the "Agents" list has columns Name, Work email, Role, LEVRID, Sign-in; your row says LEVRID 1, "Two-factor on" and "(you)", and has **no** "Reset two-factor" button; no holder row and no test agents (they're hidden in production).
+    - Check on `/internal/admin`: the table has an "Assigned Agent" column (filled from each search's own assigned agent; with no real paid searches today it's blank until W9), and with the Status filter on "All" the count reads "{n} of {n}".
+    - Look only: no Approve, Regenerate, Merge or Save on articles, social or dealerships.
+
+    **W3. Add an agent, Browser A**
+    - Do: on `/internal/agents`, enter Name `LEVR Training Agent`, Work email `training@gmail.com`, Role Agent, **Send invite**.
+    - See: "Use a @levrauto.com work email." Nothing is added and no LEVRID is used.
+    - Do: correct the email to `training@levrauto.com`, **Send invite**.
+    - See: "Invite sent to training@levrauto.com. LEVR Training Agent is LEVRID 2." The list shows the new row with "Invite not finished".
+    - Check: the Role picker offers Agent, Lead and Admin (you're an admin; a lead only sees Agent).
+    - Do: take the training agent out of rotation straight away (SQL Editor), so no real search could ever be assigned to it:
+      ```sql
+      select a.levrid      as training_levrid,
+             a.role        as training_role,
+             a.in_rotation as training_in_rotation
+      from public.set_agent_rotation(
+        (select id from public.agents where levrid = 1),
+        (select id from public.agents where lower(email) = 'training@levrauto.com'),
+        false
+      ) a;
+      ```
+      Expected: one row, 2 / agent / false.
+
+    **W4. The invite email and account setup, Browser B**
+    - See in your inbox (to `training@`): subject "You've been invited to the LEVR Auto agent dashboard"; body "Brett Johnston added you as a LEVR Auto agent. Set your password and turn on two-factor sign-in to get started. This link works once and expires in 1 hour:" and the link.
+    - Do: open the link in Browser B. See: "Welcome to the LEVR Auto agent dashboard" and "Continue to set your password and turn on two-factor sign-in." Click **Continue**.
+    - Do: on "Set your password", type two different passwords first. See: "Passwords don't match." Then set a real one that meets the rule shown ("Use at least 8 characters, including an uppercase letter, a lowercase letter, a number, and a special character (like ! or #).") and **Continue**.
+    - See: "Turn on two-factor sign-in", the QR code, and "Can't scan? Enter this key instead:" with the key in groups of four and **Copy key**. Scan, enter the code, **Turn on**.
+    - See: Browser B lands on `/internal/outreach` with "LEVR Training Agent (LEVRID 2)".
+    - Check in Browser A (reload `/internal/agents`): the training agent's row now says "Two-factor on".
+    - Do: open the invite link again in Browser B. See: "This link has expired or has already been used." and "Ask your lead to send a new invite."
+
+    **W5. Role gates as a plain agent, Browser B (the training agent)**
+    - Do: type each address in turn: `/internal/admin`, `/internal/agents`, `/internal/articles`, `/internal/social`.
+    - See: each one sends you back to `/internal/outreach` (lead-only pages).
+    - Do: open `/internal/refunds-due` and `/internal/dealerships`. See: both open (every agent can work refunds and dealerships; merging dealerships is lead-only, so don't click Merge).
+    - Do: open `/account` and `/finalize/anything`. See: both send you to `/internal/outreach` (agent logins never use customer pages).
+    - Check: no customer row was created for the training agent (step 11's check confirms it).
+
+    **W6. Forgot password and two-factor reset (training agent)**
+    - Do (Browser B): **Sign out**, then on `/agent` click **Forgot your password?**, enter `training@levrauto.com`, **Send reset link**.
+    - See: "If that's an agent's work email, we've sent a link to reset the password. Check your inbox." (The same text appears for any address.)
+    - See in the inbox: "Reset your LEVR Auto agent password", body "Use this link to set a new password for the LEVR Auto agent dashboard. It works once and expires in 1 hour. You'll still need your authenticator code to sign in. …". Open it: "Reset your password" / "Continue to set a new password." Set a new password.
+    - Do: sign in as the training agent with the new password. See: the authenticator step is still asked for. Enter the code.
+    - Do (Browser A, `/internal/agents`): on the training agent's row click **Reset two-factor**. See the confirm: "Reset LEVR Training Agent's two-factor sign-in? They'll be signed out everywhere and set it up again next time they sign in. Confirm it's really them by phone or video first." Click **Reset**. See: "LEVR Training Agent's two-factor sign-in was reset. They've been signed out everywhere."
+    - Check (Browser B): click anything; you're sent to `/agent`. The inbox has "Your LEVR Auto two-factor sign-in was reset", body "Brett Johnston reset your two-factor sign-in. The next time you sign in, you'll set it up again. If you didn't ask for this, contact Brett Johnston right away."
+    - Do (Browser B): delete the old authenticator entry, sign in with password; see "Turn on two-factor sign-in" again; set it up; land on `/internal/outreach`.
+
+    **W7. The walkthrough customer pays (Stripe test mode), Browser B**
+    - Do: sign out the training agent in Browser B.
+    - Do **(Claude)**: create the disposable walkthrough customer with the admin API: email `claude-verify-walk-<timestamp>@verify.invalid`, email already confirmed, first name "WALKTHROUGH", last name "TEST CUSTOMER", phone `555-0199`, a random password written to `~/Downloads/levr-walkthrough-customer.txt` (private file, never in chat). `.invalid` means it never receives email and is never auto-assigned; it isn't on the tester domain, so it does show on Refunds due (W10).
+    - Do: at `www.levrauto.com/login`, sign in as that customer. On the homepage pick Toyota Camry, a model year and a ZIP and save the search; in Your Car click **Continue to payment — $699**. On Stripe's page **check "Test mode" is shown (stop if it isn't)**, then pay with `4242 4242 4242 4242`.
+    - See: you come back to the site and are taken to finalize the search. Leave it unfinalized.
+    - Check (SQL Editor):
+      ```sql
+      select s.id                 as walk_search_id,
+             s.paid_at is not null as walk_paid,
+             s.assigned_agent_id  as walk_agent,
+             (select count(*) from public.payments p where p.search_id = s.id) as walk_payments
+      from public.customer_searches s join auth.users u on u.id = s.customer_id
+      where lower(u.email) like 'claude-verify-walk-%@verify.invalid';
+      ```
+      Expected: one row, `walk_paid` true, `walk_agent` null (a test customer is never auto-assigned), `walk_payments` 1. Note `walk_search_id` for the next stops.
+
+    **W8. Reassign the walkthrough search to the training agent (SQL Editor)**
+    ```sql
+    select r.id                                                                       as reassigned_search,
+           r.assigned_agent_id = (select id from public.agents
+                                   where lower(email) = 'training@levrauto.com')   as now_training_agent
+    from public.reassign_search(
+      '<walk_search_id>',
+      (select id from public.agents where lower(email) = 'training@levrauto.com'),
+      (select id from public.agents where levrid = 1),
+      'Deploy-day walkthrough'
+    ) r;
+    ```
+    Expected: one row, `now_training_agent` true. This is what a lead does with `reassignSearch` until the Phase 3 screen exists.
+
+    **W9. The admin table's assigned agents, Browser A** (`/internal/admin`)
+    - See: the walkthrough search's row shows "LEVR Training Agent" under Assigned Agent; real paid searches (if any) show their agent.
+    - Check, the table reads every search (it used to stop at 999):
+      ```sql
+      select count(*) as all_searches from public.customer_searches;
+      ```
+      Expected: equal to the second number in "{n} of {n}" with the filter on All.
+
+    **W10. Switch and cancellation call requests, Browser B (customer) and Browser A (agent)**
+    - Do (SQL Editor): make the walkthrough search live, so it can be switched, and due a guarantee refund (for W11):
+      ```sql
+      update public.customer_searches
+      set search_status = 'searching', finalized_at = coalesce(finalized_at, now()), solidified_at = now(),
+          guarantee_status = 'refunded', guarantee_resolved_at = now()
+      where id = '<walk_search_id>' and paid_at is not null
+      returning id as walk_search_id, search_status as walk_status, guarantee_status as walk_guarantee;
+      ```
+      Expected: one row, searching / refunded.
+    - Do (Browser B, customer, reload `/account`): on the search, start a switch, then choose **Have an agent handle it**.
+    - See in the inbox (to `training@`, because W8 assigned the search): subject "WALKTHROUGH TEST CUSTOMER requested a switch call — {year} Toyota Camry"; first line "This search is assigned to you."; the Name / Email / Phone lines; the link "Open this request on /internal/outreach".
+    - Do (Browser A): follow the link. See the card under "Switch calls requested". Click **Mark call resolved**; see "Outcome" with "Didn't switch", "Couldn't complete the call" and "Other", and "Note (optional)". Pick **Didn't switch**, **Resolve**. See: the card leaves the list.
+    - Do (Browser B): reload `/account`. See: the call option is offered again (a resolved request can be asked for again). Don't ask for it.
+    - Do (Browser B): in the cancellation section, **Request a call with an agent**. See the email "…requested a cancellation call — …" starting "This search is assigned to you."
+    - Do (Browser A): on the card under "Cancellation calls requested", look at the cancellation form: the $699 payment shows "$699.00 refundable" with a **Reason** picker offering Cancellation (the default), Day-30 guarantee, Goodwill, Duplicate charge and Other. **Don't submit the form.** Then **Mark call resolved** → **Couldn't complete the call** → **Resolve**.
+
+    **W11. Refunds due: Issue refund, Browser A** (Stripe test mode; the only refund in the session)
+    - See on `/internal/refunds-due`: the subtitle "Guarantee not met by Day 30. Issue each refund here, or record one that was already issued in Stripe."; the walkthrough row with Refundable $699.00, **Issue refund**, and the link "Record a refund already issued in Stripe".
+    - Check before clicking: it's the walkthrough row. **If any real customer is listed, leave that row alone**: a real row is real money once Stripe is live, and isn't part of this tour.
+    - Do: **Issue refund** on the walkthrough row. See: "Refund $699.00 to WALKTHROUGH TEST CUSTOMER for the Day-30 guarantee? This sends the money back through Stripe and can't be undone." Click **Refund $699.00**.
+    - See: "WALKTHROUGH TEST CUSTOMER: Refunded $699.00. Stripe refund re_…." at the top, and the row leaves the list. (Recording a refund already made in Stripe, and the error messages, were covered by the c5 tests; there's nothing left here to record against.)
+
+    **W12. The customer closes an open call request themselves, Browser B then Browser A**
+    - Do (Browser B): request the cancellation call again (a fresh email arrives, same as before), then cancel the search yourself with **Cancel search permanently**.
+    - Check (Browser A, reload `/internal/outreach`): the cancellation card has gone by itself, with no agent named. SQL check:
+      ```sql
+      select l.action, l.agent_id is null as no_agent_named, l.created_at
+      from public.agent_activity_log l
+      where l.search_id = '<walk_search_id>'
+      order by l.created_at;
+      ```
+      Expected, in order (among others): `search_reassigned`, `call_request_resolved` twice (`no_agent_named` false), `refund_processed`, then `call_request_resolved_by_customer` (`no_agent_named` true).
+
+    **W13. The fixed queues, Browser A** (`/internal/outreach`, look only)
+    - See the section counts: "Vehicle consultation needed", "Finalization calls requested", "Switch calls requested", "Cancellation calls requested", "Customer callbacks requested", "Notification undeliverable", "Overdue follow-ups", "Paused searches", "Delivery estimates to get" (if any), "Active searches". The page loads without an error.
+    - Check against the database (a difference is worth a note, not a stop):
+      ```sql
+      select (select count(*) from public.customer_searches
+               where paid_at is not null and make is null and search_status = 'awaiting_finalization') as consultation_needed,
+             (select count(*) from public.notification_events
+               where agent_callback_requested_at is not null and flag_resolved_at is null)            as callbacks_open,
+             (select count(*) from public.notification_events
+               where flagged_no_deliverable_channel and flag_resolved_at is null)                     as undeliverable_open,
+             (select count(*) from public.dealer_aliases where dealership_id is null)                 as unconfirmed_dealers;
+      ```
+      Expected: `consultation_needed`, `callbacks_open` and `undeliverable_open` match their sections (the old callback queue stopped after the first 1,000 events); `unconfirmed_dealers` matches the unconfirmed count on `/internal/dealerships`.
+
+    **W14. An alert email, end to end** (one harmless alert, to admins only, so just you)
+    - Do (SQL Editor):
+      ```sql
+      insert into public.agent_alerts (kind, audience, details)
+      values ('other', 'admins', '{"error": "deploy-day walkthrough test alert, nothing to do"}')
+      returning id as walk_alert_id;
+      ```
+    - Do **(Claude)**: send only that alert (the all-zeros id keeps the assignment part from looking at any search):
+      ```
+      curl -s -H "Authorization: Bearer $CRON_SECRET" "https://www.levrauto.com/api/cron/agent-sweeps?only=00000000-0000-0000-0000-000000000000&alerts=<walk_alert_id>"
+      ```
+      Expected: `scoped: true` with the two ids, `assignment.examined` 0, `alerts.claimed` 1, `alerts.sent` 1. The log shows one `[job-scoped]` line.
+    - See in your `brett@` inbox: subject "A LEVR Auto agent alert needs attention", body "An alert was raised (deploy-day walkthrough test alert, nothing to do). Search: https://www.levrauto.com/internal/admin" with the link working.
+    - Do (SQL Editor): close it:
+      ```sql
+      select id as resolved_alert_id, resolved_at is not null as is_resolved
+      from public.resolve_agent_alert((select id from public.agents where levrid = 1), '<walk_alert_id>');
+      ```
+      Expected: one row, `is_resolved` true.
+    - The other four alert emails (lead fallback, no agent, assignment failed, activity not recorded) need a real paid search or a real failure, so they aren't triggered here; their wording and sending were checked by c4-simulate.
+
+    **W15. Scheduled jobs and idle sign-out (look only)**
+    - See in Vercel → Cron Jobs: `agent-sweeps` at `15 * * * *` alongside the existing jobs.
+    - Check after the next :15: the production log has an `[agent-sweeps]` line with `scoped: false` and `assigned` 0; no `[assignment-failed]`, `[agent-alert-failed]` or `[agent-activity-failed]` lines.
+    - Idle sign-out (8 hours) can't be shown in a session; it was tested with a 2-minute test limit (idle2). If Browser B is left signed in overnight, it should be on `/agent` in the morning.
+
+11. **Cleanup (Part 3, about 10 minutes), the same session.** The walkthrough search is "live" in the database, so it mustn't wait for tonight's jobs.
+    1. **(Claude)** delete the walkthrough customer by id and everything attached to it: its activity rows, assignment history, notification events, cancellation log, refunds and payments, the search, the customer row and the login. Then confirm by count that nothing with its customer or search id is left. (The Stripe test-mode payment and refund stay in Stripe's test data; nothing to undo there.)
+    2. Deactivate the training agent (Brett, SQL Editor). **Never delete it**: it's the permanent training and demo agent. LEVRID 2 stays its number, and its activity rows (invited, rotation, two-factor reset, deactivated) stay as the real record:
+       ```sql
+       select a.levrid as training_levrid, a.active as training_active, a.in_rotation as training_in_rotation
+       from public.set_agent_active(
+         (select id from public.agents where levrid = 1),
+         (select id from public.agents where lower(email) = 'training@levrauto.com'),
+         false
+       ) a;
+       ```
+       Expected: one row, 2 / false / false. Keep the `training@` Zoho alias and its authenticator entry. To use it again later: `set_agent_active(<LEVRID 1 id>, <training agent id>, true)` (it stays out of rotation), then sign in at `/agent`; if the authenticator entry is gone, a lead or admin resets its two-factor first.
+    3. Delete `~/Downloads/levr-walkthrough-customer.txt`. The W14 test alert stays, resolved (it names no customer or search).
+    4. Final check:
+       ```sql
+       select (select count(*) from auth.users where lower(email) like 'claude-verify-walk-%')        as walk_logins_left,
+              (select count(*) from public.agents where active and lower(email) = 'training@levrauto.com') as training_active_left,
+              (select count(*) from public.customers c where c.id in
+                 (select a.auth_user_id from public.agents a where lower(a.email) = 'training@levrauto.com')) as training_customer_rows,
+              (select a.role || ' / in rotation ' || a.in_rotation || ' / active ' || a.active || ' / ' || a.email
+                 from public.agents a where a.levrid = 1)                                               as levrid1,
+              (select count(*) from public.agent_activity_log l
+                 where l.agent_id = (select id from public.agents where levrid = 1))                   as brett_activity_rows;
+       ```
+       Expected: `walk_logins_left` 0, `training_active_left` 0, `training_customer_rows` 0, `levrid1` "admin / in rotation true / active true / brett@levrauto.com". `brett_activity_rows`: note it. It's 3 (step 7) plus your walkthrough actions that weren't on the walkthrough search (adding the training agent, its rotation, the two-factor reset, resolving the alert, deactivating); the rows on the walkthrough search went with it in 11.1. Not a pass/fail number.
+12. **Watch** (after the session): the next scheduled `:15` sweep (`assigned` 0, `scoped: false`); the next real payment gets an agent within seconds; any alert email reaches Brett's inbox.
+13. **Roll back** if anything in 6–12 is wrong (clean up the walkthrough customer and deactivate the training agent first, step 11):
     1. Vercel Instant Rollback to the previous production deployment.
     2. If Part B (step 7) already ran, put LEVRID 1's email back so the old code (which matches agents by email) lets `bjohnston@` in:
        ```sql

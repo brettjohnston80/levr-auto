@@ -142,6 +142,7 @@ Plan: `docs/plans/agent-dashboard-phase1-plan.md` (database) and `docs/plans/age
 - **Every customer address ending `.invalid` is a test account** for assignment, sweeps, alerts and email suppression (Step 15 / Chunk 0). The tester program's own filters (nightly sync, social selectors, refunds-due) still key off `@levrauto-test.invalid` only.
 - **The persistent test admin** `claude-verify-admin@levrauto-test.invalid` (Step 13): admin, no LEVRID, out of rotation, never linked to a login, never deleted. Tests act as it (or as disposable `claude-verify-<ts>` agents) whenever they need a lead or admin.
 - **Tests never act as Brett (LEVRID 1)** or any real agent, never touch his rotation, and his activity-row count must be identical before and after every run (it is 2 as of 2026-10-14).
+- **LEVR Training Agent** `training@levrauto.com` (LEVRID 2, role agent; Brett, 2026-10-15): a **permanent** training and demo agent, added during the deploy-day walkthrough (code plan section 5.2, stop W3). It's a real agent (not a test domain), taken out of rotation as soon as it's added and **deactivated between uses, never deleted**, so it can be reactivated (`set_agent_active`, staying out of rotation) for later walkthroughs and the agent training materials. Brett created the Zoho alias. Cleanup sweeps must never delete it or its activity rows; never put it in rotation.
 - **Off limits:** `tester1`–`tester11@levrauto-test.invalid` (round active), `brett-deal-review@levrauto-test.invalid`, `test-verification@levrauto.invalid`.
 - **Puppeteer lesson (2026-10-14):** `waitForFunction` polls on animation frames by default, and a background tab runs none, so a wait in a tab that lost focus never fires. Always pass `polling: 300`.
 
@@ -151,6 +152,7 @@ Plan: `docs/plans/agent-dashboard-phase1-plan.md` (database) and `docs/plans/age
 - `AGENT_SIGNIN_HASH_SECRET` set in Vercel Production before the deploy.
 - **Stripe live mode waits for the offer-entry phase** (Brett, 2026-10-14); production stays in Stripe test mode until then.
 - After Ready: run the first sweep by hand and check the counts (section 5.2 steps 5–8); roll back with Vercel Instant Rollback (the database needs none).
+- **Deploy day is a ~90-minute walkthrough session (approved 2026-10-15):** section 5.2 Part 1 (deploy and 1f cutover, steps 0–9), Part 2 (guided tour W1–W15 of every Phase 1 screen, flow and email on the live site, using the training agent and a disposable `.invalid` walkthrough customer paying in Stripe test mode; up to 3 MarketCheck calls accepted for the Camry payment), Part 3 (cleanup the same session: the walkthrough customer and its search's activity rows deleted, Brett's other admin actions kept, training agent deactivated; then watch and rollback).
 
 ### ⚠ Outside tester round ACTIVE
 - `tester1`–`tester11@levrauto-test.invalid`; invites sent 2026-10-10; instant start + 3 sample offers ON (`TESTER_INSTANT_START_ENABLED`). Credentials: `~/Downloads/levr-tester-credentials-2026-10-10.txt` (never commit or paste).
