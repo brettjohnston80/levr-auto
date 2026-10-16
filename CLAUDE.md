@@ -181,6 +181,19 @@ Review: `docs/research/configurator-wave2-review-2026-10-14.md`; Brett's decisio
   - MCPURA, MCPURA Cielo and GT2 Stradale are imported unpromoted, not promoted until US prices exist.
   - VinFast is held (re-check monthly); Jaguar has nothing orderable until Type 01 orders open (early 2027).
   - Re-pass items fold into the one combined Wave 2 + Wave 3 Cowork re-pass. Maserati and FIAT are added to the D5 name check.
+- **Combined re-pass, batch 1 (2026-10-16; review `docs/research/configurator-repass-review-2026-10-16.md`, decisions in its section 7):**
+  - Files committed as received: 12 `data/*-configurator-repass-2026-10.csv`, `data/configurator-engine-facts-2026-10.csv` (847 rows, 611 with hp) and `data/matchmaker-additions-wave3-repass-2026-10.csv`.
+  - Trims, "Base" and site checks are done. **Prices (section D) and Porsche Paint to Sample were not run.** Their prompt is `docs/research/cowork-prices-prompt-2026-10-16.md` (outputs `*-configurator-prices-2026-10.csv`).
+  - **Standing rule: trim names use the manufacturer's exact styling** (Audi "performance" lowercase).
+  - Decisions on specific cells are **known corrections** in the mapping step (branch `configurator-mapping`), so research files stay as received:
+    - MINI Countryman SE ALL4 → EV;
+    - Audi "performance" lowercase;
+    - Cadillac Escalade/ESV "V-Series" → "V" (entry stays "Base").
+  - Matchmaker `v21` (raw): `data/matchmaker-vehicle-dataset-2026-v21.csv`, built by `scripts/build-matchmaker-v21.py`. It's v20 plus the 19 Wave 3 rows, plus the 2027 Charger Daytona sedans at +$500. BMW XM range is 300 mi (2026 EPA). Not scored or imported.
+  - **Later Cowork pass (after prices):**
+    - missing rows: 2027 Daytona plain Scat Pack, BMW X5 40 / 50e / 750e, Eclipse Cross SE Pano / SEL Touring;
+    - row splits: Durango GT / GT HEMI, EQE 320 RWD / AWD.
+  - **Volvo EX40:** never promote. ⚠ Promotion is per make, so it needs the proposed "held models" list (as do the unpriced Maserati models); open.
 - **Rule 10 (Brett, 2026-10-15):** a plug-in hybrid's `range_mi` in the Matchmaker dataset is always the total range, never electric-only.
 - Process per make once ready: import as an unpromoted batch (`/api/internal/import-configurator`, `makes`, `blankPriceUnknown: true`) → verify → report → Brett approves → `promote_configurator_batch_make` → confirm live. MarketCheck model-name differences go in `src/lib/marketcheck-models.ts`; trim-name differences in `TRIM_EQUIVALENTS`.
 
