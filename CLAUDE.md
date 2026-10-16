@@ -8,6 +8,10 @@ This file exists so any Claude Code session (yours, your collaborator's, or a fu
 
 ## Working Preferences (read this before doing anything)
 
+- **Pushing (standing rule, Brett, 2026-10-16):**
+  - **May be pushed to `main` without asking** (tell Brett the hash afterward): commits that change ONLY documentation or research data, i.e. `docs/`, research files in `data/`, `CLAUDE.md` and plans.
+  - **Still waits for Brett's explicit go:** anything touching app code (`src/`), migrations, scripts that write to the database, `vercel.json`, or the Phase 1 / `configurator-mapping` branches.
+  - A commit that mixes the two waits.
 - **Plan before code, always.** Propose schema, UI surfaces, and open design questions before writing any implementation code on non-trivial changes. No surprises.
 - **Verify against source files — never take documentation at face value.** Validate claims against actual implementation files, not memory or prior docs. Flag inconsistencies explicitly rather than silently resolving them — several real bugs this project has caught (an RLS policy mismatch, a stale full_name reference, a scoring function that didn't use most of its inputs) were found exactly this way.
 - **Real-data verification gate.** No feature is done until verified end-to-end with real data, not just "the code compiles." Test artifacts get cleaned up after, confirmed via grep.
