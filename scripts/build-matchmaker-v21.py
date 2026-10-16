@@ -4,8 +4,10 @@ Wave 3 decisions (docs/research/configurator-wave3-review-2026-10-15.md section 
 and the re-pass review (docs/research/configurator-repass-review-2026-10-16.md):
   - add the Wave 3 Matchmaker rows (re-pass file), except the six Charger Daytona
     rows: our dataset already has the Charger Daytona as model "Charger";
-  - 2027 Charger Daytona sedans carry the +$500 four-door premium
-    (plain Scat Pack $72,495 coupe / $72,995 sedan; Scat Pack Plus +$500 likewise);
+  - 2027 Charger sedans carry Dodge's four-door premium (dodge.com Build & Price,
+    docs/research/dodge-chrysler-alfa-configurator-prices-notes-2026-10.md): +$2,000 on
+    the gas R/T, R/T Plus, Scat Pack and Scat Pack Plus; +$500 on the Daytona (plain
+    Scat Pack $72,495 coupe / $72,995 sedan; Scat Pack Plus likewise);
   - 2027 Daytona Scat Pack Plus is 670 hp (v20 already says so; checked, not changed);
   - models in data/held-models.json are left out (Volvo EX40, Maserati MCPURA / MCPURA
     Cielo / GT2 Stradale). The same file holds them out of the configurator import, so
@@ -22,7 +24,15 @@ import json
 BASE = "data/matchmaker-vehicle-dataset-2026-v20.csv"
 ADDITIONS = "data/matchmaker-additions-wave3-repass-2026-10.csv"
 OUT = "data/matchmaker-vehicle-dataset-2026-v21.csv"
-SEDAN_PREMIUM_2027 = 500.0
+# 2027 four-door premium over the two-door, by trim (dodge.com, 2026-10-16).
+SEDAN_PREMIUM_2027 = {
+    "R/T": 2000.0,
+    "R/T Plus": 2000.0,
+    "Scat Pack": 2000.0,
+    "Scat Pack Plus": 2000.0,
+    "Daytona Scat Pack": 500.0,
+    "Daytona Scat Pack Plus": 500.0,
+}
 HELD = "data/held-models.json"
 
 
@@ -38,9 +48,10 @@ def main() -> None:
 
     log = []
     for r in rows:
-        if (r["make"], r["model"], r["model_year"], r["body_style"]) == ("Dodge", "Charger", "2027", "Sedan") and r["trim"].startswith("Daytona"):
+        if (r["make"], r["model"], r["model_year"], r["body_style"]) == ("Dodge", "Charger", "2027", "Sedan"):
+            assert r["trim"] in SEDAN_PREMIUM_2027, f"no four-door premium for Charger {r['trim']} 2027"
             old = r["msrp"]
-            msrp = float(old) + SEDAN_PREMIUM_2027
+            msrp = float(old) + SEDAN_PREMIUM_2027[r["trim"]]
             r["msrp"] = f"{msrp:.1f}"
             r["true_starting_price"] = f"{msrp + float(r['destination_fee']):.1f}"
             log.append(f"Charger {r['trim']} 2027 Sedan: msrp {old} -> {r['msrp']}, true_starting_price -> {r['true_starting_price']}")
