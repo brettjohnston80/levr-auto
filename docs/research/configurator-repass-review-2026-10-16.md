@@ -119,3 +119,11 @@ No collisions in either run.
   - **Proposed:** a logged "held models" list in the mapping step that leaves those rows out of the import until released (and tested like the corrections). The research files stay as received.
   - Needs Brett's go-ahead.
 - **2027 gas Charger sedans:** the configurator research prices the 4-door at +$2,000 over the 2-door (2026 and 2027). The Matchmaker dataset lists 2027 gas coupes and sedans at the same price. Brett's decision covered the Daytona only, so this is unchanged pending a decision.
+
+## 9. Brett's decisions, second round (2026-10-16)
+
+- **Held models:** a logged, tested list keeps the Volvo EX40 and Maserati MCPURA, MCPURA Cielo and GT2 Stradale out of the configurator import until released.
+  - It lives in `data/held-models.json`, which `scripts/build-matchmaker-v21.py` also reads, so the same models are out of Matchmaker v21 (3 EX40 rows from v20, 3 Maserati rows from Wave 3).
+  - Removing an entry releases a model in both places.
+  - The EX40 stays pickable in the live Matchmaker data (v20) until v21 ships.
+- **2027 gas Charger sedans:** don't assume +$2,000. Item C in `cowork-prices-prompt-2026-10-16.md` asks Cowork to confirm each 2027 trim's two-door and four-door MSRP from Dodge's US site. What it finds is then applied to the configurator data and Matchmaker v21.

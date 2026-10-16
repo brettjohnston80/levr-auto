@@ -193,7 +193,11 @@ Review: `docs/research/configurator-wave2-review-2026-10-14.md`; Brett's decisio
   - **Later Cowork pass (after prices):**
     - missing rows: 2027 Daytona plain Scat Pack, BMW X5 40 / 50e / 750e, Eclipse Cross SE Pano / SEL Touring;
     - row splits: Durango GT / GT HEMI, EQE 320 RWD / AWD.
-  - **Volvo EX40:** never promote. ⚠ Promotion is per make, so it needs the proposed "held models" list (as do the unpriced Maserati models); open.
+  - **Held models (Brett, 2026-10-16): `data/held-models.json`** is the one list, read by both the configurator import's mapping step (branch `configurator-mapping`) and `scripts/build-matchmaker-v21.py`.
+    - Today it holds the Volvo EX40 (no longer sold new in the US) and Maserati MCPURA / MCPURA Cielo / GT2 Stradale (no US prices).
+    - Removing an entry releases that model in both places.
+    - v21: 2,282 rows (2,266 from v20 + 16 Wave 3).
+  - **⚠ The Volvo EX40 is still pickable in the live Matchmaker data (v20) until v21 ships** (scored, imported, promoted, then a `/matchmaker` redeploy, which is static).
 - **Rule 10 (Brett, 2026-10-15):** a plug-in hybrid's `range_mi` in the Matchmaker dataset is always the total range, never electric-only.
 - Process per make once ready: import as an unpromoted batch (`/api/internal/import-configurator`, `makes`, `blankPriceUnknown: true`) → verify → report → Brett approves → `promote_configurator_batch_make` → confirm live. MarketCheck model-name differences go in `src/lib/marketcheck-models.ts`; trim-name differences in `TRIM_EQUIVALENTS`.
 
