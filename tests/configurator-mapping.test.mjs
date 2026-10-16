@@ -212,13 +212,20 @@ describe("known corrections (Brett's decisions, 2026-10-16; research files stay 
 });
 
 describe("held models (out of the import until Brett releases them, 2026-10-16)", () => {
+  const heldModels = M.heldModelsFromJson(fs.readFileSync(new URL("../data/held-models.json", import.meta.url), "utf8"));
+
+  it("reads the one shared list in data/held-models.json", () => {
+    assert.deepEqual(heldModels.map((h) => `${h.make} ${h.model}`).sort(), ["Maserati GT2 Stradale", "Maserati MCPURA", "Volvo EX40"]);
+    assert.throws(() => M.heldModelsFromJson('{"make":"Volvo"}'));
+  });
+
   it("leaves out the Volvo EX40 and Maserati MCPURA / MCPURA Cielo / GT2 Stradale, and reports each held row", () => {
     for (const [file, expected] of [
       ["genesis-volvo-configurator-repass-2026-10.csv", ["Volvo EX40 Black Edition 2026", "Volvo EX40 Plus 2026"]],
       ["maserati-configurator-repass-2026-10.csv", ["Maserati GT2 Stradale Base 2027", "Maserati MCPURA Base 2027", "Maserati MCPURA Cielo 2027"]],
     ]) {
       const input = read(file);
-      const { rows, report } = M.mapConfiguratorRows(input);
+      const { rows, report } = M.mapConfiguratorRows(input, { heldModels });
       assert.deepEqual(report.held.map((n) => `${n.make} ${n.model} ${n.trim} ${n.modelYear}`).sort(), expected);
       assert.equal(rows.length, input.length - expected.length);
       assert.ok(!rows.some((r) => ["EX40", "MCPURA", "GT2 Stradale"].includes(r.model)));
@@ -227,8 +234,8 @@ describe("held models (out of the import until Brett releases them, 2026-10-16)"
 
   it("holds nothing else, and releasing a model (an empty list) brings its rows back", () => {
     const input = read("maserati-configurator-repass-2026-10.csv");
-    assert.equal(M.mapConfiguratorRows(input).rows.length, 10);
-    const released = M.mapConfiguratorRows(input, { heldModels: [] });
+    assert.equal(M.mapConfiguratorRows(input, { heldModels }).rows.length, 10);
+    const released = M.mapConfiguratorRows(input, { heldModels: heldModels.filter((h) => h.make !== "Maserati") });
     assert.equal(released.rows.length, 13);
     assert.deepEqual(released.report.held, []);
   });

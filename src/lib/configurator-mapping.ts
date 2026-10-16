@@ -35,7 +35,7 @@ export interface MappingReport {
   collisions: string[];
   /** Every known correction applied (see KNOWN_CORRECTIONS). */
   corrections: MappingNote[];
-  /** Rows left out of the import (see HELD_MODELS). */
+  /** Rows left out of the import (data/held-models.json). */
   held: MappingNote[];
 }
 
@@ -50,7 +50,7 @@ export interface MappingOptions {
   engineFacts?: Map<string, EngineFact>;
   /** Defaults to KNOWN_CORRECTIONS; tests pass their own. */
   corrections?: KnownCorrection[];
-  /** Defaults to HELD_MODELS; tests pass their own. */
+  /** From data/held-models.json (heldModelsFromJson); none held when omitted. */
   heldModels?: HeldModel[];
 }
 
@@ -380,11 +380,21 @@ export interface HeldModel {
   why: string;
 }
 
-export const HELD_MODELS: HeldModel[] = [
-  { make: "Volvo", model: "EX40", why: "no longer sold new in the US (volvocars.com/us)" },
-  { make: "Maserati", model: "MCPURA", why: "no published US prices yet (covers MCPURA and MCPURA Cielo)" },
-  { make: "Maserati", model: "GT2 Stradale", why: "no published US prices yet" },
-];
+/**
+ * The held list itself lives in data/held-models.json, which the Matchmaker
+ * dataset build (scripts/build-matchmaker-v21.py) also reads, so releasing a
+ * model (removing its entry) releases it in both places. Callers read the file
+ * and pass it in; this module stays free of file access.
+ */
+export function heldModelsFromJson(text: string): HeldModel[] {
+  const parsed: unknown = JSON.parse(text);
+  if (!Array.isArray(parsed)) throw new Error("held-models.json must be a list");
+  return parsed.map((h) => {
+    const e = h as Partial<HeldModel>;
+    if (typeof e.make !== "string" || typeof e.model !== "string") throw new Error("held model needs make and model");
+    return { make: e.make, model: e.model, why: typeof e.why === "string" ? e.why : "" };
+  });
+}
 
 function heldModelFor(row: CsvRow, held: HeldModel[]): HeldModel | undefined {
   return held.find((h) => h.make === (row.make ?? "").trim() && h.model === (row.model ?? "").trim());
@@ -563,7 +573,7 @@ function fuelRows(row: CsvRow, fuels: string[], report: MappingReport): CsvRow[]
 export function mapConfiguratorRows(rows: CsvRow[], opts: MappingOptions = {}): { rows: CsvRow[]; report: MappingReport } {
   const report: MappingReport = { rowsIn: rows.length, rowsOut: 0, changed: {}, unmapped: [], dropped: [], collisions: [], corrections: [], held: [] };
   const corrections = opts.corrections ?? KNOWN_CORRECTIONS;
-  const heldModels = opts.heldModels ?? HELD_MODELS;
+  const heldModels = opts.heldModels ?? [];
   const bump = (k: string) => (report.changed[k] = (report.changed[k] ?? 0) + 1);
   const out: CsvRow[] = [];
 

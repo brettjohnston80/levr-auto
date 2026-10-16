@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { parse } from "csv-parse/sync";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseConfiguratorRow, type ParsedOption } from "@/lib/configurator-parse";
-import { engineFactsFromRows, mapConfiguratorRows, type MappingReport } from "@/lib/configurator-mapping";
+import { engineFactsFromRows, heldModelsFromJson, mapConfiguratorRows, type MappingReport } from "@/lib/configurator-mapping";
 
 // Durable import for the Toyota/Honda configurator datasets (step 4 of 9),
 // same shape as import-vehicle-dataset: CRON_SECRET-gated, one new
@@ -69,6 +69,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `could not read data/${body.engineFactsFile}` }, { status: 400 });
     }
   }
+  // Models held out of the import until released (shared with the Matchmaker
+  // dataset build). Read every time the mapping runs; a missing or broken
+  // file stops the import rather than letting held rows through.
+  let heldModels: ReturnType<typeof heldModelsFromJson> = [];
+  if (useMapping) {
+    try {
+      heldModels = heldModelsFromJson(readFileSync(join(process.cwd(), "data", "held-models.json"), "utf-8"));
+    } catch (e) {
+      return NextResponse.json({ error: `could not read data/held-models.json: ${(e as Error).message}` }, { status: 400 });
+    }
+  }
   const mappingReports: Record<string, MappingReport> = {};
 
   // --- read + parse every file before touching the DB -------------------
@@ -85,7 +96,7 @@ export async function POST(req: NextRequest) {
     // parser handles its own trimming per field.
     let rawRows: CsvRow[] = parse(csvText, { columns: true, skip_empty_lines: true, trim: false });
     if (useMapping) {
-      const mapped = mapConfiguratorRows(rawRows, { engineFacts });
+      const mapped = mapConfiguratorRows(rawRows, { engineFacts, heldModels });
       mappingReports[filename] = mapped.report;
       rawRows = mapped.rows;
     }

@@ -7,7 +7,7 @@ import fs from "node:fs";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { parse } = require("csv-parse/sync");
-const { mapConfiguratorRows, engineFactsFromRows } = await import("../src/lib/configurator-mapping.ts");
+const { mapConfiguratorRows, engineFactsFromRows, heldModelsFromJson } = await import("../src/lib/configurator-mapping.ts");
 
 const args = process.argv.slice(2);
 const flag = (name) => { const i = args.indexOf(name); if (i === -1) return null; const v = args[i + 1]; args.splice(i, 2); return v; };
@@ -15,10 +15,13 @@ const factsFile = flag("--facts");
 const jsonOut = flag("--json");
 const engineFacts = factsFile ? engineFactsFromRows(parse(fs.readFileSync(factsFile, "utf8"), { columns: true, skip_empty_lines: true })) : undefined;
 
+// The same held list the import and the Matchmaker build use.
+const heldModels = heldModelsFromJson(fs.readFileSync(new URL("../data/held-models.json", import.meta.url), "utf8"));
+
 const all = { files: {} };
 for (const file of args) {
   const rows = parse(fs.readFileSync(file, "utf8"), { columns: true, skip_empty_lines: true, trim: false });
-  const { report } = mapConfiguratorRows(rows, { engineFacts });
+  const { report } = mapConfiguratorRows(rows, { engineFacts, heldModels });
   all.files[file] = report;
   const unmappedByRule = report.unmapped.reduce((a, n) => ((a[n.rule] = (a[n.rule] ?? 0) + 1), a), {});
   console.log(`\n=== ${file}\n  rows ${report.rowsIn} -> ${report.rowsOut}; changed ${JSON.stringify(report.changed)}`);
