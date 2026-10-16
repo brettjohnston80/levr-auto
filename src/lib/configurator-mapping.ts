@@ -35,6 +35,8 @@ export interface MappingReport {
   collisions: string[];
   /** Every known correction applied (see KNOWN_CORRECTIONS). */
   corrections: MappingNote[];
+  /** Rows left out of the import (see HELD_MODELS). */
+  held: MappingNote[];
 }
 
 /** Optional official figures from the Cowork re-pass, keyed by engineFactKey(). */
@@ -48,6 +50,8 @@ export interface MappingOptions {
   engineFacts?: Map<string, EngineFact>;
   /** Defaults to KNOWN_CORRECTIONS; tests pass their own. */
   corrections?: KnownCorrection[];
+  /** Defaults to HELD_MODELS; tests pass their own. */
+  heldModels?: HeldModel[];
 }
 
 // ---------------------------------------------------------------------------
@@ -365,6 +369,27 @@ export const KNOWN_CORRECTIONS: KnownCorrection[] = [
   cadillacV("Escalade ESV", "2027"),
 ];
 
+// ---------------------------------------------------------------------------
+// Held models: rows left out of the import until Brett releases them. Promotion
+// is per make, so a row that must never go live can't simply be imported and
+// left unpromoted; it stays out instead (Brett, 2026-10-16).
+
+export interface HeldModel {
+  make: string;
+  model: string;
+  why: string;
+}
+
+export const HELD_MODELS: HeldModel[] = [
+  { make: "Volvo", model: "EX40", why: "no longer sold new in the US (volvocars.com/us)" },
+  { make: "Maserati", model: "MCPURA", why: "no published US prices yet (covers MCPURA and MCPURA Cielo)" },
+  { make: "Maserati", model: "GT2 Stradale", why: "no published US prices yet" },
+];
+
+function heldModelFor(row: CsvRow, held: HeldModel[]): HeldModel | undefined {
+  return held.find((h) => h.make === (row.make ?? "").trim() && h.model === (row.model ?? "").trim());
+}
+
 /** Applies the corrections that match this row; logs each applied or skipped one. */
 function applyCorrections(row: CsvRow, corrections: KnownCorrection[], report: MappingReport): CsvRow {
   const out = { ...row };
@@ -536,12 +561,19 @@ function fuelRows(row: CsvRow, fuels: string[], report: MappingReport): CsvRow[]
  * can't place are kept unchanged and reported; nothing is guessed.
  */
 export function mapConfiguratorRows(rows: CsvRow[], opts: MappingOptions = {}): { rows: CsvRow[]; report: MappingReport } {
-  const report: MappingReport = { rowsIn: rows.length, rowsOut: 0, changed: {}, unmapped: [], dropped: [], collisions: [], corrections: [] };
+  const report: MappingReport = { rowsIn: rows.length, rowsOut: 0, changed: {}, unmapped: [], dropped: [], collisions: [], corrections: [], held: [] };
   const corrections = opts.corrections ?? KNOWN_CORRECTIONS;
+  const heldModels = opts.heldModels ?? HELD_MODELS;
   const bump = (k: string) => (report.changed[k] = (report.changed[k] ?? 0) + 1);
   const out: CsvRow[] = [];
 
   for (const received of rows) {
+    // Held rows never reach the import (matched on the research file's own names).
+    const held = heldModelFor(received, heldModels);
+    if (held) {
+      report.held.push(note("held", received, held.why));
+      continue;
+    }
     // Corrections first; everything after keys off the corrected row.
     const original = applyCorrections(received, corrections, report);
     let row: CsvRow = { ...original };

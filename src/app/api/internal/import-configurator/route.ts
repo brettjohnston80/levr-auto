@@ -244,7 +244,7 @@ export async function POST(req: NextRequest) {
       ? Object.fromEntries(
           Object.entries(mappingReports).map(([file, r]) => [
             file,
-            { rowsIn: r.rowsIn, rowsOut: r.rowsOut, changed: r.changed, unmapped: r.unmapped, dropped: r.dropped },
+            { rowsIn: r.rowsIn, rowsOut: r.rowsOut, changed: r.changed, unmapped: r.unmapped, dropped: r.dropped, corrections: r.corrections, held: r.held },
           ]),
         )
       : null,

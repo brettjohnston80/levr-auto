@@ -22,7 +22,8 @@ for (const file of args) {
   all.files[file] = report;
   const unmappedByRule = report.unmapped.reduce((a, n) => ((a[n.rule] = (a[n.rule] ?? 0) + 1), a), {});
   console.log(`\n=== ${file}\n  rows ${report.rowsIn} -> ${report.rowsOut}; changed ${JSON.stringify(report.changed)}`);
-  console.log(`  left as is, by rule: ${JSON.stringify(unmappedByRule)}; dropped ${report.dropped.length}; collisions ${report.collisions.length}`);
+  console.log(`  left as is, by rule: ${JSON.stringify(unmappedByRule)}; dropped ${report.dropped.length}; collisions ${report.collisions.length}; corrections ${report.corrections.length}; held ${report.held.length}`);
+  for (const h of report.held) console.log(`  HELD ${h.make} ${h.model} ${h.trim} ${h.modelYear}: ${h.detail}`);
   for (const c of report.collisions) console.log(`  COLLISION ${c}`);
 }
 if (jsonOut) fs.writeFileSync(jsonOut, JSON.stringify(all, null, 1));

@@ -211,6 +211,29 @@ describe("known corrections (Brett's decisions, 2026-10-16; research files stay 
   });
 });
 
+describe("held models (out of the import until Brett releases them, 2026-10-16)", () => {
+  it("leaves out the Volvo EX40 and Maserati MCPURA / MCPURA Cielo / GT2 Stradale, and reports each held row", () => {
+    for (const [file, expected] of [
+      ["genesis-volvo-configurator-repass-2026-10.csv", ["Volvo EX40 Black Edition 2026", "Volvo EX40 Plus 2026"]],
+      ["maserati-configurator-repass-2026-10.csv", ["Maserati GT2 Stradale Base 2027", "Maserati MCPURA Base 2027", "Maserati MCPURA Cielo 2027"]],
+    ]) {
+      const input = read(file);
+      const { rows, report } = M.mapConfiguratorRows(input);
+      assert.deepEqual(report.held.map((n) => `${n.make} ${n.model} ${n.trim} ${n.modelYear}`).sort(), expected);
+      assert.equal(rows.length, input.length - expected.length);
+      assert.ok(!rows.some((r) => ["EX40", "MCPURA", "GT2 Stradale"].includes(r.model)));
+    }
+  });
+
+  it("holds nothing else, and releasing a model (an empty list) brings its rows back", () => {
+    const input = read("maserati-configurator-repass-2026-10.csv");
+    assert.equal(M.mapConfiguratorRows(input).rows.length, 10);
+    const released = M.mapConfiguratorRows(input, { heldModels: [] });
+    assert.equal(released.rows.length, 13);
+    assert.deepEqual(released.report.held, []);
+  });
+});
+
 describe("the whole step on every Wave 2 and Wave 3 research file", () => {
   const GROUPS = ["vw-audi", "gmc-buick", "cadillac-lincoln", "mercedes", "bmw-mini", "porsche-landrover", "lexus-acura", "genesis-volvo", "dodge-chrysler-alfa", "mitsubishi-polestar-lucid", "maserati", "fiat"];
   const FILES = [...GROUPS.map((s) => `${s}-configurator-full-2026-10.csv`), ...GROUPS.map((s) => `${s}-configurator-repass-2026-10.csv`)];
