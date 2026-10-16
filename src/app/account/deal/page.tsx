@@ -340,9 +340,12 @@ export default async function DealPage({
 
             <div className="mt-5">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h2 className="text-sm font-semibold text-zinc-300">
-                  {deal.offers.length > 0 ? `Offers (${deal.offers.length})` : "No offers yet"}
-                </h2>
+                {/* Not shown while "We're on it" says the same at the top (2026-10-16). */}
+                {!searchingNoOffers && (
+                  <h2 className="text-sm font-semibold text-zinc-300">
+                    {deal.offers.length > 0 ? `Offers (${deal.offers.length})` : "No offers yet"}
+                  </h2>
+                )}
                 <div className="flex flex-wrap items-center gap-3">
                 {canMap && (
                   <nav aria-label="View" className="flex items-center gap-1 text-xs">

@@ -169,3 +169,19 @@ Where: `agent_activity_types` (shown on the Phase 3 activity screens).
 | Code | Label | Approved |
 |---|---|---|
 | `call_request_resolved_by_customer` | `Call request closed: the customer switched or cancelled` | 2026-10-14 |
+
+## 12. Your Deal with no offers (customer, `/account/deal`) — approved 2026-10-16 (tester feedback)
+Where: `src/app/account/deal/page.tsx`, `src/lib/deal-empty-copy.ts`. Live on `main` (not part of Phase 1). Which state shows: the customer's newest search still in play, then their saved unpaid search, then "cancelled" if their latest paid search was cancelled, otherwise "No deal yet".
+
+| State | Heading | Text | Button |
+|---|---|---|---|
+| Saved, not paid | `Complete payment to start your search` | `Your search is saved. Once you pay, we'll start finding offers.` | `Review your search` (Your Car, that search) |
+| Paid, not finalized | `Finish your search to start getting deals` | `We need a few more details about the car you want before we can start finding offers.` | `Finish in Your Car` (Your Car, that search) |
+| Same, finalization call requested | `Finish your search to start getting deals` | `Your agent will call you to go over the details. You can also finish it yourself in Your Car.` | `Finish in Your Car` |
+| Paid, vehicle not chosen yet | `Let's pick your car` | `We're finding the right vehicle for you — your agent will reach out soon to talk through what you're looking for.` (existing approved line) | none |
+| Finalized, 24-hour change window | `Your search starts soon` | `You can still make changes in Your Car until {date, time in the customer's time zone}. After that we start searching dealers, and your offers will show up here.` | `Make changes in Your Car` |
+| Live (searching), no offers | `We're on it` (at the top, in place of the progress line; the lower "No offers yet" heading is hidden) | `We have everything we need and we're searching dealers for your car now. We'll let you know as soon as your first offer comes in.` | none |
+| Latest search cancelled | `This search was cancelled` | `To search again, start a new $699 search from the homepage.` | `Get Started` |
+| No searches | `No deal yet` (unchanged) | `Once your search gets underway, this is where you'll come back to see your offers.` (unchanged) | `Get Started` |
+
+A paused search with no offers is unchanged: the paused banner plus "No offers yet".

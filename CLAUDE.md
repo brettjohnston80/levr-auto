@@ -58,6 +58,8 @@ Read this first; `docs/business/how-brett-works.md` covers how Brett wants work 
 - **Delivery estimates before acceptance**; **Matchmaker changes from Cruz's feedback**; **MarketCheck usage cuts** (~260 calls/month against the 500 free tier); **Portland region** (`pdx1`, next to Supabase `us-west-2`).
 - **Database:** every Phase 1 migration (Steps 1–16) is applied in production; the live `main` code doesn't use them yet (see below).
 
+- **Your Deal empty states (tester feedback, approved and live 2026-10-16, on `main`, independent of Phase 1):** with no offers, Your Deal now says why: unpaid, paid but not finalized (call-requested variant), vehicle not chosen, 24-hour window (end time in the customer's time zone), live ("We're on it", replacing the progress line), cancelled. Wording: `docs/business/site-language-inventory.md` section 12; copy in `src/lib/deal-empty-copy.ts`.
+
 ### Agent dashboard Phase 1 — database (Steps 1–16)
 Plan: `docs/plans/agent-dashboard-phase1-plan.md` (database) and `docs/plans/agent-dashboard-phase1-code-plan.md` (code; build order section 2, wording section 3, hourly jobs section 4, deploy day section 5, sign-in section 7). **Steps 1–16 applied by Brett and verified** (Step 16 on 2026-10-14: all checks and the 10-step rolled-back test matched).
 
