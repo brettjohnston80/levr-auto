@@ -140,7 +140,7 @@ export interface ModelMapping {
   trimPrefix?: string;
   /** Appended to the trim where the merged body is the same as the model's own
    *  ("SUV Coupe" maps to SUV), so "GLE 450 4MATIC Coupe" stays distinct from
-   *  "GLE 450 4MATIC". Pending Brett's sign-off (trim names are customer-visible). */
+   *  "GLE 450 4MATIC". Approved by Brett 2026-10-16 (trim names are customer-visible). */
   trimSuffix?: string;
 }
 
@@ -214,6 +214,8 @@ const WORD_NUMBERS: Record<string, string> = {
 export interface EngineParts {
   base: string | null; // "3.0L twin-turbo V6 mild hybrid" or "Dual-motor electric"
   hp: number | null;
+  /** Battery size for an EV line, e.g. "82 kWh" (kept, Brett 2026-10-16). */
+  battery: string | null;
   transmission: string | null;
   drivetrain: string | null;
 }
@@ -284,12 +286,15 @@ export function readEngineParts(text: string, fact?: EngineFact): EngineParts {
   const dt = t.match(/\b(SH-AWD|S-AWC|AWC|AWD|4MATIC|quattro|xDrive|4MOTION|ALL4|all[-\s]wheel drive|4WD|four[-\s]wheel drive|FWD|front[-\s]wheel drive|RWD|rear[-\s]wheel drive|2WD|two[-\s]wheel drive|4X4)\b/i);
   if (dt) drivetrain = driveToken(dt[1]);
 
-  return { base, hp, transmission, drivetrain };
+  const kwh = isElectric ? t.match(/(\d{2,3}(?:\.\d)?)\s*-?\s*kWh\b/i) : null;
+  const battery = kwh ? `${kwh[1]} kWh` : null;
+
+  return { base, hp, battery, transmission, drivetrain };
 }
 
 export function formatEngine(p: EngineParts): string | null {
   if (!p.base) return null;
-  return [p.base, p.hp ? `${p.hp} hp` : null, p.transmission, p.drivetrain].filter(Boolean).join(", ");
+  return [p.base, p.battery, p.hp ? `${p.hp} hp` : null, p.transmission, p.drivetrain].filter(Boolean).join(", ");
 }
 
 /** "Transmission only" and "drivetrain only" items, which fold into the engine line. */
@@ -377,7 +382,6 @@ function mapEngineCell(row: CsvRow, original: CsvRow, report: MappingReport, opt
     }
     if (!parts.hp) report.unmapped.push(note("4", row, `no hp in the text or the engine-facts table: "${item.name}"`));
     if (/-mile|\bmi\b.*range|range\b/i.test(item.name)) report.dropped.push(note("4", row, `range text left out of the engine line: "${item.name}"`));
-    if (/\bkWh\b/i.test(item.name)) report.dropped.push(note("4", row, `battery size left out of the engine line: "${item.name}"`));
     if (formatted !== item.name) report.changed["4 engine line"] = (report.changed["4 engine line"] ?? 0) + 1;
     out.push({ ...item, name: formatted });
   }
@@ -386,18 +390,39 @@ function mapEngineCell(row: CsvRow, original: CsvRow, report: MappingReport, opt
 
 const FOUR_DRIVES = ["FWD", "RWD", "AWD", "4WD"];
 
-/** Splits a two-body row: each body keeps its own items, minus the "N-Door" body choices. */
+const DOORS_BY_BODY: Record<string, string> = { Coupe: "2", Sedan: "4" };
+
+/** The price in an item's " | Availability | Price | Package" tail, as written. */
+function itemPrice(item: Item): string {
+  return (item.rest.split(" | ")[2] ?? "").trim();
+}
+
+/**
+ * Splits a two-body row (Charger "coupe or sedan"). Each row drops the other
+ * body's "N-Door" item. Its own body item goes too when it costs nothing; when
+ * it costs extra (the Charger's 4-door, +$2,000), it stays as a standard item
+ * carrying that price, so the configurator still shows the difference
+ * (Brett, 2026-10-16).
+ */
 function bodyRows(row: CsvRow, bodies: string[], report: MappingReport): CsvRow[] {
   if (bodies.length === 1) return [{ ...row, body_style: bodies[0] }];
   return bodies.map((body) => {
-    const items = splitItems(row.drivetrain_engine_variants ?? "");
-    const doorItems = items.filter((i) => DOOR_ITEM.test(i.name));
-    for (const d of doorItems) {
-      if (!/^standard$/i.test(d.availability)) {
-        report.dropped.push(note("6", row, `body choice removed after the split (its price stays only in the Matchmaker MSRP): "${d.name}${d.rest}"`));
+    const doors = DOORS_BY_BODY[body];
+    const kept: Item[] = [];
+    for (const i of splitItems(row.drivetrain_engine_variants ?? "")) {
+      const m = i.name.match(/^\s*(\d)-door\b/i);
+      if (!m) {
+        kept.push(i);
+        continue;
+      }
+      const price = itemPrice(i).replace(/[^0-9.]/g, "");
+      if (m[1] === doors && price !== "" && Number(price) > 0) {
+        const name = `${doors}-door ${body.toLowerCase()} body`;
+        kept.push({ name, rest: i.rest.replace(/^ \| [^|]*\|/, " | Standard |"), availability: "Standard" });
+        report.changed["6 body price kept"] = (report.changed["6 body price kept"] ?? 0) + 1;
       }
     }
-    return { ...row, body_style: body, drivetrain_engine_variants: joinItems(items.filter((i) => !DOOR_ITEM.test(i.name))) };
+    return { ...row, body_style: body, drivetrain_engine_variants: joinItems(kept) };
   });
 }
 

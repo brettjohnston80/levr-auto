@@ -29,6 +29,12 @@ describe("rule 4: engine lines in one short format", () => {
     assert.equal(M.formatEngine(M.readEngineParts("Dual motor electric / single-speed / AWD")), "Dual-motor electric, single-speed, AWD");
   });
 
+  it("keeps an EV's battery size (and never reads kW as kWh)", () => {
+    assert.equal(M.formatEngine(M.readEngineParts("82 kWh dual-motor 4MOTION AWD 335 hp")), "Dual-motor electric, 82 kWh, 335 hp, AWD");
+    assert.equal(M.formatEngine(M.readEngineParts("EV550 118.5kWh Electric - EV 118.5kWh 360/580 m/km 550PS (Automatic)")), "Electric, 118.5 kWh, automatic");
+    assert.equal(M.readEngineParts("168kW Rear Electric Motor, 225 hp, RWD, 306-mile EPA range").battery, null);
+  });
+
   it("keeps a twin-scroll turbo as one turbo, a diesel as diesel, and never reads Auto Start-Stop as a transmission", () => {
     assert.equal(M.formatEngine(M.readEngineParts("Rear-Wheel Drive, 2.0L Twin-scroll turbocharged 4-cylinder engine, 10-speed automatic transmission")), "2.0L turbo 4-cylinder, 10-speed automatic, RWD");
     assert.equal(M.formatEngine(M.readEngineParts("4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission")), "3.0L turbo diesel, 10-speed automatic, 4WD");
@@ -84,13 +90,18 @@ describe("rule 6: one body style from the fixed list", () => {
     assert.equal(M.mapBodyStyle("Shooting Brake"), null);
   });
 
-  it("splits 'coupe or sedan' into a Coupe row and a Sedan row without the N-Door body items, and reports the dropped price", () => {
+  it("splits 'coupe or sedan' into a Coupe row and a Sedan row; the Sedan keeps the +$2,000 four-door price as a standard item", () => {
     const r = row({ make: "Dodge", model: "Charger", trim: "R/T", body_style: "coupe or sedan",
       drivetrain_engine_variants: "2-Door AWD | Standard | 0 |  ;; 4-Door AWD | Standalone | 2000 |  ;; 3.0L Twin Turbo Sixpack SO | Standard | 0 |  ;; 8-Speed Automatic 880RE Transmisson | Standard | 0 | " });
     const { rows, report } = M.mapConfiguratorRows([r]);
     assert.deepEqual(rows.map((x) => x.body_style), ["Coupe", "Sedan"]);
-    for (const x of rows) assert.deepEqual(names(x.drivetrain_engine_variants), ["3.0L twin-turbo, 8-speed automatic, AWD"]);
-    assert.ok(report.dropped.some((n) => n.detail.includes("4-Door AWD | Standalone | 2000")));
+    assert.equal(rows[0].drivetrain_engine_variants, "3.0L twin-turbo, 8-speed automatic, AWD | Standard | 0 | ");
+    assert.equal(rows[1].drivetrain_engine_variants, "4-door sedan body | Standard | 2000 |  ;; 3.0L twin-turbo, 8-speed automatic, AWD | Standard | 0 | ");
+    assert.deepEqual(report.dropped, []);
+    // Through the real parser, the Sedan's body item is standard and still costs $2,000.
+    const opt = P.parseConfiguratorRow(rows[1], { blankPriceUnknown: true }).options.find((o) => o.name === "4-door sedan body");
+    assert.equal(opt.availability, "standard");
+    assert.equal(opt.priceCents, 200000);
   });
 
   it("leaves an unknown body style unchanged and reports it", () => {
@@ -144,7 +155,7 @@ describe("rule 9: model names equal our dataset's (D3 merges)", () => {
     assert.equal(M.mapModel("Toyota", "Camry", "LE"), null);
   });
 
-  it("keeps a coupe-shaped SUV distinct after the merge (pending Brett's sign-off on the ' Coupe' trim suffix)", () => {
+  it("keeps a coupe-shaped SUV distinct after the merge (' Coupe' trim suffix approved by Brett 2026-10-16)", () => {
     assert.deepEqual(M.mapModel("Porsche", "Cayenne Coupe", "S"), { model: "Cayenne", trim: "S Coupe" });
     assert.deepEqual(M.mapModel("Mercedes-Benz", "GLE Coupe", "GLE 450 4MATIC"), { model: "GLE", trim: "GLE 450 4MATIC Coupe" });
   });
