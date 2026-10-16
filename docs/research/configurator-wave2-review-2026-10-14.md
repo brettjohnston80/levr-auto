@@ -155,6 +155,9 @@ Intake, listings, agents and the trim lookup all key on our dataset's make and m
 - **New models we don't carry:** Lexus `TZ`, BMW `XM`, Dodge `Charger Daytona`. Add them to the vehicle dataset first, or hold their rows until they're added (decision D4).
 - **Make spelling:** the dataset has both `Mini` and `MINI` (known issue); the research uses `MINI`. Fix the dataset duplicate before importing MINI.
 
+### Rule 10. A plug-in hybrid's range in the Matchmaker dataset is its total range (added by Brett, 2026-10-15)
+`range_mi` for a `PHEV` row is the EPA total range, gas plus electric (RAV4 PHEV 594, Tucson PHEV 388), never the electric-only range. The scoring pipeline compares range within each fuel type, so an electric-only figure would score that vehicle as the worst plug-in hybrid by mistake. Found in Wave 3: the BMW XM row had 30 (electric-only). If the total range isn't published, leave `range_mi` blank.
+
 ---
 
 ## 3. Per-make findings (rules applied on paper)

@@ -174,6 +174,14 @@ Review: `docs/research/configurator-wave2-review-2026-10-14.md`; Brett's decisio
   - **Imported, not promoted:** Volkswagen `e1bb3735-…`, Audi `c216fba5-…`, Mercedes-Benz `e19e2933-…` (to be re-imported after the re-pass and mapping step).
   - **Research received, not imported (waiting on the Cowork re-pass and the mapping step):** GMC, Buick, Lexus, Acura, BMW, MINI, Cadillac, Lincoln, Genesis, Volvo, Dodge, Chrysler, Alfa Romeo, Mitsubishi, Polestar, Lucid, Porsche, Land Rover. (Lucid and Polestar: fixed-price makes, copy flag under D8.)
   - **Dropped:** Tesla, Rivian.
+- **Wave 3 (2026-10-15; review `docs/research/configurator-wave3-review-2026-10-15.md`, decisions in its section 7):**
+  - Researched, not imported: Maserati (13 trims, MY2027) and FIAT (500e POP/ICONA, MY2026). Neither make is in the Matchmaker dataset yet, so their rows go into a `v21` dataset first.
+  - Matchmaker additions file: 25 rows, of which the six Charger Daytona rows are dropped. Lexus TZ, BMW XM, FIAT and Maserati go into `v21`.
+  - **Charger Daytona is already in the dataset** as `Charger` / `Daytona Scat Pack(…Plus)`. The import maps the Wave 2 file's `Charger Daytona` → `Charger`, releasing it from the D4 hold.
+  - MCPURA, MCPURA Cielo and GT2 Stradale are imported unpromoted, not promoted until US prices exist.
+  - VinFast is held (re-check monthly); Jaguar has nothing orderable until Type 01 orders open (early 2027).
+  - Re-pass items fold into the one combined Wave 2 + Wave 3 Cowork re-pass. Maserati and FIAT are added to the D5 name check.
+- **Rule 10 (Brett, 2026-10-15):** a plug-in hybrid's `range_mi` in the Matchmaker dataset is always the total range, never electric-only.
 - Process per make once ready: import as an unpromoted batch (`/api/internal/import-configurator`, `makes`, `blankPriceUnknown: true`) → verify → report → Brett approves → `promote_configurator_batch_make` → confirm live. MarketCheck model-name differences go in `src/lib/marketcheck-models.ts`; trim-name differences in `TRIM_EQUIVALENTS`.
 
 ### Open launch decisions (Brett)
@@ -214,6 +222,7 @@ After building is complete and **before costing out running the business**:
 17. Phase 3 shell notes: one look for `/agent` and `/internal` (light vs dark), the agent header wrapping on phones, long emails wrapping mid-address; an "Agents" nav link; editing an agent's email.
 18. Attention-engine phase: surface an away agent's items to leads; show open `assignment_no_lead` alerts to admins.
 19. Website audit item 7 and strategic items 19/20; dealer outreach spike; trademark search.
+19a. VinFast: re-check monthly whether its US configurator matches its current prices (held, Wave 3 V1); Jaguar: re-check when Type 01 orders open (early 2027).
 20. Automated end-to-end journey test, once Preview and Production have separate databases.
 
 ## Detailed record of the 2026-10-10/11 work (was "IN-FLIGHT STATE"; superseded by START HERE above where they differ)

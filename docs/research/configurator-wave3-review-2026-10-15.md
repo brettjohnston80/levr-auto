@@ -167,3 +167,26 @@ Unlike Lucid and Polestar (D8), Maserati and FIAT sell through franchised dealer
 | X2 | Maserati "model-specific" depreciation (GranTurismo 31.8% against a 75.3% brand figure) | Cowork re-pass to confirm the source, or use the brand figure for all Maserati rows |
 | X3 | FIAT 500e warranty, 4/50k vs JD Power's 3/36k | Accept 4/50k (it's the configurator's own figure) |
 | N1 | MarketCheck name check | Add Maserati and FIAT to the D5 check (~4 calls), run with the Wave 2 makes |
+
+---
+
+## 7. Brett's decisions (2026-10-15)
+
+- **V1, VinFast: hold.** Re-check monthly; it's on the CLAUDE.md follow-ups list.
+- **C1, Charger Daytona: as recommended.**
+  - The six Charger Daytona Matchmaker addition rows are dropped. They're left in the file as received, and the `v21` build skips them.
+  - The import maps the Wave 2 file's model `Charger Daytona` to our existing `Charger`, with trims `Daytona Scat Pack` / `Daytona Scat Pack Plus`. That releases it from the D4 hold.
+  - A re-pass item checks the 2027 horsepower (630 or 670) and whether a 2027 plain Scat Pack exists.
+- **M1:** MCPURA, MCPURA Cielo and GT2 Stradale are imported unpromoted, and not promoted until US prices are published.
+- **Cowork re-pass items** fold into the Wave 2 re-pass (one combined prompt):
+  - BMW XM total range (X1);
+  - the Maserati resale source (X2);
+  - `Base` vs "Modena" (M2);
+  - the Grecale Folgore transmission wording (R1).
+- **Accepted as Cowork did them:**
+  - Fuoriserie options visible (M3);
+  - Trofeo 582 hp (M4);
+  - MCPURA Cielo as a trim of `MCPURA` (M5);
+  - FIAT warranty 4 years/50,000 miles (X3).
+- **New standing rule (rule 10, added to the Wave 2 review's rules):** a plug-in hybrid's `range_mi` in the Matchmaker dataset is always the total range (gas plus electric), never the electric-only range.
+- **N1:** Maserati and FIAT are added to the MarketCheck name check (D5), about 4 more calls.
