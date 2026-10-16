@@ -33,6 +33,8 @@ export interface MappingReport {
   dropped: MappingNote[];
   /** Two rows that would end up with the same trim identity: import refuses. */
   collisions: string[];
+  /** Every known correction applied (see KNOWN_CORRECTIONS). */
+  corrections: MappingNote[];
 }
 
 /** Optional official figures from the Cowork re-pass, keyed by engineFactKey(). */
@@ -44,6 +46,8 @@ export interface EngineFact {
 
 export interface MappingOptions {
   engineFacts?: Map<string, EngineFact>;
+  /** Defaults to KNOWN_CORRECTIONS; tests pass their own. */
+  corrections?: KnownCorrection[];
 }
 
 // ---------------------------------------------------------------------------
@@ -315,6 +319,80 @@ export function engineFactKey(make: string, model: string, trim: string, modelYe
 }
 
 // ---------------------------------------------------------------------------
+// Known corrections: Brett's decisions on specific research cells, applied
+// first, before the rules, so the research files stay exactly as received
+// (re-pass review, 2026-10-16). Each one names the value it expects; if the
+// cell holds anything else it's left alone and reported, so a newer research
+// file is never silently overwritten.
+
+export interface KnownCorrection {
+  make: string;
+  model: string;
+  trim: string;
+  modelYear: string;
+  /** A CSV column, or "engine:<exact option name>" for one engine option's name. */
+  field: string;
+  from: string;
+  to: string;
+  why: string;
+}
+
+const audiPerformance = (model: string, modelYear: string): KnownCorrection => ({
+  make: "Audi", model, trim: "Performance", modelYear, field: "trim", from: "Performance", to: "performance",
+  why: "Audi USA writes 'performance' in lowercase (standing rule: the manufacturer's exact styling)",
+});
+const cadillacV = (model: string, modelYear: string): KnownCorrection => ({
+  make: "Cadillac", model, trim: "V-Series", modelYear, field: "trim", from: "V-Series", to: "V",
+  why: "keep 'V' (as 'V Blackwing'), reverting the re-pass rename",
+});
+const miniSe = (trim: string): KnownCorrection[] => [
+  { make: "MINI", model: "Countryman", trim, modelYear: "2027", field: "fuel_type", from: "Gas", to: "EV",
+    why: "the Countryman SE ALL4 is all-electric" },
+  { make: "MINI", model: "Countryman", trim, modelYear: "2027", field: "engine:308-hp turbocharged engine ALL4 AWD",
+    from: "308-hp turbocharged engine ALL4 AWD", to: "Electric, 308 hp, AWD",
+    why: "the Countryman SE ALL4 is all-electric (308 hp, BMW Group US press release)" },
+];
+
+export const KNOWN_CORRECTIONS: KnownCorrection[] = [
+  ...miniSe("SE ALL4 Signature Plus"),
+  ...miniSe("SE ALL4 Iconic"),
+  audiPerformance("RS 6 Avant", "2026"),
+  audiPerformance("RS 7", "2026"),
+  audiPerformance("RS Q8", "2027"),
+  cadillacV("Escalade", "2026"),
+  cadillacV("Escalade", "2027"),
+  cadillacV("Escalade ESV", "2026"),
+  cadillacV("Escalade ESV", "2027"),
+];
+
+/** Applies the corrections that match this row; logs each applied or skipped one. */
+function applyCorrections(row: CsvRow, corrections: KnownCorrection[], report: MappingReport): CsvRow {
+  const out = { ...row };
+  for (const c of corrections) {
+    if (c.make !== (row.make ?? "").trim() || c.model !== (row.model ?? "").trim() || c.modelYear !== (row.model_year ?? "").trim()) continue;
+    if (c.trim !== (row.trim ?? "").trim()) continue;
+    if (c.field.startsWith("engine:")) {
+      const items = splitItems(out.drivetrain_engine_variants ?? "");
+      const hit = items.find((i) => i.name === c.from);
+      if (!hit) {
+        report.unmapped.push(note("correction", row, `expected engine option "${c.from}" not found; correction not applied`));
+        continue;
+      }
+      hit.name = c.to;
+      out.drivetrain_engine_variants = joinItems(items);
+    } else if ((out[c.field] ?? "").trim() === c.from) {
+      out[c.field] = c.to;
+    } else {
+      report.unmapped.push(note("correction", row, `${c.field} is "${out[c.field] ?? ""}", not "${c.from}"; correction not applied`));
+      continue;
+    }
+    report.changed["known correction"] = (report.changed["known correction"] ?? 0) + 1;
+    report.corrections.push(note("correction", row, `${c.field}: "${c.from}" -> "${c.to}" (${c.why})`));
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // The whole step.
 
 function note(rule: string, row: CsvRow, detail: string): MappingNote {
@@ -454,15 +532,18 @@ function fuelRows(row: CsvRow, fuels: string[], report: MappingReport): CsvRow[]
 }
 
 /**
- * Applies rules 9, 7, 6, 8 and 4 (in that order) to every row. Rows the rules
+ * Applies the known corrections, then rules 9, 7, 6, 8 and 4 (in that order) to every row. Rows the rules
  * can't place are kept unchanged and reported; nothing is guessed.
  */
 export function mapConfiguratorRows(rows: CsvRow[], opts: MappingOptions = {}): { rows: CsvRow[]; report: MappingReport } {
-  const report: MappingReport = { rowsIn: rows.length, rowsOut: 0, changed: {}, unmapped: [], dropped: [], collisions: [] };
+  const report: MappingReport = { rowsIn: rows.length, rowsOut: 0, changed: {}, unmapped: [], dropped: [], collisions: [], corrections: [] };
+  const corrections = opts.corrections ?? KNOWN_CORRECTIONS;
   const bump = (k: string) => (report.changed[k] = (report.changed[k] ?? 0) + 1);
   const out: CsvRow[] = [];
 
-  for (const original of rows) {
+  for (const received of rows) {
+    // Corrections first; everything after keys off the corrected row.
+    const original = applyCorrections(received, corrections, report);
     let row: CsvRow = { ...original };
 
     const m = mapModel(row.make ?? "", row.model ?? "", row.trim ?? "");

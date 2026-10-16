@@ -171,8 +171,49 @@ describe("rule 9: model names equal our dataset's (D3 merges)", () => {
   });
 });
 
+describe("known corrections (Brett's decisions, 2026-10-16; research files stay as received)", () => {
+  const repass = (s) => read(`${s}-configurator-repass-2026-10.csv`);
+
+  it("MINI Countryman SE ALL4: fuel type EV and an electric engine line", () => {
+    const rows = repass("bmw-mini").filter((r) => r.model === "Countryman" && r.trim.startsWith("SE ALL4"));
+    assert.equal(rows.length, 2);
+    for (const r of rows) assert.equal(r.fuel_type, "Gas", "the research file is unchanged");
+    const { rows: out, report } = M.mapConfiguratorRows(rows);
+    for (const r of out) {
+      assert.equal(r.fuel_type, "EV");
+      assert.deepEqual(names(r.drivetrain_engine_variants), ["Electric, 308 hp, AWD"]);
+    }
+    assert.equal(report.corrections.length, 4);
+  });
+
+  it("Audi 'performance' is lowercase everywhere", () => {
+    const { rows } = M.mapConfiguratorRows(repass("vw-audi"));
+    assert.deepEqual(rows.filter((r) => /performance/i.test(r.trim)).map((r) => `${r.model} ${r.trim}`).sort(),
+      ["RS Q8 performance", "RS e-tron GT performance", "RS e-tron GT performance", "RS6 Avant performance", "RS7 performance"]);
+  });
+
+  it("Cadillac Escalade / ESV 'V-Series' reverts to 'V'; the entry trim stays 'Base'", () => {
+    const { rows } = M.mapConfiguratorRows(repass("cadillac-lincoln"));
+    const esc = rows.filter((r) => r.model.startsWith("Escalade")).map((r) => r.trim);
+    assert.ok(!esc.includes("V-Series"));
+    assert.equal(esc.filter((t) => t === "V").length, 4);
+    assert.ok(esc.includes("Base"));
+  });
+
+  it("never overwrites a value it doesn't expect, and says so", () => {
+    const r = row({ make: "MINI", model: "Countryman", trim: "SE ALL4 Iconic", model_year: "2027", fuel_type: "EV",
+      drivetrain_engine_variants: "Electric, 313 hp, AWD | Standard |  | " });
+    const { rows, report } = M.mapConfiguratorRows([r]);
+    assert.equal(rows[0].fuel_type, "EV");
+    assert.deepEqual(names(rows[0].drivetrain_engine_variants), ["Electric, 313 hp, AWD"]);
+    assert.equal(report.corrections.length, 0);
+    assert.equal(report.unmapped.filter((n) => n.rule === "correction").length, 2);
+  });
+});
+
 describe("the whole step on every Wave 2 and Wave 3 research file", () => {
-  const FILES = ["vw-audi", "gmc-buick", "cadillac-lincoln", "mercedes", "bmw-mini", "porsche-landrover", "lexus-acura", "genesis-volvo", "dodge-chrysler-alfa", "mitsubishi-polestar-lucid", "maserati", "fiat"].map((s) => `${s}-configurator-full-2026-10.csv`);
+  const GROUPS = ["vw-audi", "gmc-buick", "cadillac-lincoln", "mercedes", "bmw-mini", "porsche-landrover", "lexus-acura", "genesis-volvo", "dodge-chrysler-alfa", "mitsubishi-polestar-lucid", "maserati", "fiat"];
+  const FILES = [...GROUPS.map((s) => `${s}-configurator-full-2026-10.csv`), ...GROUPS.map((s) => `${s}-configurator-repass-2026-10.csv`)];
 
   for (const file of FILES) {
     it(`${file}: no trim-identity collisions, and the mapped rows still parse cleanly`, () => {
