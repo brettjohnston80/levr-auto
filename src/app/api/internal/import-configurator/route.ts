@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { parse } from "csv-parse/sync";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseConfiguratorRow, type ParsedOption } from "@/lib/configurator-parse";
+import { engineFactsFromRows, mapConfiguratorRows, type MappingReport } from "@/lib/configurator-mapping";
 
 // Durable import for the Toyota/Honda configurator datasets (step 4 of 9),
 // same shape as import-vehicle-dataset: CRON_SECRET-gated, one new
@@ -55,6 +56,20 @@ export async function POST(req: NextRequest) {
     Array.isArray(body.makes) && body.makes.length > 0 ? body.makes.map((m: unknown) => String(m)) : null;
   // See parsePrice: a blank price means "not published" in this source.
   const parseOptions = { blankPriceUnknown: body.blankPriceUnknown === true };
+  // The mechanical D2 rules (configurator-mapping.ts), opt-in so every
+  // existing import (Toyota/Honda, Wave 1) behaves exactly as before.
+  // engineFactsFile: the Cowork re-pass's official hp/size table (data/...csv).
+  const useMapping = body.mapping === true;
+  let engineFacts: ReturnType<typeof engineFactsFromRows> | undefined;
+  if (useMapping && typeof body.engineFactsFile === "string") {
+    try {
+      const factsText = readFileSync(join(process.cwd(), "data", body.engineFactsFile), "utf-8");
+      engineFacts = engineFactsFromRows(parse(factsText, { columns: true, skip_empty_lines: true }));
+    } catch {
+      return NextResponse.json({ error: `could not read data/${body.engineFactsFile}` }, { status: 400 });
+    }
+  }
+  const mappingReports: Record<string, MappingReport> = {};
 
   // --- read + parse every file before touching the DB -------------------
   const parsedRows = [];
@@ -68,7 +83,12 @@ export async function POST(req: NextRequest) {
     // `trim: false` on purpose: the delimited option strings carry
     // meaningful leading/trailing spaces around ' | ' and ' ;; ', and the
     // parser handles its own trimming per field.
-    const rawRows: CsvRow[] = parse(csvText, { columns: true, skip_empty_lines: true, trim: false });
+    let rawRows: CsvRow[] = parse(csvText, { columns: true, skip_empty_lines: true, trim: false });
+    if (useMapping) {
+      const mapped = mapConfiguratorRows(rawRows, { engineFacts });
+      mappingReports[filename] = mapped.report;
+      rawRows = mapped.rows;
+    }
     for (const raw of rawRows) {
       const row = parseConfiguratorRow(raw, parseOptions);
       if (makes && !makes.includes(row.make)) continue;
@@ -77,6 +97,12 @@ export async function POST(req: NextRequest) {
   }
   if (parsedRows.length === 0) {
     return NextResponse.json({ error: "no rows matched" }, { status: 400 });
+  }
+  // Two rows with the same trim identity would fail the unique constraint
+  // half-way; refuse before anything is written.
+  const collisions = Object.values(mappingReports).flatMap((r) => r.collisions);
+  if (collisions.length > 0) {
+    return NextResponse.json({ error: "mapping produced duplicate trims", collisions }, { status: 400 });
   }
 
   // --- aggregate counts + the audit trail for dropped items -------------
@@ -214,5 +240,13 @@ export async function POST(req: NextRequest) {
     dropped,
     availability,
     availabilityMethod,
+    mapping: useMapping
+      ? Object.fromEntries(
+          Object.entries(mappingReports).map(([file, r]) => [
+            file,
+            { rowsIn: r.rowsIn, rowsOut: r.rowsOut, changed: r.changed, unmapped: r.unmapped, dropped: r.dropped },
+          ]),
+        )
+      : null,
   });
 }
