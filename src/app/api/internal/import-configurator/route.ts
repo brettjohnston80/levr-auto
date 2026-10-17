@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
     const factRows: Record<string, string>[] = [];
     for (const f of factsFiles) {
       try {
-        factRows.push(...parse(readFileSync(join(process.cwd(), "data", f), "utf-8"), { columns: true, skip_empty_lines: true }));
+        factRows.push(...(parse(readFileSync(join(process.cwd(), "data", f), "utf-8"), { columns: true, skip_empty_lines: true }) as Record<string, string>[]));
       } catch {
         return NextResponse.json({ error: `could not read data/${f}` }, { status: 400 });
       }
