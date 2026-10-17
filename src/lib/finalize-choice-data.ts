@@ -2,7 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildTrimOptions, filterListingsToCommittedYear, type TrimOption } from "@/lib/finalize-trims";
 import { MODEL_YEAR_INVENTORY_BLOCK_ENABLED, computeInventoryBlock, type InventoryBlock } from "@/lib/inventory-block";
-import { getConfiguratorQuestionsForTrims } from "@/lib/configurator-questions";
+import { getBodySplitter, getConfiguratorQuestionsForTrims } from "@/lib/configurator-questions";
 import { hasAnyQuestion, type ConfiguratorQuestions } from "@/lib/configurator-matching";
 import {
   getIntakeMakeModelOptions,
@@ -48,13 +48,15 @@ export async function getFinalizeChoiceData(search: {
     price_cents: number | null;
     year: number | null;
     powertrain: string | null;
+    bodyType: string | null;
+    doors: string | null;
   }[] = [];
   if (search.make && search.model) {
     const PAGE_SIZE = 1000;
     for (let from = 0; ; from += PAGE_SIZE) {
       const { data, error } = await admin
         .from("listings")
-        .select("id, trim, price_cents, year, powertrain:raw_data->build->>powertrain_type")
+        .select("id, trim, price_cents, year, powertrain:raw_data->build->>powertrain_type, bodyType:raw_data->build->>body_type, doors:raw_data->build->>doors")
         .eq("make", search.make)
         .eq("model", search.model)
         .not("trim", "is", null)
@@ -71,7 +73,8 @@ export async function getFinalizeChoiceData(search: {
   // that year's inventory.
   const committedYear = search.model_year ?? null;
   const listingsForYear = filterListingsToCommittedYear(listingsForModel, committedYear);
-  const trimOptions = buildTrimOptions(listingsForYear);
+  // Body split (2026-10-16): a trim our research has a row per body for gets one option per body.
+  const trimOptions = buildTrimOptions(listingsForYear, await getBodySplitter(search.make, search.model));
 
   const inventoryBlock =
     MODEL_YEAR_INVENTORY_BLOCK_ENABLED && search.make && search.model

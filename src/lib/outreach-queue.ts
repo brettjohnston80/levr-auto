@@ -3,6 +3,7 @@ import { getLastSyncedAt } from "./marketcheck-sync";
 import "server-only";
 import { createAdminClient } from "./supabase/admin";
 import { buildTrimOptions, filterListingsToCommittedYear, type TrimOption } from "./finalize-trims";
+import { getBodySplitter } from "@/lib/configurator-questions";
 import {
   MODEL_YEAR_INVENTORY_BLOCK_ENABLED,
   computeInventoryBlock,
@@ -821,11 +822,12 @@ export async function getFinalizationQueue(): Promise<FinalizationQueueSearch[]>
           .from("listings")
           // powertrain: buildTrimOptions splits a trim MarketCheck uses for
           // gas and hybrid alike, so agents see the customer's choices.
-          .select("trim, price_cents, year, powertrain:raw_data->build->>powertrain_type")
+          .select("trim, price_cents, year, powertrain:raw_data->build->>powertrain_type, bodyType:raw_data->build->>body_type, doors:raw_data->build->>doors")
           .eq("make", make)
           .eq("model", model)
           .not("trim", "is", null);
-        return { make, model, listings: data ?? [] };
+        // Same body split as /finalize, so the agent sees the customer's options.
+        return { make, model, listings: data ?? [], bodySplitter: await getBodySplitter(make, model) };
       })
     ),
   ]);
@@ -839,6 +841,9 @@ export async function getFinalizationQueue(): Promise<FinalizationQueueSearch[]>
   const listingsByMakeModel = new Map(
     listingsByPair.map(({ make, model, listings }) => [`${make}::${model}`, listings])
   );
+  const bodySplitterByMakeModel = new Map(
+    listingsByPair.map(({ make, model, bodySplitter }) => [`${make}::${model}`, bodySplitter])
+  );
 
   return searches.map((search) => {
     const modelYear = (search.model_year as number | null) ?? null;
@@ -851,7 +856,10 @@ export async function getFinalizationQueue(): Promise<FinalizationQueueSearch[]>
       isTest: isTestEmail(customerEmailById.get(search.customer_id) ?? null),
       callRequestedAt: search.call_requested_at as string,
       modelYear,
-      trimOptions: buildTrimOptions(filterListingsToCommittedYear(listings, modelYear)),
+      trimOptions: buildTrimOptions(
+        filterListingsToCommittedYear(listings, modelYear),
+        bodySplitterByMakeModel.get(`${search.make}::${search.model}`),
+      ),
     };
   });
 }

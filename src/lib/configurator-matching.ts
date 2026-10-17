@@ -1042,3 +1042,66 @@ export interface CombinationPreference {
   rankPosition: number | null;
   excluded: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// Body-aware matching (Brett, 2026-10-16). Some research rows share a trim
+// name and differ only in body: Dodge Charger 2-door / 4-door, Toyota
+// Corolla and Mazda3 hatchback / sedan, Mercedes-Benz CLE coupe /
+// cabriolet, E-Class sedan / wagon. The matcher compares trim, year and
+// powertrain only, so it refused those trims. When a trim's listings show
+// more than one body AND our research has a row per body, the trim step
+// shows one option per body ("Scat Pack 2-Door" / "Scat Pack 4-Door") and
+// each matches only its own row. Every other trim is untouched.
+
+/** What a listing says about its body (MarketCheck build.body_type / build.doors). */
+export interface ListingBody {
+  bodyType?: string | null;
+  doors?: string | number | null;
+}
+
+export interface BodyChoice {
+  /** The research row's body_style, exactly as stored (matched against it). */
+  body: string;
+  /** The manufacturer's name for that body, used in the option label. */
+  label: string;
+}
+
+/** The manufacturer's own body names where they differ from the research word. */
+const BODY_LABELS: Record<string, Record<string, string>> = {
+  dodge: { coupe: "2-Door", sedan: "4-Door" },
+  "mercedes-benz": { convertible: "Cabriolet" },
+};
+
+function bodyLabel(make: string, body: string): string {
+  const own = BODY_LABELS[make.toLowerCase()]?.[body.toLowerCase()];
+  if (own) return own;
+  return body.charAt(0).toUpperCase() + body.slice(1).toLowerCase();
+}
+
+/**
+ * For one inventory trim+year: the classifier that puts a listing on one of
+ * the research bodies, or null when there's nothing to split (one body, or
+ * no same-name research rows). Uses the same name matching as the matcher.
+ */
+export function bodySplitFor(
+  candidates: (ConfiguratorTrimCandidate & { bodyStyle: string | null })[],
+  facts: { trim: string; year: number | null },
+): ((listing: ListingBody) => BodyChoice | null) | null {
+  const same = sameNameCandidates(candidates, facts) as (ConfiguratorTrimCandidate & { bodyStyle: string | null })[];
+  const bodies = [...new Set(same.map((c) => c.bodyStyle).filter((b): b is string => !!b))];
+  if (bodies.length < 2) return null;
+  const make = same[0].make;
+  const byLower = new Map(bodies.map((b) => [b.toLowerCase(), b]));
+  const coupeSedan = byLower.has("coupe") && byLower.has("sedan");
+  return (listing) => {
+    const type = (listing.bodyType ?? "").trim().toLowerCase();
+    const doors = Number.parseInt(String(listing.doors ?? ""), 10);
+    let key: string | null = null;
+    // Charger: MarketCheck calls both bodies "Hatchback"; the door count tells them apart.
+    if (coupeSedan && ["hatchback", "coupe", "sedan"].includes(type) && Number.isFinite(doors)) key = doors <= 3 ? "coupe" : "sedan";
+    else if ((type === "convertible" || type === "cabriolet") && byLower.has("convertible")) key = "convertible";
+    else if (byLower.has(type)) key = type;
+    const body = key ? byLower.get(key) : undefined;
+    return body ? { body, label: bodyLabel(make, body) } : null;
+  };
+}
