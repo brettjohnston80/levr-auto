@@ -133,3 +133,4 @@ The inputs are pass 3 for its 7 files and the prices files for the other 5, with
 
 - **2026 BMW X3 sDrive:** does BMW USA sell an sDrive X3 for 2026? If so, add the row. Today MarketCheck's "30" listings match "30 xDrive".
 - **2027 Dodge Durango prices** (section 7, item 6, the note).
+- **2026 Porsche Macan Electric** (Base, 4, 4S, GTS, Turbo): the research has 2027 only, while dealers list 2026 Electric Macans (group 2 review).
