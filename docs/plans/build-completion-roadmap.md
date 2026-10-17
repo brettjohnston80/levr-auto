@@ -45,3 +45,5 @@ Both are backfilled first with everything already approved in agent dashboard Ph
   - **Customer help:** an AI assistant on the website, with handoff to an agent.
   - **Agent work:** dealer outreach drafting, quote parsing, pre-call summaries, attention flags.
   - **Operations:** survey insights, dealer responsiveness, research data checks.
+- **Matchmaker scoring robustness** (added 2026-10-16, Brett). Scores are relative within a body-style class, so one outlier added to a class shifts other cars a lot. Adding the Fiat 500e (rear legroom 29.4 in., a new class low) moved every Mazda3's Comfort from 50.9 to 65.4. Consider percentile-based or outlier-capped scoring. See `docs/research/matchmaker-v21-score-changes-2026-10-16.md`.
+- **"Not rated" instead of a neutral 50** (added 2026-10-16, Brett). When a vehicle has no data for a score category, show "Not rated" rather than the neutral floor score of 50 (e.g. Maserati and Lexus TZ Safety, Comfort and Reliability in v21).
