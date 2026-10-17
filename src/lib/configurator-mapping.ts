@@ -335,7 +335,8 @@ export interface KnownCorrection {
   trim: string;
   modelYear: string;
   /** A CSV column, "engine:<exact option name>" for one engine option's name, or
-   *  "price:<column>:<exact option name>" for one option's price. */
+   *  "price:<column>:<exact option name>" for one option's price, or
+   *  "item:<column>:<exact option name>" for its whole availability/price/package tail. */
   field: string;
   from: string;
   to: string;
@@ -358,6 +359,15 @@ const miniSe = (trim: string): KnownCorrection[] => [
     why: "the Countryman SE ALL4 is all-electric (308 hp, BMW Group US press release)" },
 ];
 
+// Pass 3 linked six 2026 XT5 Premium Luxury items to the Driver Assist Package
+// although the package contents don't name them; Brett rejected those links
+// (2026-10-16), so they go back to Standalone, unlinked, price not confirmed.
+const xt5Unlink = (option: string): KnownCorrection => ({
+  make: "Cadillac", model: "XT5", trim: "Premium Luxury", modelYear: "2026",
+  field: `item:common_features:${option}`, from: "Package-only |  | Driver Assist Package", to: "Standalone |  | ",
+  why: "uncertain Driver Assist Package link rejected (pass 3 review)",
+});
+
 export const KNOWN_CORRECTIONS: KnownCorrection[] = [
   ...miniSe("SE ALL4 Signature Plus"),
   ...miniSe("SE ALL4 Iconic"),
@@ -368,6 +378,8 @@ export const KNOWN_CORRECTIONS: KnownCorrection[] = [
   cadillacV("Escalade", "2027"),
   cadillacV("Escalade ESV", "2026"),
   cadillacV("Escalade ESV", "2027"),
+  ...["Cooling system, heavy-duty", "Alternator, 155 amps", "Hitch Guidance", "Hitch Guidance with Hitch View",
+    "Seats, heated rear outboard seating positions", "Air Ionizer"].map(xt5Unlink),
 ];
 
 // ---------------------------------------------------------------------------
@@ -437,7 +449,21 @@ function applyCorrections(row: CsvRow, corrections: KnownCorrection[], report: M
   for (const c of corrections) {
     if (c.make !== (row.make ?? "").trim() || c.model !== (row.model ?? "").trim() || c.modelYear !== (row.model_year ?? "").trim()) continue;
     if (c.trim !== (row.trim ?? "").trim()) continue;
-    if (c.field.startsWith("price:")) {
+    if (c.field.startsWith("item:")) {
+      // "item:<column>:<exact option name>": one option's whole " | Availability | Price | Package" tail.
+      const rest = c.field.slice("item:".length);
+      const col = rest.slice(0, rest.indexOf(":"));
+      const name = rest.slice(rest.indexOf(":") + 1);
+      const items = splitItems(out[col] ?? "");
+      const hit = items.find((i) => i.name === name);
+      if (!hit || hit.rest !== ` | ${c.from}`) {
+        report.unmapped.push(note("correction", row, `${col} option "${name}" ${hit ? `is "${hit.rest.slice(3)}"` : "not found"}, not "${c.from}"; correction not applied`));
+        continue;
+      }
+      hit.rest = ` | ${c.to}`;
+      hit.availability = (c.to.split(" | ")[0] ?? "").trim();
+      out[col] = joinItems(items);
+    } else if (c.field.startsWith("price:")) {
       // "price:<column>:<exact option name>": one option's price cell.
       const rest = c.field.slice("price:".length);
       const col = rest.slice(0, rest.indexOf(":"));

@@ -245,6 +245,23 @@ describe("GM $0 fills from the prices pass (Brett, 2026-10-16): pass 3 writes th
   });
 });
 
+describe("the six 2026 XT5 Driver Assist Package links are rejected (Brett, 2026-10-16)", () => {
+  it("they go back to Standalone, unlinked; nothing else on the row changes", () => {
+    const input = read("cadillac-lincoln-configurator-pass3-2026-10.csv");
+    const prices = read("cadillac-lincoln-configurator-prices-2026-10.csv");
+    const i = input.findIndex((r) => r.model === "XT5" && r.trim === "Premium Luxury" && r.model_year === "2026");
+    const { rows, report } = M.mapConfiguratorRows([input[i]]);
+    assert.equal(report.corrections.filter((n) => n.detail.startsWith("item:")).length, 6);
+    assert.equal(rows[0].common_features, prices[i].common_features, "same as before pass 3 linked them");
+  });
+  it("leaves an item alone when it isn't in the expected state", () => {
+    const r = row({ make: "Cadillac", model: "XT5", trim: "Premium Luxury", model_year: "2026", common_features: "Air Ionizer | Standard | 0 | " });
+    const { rows, report } = M.mapConfiguratorRows([r]);
+    assert.equal(rows[0].common_features, r.common_features);
+    assert.ok(report.unmapped.some((n) => n.rule === "correction" && n.detail.includes('"Air Ionizer" is "Standard | 0 | "')));
+  });
+});
+
 describe("held models (out of the import until Brett releases them, 2026-10-16)", () => {
   const heldModels = M.heldModelsFromJson(fs.readFileSync(new URL("../data/held-models.json", import.meta.url), "utf8"));
 
