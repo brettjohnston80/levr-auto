@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:configurator": "node --test tests/configurator-mapping.test.mjs"
+    "test:configurator": "node --test tests/configurator-mapping.test.mjs tests/marketcheck-names.test.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",

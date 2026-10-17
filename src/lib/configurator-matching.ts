@@ -131,22 +131,73 @@ const TRIM_EQUIVALENTS: Record<string, Record<string, string[]>> = {
   // listed separately as "Warlock"; the combined name maps to Tradesman.
   "ram|1500": { "big horn lone star": ["big horn"], "tradesman warlock": ["tradesman"] },
   "ram|2500": { "big horn lone star": ["lone star"], "tradesman warlock": ["tradesman"] },
+  // Wave 2 and 3 name check (2026-10-16), from MarketCheck's trim list per make.
+  "cadillac|ct5": { "v series": ["v"], "v series blackwing": ["v blackwing"] },
+  "cadillac|escalade": { "v series": ["v"], escalade: ["base"] },
+  "cadillac|escalade esv": { "v series": ["v"], escalade: ["base"] },
+  "lincoln|navigator l": { "reserve l": ["reserve"], "black label l": ["black label"], "premiere l": ["premiere"] },
+  "volvo|xc40": { "ultra black edition": ["black edition"] },
 };
 
 /**
- * Mazda (2026-10-10): the research names trims with the engine first ("2.5 S
- * Preferred", "3.3 Turbo Premium Plus") while MarketCheck drops it, and
- * sometimes the "S" too, and adds "Package" ("S Preferred", "Preferred",
- * "Premium Plus Package"). Tried in order, loosest last; the first tier that
- * finds any research trim wins, so a looser tier can't add a second,
- * wrong candidate when a closer name exists.
+ * Per-make name rules (Wave 2 and 3 name check, 2026-10-16), tried only when
+ * the exact name and TRIM_EQUIVALENTS find nothing. `listing` cleans the
+ * inventory trim; each tier rewrites the research trim, loosest last, and
+ * the first tier that finds any research trim wins (as Mazda's). Whatever a
+ * tier finds still goes through the powertrain check, and two or more
+ * candidates are still refused, so a looser name can't pick a guess.
+ * Mazda's rule is the original one, unchanged.
  */
-const MAZDA_TIERS: ((name: string) => string)[] = [
-  (n) => n,
-  (n) => n.replace(/^\d \d /, ""),
-  (n) => n.replace(/^\d \d /, "").replace(/^(turbo|phev) /, ""),
-  (n) => n.replace(/^\d \d /, "").replace(/^(turbo|phev) /, "").replace(/^s /, ""),
-];
+interface MakeTrimRule {
+  listing: (n: string) => string;
+  tiers: ((n: string) => string)[];
+}
+const words = (n: string) => n.replace(/\s+/g, " ").trim();
+/** "A-Spec w/ Advance Package" and "A-Spec Advance" both -> "a spec advance". */
+const packageWords = (n: string) =>
+  words(n.replace(/\b(w|with|package)\b/g, " ").replace(/\btech\b/g, "technology"));
+/** "GLE 450 4MATIC" and "GLE450" both -> "gle450"; "E 450 4MATIC All-Terrain" -> "e450allterrain". */
+const mercedesCompact = (n: string) => n.replace(/\b4matic\b/g, " ").replace(/\s+/g, "");
+/** BMW drivetrain words: "40 xDrive" -> "40", "xDrive28i" -> "28i", "M50 xDrive" -> "m50". */
+const bmwNoDrive = (n: string) => words(n.replace(/\b[xs]drive(?=\d|\b)/g, " "));
+
+const MAKE_TRIM_RULES: Record<string, MakeTrimRule> = {
+  mazda: {
+    listing: (n) => n.replace(/ package$/, ""),
+    tiers: [
+      (n) => n,
+      (n) => n.replace(/^\d \d /, ""),
+      (n) => n.replace(/^\d \d /, "").replace(/^(turbo|phev) /, ""),
+      (n) => n.replace(/^\d \d /, "").replace(/^(turbo|phev) /, "").replace(/^s /, ""),
+    ],
+  },
+  acura: { listing: packageWords, tiers: [packageWords] },
+  volkswagen: { listing: packageWords, tiers: [packageWords] },
+  "mercedes-benz": { listing: mercedesCompact, tiers: [mercedesCompact] },
+  bmw: { listing: (n) => n, tiers: [bmwNoDrive] },
+  // "350h Premium+ AWD" -> "350h premium"; research "NX 350 Premium" or, with
+  // the engine dropped as MarketCheck often does, "premium".
+  lexus: {
+    listing: (n) => words(n.replace(/\b(awd|fwd)\b/g, " ")),
+    tiers: [(n) => n, (n) => n.replace(/^\d{3}[a-z]* /, "")],
+  },
+  // MarketCheck drops the engine ("2.5T Prestige" -> "Prestige") and writes
+  // the E-Supercharger as "E-SC".
+  genesis: {
+    listing: (n) => n.replace(/^e sc\b/, "e supercharger"),
+    tiers: [(n) => n, (n) => n.replace(/^\d \dt /, "")],
+  },
+  // "T8 Plus" -> "Plus" (the powertrain check then picks the plug-in row).
+  volvo: { listing: (n) => n, tiers: [(n) => n, (n) => n.replace(/^(b5|b6|t8) /, "")] },
+  // "GT HEMI Plus V8" -> "gt hemi plus".
+  dodge: { listing: (n) => n.replace(/ v8$/, ""), tiers: [(n) => n] },
+};
+
+
+// Mazda (2026-10-10): the research names trims with the engine first ("2.5 S
+// Preferred", "3.3 Turbo Premium Plus") while MarketCheck drops it, and
+// sometimes the "S" too, and adds "Package" ("S Preferred", "Preferred",
+// "Premium Plus Package"). Its tiers now live in MAKE_TRIM_RULES.mazda.
 
 function equivalentTrims(make: string, model: string, normalizedTrim: string): string[] {
   return TRIM_EQUIVALENTS[`${make}|${model}`.toLowerCase()]?.[normalizedTrim] ?? [];
@@ -279,10 +330,11 @@ export function sameNameCandidates(
     const name = normalizeTrimForMatch(c.trim);
     return name === wanted || aliases.includes(name);
   });
-  if (exact.length > 0 || sameYear[0].make.toLowerCase() !== "mazda") return exact;
+  const rule = MAKE_TRIM_RULES[sameYear[0].make.toLowerCase()];
+  if (exact.length > 0 || !rule) return exact;
 
-  const listingName = wanted.replace(/ package$/, "");
-  for (const tier of MAZDA_TIERS) {
+  const listingName = rule.listing(wanted);
+  for (const tier of rule.tiers) {
     const found = sameYear.filter((c) => tier(normalizeTrimForMatch(c.trim)) === listingName);
     if (found.length > 0) return found;
   }
