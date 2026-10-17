@@ -43,6 +43,8 @@ BODY_STYLE_MAP = {
     'subcompact SUV': 'SUV', 'compact electric SUV': 'SUV', 'compact SUV': 'SUV',
     'mid-size electric SUV': 'SUV', 'full-size electric SUV': 'SUV',
     'mid-size SUV (3-row, extended length)': 'SUV',
+    # Lincoln 2027 rows (v20): the committed v20 scores have them as SUV; the map lacked them (2026-10-16).
+    'compact luxury SUV': 'SUV', 'mid-size luxury SUV': 'SUV', 'full-size luxury SUV': 'SUV',
     'Sedan': 'Sedan', 'sedan': 'Sedan', 'mid-size sedan': 'Sedan',
     'heavy-duty truck': 'Truck', 'full-size truck': 'Truck', 'pickup truck': 'Truck',
     'mid-size truck': 'Truck', 'full-size electric truck': 'Truck', 'cab-chassis': 'Truck',
