@@ -37,3 +37,11 @@ Only after 1 and 2 are done.
 - **`docs/business/agent-process-reference.md`:** each agent workflow as it's built (what it's for, who can do it, step by step, what the customer sees), written for agents rather than developers.
 
 Both are backfilled first with everything already approved in agent dashboard Phase 1: sign-in, invites, two-factor, resets, Add-agent, alerts, refunds, call resolution. They're kept out of the way of the chunk in progress.
+
+## Future items
+
+- **AI streamlining review** (added 2026-10-16, Brett). Catalog every way AI could further streamline the business:
+  - **Content:** video editing and clips, captions, social drafts.
+  - **Customer help:** an AI assistant on the website, with handoff to an agent.
+  - **Agent work:** dealer outreach drafting, quote parsing, pre-call summaries, attention flags.
+  - **Operations:** survey insights, dealer responsiveness, research data checks.
