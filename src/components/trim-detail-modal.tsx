@@ -1,5 +1,6 @@
 "use client";
 
+import { drivetrainHeading, formatCabBedLine } from "@/lib/cab-bed";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import type { TrimOption } from "@/lib/finalize-trims";
@@ -286,7 +287,7 @@ function Highlights({
           )}
           {showRoof && <SpecLine label="Roof" cell={roofCell} />}
           {questions.drivetrain.length > 0 && (
-            <SpecLine label="Drivetrain" cell={summarizeDrivetrain(questions)} />
+            <SpecLine label={drivetrainHeading(questions.drivetrain.map((c) => c.name))} cell={summarizeDrivetrain(questions)} />
           )}
         </div>
       )}
@@ -476,7 +477,10 @@ export function TrimDetailModal({
                 title="Roof"
                 choices={questions.roof.filter((c) => !roofChoiceIsRedundant(c, questions.features))}
               />
-              <Section title="Drivetrain" choices={questions.drivetrain} />
+              <Section
+                title={drivetrainHeading(questions.drivetrain.map((c) => c.name))}
+                choices={questions.drivetrain.map((c) => ({ ...c, name: formatCabBedLine(c.name) }))}
+              />
               {/* Grouped by package (2026-09-20 reversal) -- a multi-item
                   package renders as ONE row under its package name, not one
                   row per member feature, matching how the customer actually

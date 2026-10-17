@@ -1,3 +1,4 @@
+import { buildsSummary } from "./cab-bed";
 import {
   categoryHasRealChoiceAcrossTrims,
   groupIntoPackages,
@@ -288,6 +289,9 @@ export function summarizeRoof(q: ConfiguratorQuestions | undefined): ComparisonC
  * misleading. Full text is only ever shown in the detail modal.
  */
 export function summarizeDrivetrain(q: ConfiguratorQuestions | undefined): ComparisonCell {
+  // Truck builds (cab, bed, drive and sometimes the engine, priced as one): "{N} builds, from {lowest} to {highest}" (2026-10-16).
+  const builds = q ? buildsSummary(q.drivetrain) : null;
+  if (builds) return { text: builds, tone: "none" };
   // Drivetrain twins: the car could be any of them, so name them all
   // rather than one that may be wrong. Wording pending Brett's sign-off.
   if (q?.drivetrainTwins && q.drivetrainTwins.length > 1) {

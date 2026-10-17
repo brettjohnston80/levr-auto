@@ -1,5 +1,6 @@
 "use client";
 
+import { drivetrainHeading } from "@/lib/cab-bed";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useIsNarrowViewport } from "@/lib/use-is-narrow-viewport";
@@ -618,7 +619,7 @@ export function TrimComparisonModal({
                       {showDrivetrain && (
                         <tr className="border-t border-white/5">
                           <th scope="row" className="sticky left-0 z-10 bg-zinc-950 py-3 pr-4 text-left align-top text-xs font-semibold text-zinc-400">
-                            Drivetrain
+                            {drivetrainHeading(trimIds.flatMap((id) => configuratorQuestions[id]?.drivetrain.map((c) => c.name) ?? []))}
                           </th>
                           {trimOptions.map((opt, i) => (
                             <td key={opt.id} className="px-4 py-3 align-top">
