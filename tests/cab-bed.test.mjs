@@ -53,3 +53,19 @@ describe("cab and bed build lines", () => {
     assert.deepEqual(out.map((c) => c.name), ["Engine block heater", "Convenience Package"]);
   });
 });
+
+describe("credit prices (Brett, 2026-10-17)", async () => {
+  const P = await import("../src/lib/option-price.ts");
+  const l = (name, availability, priceCents) => ({ name, availability, priceCents, priceIsIncluded: false });
+  it("a credit reads with a true minus sign, never +$-", () => {
+    assert.equal(P.formatOptionPrice(-300000), "−$3,000");
+    assert.equal(P.formatOptionPrice(-299500), "−$2,995");
+    assert.equal(P.formatOptionPrice(185000), "+$1,850");
+    assert.equal(P.formatUsd(-50000), "−$500");
+    assert.equal(P.formatUsd(61000), "$610");
+  });
+  it("a build list running from a credit to a cost", () => {
+    assert.equal(C.buildsSummary([l("Crew Cab, Short Bed, 4WD, 3.0L Duramax Turbo Diesel engine", "standalone", -150000), l("Crew Cab, Standard Bed, 4WD, 6.2L EcoTec3 V8 engine", "standalone", 250000)]),
+      "2 builds, from −$1,500 to +$2,500");
+  });
+});

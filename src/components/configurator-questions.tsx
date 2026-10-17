@@ -6,6 +6,7 @@ import {
   type ConfiguratorSelection,
 } from "@/lib/configurator-matching";
 import { RankingQuestion, type RankableItem } from "@/components/ranking-question";
+import { formatOptionPrice } from "@/lib/option-price";
 
 // The rich configurator question UI (step 7 of 9), shown only for a trim
 // that resolved to exactly one researched build. Every other trim -- and
@@ -19,9 +20,6 @@ import { RankingQuestion, type RankableItem } from "@/components/ranking-questio
 // pool / ordered list / exclusions UI, and the pointer-drag reordering,
 // live in ranking-question.tsx so trim can reuse them unchanged.
 
-function formatCents(cents: number): string {
-  return `$${Math.round(cents / 100).toLocaleString()}`;
-}
 
 /**
  * What this option costs, in words.
@@ -37,12 +35,12 @@ function priceLabel(choice: ConfiguratorChoice): { text: string; tone: "free" | 
     if (choice.packagePriceCents == null) {
       return { text: "Package price not confirmed", tone: "unknown" };
     }
-    return { text: `+${formatCents(choice.packagePriceCents)} package`, tone: "cost" };
+    return { text: `${formatOptionPrice(choice.packagePriceCents)} package`, tone: "cost" };
   }
   if (choice.priceIsIncluded) return { text: "Included", tone: "free" };
   if (choice.priceCents == null) return { text: "Price not confirmed", tone: "unknown" };
   if (choice.priceCents === 0) return { text: "No extra cost", tone: "free" };
-  return { text: `+${formatCents(choice.priceCents)}`, tone: "cost" };
+  return { text: formatOptionPrice(choice.priceCents), tone: "cost" };
 }
 
 // Exported (2026-09-19) so trim-detail-modal.tsx can reuse these verbatim

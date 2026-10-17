@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { RefreshInventoryButton } from "@/components/refresh-inventory-button";
 import { requireAgent } from "@/lib/agent-auth";
+import { formatUsd } from "@/lib/option-price";
 import {
   getOutreachQueue,
   getCustomerOfferActivityQueue,
@@ -144,7 +145,7 @@ function PackageNote({ sel }: { sel: OutreachSelection }) {
         {sel.priceUnknown || sel.packagePriceCents == null ? (
           <span className="text-amber-400">price not confirmed</span>
         ) : (
-          <span className="text-zinc-400">${(sel.packagePriceCents / 100).toLocaleString()}</span>
+          <span className="text-zinc-400">{formatUsd(sel.packagePriceCents)}</span>
         )}
         {sel.packageContents && sel.packageContents.length > 0 && (
           <> — includes {sel.packageContents.join(", ")}</>

@@ -1,3 +1,5 @@
+import { formatOptionPrice } from "./option-price";
+
 // Truck cab and bed (Brett, 2026-10-16, option C; wording signed off): a
 // pickup's drivetrain list can hold whole builds -- cab, bed, 2WD/4WD and,
 // for GMC, the engine -- priced as one combination. They're shown as one
@@ -93,7 +95,7 @@ export function buildsSummary(lines: PricedLine[]): string | null {
   const prices = builds
     .map((l) => (l.availability === "standard" || l.priceIsIncluded ? 0 : l.priceCents))
     .filter((p): p is number => p != null);
-  const label = (cents: number) => (cents === 0 ? "Standard" : `+$${Math.round(cents / 100).toLocaleString("en-US")}`);
+  const label = (cents: number) => (cents === 0 ? "Standard" : formatOptionPrice(cents));
   const count = `${builds.length} build${builds.length === 1 ? "" : "s"}`;
   if (prices.length === 0) return count;
   const lo = Math.min(...prices), hi = Math.max(...prices);

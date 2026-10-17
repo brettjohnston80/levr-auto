@@ -1,4 +1,5 @@
 import { buildsSummary } from "./cab-bed";
+import { formatOptionPrice } from "./option-price";
 import {
   categoryHasRealChoiceAcrossTrims,
   groupIntoPackages,
@@ -22,9 +23,6 @@ import type { ColorSwatchValue } from "@/lib/vehicle-color-swatches";
 // reaches into here for the same wheels/roof/drivetrain summarizers the
 // table uses, in the "N specs" overflow case -- see summarizeDrivetrain).
 
-function formatCents(cents: number): string {
-  return `$${Math.round(cents / 100).toLocaleString()}`;
-}
 
 export type CellTone = "free" | "cost" | "unknown" | "none";
 
@@ -62,13 +60,13 @@ export function priceCellFor(choice: ConfiguratorChoice): ComparisonCell {
   if (choice.availability === "standard") return { text: "Standard", tone: "free" };
   if (choice.availability === "package_only") {
     if (choice.packagePriceCents == null) return { text: "Price not confirmed", tone: "unknown" };
-    return { text: `+${formatCents(choice.packagePriceCents)} pkg`, tone: "cost" };
+    return { text: `${formatOptionPrice(choice.packagePriceCents)} pkg`, tone: "cost" };
   }
   // standalone
   if (choice.priceIsIncluded) return { text: "Included", tone: "free" };
   if (choice.priceCents == null) return { text: "Price not confirmed", tone: "unknown" };
   if (choice.priceCents === 0) return { text: "No extra cost", tone: "free" };
-  return { text: `+${formatCents(choice.priceCents)}`, tone: "cost" };
+  return { text: formatOptionPrice(choice.priceCents), tone: "cost" };
 }
 
 /** Whether a set of cells actually differs -- the gate for "is this row
