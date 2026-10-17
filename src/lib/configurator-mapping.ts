@@ -334,7 +334,8 @@ export interface KnownCorrection {
   model: string;
   trim: string;
   modelYear: string;
-  /** A CSV column, or "engine:<exact option name>" for one engine option's name. */
+  /** A CSV column, "engine:<exact option name>" for one engine option's name, or
+   *  "price:<column>:<exact option name>" for one option's price. */
   field: string;
   from: string;
   to: string;
@@ -357,6 +358,84 @@ const miniSe = (trim: string): KnownCorrection[] => [
     why: "the Countryman SE ALL4 is all-electric (308 hp, BMW Group US press release)" },
 ];
 
+// The prices pass wrote $0 on 67 GM items because adding each one left GM's
+// configurator total unchanged. That isn't the manufacturer saying "no charge", so
+// they go back to blank ("Price not confirmed"); the later Cowork pass marks any that
+// are really standard equipment (Brett, 2026-10-16). [make, model, trim, year, column, option]
+const GM_ZERO_FILLS: [string, string, string, string, string, string][] = [
+  ["GMC", "Terrain", "Elevation", "2026", "common_features", "License plate front mounting package"],
+  ["GMC", "Terrain", "AT4", "2026", "common_features", "License plate front mounting package"],
+  ["GMC", "Terrain", "Denali", "2026", "common_features", "License plate front mounting package"],
+  ["GMC", "Acadia", "Elevation", "2026", "common_features", "License plate bracket, front"],
+  ["GMC", "Acadia", "Denali", "2026", "common_features", "License plate bracket, front"],
+  ["GMC", "Acadia", "Denali Ultimate", "2026", "common_features", "License plate bracket, front"],
+  ["GMC", "Acadia", "AT4", "2026", "common_features", "License plate bracket, front"],
+  ["GMC", "Yukon", "Elevation", "2026", "common_features", "License plate front mounting package"],
+  ["GMC", "Yukon", "Denali", "2026", "common_features", "License plate front mounting package"],
+  ["GMC", "Yukon", "AT4", "2026", "common_features", "License plate front mounting package"],
+  ["GMC", "Yukon", "AT4 Ultimate", "2026", "common_features", "License plate front mounting package"],
+  ["GMC", "Yukon", "Denali Ultimate", "2026", "common_features", "License plate front mounting package"],
+  ["GMC", "Yukon", "Elevation", "2027", "common_features", "License plate front mounting package"],
+  ["GMC", "Yukon", "Denali", "2027", "common_features", "License plate front mounting package"],
+  ["GMC", "Yukon", "AT4", "2027", "common_features", "License plate front mounting package"],
+  ["GMC", "Yukon", "AT4 Ultimate", "2027", "common_features", "License plate front mounting package"],
+  ["GMC", "Yukon", "Denali Ultimate", "2027", "common_features", "License plate front mounting package"],
+  ["GMC", "Yukon XL", "Elevation", "2026", "common_features", "License plate front mounting package"],
+  ["GMC", "Yukon XL", "Denali", "2026", "common_features", "License plate front mounting package"],
+  ["GMC", "Yukon XL", "AT4", "2026", "common_features", "License plate front mounting package"],
+  ["GMC", "Yukon XL", "AT4 Ultimate", "2026", "common_features", "License plate front mounting package"],
+  ["GMC", "Yukon XL", "Denali Ultimate", "2026", "common_features", "License plate front mounting package"],
+  ["GMC", "Yukon XL", "Elevation", "2027", "common_features", "License plate front mounting package"],
+  ["GMC", "Yukon XL", "Denali", "2027", "common_features", "License plate front mounting package"],
+  ["GMC", "Yukon XL", "AT4", "2027", "common_features", "License plate front mounting package"],
+  ["GMC", "Yukon XL", "AT4 Ultimate", "2027", "common_features", "License plate front mounting package"],
+  ["GMC", "Yukon XL", "Denali Ultimate", "2027", "common_features", "License plate front mounting package"],
+  ["GMC", "Sierra 1500", "Pro", "2026", "common_features", "Bumpers, front, Black (semi-gloss)"],
+  ["GMC", "Sierra 1500", "Pro", "2026", "common_features", "Bumpers, rear, Black (semi-gloss)"],
+  ["GMC", "Sierra 1500", "Pro", "2026", "common_features", "License plate kit, front"],
+  ["GMC", "Sierra 1500", "SLE", "2026", "common_features", "License plate kit, front"],
+  ["GMC", "Sierra 1500", "Elevation", "2026", "common_features", "License plate kit, front"],
+  ["GMC", "Sierra 1500", "SLT", "2026", "common_features", "License plate kit, front"],
+  ["GMC", "Sierra 1500", "AT4", "2026", "common_features", "License plate kit, front"],
+  ["GMC", "Sierra 1500", "Denali", "2026", "common_features", "License plate kit, front"],
+  ["GMC", "Sierra 1500", "AT4X", "2026", "common_features", "License plate kit, front"],
+  ["GMC", "Sierra 1500", "Denali Ultimate", "2026", "common_features", "License plate kit, front"],
+  ["GMC", "Sierra 2500HD", "Pro", "2026", "common_features", "License plate kit, front, Incandescent lighting"],
+  ["GMC", "Sierra 2500HD", "SLE", "2026", "common_features", "License plate kit, front, Incandescent lighting"],
+  ["GMC", "Sierra 2500HD", "SLE", "2026", "common_features", "Floor covering, rubberized-vinyl"],
+  ["GMC", "Sierra 2500HD", "SLT", "2026", "common_features", "License plate kit, front, Incandescent lighting"],
+  ["GMC", "Sierra 2500HD", "AT4", "2026", "common_features", "License plate kit, front, Incandescent lighting"],
+  ["GMC", "Sierra 2500HD", "AT4X", "2026", "common_features", "License plate kit, front, Incandescent lighting"],
+  ["GMC", "Sierra 2500HD", "Denali", "2026", "common_features", "License plate kit, front, Incandescent lighting"],
+  ["GMC", "Sierra 2500HD", "Denali Ultimate", "2026", "common_features", "License plate kit, front, Incandescent lighting"],
+  ["GMC", "Sierra 3500HD", "SLE", "2026", "common_features", "Floor covering, rubberized-vinyl"],
+  ["GMC", "Sierra 3500HD", "AT4", "2026", "common_features", "LPO, Black GMC emblems"],
+  ["GMC", "Sierra 3500HD", "AT4", "2026", "common_features", "LPO, Black Sierra nameplates"],
+  ["GMC", "Sierra 3500HD", "Denali", "2026", "common_features", "LPO, Black GMC emblems"],
+  ["GMC", "Sierra 3500HD", "Denali", "2026", "common_features", "LPO, Black Sierra nameplates"],
+  ["GMC", "Sierra 3500HD", "Denali Ultimate", "2026", "common_features", "LPO, Black GMC emblems"],
+  ["GMC", "Sierra 3500HD", "Denali Ultimate", "2026", "common_features", "LPO, Black Sierra nameplates"],
+  ["GMC", "HUMMER EV Pickup", "3X", "2026", "common_features", "Skid plate insert, Carbon Fiber"],
+  ["GMC", "HUMMER EV Pickup", "3X", "2026", "common_features", "Approach shield, Black-painted"],
+  ["GMC", "HUMMER EV SUV", "3X", "2026", "wheel_options", "Wheel, spare, 22\" Carbon Fiber Black"],
+  ["GMC", "HUMMER EV SUV", "3X", "2026", "common_features", "Skid plate insert, Carbon Fiber"],
+  ["GMC", "HUMMER EV SUV", "3X", "2026", "common_features", "Approach shield, Black-painted"],
+  ["Buick", "Enclave", "Preferred", "2026", "common_features", "License plate bracket, front mounting package"],
+  ["Buick", "Enclave", "Sport Touring", "2026", "common_features", "License plate bracket, front mounting package"],
+  ["Buick", "Enclave", "Avenir", "2026", "common_features", "License plate bracket, front mounting package"],
+  ["Cadillac", "CT5", "V Blackwing", "2026", "common_features", "Front splitter, none"],
+  ["Cadillac", "Escalade", "Platinum Luxury", "2026", "common_features", "Night Vision"],
+  ["Cadillac", "Escalade", "Platinum Sport", "2026", "common_features", "Night Vision"],
+  ["Cadillac", "Escalade", "V-Series", "2026", "common_features", "Night Vision"],
+  ["Cadillac", "Escalade ESV", "Platinum Luxury", "2026", "common_features", "Night Vision"],
+  ["Cadillac", "Escalade ESV", "Platinum Sport", "2026", "common_features", "Night Vision"],
+  ["Cadillac", "Escalade ESV", "V-Series", "2026", "common_features", "Night Vision"],
+];
+const gmZeroFill = ([make, model, trim, modelYear, column, option]: [string, string, string, string, string, string]): KnownCorrection => ({
+  make, model, trim, modelYear, field: `price:${column}:${option}`, from: "0", to: "",
+  why: "GM's configurator total didn't change; that isn't a published $0 (prices pass review, 2026-10-16)",
+});
+
 export const KNOWN_CORRECTIONS: KnownCorrection[] = [
   ...miniSe("SE ALL4 Signature Plus"),
   ...miniSe("SE ALL4 Iconic"),
@@ -367,6 +446,7 @@ export const KNOWN_CORRECTIONS: KnownCorrection[] = [
   cadillacV("Escalade", "2027"),
   cadillacV("Escalade ESV", "2026"),
   cadillacV("Escalade ESV", "2027"),
+  ...GM_ZERO_FILLS.map(gmZeroFill),
 ];
 
 // ---------------------------------------------------------------------------
@@ -377,8 +457,14 @@ export const KNOWN_CORRECTIONS: KnownCorrection[] = [
 export interface HeldModel {
   make: string;
   model: string;
+  /** Only this trim (exact); every trim when omitted. */
+  trim?: string;
+  /** Only this model year; every year when omitted. */
+  modelYear?: string;
   why: string;
 }
+
+const HELD_KEYS = new Set(["make", "model", "trim", "model_year", "why", "since"]);
 
 /**
  * The held list itself lives in data/held-models.json, which the Matchmaker
@@ -390,14 +476,38 @@ export function heldModelsFromJson(text: string): HeldModel[] {
   const parsed: unknown = JSON.parse(text);
   if (!Array.isArray(parsed)) throw new Error("held-models.json must be a list");
   return parsed.map((h) => {
-    const e = h as Partial<HeldModel>;
+    const e = h as Record<string, unknown>;
     if (typeof e.make !== "string" || typeof e.model !== "string") throw new Error("held model needs make and model");
-    return { make: e.make, model: e.model, why: typeof e.why === "string" ? e.why : "" };
+    // An unknown key (a typo like "modelYear") would otherwise hold every year of the model.
+    for (const k of Object.keys(e)) if (!HELD_KEYS.has(k)) throw new Error(`held model has an unknown key "${k}"`);
+    for (const k of ["trim", "model_year"]) if (k in e && typeof e[k] !== "string") throw new Error(`held model "${k}" must be a string`);
+    return {
+      make: e.make,
+      model: e.model,
+      ...(typeof e.trim === "string" ? { trim: e.trim } : {}),
+      ...(typeof e.model_year === "string" ? { modelYear: e.model_year } : {}),
+      why: typeof e.why === "string" ? e.why : "",
+    };
   });
 }
 
+/**
+ * The held entry covering a row. An entry matches the research file's own names or
+ * our dataset's names (after rule 9), so "Charger / Daytona Scat Pack" also covers a
+ * research row "Charger Daytona / Scat Pack".
+ */
 function heldModelFor(row: CsvRow, held: HeldModel[]): HeldModel | undefined {
-  return held.find((h) => h.make === (row.make ?? "").trim() && h.model === (row.model ?? "").trim());
+  const make = (row.make ?? "").trim();
+  const year = (row.model_year ?? "").trim();
+  const names = [{ model: (row.model ?? "").trim(), trim: (row.trim ?? "").trim() }];
+  const mapped = mapModel(make, row.model ?? "", row.trim ?? "");
+  if (mapped) names.push(mapped);
+  return held.find(
+    (h) =>
+      h.make === make &&
+      (h.modelYear === undefined || h.modelYear === year) &&
+      names.some((n) => n.model === h.model && (h.trim === undefined || h.trim === n.trim)),
+  );
 }
 
 /** Applies the corrections that match this row; logs each applied or skipped one. */
@@ -406,7 +516,22 @@ function applyCorrections(row: CsvRow, corrections: KnownCorrection[], report: M
   for (const c of corrections) {
     if (c.make !== (row.make ?? "").trim() || c.model !== (row.model ?? "").trim() || c.modelYear !== (row.model_year ?? "").trim()) continue;
     if (c.trim !== (row.trim ?? "").trim()) continue;
-    if (c.field.startsWith("engine:")) {
+    if (c.field.startsWith("price:")) {
+      // "price:<column>:<exact option name>": one option's price cell.
+      const rest = c.field.slice("price:".length);
+      const col = rest.slice(0, rest.indexOf(":"));
+      const name = rest.slice(rest.indexOf(":") + 1);
+      const items = splitItems(out[col] ?? "");
+      const hit = items.find((i) => i.name === name);
+      const parts = hit ? hit.rest.split(" | ") : [];
+      if (!hit || (parts[2] ?? "").trim() !== c.from) {
+        report.unmapped.push(note("correction", row, `${col} option "${name}" ${hit ? `price is "${(parts[2] ?? "").trim()}"` : "not found"}, not "${c.from}"; correction not applied`));
+        continue;
+      }
+      parts[2] = c.to;
+      hit.rest = parts.join(" | ");
+      out[col] = joinItems(items);
+    } else if (c.field.startsWith("engine:")) {
       const items = splitItems(out.drivetrain_engine_variants ?? "");
       const hit = items.find((i) => i.name === c.from);
       if (!hit) {

@@ -211,12 +211,64 @@ describe("known corrections (Brett's decisions, 2026-10-16; research files stay 
   });
 });
 
+describe("GM $0 fills from the prices pass go back to blank (Brett, 2026-10-16)", () => {
+  const prices = read("gmc-buick-configurator-prices-2026-10.csv").concat(read("cadillac-lincoln-configurator-prices-2026-10.csv"));
+  const repass = read("gmc-buick-configurator-repass-2026-10.csv").concat(read("cadillac-lincoln-configurator-repass-2026-10.csv"));
+  const OPTION_COLS = ["exterior_color_options", "interior_color_material_options", "wheel_options", "roof_options", "seating_configuration", "drivetrain_engine_variants", "common_features"];
+
+  it("reverts exactly the 67 items (GMC 57, Buick 3, Cadillac 7), and only their price", () => {
+    const { rows, report } = M.mapConfiguratorRows(prices);
+    const reverts = report.corrections.filter((n) => n.detail.startsWith("price:"));
+    assert.equal(reverts.length, 67);
+    const byMake = reverts.reduce((a, n) => ((a[n.make] = (a[n.make] ?? 0) + 1), a), {});
+    assert.deepEqual(byMake, { GMC: 57, Buick: 3, Cadillac: 7 });
+    assert.equal(report.unmapped.filter((n) => n.rule === "correction").length, 0);
+    // Every option cell now prices those items exactly as the re-pass input did (blank).
+    const fromRepass = M.mapConfiguratorRows(repass, { corrections: [] }).rows;
+    assert.equal(rows.length, fromRepass.length);
+    rows.forEach((r, i) => {
+      for (const col of OPTION_COLS) assert.equal(r[col], fromRepass[i][col], `${r.model} ${r.trim} ${r.model_year} ${col}`);
+    });
+  });
+
+  it("never overwrites a price it doesn't expect, and says so", () => {
+    const r = row({ make: "GMC", model: "Terrain", trim: "AT4", model_year: "2026", common_features: "License plate front mounting package | Standalone | 45 | " });
+    const { rows, report } = M.mapConfiguratorRows([r]);
+    assert.equal(rows[0].common_features, r.common_features);
+    assert.ok(report.unmapped.some((n) => n.rule === "correction" && n.detail.includes('price is "45"')));
+  });
+});
+
 describe("held models (out of the import until Brett releases them, 2026-10-16)", () => {
   const heldModels = M.heldModelsFromJson(fs.readFileSync(new URL("../data/held-models.json", import.meta.url), "utf8"));
 
   it("reads the one shared list in data/held-models.json", () => {
-    assert.deepEqual(heldModels.map((h) => `${h.make} ${h.model}`).sort(), ["Maserati GT2 Stradale", "Maserati MCPURA", "Volvo EX40"]);
+    assert.deepEqual(heldModels.map((h) => `${h.make} ${h.model} ${h.trim ?? "*"} ${h.modelYear ?? "*"}`).sort(),
+      ["Cadillac Vistiq * 2026", "Dodge Charger Daytona Scat Pack 2027", "Maserati GT2 Stradale * *", "Maserati MCPURA * *", "Volvo EX40 * *"]);
     assert.throws(() => M.heldModelsFromJson('{"make":"Volvo"}'));
+    // A typo'd key would otherwise hold every year of the model.
+    assert.throws(() => M.heldModelsFromJson('[{"make":"Cadillac","model":"Vistiq","modelYear":"2026"}]'), /unknown key "modelYear"/);
+    assert.throws(() => M.heldModelsFromJson('[{"make":"Cadillac","model":"Vistiq","model_year":2026}]'), /must be a string/);
+  });
+
+  it("a model_year entry holds only that year: the 2026 Vistiq is out, the 2027 Vistiq stays", () => {
+    const input = read("cadillac-lincoln-configurator-prices-2026-10.csv");
+    const { rows, report } = M.mapConfiguratorRows(input, { heldModels });
+    assert.deepEqual(report.held.map((n) => `${n.model} ${n.trim} ${n.modelYear}`).sort(),
+      ["Vistiq Luxury 2026", "Vistiq Platinum 2026", "Vistiq Premium Luxury 2026", "Vistiq Sport 2026"]);
+    assert.equal(rows.filter((r) => r.model === "Vistiq" && r.model_year === "2027").length, 4);
+    assert.equal(rows.filter((r) => r.model === "Vistiq" && r.model_year === "2026").length, 0);
+  });
+
+  it("a trim entry holds only that exact trim, matched on our dataset's names too (Charger Daytona -> Charger)", () => {
+    const daytona = (trim, model_year) => row({ make: "Dodge", model: "Charger Daytona", trim, model_year, body_style: "coupe or sedan", fuel_type: "Electric",
+      drivetrain_engine_variants: "2-Door AWD | Standard | 0 |  ;; 4-Door AWD | Standalone | 500 |  ;; 400V G2500 Front / Rear Electric-Drive Motors | Standard | 0 | " });
+    const input = [daytona("Scat Pack", "2027"), daytona("Scat Pack Plus", "2027"), daytona("Scat Pack", "2026")];
+    const { rows, report } = M.mapConfiguratorRows(input, { heldModels });
+    assert.deepEqual(report.held.map((n) => `${n.model} ${n.trim} ${n.modelYear}`), ["Charger Daytona Scat Pack 2027"]);
+    assert.deepEqual([...new Set(rows.map((r) => `${r.trim} ${r.model_year}`))].sort(), ["Daytona Scat Pack 2026", "Daytona Scat Pack Plus 2027"]);
+    // The real research file has no 2027 plain Scat Pack row, so nothing of it is held today.
+    assert.deepEqual(M.mapConfiguratorRows(read("dodge-chrysler-alfa-configurator-prices-2026-10.csv"), { heldModels }).report.held, []);
   });
 
   it("leaves out the Volvo EX40 and Maserati MCPURA / MCPURA Cielo / GT2 Stradale, and reports each held row", () => {
@@ -243,7 +295,7 @@ describe("held models (out of the import until Brett releases them, 2026-10-16)"
 
 describe("the whole step on every Wave 2 and Wave 3 research file", () => {
   const GROUPS = ["vw-audi", "gmc-buick", "cadillac-lincoln", "mercedes", "bmw-mini", "porsche-landrover", "lexus-acura", "genesis-volvo", "dodge-chrysler-alfa", "mitsubishi-polestar-lucid", "maserati", "fiat"];
-  const FILES = [...GROUPS.map((s) => `${s}-configurator-full-2026-10.csv`), ...GROUPS.map((s) => `${s}-configurator-repass-2026-10.csv`)];
+  const FILES = ["full", "repass", "prices"].flatMap((kind) => GROUPS.map((s) => `${s}-configurator-${kind}-2026-10.csv`));
 
   for (const file of FILES) {
     it(`${file}: no trim-identity collisions, and the mapped rows still parse cleanly`, () => {
