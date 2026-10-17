@@ -211,31 +211,37 @@ describe("known corrections (Brett's decisions, 2026-10-16; research files stay 
   });
 });
 
-describe("GM $0 fills from the prices pass go back to blank (Brett, 2026-10-16)", () => {
-  const prices = read("gmc-buick-configurator-prices-2026-10.csv").concat(read("cadillac-lincoln-configurator-prices-2026-10.csv"));
-  const repass = read("gmc-buick-configurator-repass-2026-10.csv").concat(read("cadillac-lincoln-configurator-repass-2026-10.csv"));
-  const OPTION_COLS = ["exterior_color_options", "interior_color_material_options", "wheel_options", "roof_options", "seating_configuration", "drivetrain_engine_variants", "common_features"];
+describe("GM $0 fills from the prices pass (Brett, 2026-10-16): pass 3 writes them blank, so no correction is needed", () => {
+  const items = (r, col) => new Map(M.splitItems(r[col] ?? "").map((i) => [i.name, i.rest.split(" | ")]));
+  const COLS = ["wheel_options", "common_features", "seating_configuration"];
 
-  it("reverts exactly the 67 items (GMC 57, Buick 3, Cadillac 7), and only their price", () => {
-    const { rows, report } = M.mapConfiguratorRows(prices);
-    const reverts = report.corrections.filter((n) => n.detail.startsWith("price:"));
-    assert.equal(reverts.length, 67);
-    const byMake = reverts.reduce((a, n) => ((a[n.make] = (a[n.make] ?? 0) + 1), a), {});
+  it("all 67 cells the prices pass set to $0 are blank again in pass 3 (GMC 57, Buick 3, Cadillac 7)", () => {
+    const byMake = {};
+    for (const stem of ["gmc-buick", "cadillac-lincoln"]) {
+      const repass = read(`${stem}-configurator-repass-2026-10.csv`), prices = read(`${stem}-configurator-prices-2026-10.csv`), pass3 = read(`${stem}-configurator-pass3-2026-10.csv`);
+      prices.forEach((p, i) => {
+        for (const col of COLS) {
+          const before = items(repass[i], col), now = items(p, col), after = items(pass3[i], col);
+          for (const [name, parts] of now) {
+            if ((parts[2] ?? "").trim() !== "0" || (before.get(name)?.[2] ?? "").trim() !== "") continue;
+            byMake[p.make] = (byMake[p.make] ?? 0) + 1;
+            assert.equal((after.get(name)?.[2] ?? "x").trim(), "", `${p.model} ${p.trim} ${p.model_year}: ${name}`);
+          }
+        }
+      });
+    }
     assert.deepEqual(byMake, { GMC: 57, Buick: 3, Cadillac: 7 });
-    assert.equal(report.unmapped.filter((n) => n.rule === "correction").length, 0);
-    // Every option cell now prices those items exactly as the re-pass input did (blank).
-    const fromRepass = M.mapConfiguratorRows(repass, { corrections: [] }).rows;
-    assert.equal(rows.length, fromRepass.length);
-    rows.forEach((r, i) => {
-      for (const col of OPTION_COLS) assert.equal(r[col], fromRepass[i][col], `${r.model} ${r.trim} ${r.model_year} ${col}`);
-    });
   });
 
-  it("never overwrites a price it doesn't expect, and says so", () => {
+  it("the known corrections hold no price corrections any more, and the mechanism still refuses an unexpected price", () => {
+    assert.equal(M.KNOWN_CORRECTIONS.filter((c) => c.field.startsWith("price:")).length, 0);
+    const corr = [{ make: "GMC", model: "Terrain", trim: "AT4", modelYear: "2026", field: "price:common_features:License plate front mounting package", from: "0", to: "", why: "test" }];
     const r = row({ make: "GMC", model: "Terrain", trim: "AT4", model_year: "2026", common_features: "License plate front mounting package | Standalone | 45 | " });
-    const { rows, report } = M.mapConfiguratorRows([r]);
+    const { rows, report } = M.mapConfiguratorRows([r], { corrections: corr });
     assert.equal(rows[0].common_features, r.common_features);
     assert.ok(report.unmapped.some((n) => n.rule === "correction" && n.detail.includes('price is "45"')));
+    const ok = M.mapConfiguratorRows([{ ...r, common_features: "License plate front mounting package | Standalone | 0 | " }], { corrections: corr });
+    assert.equal(ok.rows[0].common_features, "License plate front mounting package | Standalone |  | ");
   });
 });
 
@@ -295,7 +301,8 @@ describe("held models (out of the import until Brett releases them, 2026-10-16)"
 
 describe("the whole step on every Wave 2 and Wave 3 research file", () => {
   const GROUPS = ["vw-audi", "gmc-buick", "cadillac-lincoln", "mercedes", "bmw-mini", "porsche-landrover", "lexus-acura", "genesis-volvo", "dodge-chrysler-alfa", "mitsubishi-polestar-lucid", "maserati", "fiat"];
-  const FILES = ["full", "repass", "prices"].flatMap((kind) => GROUPS.map((s) => `${s}-configurator-${kind}-2026-10.csv`));
+  const PASS3 = ["gmc-buick", "cadillac-lincoln", "dodge-chrysler-alfa", "bmw-mini", "mercedes", "mitsubishi-polestar-lucid", "vw-audi"];
+  const FILES = [...["full", "repass", "prices"].flatMap((kind) => GROUPS.map((s) => `${s}-configurator-${kind}-2026-10.csv`)), ...PASS3.map((s) => `${s}-configurator-pass3-2026-10.csv`)];
 
   for (const file of FILES) {
     it(`${file}: no trim-identity collisions, and the mapped rows still parse cleanly`, () => {

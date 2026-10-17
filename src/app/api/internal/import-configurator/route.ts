@@ -61,13 +61,18 @@ export async function POST(req: NextRequest) {
   // engineFactsFile: the Cowork re-pass's official hp/size table (data/...csv).
   const useMapping = body.mapping === true;
   let engineFacts: ReturnType<typeof engineFactsFromRows> | undefined;
-  if (useMapping && typeof body.engineFactsFile === "string") {
-    try {
-      const factsText = readFileSync(join(process.cwd(), "data", body.engineFactsFile), "utf-8");
-      engineFacts = engineFactsFromRows(parse(factsText, { columns: true, skip_empty_lines: true }));
-    } catch {
-      return NextResponse.json({ error: `could not read data/${body.engineFactsFile}` }, { status: 400 });
+  // One file or a list (pass 3 added its own facts file, 2026-10-16); later files win on the same engine.
+  const factsFiles: string[] = typeof body.engineFactsFile === "string" ? [body.engineFactsFile] : Array.isArray(body.engineFactsFile) ? body.engineFactsFile.map(String) : [];
+  if (useMapping && factsFiles.length > 0) {
+    const factRows: Record<string, string>[] = [];
+    for (const f of factsFiles) {
+      try {
+        factRows.push(...parse(readFileSync(join(process.cwd(), "data", f), "utf-8"), { columns: true, skip_empty_lines: true }));
+      } catch {
+        return NextResponse.json({ error: `could not read data/${f}` }, { status: 400 });
+      }
     }
+    engineFacts = engineFactsFromRows(factRows);
   }
   // Models held out of the import until released (shared with the Matchmaker
   // dataset build). Read every time the mapping runs; a missing or broken

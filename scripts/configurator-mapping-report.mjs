@@ -13,7 +13,8 @@ const args = process.argv.slice(2);
 const flag = (name) => { const i = args.indexOf(name); if (i === -1) return null; const v = args[i + 1]; args.splice(i, 2); return v; };
 const factsFile = flag("--facts");
 const jsonOut = flag("--json");
-const engineFacts = factsFile ? engineFactsFromRows(parse(fs.readFileSync(factsFile, "utf8"), { columns: true, skip_empty_lines: true })) : undefined;
+// --facts a.csv,b.csv: several facts files; later files win on the same engine.
+const engineFacts = factsFile ? engineFactsFromRows(factsFile.split(",").flatMap((f) => parse(fs.readFileSync(f, "utf8"), { columns: true, skip_empty_lines: true }))) : undefined;
 
 // The same held list the import and the Matchmaker build use.
 const heldModels = heldModelsFromJson(fs.readFileSync(new URL("../data/held-models.json", import.meta.url), "utf8"));
