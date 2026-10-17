@@ -143,3 +143,31 @@ The prices pass didn't touch anything the mapping step reads. Each file's list o
    - 2027 Acadia AT4 18-in. Gloss Black wheels: GM lists $2,495, but the file has them Package-only;
    - Sierra 1500 Pro alternator and AT4/AT4X block heater: GM asks to confirm a change.
 8. **Maserati:** all 299 blanks are still unpublished (the 19 on priced trims, the 12 packages, and the held MCPURA, Cielo and GT2 Stradale).
+
+## 8. Brett's decisions (2026-10-16)
+
+1. **GM $0 fills: all 67 go back to blank.** A configurator total not changing isn't the manufacturer saying "no charge".
+   - Done as 67 logged price corrections in the mapping step (branch `configurator-mapping`, `1129986`, tested); the prices files stay as received.
+   - Pass 3 marks any that are really standard equipment (Night Vision on the Escalade/ESV Platinum and V first) as Standard, and writes the rest blank itself. The corrections are then retired.
+2. **The ~230 GM package/engine-content items** are re-tagged Package-only in pass 3.
+3. **2027 gas Charger coupes in v21 take Dodge's prices, and sedans +$2,000** (`b818a2b`). True starting prices are MSRP + $1,995.
+
+   | Trim | Coupe | Sedan |
+   |---|---|---|
+   | R/T | $49,995 (unchanged) | $51,995 |
+   | R/T Plus | $56,285 | $58,285 |
+   | Scat Pack | $55,845 | $57,845 |
+   | Scat Pack Plus | $60,840 | $62,840 |
+
+4. **The 2027 plain Daytona Scat Pack is held** (`data/held-models.json`, trim + model year) until pass 3 settles it.
+   - It removes the 2 v21 rows.
+   - The configurator files have no 2027 row for it, so nothing is held there today; the entry also covers one if pass 3 adds it.
+5. **The 2026 Cadillac Vistiq is held; 2027 is not.**
+   - Held-model entries may now name a `trim` and/or a `model_year`, and an unknown key is refused (tested).
+   - It removes 4 configurator rows and 4 v21 rows (2026 Luxury, Sport, Premium Luxury, Platinum).
+6. **Land Rover White contrast / Bespoke roofs** stay as "Price not confirmed".
+7. **The smaller items go to pass 3:** `docs/research/cowork-pass3-prompt-2026-10-16.md` (drafted, not started).
+
+**After these:**
+- v21 is 2,276 rows (2,260 from v20 + 16 Wave 3).
+- Dry run on the prices files: 803 → 808 rows, 0 collisions, 9 held rows, 78 corrections (67 of them the GM prices), and 393 items left unchanged.

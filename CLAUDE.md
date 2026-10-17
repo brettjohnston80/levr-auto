@@ -198,9 +198,10 @@ Review: `docs/research/configurator-wave2-review-2026-10-14.md`; Brett's decisio
     - missing rows: 2027 Daytona plain Scat Pack, BMW X5 40 / 50e / 750e, Eclipse Cross SE Pano / SEL Touring;
     - row splits: Durango GT / GT HEMI, EQE 320 RWD / AWD.
   - **Held models (Brett, 2026-10-16): `data/held-models.json`** is the one list, read by both the configurator import's mapping step (branch `configurator-mapping`) and `scripts/build-matchmaker-v21.py`.
-    - Today it holds the Volvo EX40 (no longer sold new in the US) and Maserati MCPURA / MCPURA Cielo / GT2 Stradale (no US prices).
+    - Today it holds the Volvo EX40 (no longer sold new in the US), Maserati MCPURA / MCPURA Cielo / GT2 Stradale (no US prices), the 2027 Charger Daytona plain Scat Pack (unconfirmed) and the 2026 Cadillac Vistiq (gone from cadillac.com). An entry may name a `trim` and/or `model_year`.
     - Removing an entry releases that model in both places.
-    - v21: 2,282 rows (2,266 from v20 + 16 Wave 3).
+    - v21: 2,276 rows (2,260 from v20 + 16 Wave 3). 2027 gas Charger coupes at Dodge's 2027 prices, sedans +$2,000.
+  - **Prices pass (section D), 2026-10-16:** review `docs/research/configurator-prices-review-2026-10-16.md` (decisions in its section 8). Files `data/*-configurator-prices-2026-10.csv` (committed as received) are the import inputs. GM's 67 "$0" fills are reverted to blank by logged corrections in the mapping step. Pass 3 (missing rows, the Durango/EQE splits, GM re-tags, standard-equipment checks, the Daytona question, smaller items) is drafted in `docs/research/cowork-pass3-prompt-2026-10-16.md`, not started.
   - **⚠ The Volvo EX40 is still pickable in the live Matchmaker data (v20) until v21 ships** (scored, imported, promoted, then a `/matchmaker` redeploy, which is static).
 - **Rule 10 (Brett, 2026-10-15):** a plug-in hybrid's `range_mi` in the Matchmaker dataset is always the total range, never electric-only.
 - Process per make once ready: import as an unpromoted batch (`/api/internal/import-configurator`, `makes`, `blankPriceUnknown: true`) → verify → report → Brett approves → `promote_configurator_batch_make` → confirm live. MarketCheck model-name differences go in `src/lib/marketcheck-models.ts`; trim-name differences in `TRIM_EQUIVALENTS`.
