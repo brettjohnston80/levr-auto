@@ -500,6 +500,51 @@ function applyCorrections(row: CsvRow, corrections: KnownCorrection[], report: M
 }
 
 // ---------------------------------------------------------------------------
+// Package notes (Brett, 2026-10-16): research notes left inside
+// package_definitions contents after pass 4. Each is a fixed note, so the
+// rule matches it exactly and changes nothing else in the entry.
+//   - GM "standard equipment on this trim (GM standard-features list names the
+//     package but does not itemize it separately)": no real contents, so the
+//     contents are emptied and the page shows "Contents not listed" (wording
+//     signed off).
+//   - Lincoln "standard equipment group on this trim; contents: …": the note is
+//     dropped and the real contents after it are kept.
+//   - The engine-choice note on the 14 GMC entries named like a cab/bed build:
+//     "(engine/transmission choice from drivetrain_engine_variants; listed here
+//     so items that come with it keep their link)" is removed.
+
+const GM_STANDARD_NOTE = /^contents:\s*standard equipment on this trim \(GM standard-features list names the package but does not itemize it separately\)\s*$/i;
+const LINCOLN_STANDARD_NOTE = /^standard equipment group on this trim;\s*(contents:)/i;
+const ENGINE_CHOICE_NOTE = /\s*\(engine\/transmission choice from drivetrain_engine_variants; listed here so items that come with it keep their link\)/i;
+
+/** The package_definitions cell with those notes removed; counts what it changed. */
+export function cleanPackageNotes(cell: string, report?: MappingReport): string {
+  if (!cell) return cell;
+  const bump = (k: string) => { if (report) report.changed[k] = (report.changed[k] ?? 0) + 1; };
+  return cell
+    .split(" ;; ")
+    .map((entry) => {
+      const parts = entry.split(" | ");
+      if (parts.length < 3) return entry;
+      let contents = parts.slice(2).join(" | ");
+      if (GM_STANDARD_NOTE.test(contents.trim())) {
+        contents = "contents: ";
+        bump("package note: GM standard equipment");
+      } else if (LINCOLN_STANDARD_NOTE.test(contents)) {
+        contents = contents.replace(LINCOLN_STANDARD_NOTE, "$1");
+        bump("package note: Lincoln standard equipment");
+      } else if (ENGINE_CHOICE_NOTE.test(contents)) {
+        contents = contents.replace(ENGINE_CHOICE_NOTE, "");
+        bump("package note: engine choice");
+      } else {
+        return entry;
+      }
+      return [parts[0], parts[1], contents].join(" | ");
+    })
+    .join(" ;; ");
+}
+
+// ---------------------------------------------------------------------------
 // The whole step.
 
 function note(rule: string, row: CsvRow, detail: string): MappingNote {
@@ -658,7 +703,7 @@ export function mapConfiguratorRows(rows: CsvRow[], opts: MappingOptions = {}): 
     }
     // Corrections first; everything after keys off the corrected row.
     const original = applyCorrections(received, corrections, report);
-    let row: CsvRow = { ...original };
+    let row: CsvRow = { ...original, package_definitions: cleanPackageNotes(original.package_definitions ?? "", report) };
 
     const m = mapModel(row.make ?? "", row.model ?? "", row.trim ?? "");
     if (m) {

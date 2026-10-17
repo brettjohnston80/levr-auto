@@ -1,3 +1,4 @@
+import { isCabBedLine } from "./cab-bed";
 // Matching between real inventory and configurator data (step 7 of 9).
 //
 // Pure functions and types only -- no DB access, no server imports. This
@@ -640,6 +641,10 @@ export function groupIntoPackages(features: ConfiguratorChoice[]): ConfiguratorC
   const result: ConfiguratorChoice[] = [];
   for (const [key, members] of byPackage) {
     const first = members[0];
+    // A "package" named like a truck build (cab, bed, drive, engine) only links the
+    // items that come with that build; the build itself is a choice under "Cab, bed &
+    // powertrain", so it never shows as a feature or package (Brett, 2026-10-16).
+    if (first.packageName != null && isCabBedLine(first.packageName)) continue;
     // Standalone (packageName null) already has name === key -- nothing to
     // rename, so pass it through as-is rather than manufacturing a new
     // object for the common case (real data: standalone outnumbers

@@ -1,7 +1,18 @@
 // Truck cab and bed display (option C, Brett, 2026-10-16).
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { registerHooks } from "node:module";
+// configurator-matching.ts imports "./cab-bed" without an extension (as the app's bundler allows).
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (/^\.\.?\//.test(specifier) && !/\.[cm]?[jt]sx?$/.test(specifier)) {
+      try { return nextResolve(`${specifier}.ts`, context); } catch { /* fall through */ }
+    }
+    return nextResolve(specifier, context);
+  },
+});
 const C = await import("../src/lib/cab-bed.ts");
+const CM = await import("../src/lib/configurator-matching.ts");
 
 describe("cab and bed build lines", () => {
   it("GMC: cab and bed, drive, then engine and transmission", () => {
@@ -34,5 +45,11 @@ describe("cab and bed build lines", () => {
     assert.equal(C.buildsSummary([l("Crew Cab / 4x4 / 8' Box", "standard", 0)]), "1 build, Standard");
     assert.equal(C.buildsSummary([l("Crew Cab, Short Bed, 4WD, 6.2L EcoTec3 V8 engine", "standalone", null)]), "1 build");
     assert.equal(C.buildsSummary([l("AWD", "standard", 0)]), null);
+  });
+  it("a package named like a build is never shown as a feature; its items come with that build", () => {
+    const f = (name, packageName) => ({ name, availability: packageName ? "package_only" : "standalone", priceCents: null, priceIsIncluded: false, packageName, packagePriceCents: null, packageContents: [] });
+    const build = "Crew Cab, Standard Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission";
+    const out = CM.groupIntoPackages([f("Winter Grille Cover", build), f("Exhaust brake", build), f("Engine block heater", null), f("Heated seats", "Convenience Package"), f("Heated wheel", "Convenience Package")]);
+    assert.deepEqual(out.map((c) => c.name), ["Engine block heater", "Convenience Package"]);
   });
 });

@@ -4,6 +4,16 @@
 // from one model+trim facet call per make. No database, no network.
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { registerHooks } from "node:module";
+// configurator-matching.ts imports "./cab-bed" without an extension (as the app's bundler allows).
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (/^\.\.?\//.test(specifier) && !/\.[cm]?[jt]sx?$/.test(specifier)) {
+      try { return nextResolve(`${specifier}.ts`, context); } catch { /* fall through */ }
+    }
+    return nextResolve(specifier, context);
+  },
+});
 
 const MM = await import("../src/lib/marketcheck-models.ts");
 const CM = await import("../src/lib/configurator-matching.ts");

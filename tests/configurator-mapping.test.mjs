@@ -3,6 +3,16 @@
 // Run: npm run test:configurator   (Node's built-in test runner; no database.)
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { registerHooks } from "node:module";
+// configurator-matching.ts imports "./cab-bed" without an extension (as the app's bundler allows).
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (/^\.\.?\//.test(specifier) && !/\.[cm]?[jt]sx?$/.test(specifier)) {
+      try { return nextResolve(`${specifier}.ts`, context); } catch { /* fall through */ }
+    }
+    return nextResolve(specifier, context);
+  },
+});
 import fs from "node:fs";
 import { createRequire } from "node:module";
 
@@ -259,6 +269,28 @@ describe("the six 2026 XT5 Driver Assist Package links are rejected (Brett, 2026
     const { rows, report } = M.mapConfiguratorRows([r]);
     assert.equal(rows[0].common_features, r.common_features);
     assert.ok(report.unmapped.some((n) => n.rule === "correction" && n.detail.includes('"Air Ionizer" is "Standard | 0 | "')));
+  });
+});
+
+describe("package notes left after pass 4 (Brett, 2026-10-16)", () => {
+  const contentsOf = (cell) => cell.split(" ;; ").map((e) => e.split(" | ").slice(2).join(" | "));
+  it("GM standard-equipment notes become empty contents ('Contents not listed'); Lincoln keeps its real contents; the engine-choice note goes", () => {
+    const gm = M.mapConfiguratorRows(read("gmc-buick-configurator-pass4-2026-10.csv"));
+    const cl = M.mapConfiguratorRows(read("cadillac-lincoln-configurator-pass4-2026-10.csv"));
+    assert.equal(gm.report.changed["package note: GM standard equipment"], 198);
+    assert.equal(gm.report.changed["package note: engine choice"], 14);
+    assert.equal(cl.report.changed["package note: Lincoln standard equipment"], 52);
+    const all = [...gm.rows, ...cl.rows].flatMap((r) => contentsOf(r.package_definitions));
+    assert.ok(!all.some((c) => /standard equipment on this trim|standard equipment group on this trim|keep their link/i.test(c)));
+    const parsed = [...gm.rows, ...cl.rows].flatMap((r) => [...P.parsePackageDefinitions(r.package_definitions).values()]);
+    assert.ok(parsed.some((p) => p.contents.length === 0), "emptied GM packages parse with no contents");
+    assert.ok(!parsed.some((p) => p.contents.some((c) => /^contents:/i.test(c))), "Lincoln contents parse as a plain list");
+  });
+  it("changes nothing in any other file", () => {
+    for (const f of ["vw-audi-configurator-pass3-2026-10.csv", "porsche-landrover-configurator-pass4-2026-10.csv", "mercedes-configurator-pass4-2026-10.csv", "toyota-configurator-full-2026-09-09.csv"]) {
+      const { report } = M.mapConfiguratorRows(read(f));
+      assert.deepEqual(Object.keys(report.changed).filter((k) => k.startsWith("package note")), [], f);
+    }
   });
 });
 
