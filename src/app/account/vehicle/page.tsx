@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { displayOptionName } from "@/lib/option-display";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -66,7 +67,7 @@ function ExcludedNames({ names }: { names: string[] }) {
   return (
     <p className="mt-2 text-xs text-amber-300">
       <span className="font-semibold">Excluded:</span>{" "}
-      <span className="text-amber-200/80">{names.join(", ")}</span>
+      <span className="text-amber-200/80">{names.map(displayOptionName).join(", ")}</span>
     </p>
   );
 }

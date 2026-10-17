@@ -55,6 +55,7 @@ interface OptionRow {
   package_name: string | null;
   package_price_cents: number | null;
   package_contents: string[] | null;
+  dealer_installed: boolean;
 }
 
 // CHOICE_AVAILABILITY now lives in configurator-matching.ts (2026-09-16) --
@@ -83,6 +84,7 @@ function toChoice(row: OptionRow): ConfiguratorChoice {
     packageName: row.package_name,
     packagePriceCents: row.package_price_cents,
     packageContents: row.package_contents,
+    dealerInstalled: row.dealer_installed === true,
   };
 }
 
@@ -236,7 +238,7 @@ export async function getConfiguratorQuestionsForTrims(
       const { data, error } = await admin
         .from("configurator_options")
         .select(
-          "id, trim_id, category, name, availability, price_cents, price_is_included, package_name, package_price_cents, package_contents",
+          "id, trim_id, category, name, availability, price_cents, price_is_included, package_name, package_price_cents, package_contents, dealer_installed",
         )
         .in("trim_id", chunk)
         .order("id")
@@ -463,7 +465,7 @@ async function loadDrivetrainTwins(
       const { data, error } = await admin
         .from("configurator_options")
         .select(
-          "id, trim_id, category, name, availability, price_cents, price_is_included, package_name, package_price_cents, package_contents",
+          "id, trim_id, category, name, availability, price_cents, price_is_included, package_name, package_price_cents, package_contents, dealer_installed",
         )
         .in("trim_id", chunk)
         .order("id")
@@ -538,7 +540,7 @@ export async function getConfiguratorQuestionsForResolvedTrimIds(
       const { data, error } = await admin
         .from("configurator_options")
         .select(
-          "id, trim_id, category, name, availability, price_cents, price_is_included, package_name, package_price_cents, package_contents",
+          "id, trim_id, category, name, availability, price_cents, price_is_included, package_name, package_price_cents, package_contents, dealer_installed",
         )
         .in("trim_id", chunk)
         .order("id")

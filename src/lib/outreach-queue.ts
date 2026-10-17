@@ -127,6 +127,13 @@ export interface OutreachSelection {
   /** Price could not be parsed. Must never render as a blank or as $0. */
   priceUnknown: boolean;
   /**
+   * Dealer-installed on at least one of the customer's ranked trims
+   * (configurator_options.dealer_installed, 2026-10-17). Read live from the
+   * ranked trims' researched options, so a removable add-on is visible to
+   * the agent before the dealer itemizes it.
+   */
+  dealerInstalled: boolean;
+  /**
    * Which of the customer's ranked trims (display label, e.g. "XSE 2026")
    * genuinely offered this option at save time (2026-09-16, ranked-trim-
    * union redesign) -- null for a row written before this column existed.
@@ -547,6 +554,7 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
         packageContents: (row.package_contents as string[] | null) ?? null,
         priceUnknown: row.price_unknown === true,
         availableOnTrims: (row.available_on_trims as string[] | null) ?? null,
+        dealerInstalled: false,
       });
       selectionsBySearchId.set(row.search_id as string, list);
     }
@@ -584,6 +592,46 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
       trimPrefsBySearchId.set(row.search_id as string, list);
     }
     if (!data || data.length < SELECTION_PAGE_SIZE) break;
+  }
+
+  // Dealer-installed answers (2026-10-17): looked up on the trims each
+  // customer ranked. A feature answer is stored under its package's name,
+  // so a package name counts as well as an option name.
+  const rankedTrimIdsBySearch = new Map<string, string[]>();
+  for (const [searchId, prefs] of trimPrefsBySearchId) {
+    const ids = prefs.filter((p) => !p.excluded && p.configuratorTrimId).map((p) => p.configuratorTrimId as string);
+    if (ids.length > 0) rankedTrimIdsBySearch.set(searchId, ids);
+  }
+  const allRankedTrimIds = [...new Set([...rankedTrimIdsBySearch.values()].flat())];
+  const dealerInstalledByTrim = new Map<string, Set<string>>();
+  for (let i = 0; i < allRankedTrimIds.length; i += 100) {
+    const chunk = allRankedTrimIds.slice(i, i + 100);
+    for (let from = 0; ; from += SELECTION_PAGE_SIZE) {
+      const { data, error } = await supabase
+        .from("configurator_options")
+        .select("trim_id, category, name, package_name")
+        .in("trim_id", chunk)
+        .eq("dealer_installed", true)
+        .order("id")
+        .range(from, from + SELECTION_PAGE_SIZE - 1);
+      if (error) {
+        throw new Error(`Failed to load dealer-installed options: ${error.message}`);
+      }
+      for (const r of data ?? []) {
+        const set = dealerInstalledByTrim.get(r.trim_id as string) ?? new Set<string>();
+        set.add(`${r.category}::${r.name}`);
+        if (r.package_name) set.add(`${r.category}::${r.package_name}`);
+        dealerInstalledByTrim.set(r.trim_id as string, set);
+      }
+      if (!data || data.length < SELECTION_PAGE_SIZE) break;
+    }
+  }
+  for (const [searchId, list] of selectionsBySearchId) {
+    const trimIds = rankedTrimIdsBySearch.get(searchId) ?? [];
+    for (const sel of list) {
+      const key = `${sel.category}::${sel.selection}`;
+      sel.dealerInstalled = trimIds.some((id) => dealerInstalledByTrim.get(id)?.has(key) ?? false);
+    }
   }
   for (const list of trimPrefsBySearchId.values()) {
     list.sort(compareTrimPreferences);

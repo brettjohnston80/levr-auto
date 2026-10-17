@@ -1,5 +1,6 @@
 "use client";
 
+import { DealerInstalledTag } from "@/components/dealer-installed-tag";
 import { useState, type FormEvent } from "react";
 import { logQualifyingOffer } from "@/lib/outreach-actions";
 import { parseDealerOffer } from "@/lib/offer-parsing-actions";
@@ -22,7 +23,26 @@ function fiveDigitZip(zip: string | null): string {
   return match ? match[1] : trimmed;
 }
 
-export function LogOfferForm({ searchId, listings }: { searchId: string; listings: OutreachListing[] }) {
+/** Lower-cased words, for matching a dealer's add-on line to a researched item. */
+function normalizeForMatch(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+export function LogOfferForm({
+  searchId,
+  listings,
+  dealerInstalledItems = [],
+}: {
+  searchId: string;
+  listings: OutreachListing[];
+  /** Display names of the customer's wanted dealer-installed options and packages (2026-10-17). */
+  dealerInstalledItems?: string[];
+}) {
+  const dealerInstalledNormalized = dealerInstalledItems.map(normalizeForMatch).filter((n) => n.length > 0);
+  const lineIsDealerInstalled = (description: string) => {
+    const d = normalizeForMatch(description);
+    return d.length > 0 && dealerInstalledNormalized.some((n) => d.includes(n) || n.includes(d));
+  };
   const [expanded, setExpanded] = useState(false);
   const [selectedListingId, setSelectedListingId] = useState("");
   const [dealerName, setDealerName] = useState("");
@@ -407,8 +427,19 @@ export function LogOfferForm({ searchId, listings }: { searchId: string; listing
             + Add line
           </button>
         </div>
+        {dealerInstalledItems.length > 0 && (
+          <p className="mt-1 text-xs text-zinc-500">
+            Dealer-installed items the customer wants (removable, negotiable):{" "}
+            {dealerInstalledItems.map((name, i) => (
+              <span key={name}>
+                {i > 0 ? ", " : ""}
+                <span className="text-zinc-300">{name}</span>
+              </span>
+            ))}
+          </p>
+        )}
         {addons.map((a, i) => (
-          <div key={i} className="mt-2 flex gap-2">
+          <div key={i} className="mt-2 flex items-center gap-2">
             <input
               placeholder="Description"
               value={a.description}
@@ -424,6 +455,7 @@ export function LogOfferForm({ searchId, listings }: { searchId: string; listing
               onChange={(e) => updateAddon(i, "amount", e.target.value)}
               className="w-28 rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
             />
+            {lineIsDealerInstalled(a.description) ? <DealerInstalledTag /> : null}
             <button
               type="button"
               onClick={() => removeAddon(i)}

@@ -1,4 +1,5 @@
 import { isCabBedLine } from "./cab-bed";
+import { displayOptionName } from "./option-display";
 // Matching between real inventory and configurator data (step 7 of 9).
 //
 // Pure functions and types only -- no DB access, no server imports. This
@@ -450,6 +451,13 @@ export interface ConfiguratorChoice {
    * confirmed". Never set on a real, selectable choice.
    */
   unconfirmed?: boolean;
+  /**
+   * Installed by the dealer/port, not the factory (configurator_options.
+   * dealer_installed; GM LPO items and dealer-installed packages,
+   * 2026-10-17). Shown as a "Dealer-installed" tag. Optional so fabricated
+   * display rows needn't carry it.
+   */
+  dealerInstalled?: boolean;
 }
 
 /**
@@ -466,7 +474,7 @@ export function sortChoices(a: ConfiguratorChoice, b: ConfiguratorChoice): numbe
   const price = (c: ConfiguratorChoice) =>
     c.packagePriceCents ?? c.priceCents ?? Number.MAX_SAFE_INTEGER;
   if (price(a) !== price(b)) return price(a) - price(b);
-  return a.name.localeCompare(b.name);
+  return displayOptionName(a.name).localeCompare(displayOptionName(b.name));
 }
 
 /**
@@ -649,7 +657,9 @@ export function groupIntoPackages(features: ConfiguratorChoice[]): ConfiguratorC
     // rename, so pass it through as-is rather than manufacturing a new
     // object for the common case (real data: standalone outnumbers
     // package-grouped roughly 3:2 across live Toyota/Honda trims).
-    result.push(first.packageName == null ? first : { ...first, name: key });
+    // A package is dealer-installed when any item in it is (2026-10-17).
+    const dealerInstalled = members.some((m) => m.dealerInstalled === true);
+    result.push(first.packageName == null ? first : { ...first, name: key, dealerInstalled });
   }
   return result;
 }

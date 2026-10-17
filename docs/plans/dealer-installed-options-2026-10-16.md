@@ -38,3 +38,14 @@ Brett's pass 4 decision 4: keep the "dealer-installed" information, because deal
 2. Restore the GM package flags from pass 3 (recommended), or wait for a Cowork pass.
 3. Show the tag to customers too, or agents only.
 4. The tag wording, and whether to drop "LPO, " from displayed names.
+
+## Built (2026-10-17), awaiting Brett's review before push and swap
+
+- Migration `20261017120000` applied by Brett (checks matched; anon refused with 42501, authenticated wrote 0 rows).
+- Import rule `src/lib/configurator-dealer-installed.ts` (tests `tests/dealer-installed.test.mjs`): GM's LPO code in the name ("LPO, …", "LPO …", "…, LPO"), plus every option of a package listed in `data/configurator-dealer-installed-packages-2026-10.csv` (718 packages from pass 3, built by `scripts/build-dealer-installed-packages.py`). The package rule skips paint and interior colours (a dealer can't paint the car; CT5 Black Raven is sold only with the Exterior Accent Package).
+- Displayed names drop GM's LPO code (`src/lib/option-display.ts`); stored names and saved answers keep GM's text. Package contents drop the bare "LPO" item the import splits off. GM's mid-sentence wording ("transit steel wheels for LPO 20" wheels") is left as written.
+- "Dealer-installed" tag: price tag (ranking rows, Details, Your Car), comparison table rows, Review, agent build-preferences card, and on Log Offer add-on lines that match a dealer-installed item the customer wants.
+
+## Next Cowork pass
+
+- Every other make: an explicit dealer-installed / port-installed marker per option, from each brand's US configurator ("dealer-installed", "port-installed", "accessory installed by dealer"). Nothing inferred from words like "accessory".

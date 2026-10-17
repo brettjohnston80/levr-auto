@@ -5,6 +5,7 @@ import { parse } from "csv-parse/sync";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseConfiguratorRow, type ParsedOption } from "@/lib/configurator-parse";
 import { engineFactsFromRows, heldModelsFromJson, mapConfiguratorRows, type MappingReport } from "@/lib/configurator-mapping";
+import { applyDealerInstalledRule, dealerInstalledPackagesFromRows, type DealerInstalledPackage, type DealerInstalledReport } from "@/lib/configurator-dealer-installed";
 
 // Durable import for the Toyota/Honda configurator datasets (step 4 of 9),
 // same shape as import-vehicle-dataset: CRON_SECRET-gated, one new
@@ -85,6 +86,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `could not read data/held-models.json: ${(e as Error).message}` }, { status: 400 });
     }
   }
+  // GM's dealer-installed packages (restored from pass 3, 2026-10-17).
+  // Read with the mapping, like held models; a missing file stops the import.
+  let dealerInstalledPackages: DealerInstalledPackage[] = [];
+  if (useMapping) {
+    try {
+      const diText = readFileSync(join(process.cwd(), "data", "configurator-dealer-installed-packages-2026-10.csv"), "utf-8");
+      dealerInstalledPackages = dealerInstalledPackagesFromRows(parse(diText, { columns: true, skip_empty_lines: true, trim: true }));
+    } catch (e) {
+      return NextResponse.json({ error: `could not read data/configurator-dealer-installed-packages-2026-10.csv: ${(e as Error).message}` }, { status: 400 });
+    }
+  }
   const mappingReports: Record<string, MappingReport> = {};
 
   // --- read + parse every file before touching the DB -------------------
@@ -114,6 +126,8 @@ export async function POST(req: NextRequest) {
   if (parsedRows.length === 0) {
     return NextResponse.json({ error: "no rows matched" }, { status: 400 });
   }
+  // GM's LPO code on any import; the listed packages only with the mapping.
+  const dealerInstalled: DealerInstalledReport = applyDealerInstalledRule(parsedRows, dealerInstalledPackages);
   // Two rows with the same trim identity would fail the unique constraint
   // half-way; refuse before anything is written.
   const collisions = Object.values(mappingReports).flatMap((r) => r.collisions);
@@ -229,6 +243,7 @@ export async function POST(req: NextRequest) {
         package_price_cents: o.packagePriceCents,
         package_contents: o.packageContents,
         notes: o.notes,
+        dealer_installed: o.dealerInstalled,
       });
     }
   });
@@ -256,6 +271,7 @@ export async function POST(req: NextRequest) {
     dropped,
     availability,
     availabilityMethod,
+    dealerInstalled,
     mapping: useMapping
       ? Object.fromEntries(
           Object.entries(mappingReports).map(([file, r]) => [

@@ -7,6 +7,8 @@ import {
 } from "@/lib/configurator-matching";
 import { RankingQuestion, type RankableItem } from "@/components/ranking-question";
 import { formatOptionPrice } from "@/lib/option-price";
+import { displayOptionName, displayPackageContents } from "@/lib/option-display";
+import { DealerInstalledTag } from "@/components/dealer-installed-tag";
 
 // The rich configurator question UI (step 7 of 9), shown only for a trim
 // that resolved to exactly one researched build. Every other trim -- and
@@ -55,7 +57,14 @@ export function PriceTag({ choice }: { choice: ConfiguratorChoice }) {
       : tone === "unknown"
         ? "text-amber-400/90"
         : "text-zinc-300";
-  return <span className={`shrink-0 text-xs font-medium ${cls}`}>{text}</span>;
+  const price = <span className={`shrink-0 text-xs font-medium ${cls}`}>{text}</span>;
+  if (!choice.dealerInstalled) return price;
+  return (
+    <span className="inline-flex shrink-0 flex-wrap items-center gap-1.5">
+      {price}
+      <DealerInstalledTag />
+    </span>
+  );
 }
 
 /**
@@ -94,7 +103,7 @@ export function PackageNote({ choice }: { choice: ConfiguratorChoice }) {
       <p className="mt-1.5 text-xs leading-relaxed text-zinc-500">
         {hasContents ? (
           <>
-            Includes: <span className="text-zinc-400">{choice.packageContents!.join(", ")}</span>
+            Includes: <span className="text-zinc-400">{displayPackageContents(choice.packageContents!).join(", ")}</span>
           </>
         ) : (
           CONTENTS_NOT_LISTED
@@ -106,7 +115,7 @@ export function PackageNote({ choice }: { choice: ConfiguratorChoice }) {
     <p className="mt-1.5 text-xs leading-relaxed text-zinc-500">
       Only available in the <span className="text-zinc-400">{choice.packageName}</span>
       {hasContents ? (
-        <> — also includes {choice.packageContents!.join(", ")}</>
+        <> — also includes {displayPackageContents(choice.packageContents!).join(", ")}</>
       ) : (
         <> — {CONTENTS_NOT_LISTED.toLowerCase()}</>
       )}
@@ -184,7 +193,7 @@ export function RankedQuestion({
   );
   const toItem = (c: ConfiguratorChoice): RankableItem => ({
     id: c.name,
-    label: c.name,
+    label: displayOptionName(c.name),
     imageUrl: c.imageUrl ?? null,
     swatch: c.swatch ?? null,
     detail: toDetail(c),
@@ -343,6 +352,7 @@ export function SelectionSummary({
   selections,
   conflicts = [],
   trimRanking = [],
+  isDealerInstalled,
 }: {
   selections: ConfiguratorSelection[];
   /** See RankConflict's own comment -- defaults to none so any other
@@ -365,6 +375,8 @@ export function SelectionSummary({
    * excluded ones never do.
    */
   trimRanking?: string[];
+  /** True for an answer that's dealer-installed (2026-10-17); tagged inline. */
+  isDealerInstalled?: (category: ConfiguratorSelection["category"], name: string) => boolean;
 }) {
   if (selections.length === 0 && trimRanking.length === 0) return null;
   const byCategory: [ConfiguratorSelection["category"], string][] = [
@@ -406,8 +418,9 @@ export function SelectionSummary({
                       {i > 0 ? ", " : ""}
                       {i + 1}.{" "}
                       <span className={conflict ? "text-zinc-500 line-through decoration-zinc-600" : undefined}>
-                        {r.selection}
+                        {displayOptionName(r.selection)}
                       </span>
+                      {isDealerInstalled?.(category, r.selection) ? <DealerInstalledTag className="ml-1.5 align-middle" /> : null}
                       {conflict ? (
                         <span className="text-amber-400">
                           {" "}
@@ -418,7 +431,7 @@ export function SelectionSummary({
                     </span>
                   );
                 })
-              : unordered.map((r) => r.selection).join(", ")}
+              : unordered.map((r) => displayOptionName(r.selection)).join(", ")}
           </p>
         );
       })}

@@ -1,6 +1,8 @@
 "use client";
 
 import { drivetrainHeading } from "@/lib/cab-bed";
+import { displayOptionName } from "@/lib/option-display";
+import { DealerInstalledTag } from "@/components/dealer-installed-tag";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useIsNarrowViewport } from "@/lib/use-is-narrow-viewport";
@@ -203,9 +205,12 @@ function ChoiceRow({ row, trimOptions }: { row: ChoiceComparisonRow; trimOptions
     <tr className="border-t border-white/5">
       <th scope="row" className="sticky left-0 z-10 bg-zinc-950 py-2.5 pr-4 text-left align-top">
         <span className="flex items-center gap-2">
-          <Thumb item={{ id: row.name, label: row.name, imageUrl: row.imageUrl }} />
-          <ColorDot item={{ id: row.name, label: row.name, swatch: row.swatch }} />
-          <span className="text-xs font-medium break-words text-zinc-300">{row.name}</span>
+          <Thumb item={{ id: row.name, label: displayOptionName(row.name), imageUrl: row.imageUrl }} />
+          <ColorDot item={{ id: row.name, label: displayOptionName(row.name), swatch: row.swatch }} />
+          <span className="text-xs font-medium break-words text-zinc-300">
+            {displayOptionName(row.name)}
+            {row.dealerInstalled ? <DealerInstalledTag className="ml-1.5 align-middle" /> : null}
+          </span>
         </span>
       </th>
       {trimOptions.map((opt) => (
@@ -230,8 +235,11 @@ function FeatureRow({ row, trimOptions }: { row: FeatureComparisonRow; trimOptio
     <tr className="border-t border-white/5">
       <th scope="row" className="sticky left-0 z-10 bg-zinc-950 py-3 pr-4 text-left align-top text-xs font-semibold text-zinc-400">
         <span className="flex items-center gap-2">
-          <Thumb item={{ id: row.name, label: row.name, imageUrl: row.imageUrl }} />
-          <span>{row.name}</span>
+          <Thumb item={{ id: row.name, label: displayOptionName(row.name), imageUrl: row.imageUrl }} />
+          <span>
+            {displayOptionName(row.name)}
+            {row.dealerInstalled ? <DealerInstalledTag className="ml-1.5 align-middle" /> : null}
+          </span>
         </span>
       </th>
       {trimOptions.map((opt) => (

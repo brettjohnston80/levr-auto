@@ -1,5 +1,6 @@
 "use client";
 
+import { displayOptionName } from "@/lib/option-display";
 import {
   combinationId,
   combinationLabel,
@@ -91,19 +92,19 @@ function featurePillsFor(
     if (!s.excluded) {
       if (unknownNames.has(s.selection)) {
         // Research couldn't confirm it either way (2026-10-11).
-        pills.push({ tone: "amber", text: `${s.selection} not confirmed on ${trimLabel}` });
+        pills.push({ tone: "amber", text: `${displayOptionName(s.selection)} not confirmed on ${trimLabel}` });
       } else if (!standardNames.has(s.selection) && !obtainableNames.has(s.selection)) {
-        pills.push({ tone: "amber", text: `${s.selection} not available on ${trimLabel}` });
+        pills.push({ tone: "amber", text: `${displayOptionName(s.selection)} not available on ${trimLabel}` });
       } else if (obtainableNames.has(s.selection)) {
-        pills.push({ tone: "green", text: `Includes: ${s.selection}` });
+        pills.push({ tone: "green", text: `Includes: ${displayOptionName(s.selection)}` });
       }
     } else if (standardNames.has(s.selection)) {
-      pills.push({ tone: "amber", text: `Includes ${s.selection} (can't be removed on this trim)` });
+      pills.push({ tone: "amber", text: `Includes ${displayOptionName(s.selection)} (can't be removed on this trim)` });
     }
   }
   for (const name of obtainableNames) {
     if (!touchedNames.has(name)) {
-      pills.push({ tone: "gray", text: `Also available: ${name}` });
+      pills.push({ tone: "gray", text: `Also available: ${displayOptionName(name)}` });
     }
   }
   // Positive first, then warnings, then purely informational (2026-09-20)

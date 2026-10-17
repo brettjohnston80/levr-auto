@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { RefreshInventoryButton } from "@/components/refresh-inventory-button";
 import { requireAgent } from "@/lib/agent-auth";
 import { formatUsd } from "@/lib/option-price";
+import { displayOptionName, displayPackageContents } from "@/lib/option-display";
+import { DealerInstalledTag } from "@/components/dealer-installed-tag";
 import {
   getOutreachQueue,
   getCustomerOfferActivityQueue,
@@ -148,7 +150,7 @@ function PackageNote({ sel }: { sel: OutreachSelection }) {
           <span className="text-zinc-400">{formatUsd(sel.packagePriceCents)}</span>
         )}
         {sel.packageContents && sel.packageContents.length > 0 && (
-          <> — includes {sel.packageContents.join(", ")}</>
+          <> — includes {displayPackageContents(sel.packageContents).join(", ")}</>
         )}
       </p>
     );
@@ -324,13 +326,14 @@ function ConfiguratorSelections({
               {ranked.map((sel) => (
                 <li key={sel.id}>
                   <span className="text-zinc-500">{sel.rankPosition}.</span>{" "}
-                  <span className="text-zinc-200">{sel.selection}</span>
+                  <span className="text-zinc-200">{displayOptionName(sel.selection)}</span>
+                  {sel.dealerInstalled ? <DealerInstalledTag className="ml-1.5 align-middle" /> : null}
                   <PackageNote sel={sel} />
                   <TopRankConflictNote sel={sel} topTrimLabel={topTrimLabel} />
                 </li>
               ))}
             </ol>
-            <ExcludedBlock items={excluded.map((s) => ({ id: s.id, label: s.selection }))} />
+            <ExcludedBlock items={excluded.map((s) => ({ id: s.id, label: displayOptionName(s.selection) }))} />
           </div>
         );
       })}
@@ -1136,7 +1139,13 @@ export default async function OutreachQueuePage() {
                     )}
                   </div>
 
-                  <LogOfferForm searchId={search.id} listings={search.listings} />
+                  <LogOfferForm
+                    searchId={search.id}
+                    listings={search.listings}
+                    dealerInstalledItems={search.selections
+                      .filter((sel) => sel.dealerInstalled && !sel.excluded)
+                      .map((sel) => displayOptionName(sel.selection))}
+                  />
                   <AgentSwitchSearchForm
                     searchId={search.id}
                     makeModelOptions={makeModelOptions}
