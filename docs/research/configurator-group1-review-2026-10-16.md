@@ -66,7 +66,7 @@ One model+trim facet call per make, for all 23 makes. The fixes are commit `2f03
 - **Lexus:** AWD/FWD are ignored, and the engine number when MarketCheck leaves it off; the powertrain picks the row.
 - Every looser match still goes through the powertrain check, and two or more candidates are refused.
 - **Live makes unchanged:** all 347 cases across the 5,234 synced listings of the 12 live makes match exactly as before.
-- **Tests:** 83/83 pass, including 11 new name-check tests.
+- **Tests:** 83/83 pass, including 10 new name-check tests.
 
 **Real synced listings, share matched to a configurator trim (before → after):**
 
