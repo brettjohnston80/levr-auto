@@ -10,6 +10,9 @@ and the re-pass review (docs/research/configurator-repass-review-2026-10-16.md):
     Scat Pack $72,495 coupe / $72,995 sedan; Scat Pack Plus likewise);
   - 2027 gas Charger two-door base MSRPs are Dodge's 2027 figures (Brett, 2026-10-16:
     R/T $49,995, R/T Plus $56,285, Scat Pack $55,845, Scat Pack Plus $60,840);
+  - 2026 Durango MSRPs are Dodge's 2026 Build & Price figures without destination
+    (v20 had added the $1,995 destination; Brett, 2026-10-16);
+  - make "Mini" is written "MINI", the manufacturer's styling (Brett, 2026-10-16);
   - 2027 Daytona Scat Pack Plus is 670 hp (v20 already says so; checked, not changed);
   - models in data/held-models.json are left out (Volvo EX40, Maserati MCPURA / MCPURA
     Cielo / GT2 Stradale, the 2027 Charger Daytona Scat Pack, the 2026 Cadillac Vistiq).
@@ -34,6 +37,22 @@ TWO_DOOR_2027 = {
     "R/T Plus": 56285.0,
     "Scat Pack": 55845.0,
     "Scat Pack Plus": 60840.0,
+}
+# 2026 Durango MSRP without destination, by trim
+# (dodge.com/hostd/api/cvd/CUD202611/CUD202611_CVD.json, "starting at", 2026-10-16).
+DURANGO_2026 = {
+    "GT": 38995.0,
+    "GT HEMI V8": 43675.0,
+    "GT Plus": 45595.0,
+    "GT Plus HEMI V8": 47275.0,
+    "GT Plus America250 Edition": 49590.0,
+    "R/T 392 Launch Edition": 49995.0,
+    "GT Premium HEMI V8": 50275.0,
+    "GT Plus America250 HEMI V8": 51270.0,
+    "GT Premium America250 HEMI V8": 54270.0,
+    "R/T 392 Launch Edition Premium": 57595.0,
+    "SRT Hellcat": 79995.0,
+    "SRT Hellcat Jailbreak": 80990.0,
 }
 # 2027 four-door premium over the two-door, by trim (dodge.com, 2026-10-16).
 SEDAN_PREMIUM_2027 = {
@@ -72,6 +91,16 @@ def main() -> None:
 
     log = []
     for r in rows:
+        if r["make"] == "Mini":
+            r["make"] = "MINI"
+        if (r["make"], r["model"], r["model_year"]) == ("Dodge", "Durango", "2026"):
+            assert r["trim"] in DURANGO_2026, f"no 2026 Durango price for {r['trim']}"
+            old = r["msrp"]
+            msrp = DURANGO_2026[r["trim"]]
+            assert abs(float(old) - msrp - float(r["destination_fee"])) < 1, f"Durango {r['trim']}: {old} isn't Dodge's price plus destination"
+            r["msrp"] = f"{msrp:.1f}"
+            r["true_starting_price"] = f"{msrp + float(r['destination_fee']):.1f}"
+            log.append(f"Durango {r['trim']} 2026: msrp {old} -> {r['msrp']}, true_starting_price -> {r['true_starting_price']}")
         if (r["make"], r["model"], r["model_year"]) == ("Dodge", "Charger", "2027") and r["body_style"] in ("Coupe", "Sedan"):
             sedan = r["body_style"] == "Sedan"
             if sedan:
