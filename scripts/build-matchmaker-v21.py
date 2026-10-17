@@ -12,6 +12,9 @@ and the re-pass review (docs/research/configurator-repass-review-2026-10-16.md):
     R/T $49,995, R/T Plus $56,285, Scat Pack $55,845, Scat Pack Plus $60,840);
   - 2026 Durango MSRPs are Dodge's 2026 Build & Price figures without destination
     (v20 had added the $1,995 destination; Brett, 2026-10-16);
+  - 2026 Porsche Macan Electric MSRPs without Porsche's $2,350 delivery (configurator.porsche.com
+    2026, pass 4) and 2027 Durango MSRPs at Dodge's 2027 Build & Price figures (pass 4 item F)
+    (Brett, 2026-10-16);
   - make "Mini" is written "MINI", the manufacturer's styling (Brett, 2026-10-16);
   - 2027 Daytona Scat Pack Plus is 670 hp (v20 already says so; checked, not changed);
   - models in data/held-models.json are left out (Volvo EX40, Maserati MCPURA / MCPURA
@@ -54,6 +57,25 @@ DURANGO_2026 = {
     "SRT Hellcat": 79995.0,
     "SRT Hellcat Jailbreak": 80990.0,
 }
+# 2026 Porsche Macan Electric MSRP without delivery, by v21 trim (configurator.porsche.com/en-US/mode/model/2026/…, pass 4).
+MACAN_ELECTRIC_2026 = {
+    "Electric": 80300.0,
+    "4 Electric": 84000.0,
+    "4S Electric": 89900.0,
+    "GTS Electric": 105300.0,
+    "Turbo Electric": 112700.0,
+}
+# 2027 Durango MSRP without destination, by v21 trim (dodge.com/hostd/api/cvd/CUD202711/CUD202711_CVD.json, pass 4 item F).
+DURANGO_2027 = {
+    "GT HEMI": 43875.0,
+    "GT HEMI Plus": 47475.0,
+    "GT HEMI Premium": 50475.0,
+    "R/T 392": 51745.0,
+    "R/T 392 Plus": 55645.0,
+    "R/T 392 Premium": 58345.0,
+    "SRT Hellcat": 81495.0,
+    "SRT Hellcat Jailbreak": 82490.0,
+}
 # 2027 four-door premium over the two-door, by trim (dodge.com, 2026-10-16).
 SEDAN_PREMIUM_2027 = {
     "R/T": 2000.0,
@@ -93,6 +115,20 @@ def main() -> None:
     for r in rows:
         if r["make"] == "Mini":
             r["make"] = "MINI"
+        if (r["make"], r["model"], r["model_year"]) == ("Porsche", "Macan", "2026") and r["trim"] in MACAN_ELECTRIC_2026:
+            old = r["msrp"]
+            msrp = MACAN_ELECTRIC_2026[r["trim"]]
+            assert abs(float(old) - msrp - float(r["destination_fee"])) < 1, f"Macan {r['trim']} 2026: {old} isn't Porsche's price plus delivery"
+            r["msrp"] = f"{msrp:.1f}"
+            r["true_starting_price"] = f"{msrp + float(r['destination_fee']):.1f}"
+            log.append(f"Macan {r['trim']} 2026: msrp {old} -> {r['msrp']}, true_starting_price -> {r['true_starting_price']}")
+        if (r["make"], r["model"], r["model_year"]) == ("Dodge", "Durango", "2027"):
+            assert r["trim"] in DURANGO_2027, f"no 2027 Durango price for {r['trim']}"
+            old = r["msrp"]
+            msrp = DURANGO_2027[r["trim"]]
+            r["msrp"] = f"{msrp:.1f}"
+            r["true_starting_price"] = f"{msrp + float(r['destination_fee']):.1f}"
+            log.append(f"Durango {r['trim']} 2027: msrp {old} -> {r['msrp']}, true_starting_price -> {r['true_starting_price']}")
         if (r["make"], r["model"], r["model_year"]) == ("Dodge", "Durango", "2026"):
             assert r["trim"] in DURANGO_2026, f"no 2026 Durango price for {r['trim']}"
             old = r["msrp"]
