@@ -134,3 +134,5 @@ The inputs are pass 3 for its 7 files and the prices files for the other 5, with
 - **2026 BMW X3 sDrive:** does BMW USA sell an sDrive X3 for 2026? If so, add the row. Today MarketCheck's "30" listings match "30 xDrive".
 - **2027 Dodge Durango prices** (section 7, item 6, the note).
 - **2026 Porsche Macan Electric** (Base, 4, 4S, GTS, Turbo): the research has 2027 only, while dealers list 2026 Electric Macans (group 2 review).
+- **Audi models researched with only one trim (16):** A5, A6, A8, Q3, Q5, Q5 Sportback, RS 3, RS 6 Avant, RS 7, RS Q8, S3, S5, S8, SQ5, SQ5 Sportback, SQ9. For example, the Q5 has only "Premium 2027", so its Premium Plus and Prestige listings get the general flow. Add the missing trims (noticed after group 2's promotion).
+- **GMC package contents with research notes** (e.g. "(name not exposed by configurator)", "configurator marks this package Requires Package…"): clean them before GMC is promoted.
