@@ -112,3 +112,24 @@ The inputs are pass 3 for its 7 files and the prices files for the other 5, with
 4. **GMC cab/bed engine lines (193)** stay as received. A later pass or a mapping rule could separate cab/bed from the engine. Needed before GMC is promoted?
 5. **GM item names containing " -- "** (7 Sierra HD rows). That's GM's name, and the parser reads it fine. Leave it?
 6. **v21 2026 Durango MSRPs** appear to include destination. Check and fix in v21?
+
+## 7. Brett's decisions (2026-10-16)
+
+1. **Keep the 14 engine-choice package entries.** Checked: all 14 (on 13 Sierra rows) have the gmc.com configurator URL in their row's `sources` and in the notes.
+2. **The six XT5 Driver Assist links are rejected.** Logged item corrections in the mapping step put them back to Standalone, unlinked (tested).
+3. **2026 Durango GT Plus split** into "GT Plus" (3.6L V6) and "GT Plus HEMI" (5.7L HEMI V8):
+   - Made from Dodge's two Build & Price configurations (CUD202611WDEH75F/2TH, CUD202611WDES75D/2TT), compared option by option.
+   - The file is `data/dodge-chrysler-alfa-configurator-pass3b-2026-10.csv`, built by `scripts/build-durango-gt-plus-split.py`; pass 3 stays as received. Engine facts are in `data/configurator-engine-facts-pass3b-2026-10.csv`.
+   - What differs between the two rows:
+     - **V6:** Blacktop Package $2,595; no Tow N Go; the Fine-Silver / Black Noise Aluminum wheels.
+     - **HEMI:** Blacktop $2,045 with the Split 5-Spoke wheel; Tow N Go $6,295; the Satin Carbon / Lights Out / Painted Satin-Carbon wheels.
+   - v21 already had "GT Plus HEMI V8" as its own row.
+4. **GMC cab/bed lines:** options are in `docs/plans/truck-cab-bed-options-2026-10-16.md`, awaiting Brett's choice. GMC isn't promoted until then.
+5. **GM " -- " names** stay.
+6. **v21's 2026 Durango MSRPs** now exclude destination. All 12 rows are Dodge's 2026 Build & Price prices; each was exactly Dodge's price plus $1,995.
+   - Noticed, not changed: the 2027 Durango rows differ from Dodge's 2027 prices by varying amounts (e.g. GT HEMI $45,670 vs Dodge $43,875). That's a price update, not destination.
+
+## 8. Next Cowork pass: items so far
+
+- **2026 BMW X3 sDrive:** does BMW USA sell an sDrive X3 for 2026? If so, add the row. Today MarketCheck's "30" listings match "30 xDrive".
+- **2027 Dodge Durango prices** (section 7, item 6, the note).
