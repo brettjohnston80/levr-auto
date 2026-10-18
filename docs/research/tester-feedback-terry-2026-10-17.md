@@ -241,6 +241,8 @@ There's no offer comparison. Offers can be sorted ("Best discount", "Best total 
 
 **Diagnosis:** mostly a wording gap. A real out-the-door estimate is a missing feature.
 
+**Decided (Brett, 2026-10-17):** out-the-door pricing is part of every offer. It's requested with every offer and required before acceptance, with the dealer's itemized breakdown recorded by the agent and no LEVR-computed tax. The plan is in `docs/plans/build-completion-roadmap.md` (offer-entry phase).
+
 ### Options
 
 - **(a) Explain the number** (wording only). A line under the price on the card and detail view:

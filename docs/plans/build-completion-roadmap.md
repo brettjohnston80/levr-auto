@@ -55,13 +55,20 @@ Review: `docs/research/tester-feedback-terry-2026-10-17.md`. Customer-facing wor
 
 **Offer-entry phase:**
 - **Interior colour and included options on offers.** The agent ticks off the customer's own ranked list (colours, interiors, packages and features) when logging an offer, with a free-text "other". The customer's card and detail view show what the car has and what it lacks. Sample offers carry the same, so testers see the real layout.
-- **Side-by-side offer comparison**, reusing the trim comparison table's layout (sticky label column, column widths, collapsible sections) with new rows: price, Total SRP, savings, delivery, add-ons, out-the-door, trim, colour, interior, included options, distance. Built after the two items around it.
-- **Itemized out-the-door quotes from dealers**, tracked like delivery estimates (requested / provided per offer; doc fee, tax, title and registration as the dealer states them). Used in "Best total price" and the comparison.
+- **Side-by-side offer comparison**, reusing the trim comparison table's layout (sticky label column, column widths, collapsible sections) with new rows: price, Total SRP, savings, delivery, add-ons, **the dealer's out-the-door total**, trim, colour, interior, included options, distance. Built after the two items around it.
+- **Out-the-door pricing is part of every offer** (Brett, 2026-10-17, replacing "out-the-door quotes tracked like delivery estimates"):
+  - **What the agent records:** when a dealer submits an offer, the dealer's itemized out-the-door breakdown: offer price, doc fee, sales tax, title and registration, delivery (if any) and any add-ons, plus the dealer's out-the-door total.
+  - **Rule: requested with every offer, required before acceptance.** An offer may be logged without it. The customer then sees "Out-the-door quote requested" on that offer, and acceptance, including any deposit step, can't be completed until the breakdown is recorded.
+  - **What the customer sees:** the breakdown on the offer detail view and at acceptance. The side-by-side comparison includes the out-the-door total.
+  - **The numbers come from the dealer.** Still no LEVR-computed tax estimate.
+  - **Wording to settle when it's built** (all needs Brett's sign-off): the "requested" state, the breakdown labels, the acceptance block, and whether the card's "Excludes tax, title, registration, doc fee and add-ons" line changes once a total is shown.
+  - **FAQ "What will I actually pay?" redraft, for sign-off once the feature is built** (the live text stays until then):
+    > "Every offer comes with the dealer's itemized out-the-door price: the offer price, the dealer's documentation fee, sales tax, title and registration, delivery if you need it, and any add-ons you keep, plus the dealer's total. You'll see the full breakdown on the offer before you accept. If a dealer hasn't sent it yet, the offer says "Out-the-door quote requested," and you can accept once it arrives. These numbers come from the dealer. Doc fees vary by dealer, and some states cap them."
 - **No LEVR-computed tax estimate.**
 
 **Work-queue phase (Phase 3):**
 - **"Ask my agent" messages** from the customer (e.g. about other trims or options) land in the agent's queue.
-- **An "out-the-door quote to get" list**, like "Delivery estimates to get" on `/internal/outreach`.
+- **Offers missing an out-the-door quote** shown as a to-do for the agent, like "Delivery estimates to get" on `/internal/outreach`.
 - **Optional alert when a customer changes their pickup range** on a live search.
 
 **Later, decisions for Brett:**
