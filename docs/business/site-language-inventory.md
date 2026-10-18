@@ -185,3 +185,15 @@ Where: `src/app/account/deal/page.tsx`, `src/lib/deal-empty-copy.ts`. Live on `m
 | No searches | `No deal yet` (unchanged) | `Once your search gets underway, this is where you'll come back to see your offers.` (unchanged) | `Get Started` |
 
 A paused search with no offers is unchanged: the paused banner plus "No offers yet".
+
+## 13. Dealer-installed options (customer and agent) — approved 2026-10-17
+Where: `src/lib/option-display.ts` (`DEALER_INSTALLED_TAG`, `displayOptionName`, `displayPackageContents`), `src/components/dealer-installed-tag.tsx`, `src/components/log-offer-form.tsx`. Live on `main` (`fbea226`), GMC, Buick and Cadillac batches swapped 2026-10-18 01:12 UTC. Plan: `docs/plans/dealer-installed-options-2026-10-16.md`.
+
+| Text | Where it appears | Audience |
+|---|---|---|
+| `Dealer-installed` (a small tag next to the price or name) | Configurator questions (features, wheels, roof), Review, Your Car, trim details (Highlights and All details), the trim comparison table, the agent's build-preferences card on `/internal/outreach`, and matching add-on lines in Log Offer | customers and agents |
+| `Dealer-installed items the customer wants (removable, negotiable): {items}` | Log Offer form, above the itemized add-on lines (only when the customer ranked a dealer-installed item) | agents |
+
+**Display-name rule (approved 2026-10-17):** GM's "LPO" code is dropped from displayed option names in all three forms, `LPO, …`, `LPO …` and `…, LPO` (e.g. "LPO, Wheel locks, set of 4" shows as "Wheel locks, set of 4"), and bare "LPO" items are dropped from package contents. Stored names and saved answers keep GM's text as received. "LPO" in the middle of GM's own wording (e.g. Cadillac's "transit steel wheels for LPO 20" wheels") is left as written.
+
+**Never tagged (approved 2026-10-17):** paint and interior colours, even when sold through a dealer-installed package.
