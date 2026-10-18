@@ -86,7 +86,22 @@ Review: `docs/research/tester-feedback-terry-2026-10-17.md`. Customer-facing wor
     2. **What the agent types as the offer price is unchecked.** A price typed net of destination (without using an add-on line) makes an offer look further below sticker than it is. One that already includes doc fee or add-ons makes it look less so. Only the out-the-door breakdown above can catch either.
     3. **What the agent types as sticker is unchecked**, and the label says "MSRP". A base MSRP without destination and options understates sticker, so a real discount can look smaller. A sticker that includes a dealer addendum (add-ons, "market adjustment") **overstates it, which can make an offer qualify when it shouldn't.** Suggest relabelling it "Total SRP (window sticker total, no dealer addendum)" and warning when it differs from the linked listing or the dataset price (agent wording needs sign-off).
     4. **The listing pre-fill:** whether MarketCheck's `msrp` is the Monroney total, base MSRP, or includes a dealer addendum hasn't been verified. Worth checking against a few window stickers before relying on it.
-  - **Separate finding, not about fees:** `assessSearch` doesn't exclude withdrawn offers (`withdrawn_at`). A withdrawn below-sticker offer can still satisfy the guarantee. This may be intended; it's for Brett to decide.
+  - **Withdrawn offers (decided, Brett, 2026-10-17): kept as is.** A delivered below-sticker offer that is later withdrawn still counts toward the guarantee. Pinned by a test in `tests/sticker-check.test.mjs`.
+  - **Sticker integrity (approved 2026-10-17; branch `sticker-integrity`):**
+    - The agent's field is now labelled "Total SRP (window sticker total, no dealer addendum)".
+    - It warns, never blocks, when the typed sticker:
+      - differs from the linked listing's MSRP by more than $100;
+      - is more than $500 below our base price + destination for the typed trim;
+      - is above our base + destination + every factory option we price, by more than the greater of $5,000 or 15%.
+    - Each warning shows both numbers. Thresholds and wording are proposals awaiting Brett's sign-off. Code: `src/lib/sticker-check.ts`, `src/lib/sticker-ranges.ts`.
+    - **What MarketCheck's MSRP contains** (checked 2026-10-17 against 4,125 synced listings whose trim name matches the Matchmaker dataset; no API calls):
+      - It's the window-sticker total for that VIN: base + destination + factory and port-installed options.
+      - Median $1,895 above our base + destination (middle half $455 to $3,894).
+      - Honda, which sells almost no factory options, matches base + destination exactly in 284 listings, and is $455 above (premium paint) in many more.
+      - Only 44 listings equal the base price without destination.
+      - **No sign of dealer addenda as a pattern.** The larger gaps are explained by trim names covering two powertrains (Civic Sport gas and hybrid), option prices our data lacks (Ford and GM engines, cabs and beds; Honda paint priced at $0), and a few data errors (one Telluride at $438,800).
+      - So a linked listing is the best check. Our own range is incomplete for some makes, which is why its upper tolerance is wide: it would flag about 4.5% of real listings, and about 4% on the low side.
+      - **Limitation:** a typical $1,000 to $5,000 dealer addendum on a car without a linked listing will usually stay under the upper threshold. The offer-entry phase's itemized out-the-door breakdown is the stronger safeguard.
 - **No LEVR-computed tax estimate.**
 
 **Work-queue phase (Phase 3):**
