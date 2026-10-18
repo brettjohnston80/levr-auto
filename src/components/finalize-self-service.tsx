@@ -86,7 +86,11 @@ export function FinalizeSelfService({
   modelYear,
   initial,
   onCancel,
+  startsImmediately = false,
 }: {
+  /** A tester account with instant start on: confirming starts the search
+   *  at once, so the review line doesn't promise a 24-hour window. */
+  startsImmediately?: boolean;
   /** "Make changes" during the 24h window (2026-10-10): the search's saved
    *  answers. When present the flow opens on Review with every step
    *  reachable, and saves through updateFinalizedSearch (which never
@@ -1200,9 +1204,13 @@ export function FinalizeSelfService({
               </ul>
             </div>
           )}
+          {/* Approved 2026-10-17 (Terry's feedback): choose first, then we search. */}
           <p className="mt-4 text-xs text-zinc-500">
-            You&apos;ll have 24 hours after confirming to change any of this from your account —
-            after that, we lock it in and start reaching out to dealers.
+            {alreadyFinalized
+              ? "You'll have 24 hours after confirming to change any of this from your account — after that, we lock it in and start reaching out to dealers."
+              : startsImmediately
+                ? "Your agent will look for exactly this. On a test account your search starts right away."
+                : "Your agent will look for exactly this. You'll have 24 hours to change anything. After that, offers come in for these choices."}
           </p>
           {error && (
             <p className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">

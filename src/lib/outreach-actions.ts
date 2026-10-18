@@ -13,6 +13,7 @@ import { isOfferedModelYear } from "./intake-vehicle-options";
 import { MODEL_YEAR_INVENTORY_BLOCK_ENABLED, loadInventoryBlock } from "./inventory-block";
 import { AGENT_INVENTORY_BLOCK_REFUSAL } from "./inventory-block-copy";
 import { logNotificationEvent } from "./notifications";
+import { destinationAddonRefusal } from "./offer-parse-normalize";
 
 export interface LogOfferResult {
   ok: boolean;
@@ -97,6 +98,11 @@ export async function logQualifyingOffer(formData: FormData): Promise<LogOfferRe
     if (!a.description || !Number.isFinite(a.amountCents) || a.amountCents <= 0) {
       return { ok: false, error: "Each add-on needs a description and a positive amount." };
     }
+  }
+  // Destination is never an add-on: it's already in Total SRP (2026-10-17).
+  const destinationRefusal = destinationAddonRefusal(addons.map((a) => a.description));
+  if (destinationRefusal) {
+    return { ok: false, error: destinationRefusal };
   }
 
   const offerPriceCents = Math.round(parseFloat(offerPriceRaw) * 100);
@@ -579,6 +585,10 @@ export async function logOfferAddon(formData: FormData): Promise<LogOfferAddonRe
 
   if (!offerId || !description || !amountRaw) {
     return { ok: false, error: "Description and amount are required." };
+  }
+  const destinationRefusal = destinationAddonRefusal([description]);
+  if (destinationRefusal) {
+    return { ok: false, error: destinationRefusal };
   }
 
   const amountCents = Math.round(parseFloat(amountRaw) * 100);

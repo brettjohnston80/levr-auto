@@ -7,6 +7,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getVehicleDetails } from "@/lib/customer-dashboard";
 import { getFinalizeChoiceData } from "@/lib/finalize-choice-data";
 import { FinalizeChoice } from "@/components/finalize-choice";
+import { TESTER_INSTANT_START_ENABLED } from "@/lib/tester-sample-offers";
+import { isTestEmail } from "@/lib/test-accounts";
 import { Section } from "@/components/trim-detail-modal";
 import { GetStartedButton } from "@/components/get-started-button";
 import { ReviewAndPay } from "@/components/review-and-pay";
@@ -206,6 +208,7 @@ export default async function VehiclePage({
             modelYear={(search.model_year as number | null) ?? null}
             modelYearOptions={modelYearOptions}
             inventoryBlock={inventoryBlock}
+            startsImmediately={TESTER_INSTANT_START_ENABLED && isTestEmail(user.email)}
           />
         </div>
       </section>

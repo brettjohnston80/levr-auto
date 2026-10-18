@@ -72,6 +72,10 @@ export function LogOfferForm({
   const [deliveryFee, setDeliveryFee] = useState("");
   const [deliveryNote, setDeliveryNote] = useState("");
   const [addons, setAddons] = useState<AddonLine[]>([]);
+  // Set when the parser found a destination charge listed separately: it's
+  // already in Total SRP, so it goes into the offer price, never an add-on.
+  const [parsedDestinationCents, setParsedDestinationCents] = useState(0);
+  const [parsedDestinationInPrice, setParsedDestinationInPrice] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; error?: string } | null>(null);
 
@@ -124,6 +128,7 @@ export function LogOfferForm({
     setDeliveryFee("");
     setDeliveryNote("");
     setAddons([]);
+    setParsedDestinationCents(0);
     setRawText("");
     setPdfFile(null);
     setParseError(null);
@@ -149,6 +154,8 @@ export function LogOfferForm({
     }
 
     const { parsed } = res;
+    setParsedDestinationCents(parsed.destinationCents);
+    setParsedDestinationInPrice(parsed.offerPriceCents != null);
     if (parsed.dealerName) setDealerName(parsed.dealerName);
     if (parsed.dealerContact) setDealerContact(parsed.dealerContact);
     if (parsed.offerPriceCents != null) setOfferPrice((parsed.offerPriceCents / 100).toString());
@@ -327,6 +334,13 @@ export function LogOfferForm({
             onChange={(e) => setOfferPrice(e.target.value)}
             className="mt-1 w-full rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
           />
+          {parsedDestinationCents > 0 && (
+            <p className="mt-1 text-xs text-amber-400">
+              {parsedDestinationInPrice
+                ? `The dealer listed destination ($${(parsedDestinationCents / 100).toLocaleString()}) separately, so it's been added to the offer price. Total SRP already includes destination.`
+                : `The dealer listed destination ($${(parsedDestinationCents / 100).toLocaleString()}) separately. Include it in the offer price: Total SRP already includes destination.`}
+            </p>
+          )}
         </div>
         <div>
           <label className="block text-xs text-zinc-400">MSRP ($) *</label>

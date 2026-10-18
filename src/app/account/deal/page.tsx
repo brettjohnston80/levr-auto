@@ -386,6 +386,16 @@ export default async function DealPage({
                 )}
                 </div>
               </div>
+              {/* Approved 2026-10-17 (Terry's feedback): offers are for the car they chose. */}
+              {deal.offers.length > 0 && (
+                <p className="mt-2 text-xs text-zinc-500">
+                  These offers are for the car you chose. Want a different make or model instead?{" "}
+                  <Link href="/faq#switching" className="text-emerald-400 underline hover:text-emerald-300">
+                    See how switching works
+                  </Link>
+                  .
+                </p>
+              )}
               {deal.offers.length === 0 && (
                 <Link
                   href="/account/messages/general"

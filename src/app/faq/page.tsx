@@ -7,6 +7,8 @@ export const metadata: Metadata = {
 };
 
 type FaqItem = {
+  /** Anchor for links into the FAQ (e.g. /faq#switching from Your Deal). */
+  id?: string;
   q: string;
   a: string;
   extra?: ReactNode;
@@ -16,6 +18,12 @@ const FAQS: FaqItem[] = [
   {
     q: "What exactly does LEVR Auto do?",
     a: "You tell us the exact new vehicle you want, and we reach out to dealers nationwide on your behalf — negotiating every offer. You review what we bring you and decide what to do next, no obligation either way.",
+  },
+  {
+    // Approved 2026-10-17 (Terry's feedback).
+    id: "pickup-range",
+    q: "Does my pickup range limit where you search?",
+    a: "No. Your agent looks for deals at dealers anywhere in the country. Your pickup range just tells us how far you'd drive to collect the car. For a deal farther away, we get a delivery estimate from the dealer so you can compare the full cost.",
   },
   {
     q: "Do you search for used or pre-owned vehicles?",
@@ -28,6 +36,12 @@ const FAQS: FaqItem[] = [
   {
     q: "Who pays for delivery, tax, and other fees?",
     a: "You do. Delivery, tax, title, and any dealer fees are part of the vehicle purchase and are paid directly by you, just like any car purchase. LEVR's only charge is our flat upfront service fee — we don't pay any fees ourselves anywhere in the process, and we don't take a commission or markup on your deal.",
+  },
+  {
+    // Approved 2026-10-17 (Terry's feedback).
+    id: "total-cost",
+    q: "What will I actually pay?",
+    a: "Your total is the offer price, plus any add-ons you keep, plus delivery if you need it, plus your state's sales tax, title and registration, and the dealer's documentation fee. Doc fees vary by dealer and some states cap them — ask your agent for an out-the-door quote on any offer.",
   },
   {
     q: 'What do you mean by "Total Suggested Retail Price"?',
@@ -63,9 +77,11 @@ const FAQS: FaqItem[] = [
   },
   {
     q: "Can I search for more than one car at a time?",
-    a: "No — LEVR searches one make and model per engagement, for the flat $699 fee. Within that make/model, you can still be flexible on trim, color, and options at no extra cost. Want a different vehicle instead? Your agent can switch your search (see below).",
+    // Reworded 2026-10-17 (Terry's feedback).
+    a: "No — LEVR searches one make and model per engagement, for the flat $699 fee. You can rank more than one trim, color, and option when you finalize, at no extra cost — your agent works down your list. Once your search is live, offers are for those choices. Want a different vehicle instead? Your agent can switch your search (see below).",
   },
   {
+    id: "switching",
     q: "What if I change my mind about the car I want?",
     a: "You can switch to a different make/model for a $100 fee, which restarts your 30-day guarantee window once your new search goes live.",
   },
@@ -92,7 +108,7 @@ export default function FaqPage() {
         </h1>
         <div className="mt-14 divide-y divide-white/10 border-t border-white/10">
           {FAQS.map((item) => (
-            <div key={item.q} className="py-6">
+            <div key={item.q} id={item.id} className="scroll-mt-24 py-6">
               <h2 className="text-base font-semibold text-white">{item.q}</h2>
               <p className="mt-2 text-sm leading-relaxed text-zinc-400">{item.a}</p>
               {item.extra}

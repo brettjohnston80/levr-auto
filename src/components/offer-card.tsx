@@ -1,4 +1,5 @@
 import { OfferCardActions } from "@/components/offer-card-actions";
+import { OFFER_PRICE_EXCLUDES_SHORT } from "@/lib/offer-price-copy";
 import { OfferPhoto } from "@/components/offer-photo";
 import { AddonRemovalButton } from "@/components/addon-removal-button";
 import { FinancingCaptureForm } from "@/components/financing-capture-form";
@@ -92,7 +93,15 @@ export function OfferCard({
               )}
             </div>
           </div>
-          {offer.vehicleTrim && <p className="mt-0.5 text-xs text-zinc-500">Trim: {offer.vehicleTrim}</p>}
+          {/* Color as text too, not only in the photo (Terry's feedback, 2026-10-17); "Color" matches the
+              detail view's label. */}
+          {(offer.vehicleTrim || offer.vehicleExteriorColor) && (
+            <p className="mt-0.5 text-xs text-zinc-500">
+              {offer.vehicleTrim && <span>Trim: {offer.vehicleTrim}</span>}
+              {offer.vehicleTrim && offer.vehicleExteriorColor && <span aria-hidden="true"> · </span>}
+              {offer.vehicleExteriorColor && <span>Color: {offer.vehicleExteriorColor}</span>}
+            </p>
+          )}
           <p className="mt-2 text-sm text-zinc-400">
             Offer: <span className="text-white">{formatCents(offer.offerPriceCents)}</span>
             {deliveryEstimatePending(offer) && (
@@ -105,6 +114,7 @@ export function OfferCard({
               {formatCents(savings.belowMsrpCents)} below Total SRP ({savings.belowMsrpPercent}% off)
             </p>
           )}
+          <p className="mt-0.5 text-xs text-zinc-500">{OFFER_PRICE_EXCLUDES_SHORT}</p>
           <DeliveryEstimateLine
             offerId={offer.id}
             estimate={offer.deliveryEstimate}

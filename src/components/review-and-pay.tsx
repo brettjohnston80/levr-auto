@@ -9,7 +9,7 @@ import { updateUnpaidSearch } from "@/lib/intake-actions";
 import { createCheckoutSession } from "@/lib/payment-actions";
 import { PickupTravelGauge } from "@/components/pickup-travel-gauge";
 import { PICKUP_TRAVEL_DEFAULT, PICKUP_TRAVEL_QUESTION, travelValueLabel } from "@/lib/pickup-travel";
-import { INVENTORY_RADIUS_MILES } from "@/lib/inventory-radius";
+import { nearbyInventoryCopy } from "@/lib/inventory-radius";
 import { FLAT_PRICE } from "@/lib/vehicle-data";
 
 // "Review and pay" in Your Car (sign-up-to-payment fix, approved 2026-09-30,
@@ -38,6 +38,10 @@ const COPY = {
   next: "After you pay, you'll choose trim, color, and options, with 24 hours to change them. Your search goes live when that window closes.",
   nextUndecided: "After you pay, your agent will reach out to help you choose the vehicle.",
   lockNote: "Your make and model lock once you pay.",
+  // Approved 2026-10-17 (Terry's feedback): choose first, then we search.
+  howItWorks: "Here's how it works: after you pay, you'll choose your exact trim, color and options. Your agent then goes to dealers for that car, so every offer is for what you chose. Still deciding? Try the ",
+  howItWorksLink: "Matchmaker",
+  howItWorksEnd: " first.",
   pay: `Continue to payment — $${FLAT_PRICE}`,
 };
 
@@ -262,9 +266,7 @@ export function ReviewAndPay({
           )}
           {nearbyCount !== null && (
             <p>
-              {nearbyCount > 0
-                ? `${nearbyCount.toLocaleString()} ${nearbyCount === 1 ? "vehicle" : "vehicles"} within ${INVENTORY_RADIUS_MILES} miles`
-                : "No nearby matches yet — we can search nationwide for you."}
+              {nearbyInventoryCopy(nearbyCount)}
             </p>
           )}
         </div>
@@ -280,6 +282,15 @@ export function ReviewAndPay({
             </li>
           ))}
         </ul>
+        {!undecided && (
+          <p className="mt-3 text-sm text-zinc-400">
+            {COPY.howItWorks}
+            <a href="/matchmaker" className="text-emerald-400 underline hover:text-emerald-300">
+              {COPY.howItWorksLink}
+            </a>
+            {COPY.howItWorksEnd}
+          </p>
+        )}
       </div>
 
       <p className="mt-6 text-sm text-zinc-400">{undecided ? COPY.nextUndecided : COPY.next}</p>

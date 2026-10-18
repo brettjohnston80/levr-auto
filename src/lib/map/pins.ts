@@ -50,6 +50,8 @@ export const MAP_COPY = {
     label: "Pickup range",
     save: "Save",
     cancel: "Cancel",
+    // Approved 2026-10-17.
+    caption: "Offers inside the circle are ones you'd pick up. For anything outside it, we'll get a delivery estimate.",
   },
   milesAway: (miles: number) => `${miles} miles away`,
   approximate: "Approximate location",

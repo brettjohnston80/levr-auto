@@ -23,7 +23,10 @@ export function FinalizeChoice({
   modelYear,
   modelYearOptions,
   inventoryBlock,
+  startsImmediately = false,
 }: {
+  /** Tester instant start (see FinalizeSelfService). */
+  startsImmediately?: boolean;
   searchId: string;
   make: string;
   model: string;
@@ -102,6 +105,7 @@ export function FinalizeChoice({
         trimOptions={trimOptions}
         configuratorQuestions={configuratorQuestions}
         modelYear={modelYear}
+        startsImmediately={startsImmediately}
       />
     );
   }
