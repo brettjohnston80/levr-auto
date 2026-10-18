@@ -1,4 +1,5 @@
 import { OfferCardActions } from "@/components/offer-card-actions";
+import { OFFER_PRICE_EXCLUDES_SHORT } from "@/lib/offer-price-copy";
 import { OfferPhoto } from "@/components/offer-photo";
 import { AddonRemovalButton } from "@/components/addon-removal-button";
 import { FinancingCaptureForm } from "@/components/financing-capture-form";
@@ -113,6 +114,7 @@ export function OfferCard({
               {formatCents(savings.belowMsrpCents)} below Total SRP ({savings.belowMsrpPercent}% off)
             </p>
           )}
+          <p className="mt-0.5 text-xs text-zinc-500">{OFFER_PRICE_EXCLUDES_SHORT}</p>
           <DeliveryEstimateLine
             offerId={offer.id}
             estimate={offer.deliveryEstimate}

@@ -110,6 +110,7 @@ export function OfferMapView({
               <span key={s.value}>{s.shortLabel}</span>
             ))}
           </div>
+          <p className="mt-3 text-xs text-zinc-400">{MAP_COPY.rangeSlider.caption}</p>
           {dirty && (
             <div className="mt-3 flex justify-end gap-2">
               <button

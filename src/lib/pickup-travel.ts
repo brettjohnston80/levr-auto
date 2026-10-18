@@ -19,9 +19,14 @@ export type HandoffMethod = "pickup" | "delivery";
 
 // Approved copy (2026-09-26).
 export const PICKUP_TRAVEL_QUESTION = "How far would you drive to pick up your car?";
-export const PICKUP_TRAVEL_INTAKE_HELPER = "We'll focus on dealers within that range, and flag any offer that's farther.";
-export const PICKUP_TRAVEL_PROMPT_BODY =
-  "This helps us focus on the right dealers and flag offers that are farther away.";
+// Approved 2026-10-17 (Terry's feedback): the range is a pickup distance,
+// never a search limit -- agents look at dealers everywhere.
+export const PICKUP_TRAVEL_INTAKE_HELPER =
+  "We look for deals at dealers everywhere. This is just how far you'd drive to pick one up — if the best deal is farther away, we'll get you a delivery estimate.";
+export const PICKUP_TRAVEL_PROMPT_BODY = PICKUP_TRAVEL_INTAKE_HELPER;
+/** Your Deal, under the "Pickup range: … Change" line (approved 2026-10-17). */
+export const PICKUP_RANGE_NOT_A_SEARCH =
+  "Changing this doesn't start a new search — we're already looking everywhere. It decides which offers you'd pick up and which would be delivered.";
 export const PICKUP_TRAVEL_MISSING_ERROR = "Please choose how far you'd drive to pick up your car.";
 
 /** Form values: a distance as its number, or the three non-distance choices. */
@@ -120,9 +125,9 @@ export function isBeyondPickupRange(
   return roundMiles(distanceMiles) > travel.miles;
 }
 
-// Approved copy (2026-09-26).
+// Approved copy (2026-09-26; reworded 2026-10-17).
 export function outOfRangeCopy(distanceMiles: number, travelMiles: number): string {
-  return `${roundMiles(distanceMiles)} miles away — farther than the ${travelMiles} miles you said you'd drive. Delivery may cost extra.`;
+  return `${roundMiles(distanceMiles)} miles away — farther than the ${travelMiles} miles you'd drive, so this one would be delivered. Delivery may cost extra.`;
 }
 
 /**

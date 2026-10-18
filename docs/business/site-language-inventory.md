@@ -197,3 +197,29 @@ Where: `src/lib/option-display.ts` (`DEALER_INSTALLED_TAG`, `displayOptionName`,
 **Display-name rule (approved 2026-10-17):** GM's "LPO" code is dropped from displayed option names in all three forms, `LPO, …`, `LPO …` and `…, LPO` (e.g. "LPO, Wheel locks, set of 4" shows as "Wheel locks, set of 4"), and bare "LPO" items are dropped from package contents. Stored names and saved answers keep GM's text as received. "LPO" in the middle of GM's own wording (e.g. Cadillac's "transit steel wheels for LPO 20" wheels") is left as written.
 
 **Never tagged (approved 2026-10-17):** paint and interior colours, even when sold through a dealer-installed package.
+
+## 14. Pickup range, "choose first, then we search", and what the offer price excludes (customer and agent) — approved 2026-10-17 (Terry's tester feedback)
+Review: `docs/research/tester-feedback-terry-2026-10-17.md`. Branch `offer-parser-colour` until merged.
+
+| Text | Where it appears | Audience |
+|---|---|---|
+| `We look for deals at dealers everywhere. This is just how far you'd drive to pick one up — if the best deal is farther away, we'll get you a delivery estimate.` | Under "How far would you drive to pick up your car?" on intake and on Your Deal (when unanswered) (`pickup-travel.ts`) | customers |
+| `Changing this doesn't start a new search — we're already looking everywhere. It decides which offers you'd pick up and which would be delivered.` | Your Deal, under "Pickup range: … Change" (`pickup-range-control.tsx`) | customers |
+| `Offers inside the circle are ones you'd pick up. For anything outside it, we'll get a delivery estimate.` | Your Deal map, under the pickup-range slider (`map/pins.ts`) | customers |
+| `{N} miles away — farther than the {M} miles you'd drive, so this one would be delivered. Delivery may cost extra.` | Offer card and offer detail, dealer beyond the range (`outOfRangeCopy`) | customers |
+| `{N} for sale within 100 miles of you right now — and we search nationwide.` / `None for sale near you right now — we search dealers nationwide.` | Intake count (badge and footer) and Review your search (`nearbyInventoryCopy`) | customers |
+| `After checkout you'll choose your exact trim, color and options. Your agent then goes to dealers for that car, so every offer is for what you chose.` | Intake, under the model choice | customers |
+| `Here's how it works: after you pay, you'll choose your exact trim, color and options. Your agent then goes to dealers for that car, so every offer is for what you chose. Still deciding? Try the Matchmaker first.` ("Matchmaker" links to /matchmaker) | Review your search, under "What's included" (decided searches only) | customers |
+| `Your agent will look for exactly this. You'll have 24 hours to change anything. After that, offers come in for these choices.` | Finalize review, above "Confirm & Start My Search" (the "Make changes" edit keeps its earlier line) | customers |
+| `Your agent will look for exactly this. On a test account your search starts right away.` | Same spot, tester accounts with instant start | testers |
+| `These offers are for the car you chose. Want a different make or model instead? See how switching works.` ("See how switching works" links to `/faq#switching`) | Your Deal, above the offer list | customers |
+| `Negotiated price for the car. Excludes tax, title, registration, doc fee and add-ons.` | Offer cards, under the price (`offer-price-copy.ts`) | customers |
+| `This is the dealer's price for the car, negotiated by your agent. It doesn't include sales tax, title and registration, the dealer's documentation fee, or any add-ons listed below — those depend on your state and the dealer.` | Offer detail, Price section | customers |
+| FAQ **Does my pickup range limit where you search?** `No. Your agent looks for deals at dealers anywhere in the country. Your pickup range just tells us how far you'd drive to collect the car. For a deal farther away, we get a delivery estimate from the dealer so you can compare the full cost.` | `/faq#pickup-range` | customers |
+| FAQ **What will I actually pay?** `Your total is the offer price, plus any add-ons you keep, plus delivery if you need it, plus your state's sales tax, title and registration, and the dealer's documentation fee. Doc fees vary by dealer and some states cap them — ask your agent for an out-the-door quote on any offer.` | `/faq#total-cost` | customers |
+| FAQ "Can I search for more than one car at a time?", middle sentences now: `You can rank more than one trim, color, and option when you finalize, at no extra cost — your agent works down your list. Once your search is live, offers are for those choices.` | `/faq` | customers |
+| `Trim: {trim} · Color: {color}` | Offer cards | customers |
+| `The dealer listed destination (${X}) separately, so it's been added to the offer price. Total SRP already includes destination.` / `The dealer listed destination (${X}) separately. Include it in the offer price: Total SRP already includes destination.` | Log Offer form, under Offer price, after AI parsing | agents |
+| `Destination is already included in Total SRP. Add it to the offer price instead.` | Log Offer and "add a fee" refusal for a typed add-on naming destination (destination, freight, D&H, DPH, processing and handling) | agents |
+
+Replaced: "We'll focus on dealers within that range, and flag any offer that's farther." (intake), "This helps us focus on the right dealers and flag offers that are farther away." (Your Deal), "…farther than the M miles you said you'd drive…", "N vehicles (match) within 100 miles", "No nearby matches yet — we can search nationwide for you.", "You'll fine-tune trim, color, and options right after checkout — before we start reaching out to dealers.", and the FAQ's "Within that make/model, you can still be flexible on trim, color, and options at no extra cost."

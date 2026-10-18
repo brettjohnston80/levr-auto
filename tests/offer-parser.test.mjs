@@ -50,3 +50,15 @@ describe("toParsedOffer", () => {
     assert.deepEqual(p.addons, [{ description: "Paint protection", amountCents: 79900 }]);
   });
 });
+
+describe("Log Offer refuses a typed destination add-on", () => {
+  it("refuses any line naming destination, with the approved message", () => {
+    for (const d of ["Destination", "destination & handling", "Freight", "D&H", "DPH", "Dest. charge"]) {
+      assert.equal(N.destinationAddonRefusal(["Doc fee", d]), "Destination is already included in Total SRP. Add it to the offer price instead.", d);
+    }
+  });
+  it("allows ordinary add-ons and an empty list", () => {
+    assert.equal(N.destinationAddonRefusal(["Doc fee", "Nitrogen tire fill", "Dealer delivery to your home"]), null);
+    assert.equal(N.destinationAddonRefusal([]), null);
+  });
+});

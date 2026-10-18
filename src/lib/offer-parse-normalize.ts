@@ -37,6 +37,14 @@ export function isDestinationCharge(description: string): boolean {
   return DESTINATION_PATTERN.test(description);
 }
 
+/** Shown when an agent types a destination add-on by hand (approved 2026-10-17). */
+export const DESTINATION_ADDON_REFUSAL = "Destination is already included in Total SRP. Add it to the offer price instead.";
+
+/** The refusal for the first add-on description that names destination, or null. */
+export function destinationAddonRefusal(descriptions: string[]): string | null {
+  return descriptions.some((d) => isDestinationCharge(d)) ? DESTINATION_ADDON_REFUSAL : null;
+}
+
 function toCents(dollars: unknown): number | null {
   return typeof dollars === "number" && Number.isFinite(dollars) ? Math.round(dollars * 100) : null;
 }
