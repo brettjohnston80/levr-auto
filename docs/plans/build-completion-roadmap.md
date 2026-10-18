@@ -56,14 +56,37 @@ Review: `docs/research/tester-feedback-terry-2026-10-17.md`. Customer-facing wor
 **Offer-entry phase:**
 - **Interior colour and included options on offers.** The agent ticks off the customer's own ranked list (colours, interiors, packages and features) when logging an offer, with a free-text "other". The customer's card and detail view show what the car has and what it lacks. Sample offers carry the same, so testers see the real layout.
 - **Side-by-side offer comparison**, reusing the trim comparison table's layout (sticky label column, column widths, collapsible sections) with new rows: price, Total SRP, savings, delivery, add-ons, **the dealer's out-the-door total**, trim, colour, interior, included options, distance. Built after the two items around it.
-- **Out-the-door pricing is part of every offer** (Brett, 2026-10-17, replacing "out-the-door quotes tracked like delivery estimates"):
-  - **What the agent records:** when a dealer submits an offer, the dealer's itemized out-the-door breakdown: offer price, doc fee, sales tax, title and registration, delivery (if any) and any add-ons, plus the dealer's out-the-door total.
-  - **Rule: requested with every offer, required before acceptance.** An offer may be logged without it. The customer then sees "Out-the-door quote requested" on that offer, and acceptance, including any deposit step, can't be completed until the breakdown is recorded.
-  - **What the customer sees:** the breakdown on the offer detail view and at acceptance. The side-by-side comparison includes the out-the-door total.
-  - **The numbers come from the dealer.** Still no LEVR-computed tax estimate.
-  - **Wording to settle when it's built** (all needs Brett's sign-off): the "requested" state, the breakdown labels, the acceptance block, and whether the card's "Excludes tax, title, registration, doc fee and add-ons" line changes once a total is shown.
+- **Out-the-door pricing is part of every offer, built on top of the sticker price** (Brett, 2026-10-17; replaces "out-the-door quotes tracked like delivery estimates"):
+  - **Price structure, on every offer, agent and customer side:**
+    1. **Sticker price (Total SRP)**, always recorded. The guarantee is measured against it.
+    2. **Negotiated vehicle price** (the offer), with the discount against sticker shown as an amount and a %.
+    3. **In addition:** sales tax, title and registration, doc fee, delivery (if any) and add-ons. These sum with the vehicle price to **the dealer's out-the-door total**.
+  - **The guarantee check compares only the negotiated vehicle price to sticker.** Taxes, fees, delivery and add-ons never count toward it.
+  - **What the agent records:** when a dealer submits an offer, the dealer's itemized breakdown (doc fee, sales tax, title and registration, delivery, add-ons) and the dealer's out-the-door total.
+  - **Rule: requested with every offer, required before acceptance.** An offer may be logged without it. The customer then sees "Out-the-door quote requested" on that offer, and acceptance, including any deposit step, can't be completed until it's recorded.
+  - **Where it shows:**
+    - offer card: sticker, price and discount;
+    - offer detail and acceptance: the full breakdown and the out-the-door total;
+    - side-by-side comparison: all three levels.
+  - **The tax, title, registration and fee numbers come from the dealer.** Still no LEVR-computed tax estimate.
+  - **Wording to settle when it's built** (all needs Brett's sign-off): the "requested" state, the breakdown labels, the acceptance block, and whether the card's "Excludes tax, title, registration, doc fee and add-ons" line changes once a total exists.
   - **FAQ "What will I actually pay?" redraft, for sign-off once the feature is built** (the live text stays until then):
-    > "Every offer comes with the dealer's itemized out-the-door price: the offer price, the dealer's documentation fee, sales tax, title and registration, delivery if you need it, and any add-ons you keep, plus the dealer's total. You'll see the full breakdown on the offer before you accept. If a dealer hasn't sent it yet, the offer says "Out-the-door quote requested," and you can accept once it arrives. These numbers come from the dealer. Doc fees vary by dealer, and some states cap them."
+    > "Every offer shows three things: the sticker price (Total Suggested Retail Price), the price your agent negotiated for the car, and the dealer's out-the-door total. The out-the-door total adds sales tax, title and registration, the dealer's documentation fee, delivery if you need it, and any add-ons you keep, itemized by the dealer. You'll see the full breakdown before you accept. If a dealer hasn't sent it yet, the offer says "Out-the-door quote requested," and you can accept once it arrives. Our guarantee compares only the negotiated price with the sticker price. Taxes and fees never count toward it."
+  - **How the code records sticker and checks the guarantee today** (checked 2026-10-17):
+    - **Recording sticker:** `qualifying_offers.msrp_cents` is required (`not null`) and is a snapshot taken when the offer is logged. Its column comment says: Total Monroney, base + factory options + destination, excluding tax, title, doc fee and dealer add-ons.
+      - The agent types it in Log Offer, in a field labelled "MSRP ($) *"; the AI parser never fills it.
+      - Linking a listing pre-fills it from `listings.msrp_cents` (MarketCheck).
+      - Tester sample offers use the trim's dataset price (`true_starting_price_cents`, else `msrp_cents`).
+    - **The guarantee check:** `is_below_msrp` is a generated column, `offer_price_cents < msrp_cents`. `evaluateOfferGuaranteeContribution` (`src/lib/guarantee.ts`) and the Day-30 job (`assessSearch`, `src/lib/guarantee-assessment.ts`) read only that column, plus the delivered/sold/responded timestamps.
+      - The "Below Total SRP" badge, the savings line and the Deal-of-the-Week selector use the same column.
+      - Add-ons (`offer_addons`) and delivery estimates (their own columns) are never read by any of these.
+      - Delivery affects only the "Best total price" sort and the "Best value" badge.
+  - **Places where add-ons, fees or delivery could still affect the guarantee today:**
+    1. **Destination split off the price:** fixed 2026-10-17 (`2d4f7a4`). The AI parser folds a separately listed destination into the price, and Log Offer refuses a typed destination add-on.
+    2. **What the agent types as the offer price is unchecked.** A price typed net of destination (without using an add-on line) makes an offer look further below sticker than it is. One that already includes doc fee or add-ons makes it look less so. Only the out-the-door breakdown above can catch either.
+    3. **What the agent types as sticker is unchecked**, and the label says "MSRP". A base MSRP without destination and options understates sticker, so a real discount can look smaller. A sticker that includes a dealer addendum (add-ons, "market adjustment") **overstates it, which can make an offer qualify when it shouldn't.** Suggest relabelling it "Total SRP (window sticker total, no dealer addendum)" and warning when it differs from the linked listing or the dataset price (agent wording needs sign-off).
+    4. **The listing pre-fill:** whether MarketCheck's `msrp` is the Monroney total, base MSRP, or includes a dealer addendum hasn't been verified. Worth checking against a few window stickers before relying on it.
+  - **Separate finding, not about fees:** `assessSearch` doesn't exclude withdrawn offers (`withdrawn_at`). A withdrawn below-sticker offer can still satisfy the guarantee. This may be intended; it's for Brett to decide.
 - **No LEVR-computed tax estimate.**
 
 **Work-queue phase (Phase 3):**
