@@ -1,4 +1,6 @@
 import { deliveryEstimateStandard, type DeliveryEstimate, type DeliveryEstimateStatus } from "./delivery-estimate";
+import { getStickerRanges, stickerRangeKey } from "./sticker-ranges";
+import type { StickerRange } from "./sticker-check";
 import { getLastSyncedAt } from "./marketcheck-sync";
 import "server-only";
 import { createAdminClient } from "./supabase/admin";
@@ -329,6 +331,10 @@ export interface OutreachSearch {
   /** When this make/model's listings were last refreshed from MarketCheck. */
   inventoryLastSyncedAt: string | null;
   listings: OutreachListing[];
+  /** What each trim's sticker should be, from our data, for the Log Offer
+   *  sticker warning (2026-10-17). Empty when the search has no model year
+   *  or the dataset has no rows for it. */
+  stickerRanges: StickerRange[];
   offers: OutreachOffer[];
   /**
    * Empty for every search finalized through the generic colour/options
@@ -369,7 +375,7 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
 
   const { data: searches, error: searchesError } = await supabase
     .from("customer_searches")
-    .select("id, make, model, trim, colors, zip, customer_id, pickup_travel_choice, pickup_travel_miles")
+    .select("id, make, model, model_year, trim, colors, zip, customer_id, pickup_travel_choice, pickup_travel_miles")
     .eq("search_status", "searching")
     .order("created_at", { ascending: true });
 
@@ -743,6 +749,11 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
     offersBySearchId.set(offer.customer_search_id, list);
   }
 
+  const stickerRangesByVehicle = await getStickerRanges(
+    supabase,
+    searches.map((s) => ({ make: s.make, model: s.model, modelYear: (s.model_year as number | null) ?? null })),
+  );
+
   return searches.map((search) => {
     const rawListings = listingsByMakeModel.get(`${search.make}::${search.model}`) ?? [];
 
@@ -794,6 +805,8 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
       pickupTravel: travel,
       dealers,
       inventoryLastSyncedAt: lastSyncedByMakeModel.get(`${search.make}::${search.model}`) ?? null,
+      stickerRanges:
+        stickerRangesByVehicle.get(stickerRangeKey(search.make, search.model, (search.model_year as number | null) ?? null)) ?? [],
       listings: rawListings.map((l) => ({
         id: l.id,
         vin: l.vin,

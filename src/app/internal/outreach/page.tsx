@@ -1142,6 +1142,7 @@ export default async function OutreachQueuePage() {
                   <LogOfferForm
                     searchId={search.id}
                     listings={search.listings}
+                    stickerRanges={search.stickerRanges}
                     dealerInstalledItems={search.selections
                       .filter((sel) => sel.dealerInstalled && !sel.excluded)
                       .map((sel) => displayOptionName(sel.selection))}

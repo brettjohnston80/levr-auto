@@ -1,5 +1,6 @@
 "use client";
 
+import { findStickerRange, stickerWarnings, type StickerRange } from "@/lib/sticker-check";
 import { DealerInstalledTag } from "@/components/dealer-installed-tag";
 import { useState, type FormEvent } from "react";
 import { logQualifyingOffer } from "@/lib/outreach-actions";
@@ -31,10 +32,13 @@ function normalizeForMatch(text: string): string {
 export function LogOfferForm({
   searchId,
   listings,
+  stickerRanges = [],
   dealerInstalledItems = [],
 }: {
   searchId: string;
   listings: OutreachListing[];
+  /** Expected sticker per trim, from our data (sticker-ranges.ts). */
+  stickerRanges?: StickerRange[];
   /** Display names of the customer's wanted dealer-installed options and packages (2026-10-17). */
   dealerInstalledItems?: string[];
 }) {
@@ -277,7 +281,7 @@ export function LogOfferForm({
         </button>
         {parseError && <p className="mt-2 text-xs text-red-400">{parseError}</p>}
         <p className="mt-2 text-xs text-zinc-500">
-          Only pre-fills the fields below — review and edit before saving. MSRP is never parsed; enter it
+          Only pre-fills the fields below — review and edit before saving. Total SRP is never parsed; enter it
           yourself.
         </p>
       </div>
@@ -343,7 +347,8 @@ export function LogOfferForm({
           )}
         </div>
         <div>
-          <label className="block text-xs text-zinc-400">MSRP ($) *</label>
+          {/* Relabelled 2026-10-17 (Brett): the guarantee is measured against this. */}
+          <label className="block text-xs text-zinc-400">Total SRP (window sticker total, no dealer addendum) *</label>
           <input
             required
             type="number"
@@ -353,6 +358,16 @@ export function LogOfferForm({
             onChange={(e) => setMsrp(e.target.value)}
             className="mt-1 w-full rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
           />
+          {/* Warn, never block (2026-10-17). */}
+          {stickerWarnings(
+            msrp.trim() ? Math.round(parseFloat(msrp) * 100) : null,
+            listings.find((l) => l.id === selectedListingId)?.msrpCents ?? null,
+            findStickerRange(stickerRanges, vehicleTrim),
+          ).map((w) => (
+            <p key={w.kind} className="mt-1 text-xs text-amber-400">
+              {w.message}
+            </p>
+          ))}
         </div>
         <div>
           <label className="block text-xs text-zinc-400">Vehicle trim (optional)</label>
