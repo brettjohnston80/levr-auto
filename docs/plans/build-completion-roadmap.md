@@ -48,3 +48,22 @@ Both are backfilled first with everything already approved in agent dashboard Ph
 - **Matchmaker scoring robustness** (added 2026-10-16, Brett). Scores are relative within a body-style class, so one outlier added to a class shifts other cars a lot. Adding the Fiat 500e (rear legroom 29.4 in., a new class low) moved every Mazda3's Comfort from 50.9 to 65.4. Consider percentile-based or outlier-capped scoring. See `docs/research/matchmaker-v21-score-changes-2026-10-16.md`.
 - **"Not rated" instead of a neutral 50** (added 2026-10-16, Brett). When a vehicle has no data for a score category, show "Not rated" rather than the neutral floor score of 50 (e.g. Maserati and Lexus TZ Safety, Comfort and Reliability in v21).
 - **Very long option lists** (added 2026-10-16, Brett). Revisit trims whose paint and feature lists run very long: Maserati Fuoriserie (about 45 paints and 45 features per trim), Porsche Paint to Sample and exclusive options, and any similar make. For example, group personalisation options under a collapsed section so the core choices show first. Approved as is for now; nothing built.
+
+## From tester feedback: Terry (decided 2026-10-17, Brett)
+
+Review: `docs/research/tester-feedback-terry-2026-10-17.md`. Customer-facing wording for every item needs Brett's sign-off.
+
+**Offer-entry phase:**
+- **Interior colour and included options on offers.** The agent ticks off the customer's own ranked list (colours, interiors, packages and features) when logging an offer, with a free-text "other". The customer's card and detail view show what the car has and what it lacks. Sample offers carry the same, so testers see the real layout.
+- **Side-by-side offer comparison**, reusing the trim comparison table's layout (sticky label column, column widths, collapsible sections) with new rows: price, Total SRP, savings, delivery, add-ons, out-the-door, trim, colour, interior, included options, distance. Built after the two items around it.
+- **Itemized out-the-door quotes from dealers**, tracked like delivery estimates (requested / provided per offer; doc fee, tax, title and registration as the dealer states them). Used in "Best total price" and the comparison.
+- **No LEVR-computed tax estimate.**
+
+**Work-queue phase (Phase 3):**
+- **"Ask my agent" messages** from the customer (e.g. about other trims or options) land in the agent's queue.
+- **An "out-the-door quote to get" list**, like "Delivery estimates to get" on `/internal/outreach`.
+- **Optional alert when a customer changes their pickup range** on a live search.
+
+**Later, decisions for Brett:**
+- **A read-only "explore" view** on a live search: trim comparison and option lists from Your Car with nothing saved.
+- **Whether options can ever change on a live search** (trim, colour, options within the same make and model), and if so what happens to the guarantee and existing offers.
