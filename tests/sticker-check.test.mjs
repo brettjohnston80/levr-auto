@@ -44,6 +44,14 @@ describe("our data's range", () => {
   it("can warn on both the listing and our data", () => {
     assert.deepEqual(S.stickerWarnings(3_900_000, 3_300_000, camryLE).map((w) => w.kind), ["listing", "above_range"]);
   });
+  it("still flags a bad listing value that the typed sticker matches (the $438,800 Telluride)", () => {
+    // VIN 5XYPDES12VG039194: MarketCheck msrp $438,800; our 2027 X-Line SX is $56,035 with destination.
+    const telluride = { trim: "X-Line SX", lowCents: 5_603_500, highCents: 5_603_500 };
+    const w = S.stickerWarnings(43_880_000, 43_880_000, S.findStickerRange([telluride], "X-Line SX"));
+    assert.deepEqual(w.map((x) => x.kind), ["above_range"]);
+    assert.match(w[0].message, /\$438,800/);
+    assert.match(w[0].message, /\$56,035/);
+  });
   it("says nothing with no sticker typed", () => {
     assert.deepEqual(S.stickerWarnings(null, 3_300_000, camryLE), []);
   });

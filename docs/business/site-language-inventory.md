@@ -223,3 +223,14 @@ Review: `docs/research/tester-feedback-terry-2026-10-17.md`. Branch `offer-parse
 | `Destination is already included in Total SRP. Add it to the offer price instead.` | Log Offer and "add a fee" refusal for a typed add-on naming destination (destination, freight, D&H, DPH, processing and handling) | agents |
 
 Replaced: "We'll focus on dealers within that range, and flag any offer that's farther." (intake), "This helps us focus on the right dealers and flag offers that are farther away." (Your Deal), "…farther than the M miles you said you'd drive…", "N vehicles (match) within 100 miles", "No nearby matches yet — we can search nationwide for you.", "You'll fine-tune trim, color, and options right after checkout — before we start reaching out to dealers.", and the FAQ's "Within that make/model, you can still be flexible on trim, color, and options at no extra cost."
+
+## 15. Sticker (Total SRP) on Log Offer (agent) — approved 2026-10-17
+Where: `src/components/log-offer-form.tsx`, text and thresholds in `src/lib/sticker-check.ts`. The checks warn and never block saving.
+
+| Text | Where it appears | Audience |
+|---|---|---|
+| `Total SRP (window sticker total, no dealer addendum) *` | Label of the sticker field (was "MSRP ($) *") | agents |
+| `Total SRP is never parsed; enter it yourself.` | Under "Parse with AI" (was "MSRP is never parsed…") | agents |
+| `You entered {typed}, but the linked listing's sticker is {listing}. Check the window sticker's total — it should match the listing.` | Under the field, when the sticker differs from the linked listing by more than $100 | agents |
+| `You entered {typed}, which is below this trim's base price plus destination ({low}). Check the window sticker's total, which includes destination.` | Under the field, when more than $500 below base + destination for the typed trim | agents |
+| `You entered {typed}, well above what this trim should cost with every factory option we know of ({low}–{high}). If the sticker includes a dealer addendum, enter only the manufacturer's total.` | Under the field, when above the range by more than the greater of $5,000 or 15% | agents |
