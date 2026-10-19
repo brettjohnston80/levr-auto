@@ -52,7 +52,7 @@ LEVR Auto is a nationwide service that negotiates new-car deals on the buyer's b
 
 **The Guarantee:**
 - "MSRP" = Total MSRP on the Monroney label (base + factory options + destination) — excludes tax/title/doc/dealer add-ons.
-- "Qualifying Offer" = any dealer offer below that MSRP on a matching vehicle.
+- "Qualifying Offer" = any dealer offer whose negotiated vehicle price is below that car's own MSRP, on a vehicle matching the customer's make, model and trim. Options (wanted or not), color, add-ons, taxes, fees and delivery never affect it; options are shown to the customer for information only. ⚠ **Attorney review:** narrowed 2026-10-18 (Brett) from make/model/trim/required options to make, model and trim only.
 - Assessed at **Day 30** from solidification (when the customer's 24h refinement window closes and search criteria lock in) — not from payment. No qualifying offer → automatic full refund within ~7 days. Qualifying offer found → fee earned, whether or not the customer buys.
 - **Scope of "fee earned, whether or not the customer buys" — confirmed explicitly (Aug 16, 2026), not a new refund trigger, a clarification of the existing one.** Once a Qualifying Offer exists, the fee is earned, full stop. That covers: the customer buying a different vehicle than the one LEVR searched for; buying a used vehicle instead of new; buying the exact matched vehicle direct through the dealer, cutting LEVR out of the transaction (a real risk once a customer has been in a dealership in person — see the Test Drive Coordination idea under Future Feature Ideas below). **Nothing the customer does themselves ever triggers a refund.** The only refund paths are (a) LEVR failing to produce a Qualifying Offer by the Day 30 deadline, or (b) an agent's discretionary decision on a customer-requested cancellation call — see "Cancellation & Discretionary Refunds" under Future Feature Ideas below for the full policy and mechanism, finalized Aug 17, 2026, built and verified Aug 18, 2026. This "no customer-initiated refund" language needs to reach the Customer Agreement, not just this doc, since it's a real contract term — flag for attorney review alongside the rest of that agreement.
 - Either way, active search continues **free through Day 60**.
@@ -187,7 +187,7 @@ The long-term product is three connected dashboards, one per audience. Item 16 a
 
 ### LEVRating (future idea — not started)
 
-**Concept:** LEVR Auto's own internal dealership rating system — a scorecard and relationship-management tool for LEVR's own team, not a public-facing rating. Distinct from the "Dealership dashboard" pillar in the Three Dashboards section above — that one is dealer-facing/external (dealers seeing demand and bidding in); LEVRating is internal-only, LEVR's own view *of* dealerships, not something dealers see or interact with.
+**Concept:** LEVR Auto's own dealership rating system — a scorecard and relationship-management tool for LEVR's team, **and, decided 2026-10-18 (Brett), shown to customers** next to each dealer's offers ("LEVRating 4.6 (12)", or "New to LEVR — no rating yet" until a dealership has ratings). How it's calculated is a later project; where it lives and how it displays is in `docs/plans/offer-entry-phase-plan.md`. Distinct from the "Dealership dashboard" pillar in the Three Dashboards section above — that one is dealer-facing/external (dealers seeing demand and bidding in); LEVRating is LEVR's own view *of* dealerships, not something dealers manage or interact with.
 
 **Real prerequisite: dealerships would need to become a first-class entity in the schema.** Today "dealer" only exists as denormalized fields on synced `listings` rows (`dealer_name`, `dealer_city`, etc.) — there's no standalone, trackable dealership record with history. This is real data modeling work, not a small add-on, and would need to happen before any of the below could be built.
 
@@ -196,7 +196,7 @@ The long-term product is three connected dashboards, one per audience. Item 16 a
 - **Two-sided rating feeding one score per dealership** — agent-side (against criteria to be defined later: communication, willingness to deal, etc.) and customer-side (specifically post-handoff experience — did the dealership stay pleasant once LEVR's part of the deal was done).
 - **Google Reviews synced in alongside LEVR's own score, shown side by side** — an addition to the public rating, not a replacement for it. A new external API integration, the same category of work as the ZeptoMail integration was — not just a checkbox to flip on.
 
-**Scope: internal/agent-facing only for now.** Surfacing any of this to customers is explicitly a "maybe later," not in scope. Worth noting LEVRating could plausibly gate access to the future dealer-facing portal eventually (e.g. a minimum score to participate) — but that's speculative, not decided.
+**Scope (updated 2026-10-18, Brett):** customers see the rating on offers (offer-entry phase). The criteria and calculation are still to be defined. Worth noting LEVRating could plausibly gate access to the future dealer-facing portal eventually (e.g. a minimum score to participate) — but that's speculative, not decided.
 
 ### Cancellation & Discretionary Refunds (policy finalized Aug 17, 2026, built and verified Aug 18, 2026 — see Progress Log)
 
