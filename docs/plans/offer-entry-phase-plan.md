@@ -921,7 +921,7 @@ The ticked codes are stored in `warnings_confirmed` and logged (`offer_warning_c
 
 ## Appendix A. Standalone fix on `main`: close the offers table to customers' own database role (APPLIED 2026-10-24)
 
-**Applied by Brett in the Supabase SQL Editor, 2026-10-24 about 9:58 pm CDT (2026-10-25 02:58 UTC).** His before/after grant check: before, `anon` had SELECT, REFERENCES, TRIGGER and TRUNCATE and `authenticated` had full access on `qualifying_offers`; after, `anon_can_read = false`, `customer_can_read = false`, `server_can_read = true`, `server_can_write = true`. The policy "Customers can view offers on their own searches" is dropped. The SQL below is what ran; it isn't in `supabase/migrations/` yet (adding the file waits for Brett's go, like any migration). App check after it ran: see the verification note at the end of this appendix.
+**Applied by Brett in the Supabase SQL Editor, 2026-10-24 about 9:58 pm CDT (2026-10-25 02:58 UTC).** His before/after grant check: before, `anon` had SELECT, REFERENCES, TRIGGER and TRUNCATE and `authenticated` had full access on `qualifying_offers`; after, `anon_can_read = false`, `customer_can_read = false`, `server_can_read = true`, `server_can_write = true`. The policy "Customers can view offers on their own searches" is dropped. The SQL below is what ran; it's recorded as `supabase/migrations/20261025025800_offers_customer_read_lock.sql`. App check after it ran: see the verification note at the end of this appendix.
 
 **Can it be fixed now, separately from this phase? Yes.**
 - Every customer page and action that reads or writes `qualifying_offers` uses the server's service-role client. Nothing on the customer side goes through the customer's own role (`authenticated`), and the browser never queries it. So removing that role's access breaks nothing in the app.
@@ -945,7 +945,7 @@ The ticked codes are stored in `warnings_confirmed` and logged (`offer_warning_c
 - The customer's own role reads only `customer_searches` (payment success, switch success, finalize, Your Car), and none of those selects embed offers.
 - The browser client reads only `customers` (the header).
 
-**Migration (draft) — `supabase/migrations/20261018120000_offers_customer_read_lock.sql`:**
+**Migration — `supabase/migrations/20261025025800_offers_customer_read_lock.sql` (applied by hand 2026-10-24):**
 
 ```sql
 -- qualifying_offers: no access for anon or authenticated (the app reads it only through
