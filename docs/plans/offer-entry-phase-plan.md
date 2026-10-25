@@ -110,7 +110,7 @@ Why:
 2. **"Required options" — resolved:** there are none for the guarantee. Options show to the customer as information only ("Options you wanted: N of N").
 3. **Out-the-door estimates — resolved:** an offer whose figures are "Our estimate" can't be accepted. Acceptance needs the dealer's quote.
 4. **LEVRating — resolved:** customers see it. The business plan is updated (`e8c35f7`).
-5. **Customer-readable agent columns — fixed separately on `main`**, not in this phase (Appendix A). Nothing on the customer side reads `qualifying_offers` through the customer's own database role, so the whole table can be closed to `anon` and `authenticated`. The column-level grant that was drafted in OE-1 is dropped.
+5. **Customer-readable agent columns — fixed separately on `main`**, not in this phase (Appendix A, applied 2026-10-24). Nothing on the customer side reads `qualifying_offers` through the customer's own database role, so the whole table can be closed to `anon` and `authenticated`. The column-level grant that was drafted in OE-1 is dropped.
 6. **Uploads over 4.5 MB fail today.** The offer-sheet PDF goes through a server action, and Vercel caps request bodies at 4.5 MB. A phone photo of a window sticker is often 3–8 MB. Section 3.6 moves uploads to direct-to-storage signed uploads.
 
 ---
@@ -910,7 +910,7 @@ The ticked codes are stored in `warnings_confirmed` and logged (`offer_warning_c
 10. **Chunk 0:** go. Merge `main` into `agent-dashboard-phase1-code` and re-run all tests, without pushing or deploying. Status in section 5.1.
 11. **LEVRating:** customers see it. The business plan is updated (`e8c35f7`).
 12. **Large uploads:** direct-to-storage in this phase, including the existing offer-sheet PDF.
-13. **Customer-readable agent notes:** proposed as a small standalone `main` migration (Appendix A), not part of this phase.
+13. **Customer-readable agent notes:** fixed by a small standalone `main` migration (Appendix A, applied by Brett 2026-10-24), not part of this phase.
 
 ### Suggested changes to the decisions
 - **Decision 7 (7-day links):** keep it. Also cancel a link automatically when the search stops being `searching`.
@@ -919,7 +919,9 @@ The ticked codes are stored in `warnings_confirmed` and logged (`offer_warning_c
 
 ---
 
-## Appendix A. Standalone fix on `main`: close the offers table to customers' own database role (draft, not run)
+## Appendix A. Standalone fix on `main`: close the offers table to customers' own database role (APPLIED 2026-10-24)
+
+**Applied by Brett in the Supabase SQL Editor, 2026-10-24 about 9:58 pm CDT (2026-10-25 02:58 UTC).** His before/after grant check: before, `anon` had SELECT, REFERENCES, TRIGGER and TRUNCATE and `authenticated` had full access on `qualifying_offers`; after, `anon_can_read = false`, `customer_can_read = false`, `server_can_read = true`, `server_can_write = true`. The policy "Customers can view offers on their own searches" is dropped. The SQL below is what ran; it isn't in `supabase/migrations/` yet (adding the file waits for Brett's go, like any migration). App check after it ran: see the verification note at the end of this appendix.
 
 **Can it be fixed now, separately from this phase? Yes.**
 - Every customer page and action that reads or writes `qualifying_offers` uses the server's service-role client. Nothing on the customer side goes through the customer's own role (`authenticated`), and the browser never queries it. So removing that role's access breaks nothing in the app.
