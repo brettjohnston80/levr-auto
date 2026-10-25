@@ -667,6 +667,50 @@ The ticked codes are stored in `warnings_confirmed` and logged (`offer_warning_c
 
 ---
 
+### 4.E "Hard to beat sticker" watch list (agent-only; planned 2026-10-24, not built)
+
+**What it is:** a short list of vehicles where getting a dealer below Total SRP is known to be hard (high demand, low supply, or makers that hold dealers to sticker). When a search matches, the agent sees a notice on the search card and in the Log Offer sidebar, so they plan the search accordingly. **It's never shown to customers and never affects the guarantee:** the Day-30 rule, the guarantee line and every customer page ignore it.
+
+**Why this phase:** the notice belongs next to the offer-entry agent pages (Log Offer and its sidebar, 4.A). The work-queue phase can later show it on the per-search page as well.
+
+**Data file `data/hard-to-beat-sticker.json`** (reviewed like `data/held-models.json`; a change reaches the site on the next deploy). Each entry has:
+- `make` and `model`, exactly as in our dataset;
+- optionally `trim`, `model_year` and `fuel_type`;
+- a short `why`, and `source` with its date.
+
+**Matching:** an entry matches a search when the make and model match and, if the entry names them:
+- **trim:** the search's #1 ranked trim is that trim; if it's ranked lower, the notice says "if they end up with the {trim}"; with no trim chosen yet, the same;
+- **year:** the committed year matches;
+- **fuel type:** the ranked trim's powertrain matches.
+
+**Notice (wording for sign-off):** "Hard to beat the sticker: {why} (checked {date})." In amber, the same style as the existing "price not confirmed" notes.
+
+**Starting entries,** checked against our dataset's names 2026-10-24. The `why` and source date for each come from Brett's brand research (`claude/no-guarantee-brand-research-2026-10.md` in the claude.ai project); Brett to paste them.
+
+| Make | Model | Narrowed by | In our dataset? |
+|---|---|---|---|
+| Toyota | RAV4 | fuel type Hybrid or PHEV (every 2026 RAV4 in the dataset is one of these, so in practice the whole model) | yes |
+| Toyota | Corolla Cross | fuel type Hybrid | yes |
+| Toyota | Sienna | | yes |
+| Toyota | GR86 | | yes |
+| Toyota | GR Supra | | yes |
+| Lexus | GX | | yes |
+| Honda | Prelude | | yes |
+| Honda | Civic | trim Type R | yes |
+| Chevrolet | Corvette | trims ZR1, ZR1X | yes (2026, 2027) |
+| Cadillac | Celestiq | | **no** (not in the dataset, so it can't be searched; entry kept for when it is) |
+| Ford | Mustang | trim GTD | **no** (the dataset has EcoBoost, GT and Dark Horse only) |
+| Ford | F-150 | trim Raptor R | yes |
+| Ford | Maverick | fuel type Hybrid | yes |
+| Ram | 1500 | trim TRX | **no** (the 2026 1500 in the dataset has no TRX) |
+| Porsche | 911 | trims Turbo S, and the GT models: GT3, GT3 w/Touring Package, GT3 S/C | yes. Brett to confirm "GT models" means the GT3 family, not the GTS trims. |
+| BMW | M2 | trim CS | yes |
+| BMW | M3 | trim CS (the dataset's 2027 "CS Handschalter") | yes |
+| Mercedes-Benz | G-Class | | yes |
+| Kia | Telluride | model year 2027, "lower trims" | yes. Brett to name the trims (the 2027 list starts LX, S, EX, EX X-Line…). |
+
+**Verification:** a disposable agent and a test search for a listed vehicle (notice shown on the card and in Log Offer), one with a non-matching trim (no notice), and a customer view of the same search (no notice anywhere).
+
 ## 5. Build chunks (in order; each reviewed before the next)
 
 | # | Chunk | Tests |
