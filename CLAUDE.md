@@ -118,6 +118,35 @@ Plan: `docs/plans/agent-dashboard-phase1-plan.md` (database) and `docs/plans/age
   ```
   Keep the `begin`/`commit` (the flag lasts one transaction). Check by hand that at least one active admin remains, and record the fix with `log_agent_activity(...)` in the same transaction.
 - **Migration discipline:** one step at a time, parse-checked offline (`libpg-query` WASM); a replaced function is built from its live migration text, additions only; read-only checks (distinct column names; new functions checked against BOTH `anon` and `authenticated`) plus a rolled-back test; Brett runs each step, and it's committed only after his results.
+- **⚠ Explicit grants on every new database object (Supabase change, 2026-10-30; rule added by Brett 2026-10-24).**
+  - **What changes:** from 2026-10-30, tables (and views, which follow the table default) and sequences created in `public` get **no automatic Data API grants**, not to `anon`, `authenticated` or `service_role`. Existing objects keep their grants.
+  - **Why it matters here:** `service_role` bypasses RLS but **still needs table privileges**. A new table with no grant makes every server read and write fail with `42501`.
+  - **Functions are not part of the change.** Postgres still grants EXECUTE to PUBLIC by default.
+  - **Every migration that creates a table must:**
+    1. `alter table … enable row level security;`
+    2. Keep the existing revoke, so the result is the same whether it runs before or after 2026-10-30: `revoke select, insert, update, delete, truncate on public.X from anon, authenticated;`
+    3. Grant `service_role` exactly what server code needs (normally `grant select, insert, update, delete on public.X to service_role;`).
+    4. Grant `authenticated` only where the table is meant to be read or written through its RLS policies. None today: every customer read goes through the service role.
+    5. Never grant `anon`. Any exception is listed in the migration header and needs Brett's OK. Today's existing anon access is `zip_coordinates` public read only.
+  - **Views:** the same grants as a table, plus `with (security_invoker = true)` so the base tables' RLS applies.
+  - **Sequences and identity columns:** `grant usage, select on sequence public.X to service_role` (and to any role that inserts). There are none today; every id is a `uuid`.
+  - **Functions:** keep `revoke execute on function … from public, anon, authenticated;` **and** `grant execute on function … to service_role;`. The explicit grant is needed because revoking from PUBLIC also removes `service_role`'s access. `security definer` functions keep `set search_path = public`.
+  - **Every such migration ships a grant check** with its expected result:
+    ```sql
+    select c.relname as object_name, r.role_name,
+           has_table_privilege(r.role_name, c.oid, 'SELECT') as can_select,
+           has_table_privilege(r.role_name, c.oid, 'INSERT') as can_insert,
+           has_table_privilege(r.role_name, c.oid, 'UPDATE') as can_update,
+           has_table_privilege(r.role_name, c.oid, 'DELETE') as can_delete,
+           has_table_privilege(r.role_name, c.oid, 'TRUNCATE') as can_truncate
+    from pg_class c cross join (values ('anon'), ('authenticated'), ('service_role')) as r(role_name)
+    where c.relnamespace = 'public'::regnamespace and c.relname in ('<new_table>')
+    order by 1, 2;
+    -- Expected: anon and authenticated false in every column; service_role true for what was granted.
+    -- Functions: has_function_privilege(role, 'public.f(argtypes)', 'EXECUTE') for the same three roles
+    --   (expected false, false, true). Sequences: has_sequence_privilege(role, 'public.s', 'USAGE').
+    ```
+  - **Nothing in the app creates tables at runtime.** The app reaches the database only through the Data API (supabase-js), never a direct Postgres connection. The rule therefore covers migrations, and tables Brett creates by hand in the SQL Editor or Table Editor.
 
 ### Agent dashboard Phase 1 — code (branch `agent-dashboard-phase1-code`)
 - **Where:** git worktree `/Users/brettjohnston/Projects/levr-auto-phase1`. Claude's dev server there is `npx next dev --webpack -p 3100` (never Brett's `:3000`); production builds there need `next build --webpack` (Turbopack refuses the worktree's linked `node_modules`). Preview builds are off for this branch (`vercel.json` branch setting, removed in the merge commit).

@@ -1,6 +1,6 @@
 # Offer entry phase: plan (drafted 2026-10-18)
 
-Planning only. Nothing here is built, no migration has been run, and no branch exists for it. The SQL is draft text for review. **Every piece of wording in section 6 needs Brett's sign-off before it ships.**
+**Updated 2026-10-18 with Brett's answers (section 8).** Planning only. Nothing here is built, no migration has been run, and no branch exists for it. The SQL is draft text for review. **Every piece of wording in section 6 needs Brett's sign-off before it ships.**
 
 Inputs:
 - Brett's decisions 1–10 (2026-10-18) and the offer-entry items in `docs/plans/build-completion-roadmap.md`: price structure, out-the-door rule, sticker integrity, withdrawn offers kept as is.
@@ -106,16 +106,24 @@ Why:
 
 ### 2.4 Conflicts with the decisions (please read)
 
-1. **Decision 3 says "trim and required options match"; today's code doesn't check that.** The guarantee is `offer_price_cents < msrp_cents` plus delivered, sold and response timing (`guarantee.ts`, `assessSearch`). Trim and option match is only the agent's judgement when logging. "Keep the rule exactly as today" and "requires a trim/options match" can't both hold. See question Q1.
-2. **"Required options" has no definition today.** Since the ranked-preferences redesign (2026-09-13), customers rank options, exclude some, or leave them alone. There is no must-have tier any more. See Q2.
-3. **Decision 4 (an out-the-door figure can be "Our estimate") vs the 2026-10-17 rule ("the dealer's itemized breakdown, required before acceptance").** Does an estimate unblock acceptance? See Q3. Recommendation: no, acceptance needs the dealer's quote; an estimate is shown while the quote is awaited.
-4. **Decision 9 (customers see LEVRating) vs the business plan** (`LEVR-Auto-Business-Plan-and-Roadmap.md:188-199`), which says LEVRating is internal-only, with customer display "maybe later". The plan doc should be updated to match.
-5. **Existing customer RLS exposes agent-only columns.** `qualifying_offers` has a customer SELECT policy, with no column restriction. A signed-in customer querying the database directly could read `notes`, `withdrawal_reason`, `withdrawn_by_agent_id` and `logged_by_agent_id`. Not new, but this phase adds more internal columns (warnings confirmed, review data), so section 3 fixes it with column-level grants.
+1. **Decision 3 vs today's code — resolved (Brett, 2026-10-18).** The guarantee check stays price below the car's own sticker. **The guarantee is tied to make, model and trim only.** The agent confirms the trim matches on each offer (`trim_match_confirmed`). Options, colour, add-ons, taxes, fees and delivery never affect it. Core Processes and the business plan are updated (`e8c35f7`), flagged for attorney review.
+2. **"Required options" — resolved:** there are none for the guarantee. Options show to the customer as information only ("Options you wanted: N of N").
+3. **Out-the-door estimates — resolved:** an offer whose figures are "Our estimate" can't be accepted. Acceptance needs the dealer's quote.
+4. **LEVRating — resolved:** customers see it. The business plan is updated (`e8c35f7`).
+5. **Customer-readable agent columns — fixed separately on `main`**, not in this phase (Appendix A). Nothing on the customer side reads `qualifying_offers` through the customer's own database role, so the whole table can be closed to `anon` and `authenticated`. The column-level grant that was drafted in OE-1 is dropped.
 6. **Uploads over 4.5 MB fail today.** The offer-sheet PDF goes through a server action, and Vercel caps request bodies at 4.5 MB. A phone photo of a window sticker is often 3–8 MB. Section 3.6 moves uploads to direct-to-storage signed uploads.
 
 ---
 
 ## 3. Data model (draft SQL, not run)
+
+> **⚠ These migrations will almost certainly run after 2026-10-30**, when Supabase stops giving new `public` tables, views and sequences any automatic grants, not even to `service_role`. So the explicit grants below are **required, not optional**. Without them every server read and write of a new table fails with `42501`. Each draft:
+> - keeps its revokes, so it behaves the same before or after that date;
+> - grants `service_role` exactly what the server needs;
+> - grants nothing to `anon` or `authenticated`;
+> - ships a grant check with the expected result.
+>
+> Rules: CLAUDE.md, "Explicit grants on every new database object".
 
 ### 3.1 Design choices
 
@@ -160,8 +168,11 @@ alter table public.qualifying_offers
   -- Warnings the agent confirmed past (above sticker, duplicate, inactive search).
   add column warnings_confirmed text[] not null default '{}',
   add column warnings_confirmed_by_agent_id uuid references public.agents (id),
-  -- Agent's attestation that trim and required options match (see Q1/Q2).
-  add column requirements_match boolean,
+  -- The agent confirms the car's trim matches the customer's (the guarantee is make, model
+  -- and trim only; Brett 2026-10-18). Informational: the Day-30 check is unchanged.
+  add column trim_match_confirmed boolean,
+  -- Out-of-state buyers: tax paid at registration, not to the dealer (Q4).
+  add column tax_paid_at_registration boolean not null default false,
   add constraint qualifying_offers_otd_shape check (
     (otd_source is null and otd_total_cents is null and otd_recorded_at is null)
     or (otd_source is not null and otd_total_cents is not null and otd_recorded_at is not null)
@@ -222,17 +233,14 @@ alter table public.dealerships
 alter table public.offer_fees enable row level security;
 alter table public.offer_vehicle_options enable row level security;
 revoke select, insert, update, delete, truncate on public.offer_fees, public.offer_vehicle_options from anon, authenticated;
+-- Explicit grants (required after 2026-10-30): the server inserts these with an offer,
+-- reads them for Your Deal and the agent page, and edits/removes fee lines when the
+-- out-the-door breakdown is recorded later.
+grant select, insert, update, delete on public.offer_fees, public.offer_vehicle_options to service_role;
+-- Existing tables altered here (qualifying_offers, offer_addons, documents, dealerships,
+-- agent_activity_types) keep their current grants; adding columns doesn't change them.
 
--- Close the existing column leak (section 2.4 item 5): customers keep column-level SELECT
--- on what Your Deal shows; agent-only columns are no longer readable through RLS.
-revoke select on public.qualifying_offers from authenticated;
-grant select (id, customer_search_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status,
-  received_at, delivered_at, customer_responded_at, vehicle_trim, vehicle_exterior_color,
-  vehicle_interior_color, vehicle_model_year, dealer_city, dealer_state, dealer_zip, vin, stock_number,
-  handoff_method, delivery_estimate_status, delivery_estimate_cents, delivery_estimate_note,
-  good_until, note_to_customer, otd_source, otd_total_cents, created_at)
-  on public.qualifying_offers to authenticated;
-revoke all on public.qualifying_offers from anon;
+-- (The customer-read lock on qualifying_offers is a separate main migration: Appendix A.)
 
 -- New activity types.
 insert into public.agent_activity_types (code, label, category) values
@@ -249,7 +257,6 @@ commit;
 
 Notes:
 - `vehicle_option_name` and `fee_kind` follow the distinct-column-names rule, so nothing clashes with `name` or `kind` in joins.
-- The column-level grant must be checked against every customer-side read first. Today's loader uses the admin client, so nothing should break, but the check is part of the review.
 
 ### 3.3 Migration OE-2: submissions, dealer links, attempts, functions
 
@@ -324,6 +331,11 @@ alter table public.dealer_link_attempts enable row level security;
 revoke select, insert, update, delete, truncate
   on public.dealer_offer_requests, public.offer_submissions, public.dealer_link_attempts
   from anon, authenticated;
+-- Explicit grants (required after 2026-10-30). The public dealer page runs server-side with
+-- the service role, so the dealer's browser never touches these tables.
+grant select, insert, update on public.dealer_offer_requests to service_role;          -- create, open, use, cancel
+grant select, insert, update, delete on public.offer_submissions to service_role;      -- delete: 30-day cleanup of discarded ones
+grant select, insert, delete on public.dealer_link_attempts to service_role;           -- delete: old-attempt cleanup
 
 -- Claims a link exactly once: sets used_at and creates the awaiting-review submission
 -- in one statement. Returns the submission id, or raises 'link_unusable'.
@@ -353,7 +365,9 @@ end $$;
 -- The notification email and the PDF/sticker document row are written by the app after
 -- commit, so a failed email never undoes an offer and a half-written offer never emails.
 -- (Full body drafted at build time from the live log_agent_activity text, per the
--- "replaced function built from its live migration text" rule.)
+-- "replaced function built from its live migration text" rule.) It gets the same pair as
+-- claim_dealer_offer_request below: revoke execute from public, anon, authenticated, and
+-- grant execute to service_role.
 
 revoke execute on function public.claim_dealer_offer_request(text, jsonb) from public, anon, authenticated;
 grant execute on function public.claim_dealer_offer_request(text, jsonb) to service_role;
@@ -367,18 +381,45 @@ commit;
 -- OE-3 (draft). State per ZIP, from the free Census ZCTA-to-county relationship file
 -- (2020 ZCTA5 to county, includes state FIPS). Imported by Brett from a committed CSV,
 -- the same way zip_coordinates was loaded.
-alter table public.zip_coordinates add column state_code char(2);
--- plus: create table public.vehicle_tax_rates (state_code char(2) primary key,
---   rate_percent numeric(5,3) not null, rate_basis text not null, cap_cents integer,
---   source_url text not null, checked_on date not null)  -- two locks; public data, but
---   still read through the service role like everything else.
+begin;
+-- Existing table: keeps its current grants (anon/authenticated public read by policy).
+alter table public.zip_coordinates add column state_code char(2)
+  check (state_code ~ '^[A-Z]{2}$');
+
+create table public.vehicle_tax_rates (
+  state_code char(2) primary key check (state_code ~ '^[A-Z]{2}$'),
+  rate_percent numeric(5,3) not null check (rate_percent >= 0 and rate_percent < 20),
+  rate_basis text not null check (char_length(rate_basis) <= 300),
+  cap_cents integer check (cap_cents > 0),
+  typical_title_registration_cents integer check (typical_title_registration_cents >= 0),
+  source_url text not null,
+  checked_on date not null,
+  created_at timestamptz not null default now()
+);
+alter table public.vehicle_tax_rates enable row level security;
+revoke select, insert, update, delete, truncate on public.vehicle_tax_rates from anon, authenticated;
+-- Explicit grant (required after 2026-10-30): the server only reads it; Brett imports the
+-- rows through the SQL Editor or Table Editor as postgres.
+grant select on public.vehicle_tax_rates to service_role;
+commit;
 ```
 
 ### 3.5 Checks and rolled-back tests (pattern for each migration)
 
-- **Privilege checks** use `has_table_privilege` and `has_function_privilege` across `('anon'), ('authenticated')`, so nothing actually selects and one denial can't abort the others. There's one result column per privilege, with distinct aliases (`can_select`, `can_insert`, …).
+- **Privilege checks** use `has_table_privilege` and `has_function_privilege` across `('anon'), ('authenticated'), ('service_role')`, so nothing actually selects and one denial can't abort the others. There's one result column per privilege, with distinct aliases (`can_select`, `can_insert`, …).
+- **Grant check for each migration** (the CLAUDE.md template), with these expected results:
+
+  | Object | anon | authenticated | service_role |
+  |---|---|---|---|
+  | `offer_fees`, `offer_vehicle_options` (OE-1) | all false | all false | select, insert, update, delete true; truncate false |
+  | `dealer_offer_requests` (OE-2) | all false | all false | select, insert, update true; delete, truncate false |
+  | `offer_submissions` (OE-2) | all false | all false | select, insert, update, delete true; truncate false |
+  | `dealer_link_attempts` (OE-2) | all false | all false | select, insert, delete true; update, truncate false |
+  | `claim_dealer_offer_request(text, jsonb)`, `send_offer_submission(…)` (OE-2), via `has_function_privilege(…, 'EXECUTE')` | false | false | true |
+  | `vehicle_tax_rates` (OE-3) | all false | all false | select true; the rest false |
+  | Existing tables OE-1 alters (`qualifying_offers`, `offer_addons`, `documents`, `dealerships`) | unchanged by OE-1 | unchanged | select, insert, update, delete true, as before |
+
   - Expected: false for every new table and function, for both roles.
-  - For `qualifying_offers`: `authenticated` can select only the granted columns. Checked with `has_column_privilege` on `notes` (false) and `offer_price_cents` (true), each as its own column (`notes_readable`, `price_readable`).
 - **Rolled-back rule test** (the Step 16 style): a temp table of numbered cases, each case in its own `begin … exception when others then … end` sub-block, then `set constraints all immediate`, then a pass/fail select, then `rollback`. Cases:
   1. An out-the-door shape with only the source set is refused.
   2. An unknown warning code is refused.
@@ -395,7 +436,7 @@ alter table public.zip_coordinates add column state_code char(2);
 
 ### 3.6 Files and uploads
 
-- **Direct-to-storage uploads:** the window sticker (agent or dealer) and offer sheets.
+- **Direct-to-storage uploads (decided):** the window sticker (agent or dealer) and the existing offer-sheet PDF. The window sticker is optional but encouraged for agent-entered offers, and required on dealer links.
   - The server checks the link or the agent, then creates a Supabase **signed upload URL** for one exact path: `offer-submissions/<submission-or-request id>/<uuid>.<ext>` in the private `documents` bucket.
   - The browser uploads straight to storage, so the 4.5 MB Vercel limit doesn't apply.
   - On submit, the server checks the object exists, its size (≤ 15 MB), and its type by the file's first bytes, not its name: PDF, JPEG, PNG or HEIC. Anything else is deleted and refused.
@@ -443,7 +484,7 @@ A dedicated full-width page, not the inline form in the card: `/internal/outreac
 **Step 3: Options on this car.**
 - **The customer's wanted options first:** ranked features and packages, then ranked colours and interior for reference. Each is ticked "On the car" or "Not on the car".
 - **"Also on the sticker":** lines the parser found, or the agent adds, that the customer didn't ask for. Each is tagged "Not asked for", plus Dealer-installed or Port-installed where our data or the sticker says so, with its sticker price.
-- The `requirements_match` attestation is computed from the ticks, per Q1/Q2.
+- A separate tick, "Trim matches what the customer chose" (`trim_match_confirmed`), is required before Send. Options never affect it.
 
 **Step 4: Price.**
 - **Three tiles:**
@@ -454,7 +495,7 @@ A dedicated full-width page, not the inline form in the card: `/internal/outreac
 - **Guarantee line**, driven by decision 3:
   - "Counts toward the guarantee: negotiated price is $2,795 below this car's sticker."
   - Or: "Doesn't count toward the guarantee: the price isn't below this car's sticker."
-  - Plus the trim/required-options condition, if Q1 makes it part of the rule.
+  - The trim condition: "…and the trim matches ({trim})". Options never appear in this line.
 - **Inputs:**
   - sticker total (keeps the approved sticker warnings);
   - negotiated price;
@@ -504,7 +545,7 @@ The ticked codes are stored in `warnings_confirmed` and logged (`offer_warning_c
   - acceptable exterior colours and interiors (ranked, with "any other is fine" when the customer left the rest alone; exclusions are listed as "not wanted");
   - options wanted;
   - the buyer's general area.
-- **The buyer's area:** we have no city data. Recommended: "Buyer near {state}, ZIP area {first 3 digits}xx", plus "about N miles from you" when the link names a listing (Q8).
+- **The buyer's area (decided):** "ZIP area 672xx, KS", plus "about N miles from you" when the link names a specific car.
 - **The dealer never sees** the customer's name, email, phone, exact ZIP or the search id. The page's data loader selects only these fields from the search, through one function tested to return nothing else.
 - **Form sections** (decision 5: every field required, nothing saved until submit):
   - **Dealership and contact:** dealership, salesperson, phone, email (for their copy).
@@ -515,7 +556,7 @@ The ticked codes are stored in `warnings_confirmed` and logged (`offer_warning_c
   - **Price:**
     - sticker total; selling price;
     - add-ons (name, amount, "Can be removed") or "No add-ons";
-    - doc fee; sales tax; title and registration, each with a "Not collected by us" choice for out-of-state buyers (Q7);
+    - doc fee; sales tax; title and registration. Sales tax and title & registration each offer "We don't collect this (out-of-state buyer)", which is still a required choice (decided). The customer then sees their estimated tax as "Paid at registration";
     - other fees (name, amount) or "None";
     - the out-the-door total.
   - **Terms:** good until (at least today, no more than 60 days out), window sticker upload (photo or PDF), notes (optional; the only optional field).
@@ -546,7 +587,7 @@ The ticked codes are stored in `warnings_confirmed` and logged (`offer_warning_c
 - **New out-the-door line:**
   - "Out-the-door: $31,742 · Dealer's quote", or "… · Our estimate",
   - or "Out-the-door quote requested".
-- **The approved short price line** ("Negotiated price for the car. Excludes tax, title, registration, doc fee and add-ons.") stays, because it explains the negotiated price. Q10 asks whether to keep it once the out-the-door line is there.
+- **The card price line is shortened** to "Negotiated price for the car." once the out-the-door line exists (decided; wording for sign-off in 6.4). The offer detail keeps the full sentence.
 - Good until: "Good until Oct 31".
 - The LEVRating chip beside the dealer: "New to LEVR — no rating yet", or "LEVRating 4.6 (12)".
 
@@ -569,7 +610,7 @@ The ticked codes are stored in `warnings_confirmed` and logged (`offer_warning_c
   - good until, and the note from the agent.
 
 **Accept:**
-- **Blocked until a dealer's out-the-door quote is recorded** (2026-10-17 rule; Q3 on estimates).
+- **Blocked until a dealer's out-the-door quote is recorded** (2026-10-17 rule). "Our estimate" figures don't unblock it (decided 2026-10-18).
   - The footer says "Out-the-door quote requested — you can accept once it arrives."
   - `respondToOffer` refuses on the server too.
   - The agent's `confirmDepositReceived` refuses on an offer without one.
@@ -595,12 +636,12 @@ The ticked codes are stored in `warnings_confirmed` and logged (`offer_warning_c
 
 **Sorting and badges:**
 - **"Best total price"** sorts by out-the-door, with offers missing it last; ties go to price + delivery as today.
-- **"Best value" becomes "Lowest out-the-door"**, only when at least two offers have a figure. Q9 asks whether to keep a separate savings-based badge.
+- **"Lowest out-the-door" replaces "Best value"** (decided; wording for sign-off in 6.4). It only shows when at least two offers have a figure.
 - **"Best discount"** stays: it's the guarantee-relevant view.
 
 **Map:** the pin popup adds the out-the-door line. No other change.
 
-**Delivery:** when the customer takes delivery and a delivery estimate exists, the breakdown adds "Delivery estimate +$X" as its own line, marked "from the dealer", and the out-the-door total includes it. If the dealer's quote already includes delivery, the agent records it as an 'other' fee instead (Q6).
+**Delivery (decided):** when the customer takes delivery and a delivery estimate exists, the breakdown adds "Delivery estimate +$X" as its own out-the-door line, marked "from the dealer". It never counts toward the guarantee. If the dealer's quote already includes delivery, the agent records it as an 'other' fee instead.
 
 ### 4.D Sales tax estimates (no paid API)
 
@@ -621,7 +662,7 @@ The ticked codes are stored in `warnings_confirmed` and logged (`offer_warning_c
   - title and registration, which depend on vehicle value, weight and county.
 - **Recommendation:**
   - Estimate sales tax only.
-  - Title and registration: a per-state "typical new-car amount" from the same Cowork pass, shown as an estimate, or leave it for the dealer's quote (Q5).
+  - Title and registration (decided): a per-state "typical new-car amount" from the same Cowork pass, labelled as an estimate.
   - The wording always says it's an estimate and that the dealer will confirm.
 
 ---
@@ -645,6 +686,32 @@ The ticked codes are stored in `warnings_confirmed` and logged (`offer_warning_c
 | 12 | Close-out: site-language inventory, agent process reference, system models, the Stripe live-mode checklist unblocked. | Doc review |
 
 ---
+
+### 5.1 Chunk 0 status (2026-10-18 to 10-24)
+
+- **Merge:** `main` (`e8c35f7`) merged into `agent-dashboard-phase1-code` in its worktree. It's **staged, not committed, not pushed**.
+- **Four conflicts, all resolved by keeping both sides:**
+  - `log-offer-form.tsx`: the branch's `aiParsed` plus main's destination note;
+  - `outreach-actions.ts`: imports from both;
+  - `outreach/page.tsx`: the branch's `hasRole` plus main's option-display and Dealer-installed imports;
+  - `outreach-queue.ts`: the branch's paged reads plus main's `dealerInstalled` field, body-style columns and `bodySplitter`.
+- **Clean:** `tsc`; `next build --webpack`; lint (the same 9 older errors as `main`); unit tests 132/132.
+- **Checked by reading the code:** main's sticker ranges, destination refusal and Total SRP label survive alongside the branch's attribution (`logged_by_agent_id`) and activity logging.
+- **End-to-end re-run, two attempts.** Most chunks passed:
+  - c2 49/49, c3-A 22/22, c3 switch 11/11, c4-A 17/17, c4 auto-resolve 6/6;
+  - c5-A 30/30, c6-A 24/24, c7 7/7, c8 jobs 23/23;
+  - c2 forced 7/7, c3-B 9/9, c4-B 8/8, c4 simulate 6/6;
+  - c1a accounts 21/21, c1g rotation 8/8, c16-1e 36/36.
+- **Not clean:**
+  - c7b listings and id-list: 1 failure each.
+  - c6-B: 1 failure, and it ran for 6,178 s, which suggests the server hung.
+  - c5-B and c7 paging: no result.
+  - c1c invite: 20/21.
+  - c1d actions: 56 of 144 refused cleanly, 1 problem.
+  - c1d probe: 0/0 after 1,111 s.
+  - Not run: several Chunk 1 scripts.
+- **The test harness is gone.** It lived in the session scratchpad under `/private/tmp`, and macOS's automatic cleanup of old files there deleted every test script and log, first the 2026-10-12–15 ones, then the rest by 2026-10-24. The failures above can't be investigated from logs.
+- **Proposal (needs Brett's go, since the scripts write to the database):** rebuild the Phase 1 end-to-end tests as committed files under `scripts/tests/phase1/` on the branch, so they survive. Then re-run before the merge is committed. The many slow runs point to the dev server stalling, which a fresh run can confirm or rule out.
 
 ## 6. Wording for sign-off (every new or changed line)
 
@@ -717,7 +784,7 @@ The ticked codes are stored in `warnings_confirmed` and logged (`offer_warning_c
 | Page title | Submit an offer for a LEVR Auto buyer |
 | Intro | A LEVR Auto buyer is looking for this car. Fill in every section and submit once. A LEVR agent reviews your offer before the buyer sees it. |
 | Buyer wants heading | What the buyer wants |
-| Buyer wants lines | {year} {make} {model} · Trims, in order: {list} · Colors they'd take: {list} (or any other) · Not wanted: {list} · Interior: {list} · Options wanted: {list} · Buyer's area: near {state}, ZIP area {xxx}xx · About {N} miles from you |
+| Buyer wants lines | {year} {make} {model} · Trims, in order: {list} · Colors they'd take: {list} (or any other) · Not wanted: {list} · Interior: {list} · Options wanted: {list} · Buyer's area: ZIP area {xxx}xx, {ST} · About {N} miles from you |
 | Section headings | Your dealership · The car · Price · Terms |
 | Dealership fields | Dealership name · Your name · Phone · Email (we'll send you a copy) |
 | Car fields | VIN · Stock number · Exterior color · Interior |
@@ -775,6 +842,30 @@ The ticked codes are stored in `warnings_confirmed` and logged (`offer_warning_c
 
 ---
 
+### 6.4 Added 2026-10-18 (Brett's answers), for sign-off
+
+**Guarantee wording review.** I checked every customer-facing page, the FAQ, the emails, the guarantee section, the how-it-works steps, the switch screens, Your Deal and the e-sign service agreement template for anything tying the guarantee to options.
+- The service agreement doesn't define the guarantee; it says "This acknowledgment does not affect the terms of the money-back guarantee described at signup."
+- `/terms` is still the placeholder awaiting attorney review.
+- **One passage could be read as tying the guarantee to the customer's own build:** the FAQ's Total SRP answer ("…for your exact vehicle — the base price, plus any factory-installed options…").
+- Nothing else ties the guarantee to options.
+
+| Where | Current text | Proposed text |
+|---|---|---|
+| FAQ "What do you mean by 'Total Suggested Retail Price'?" (`src/app/faq/page.tsx`) | Total Suggested Retail Price (Total SRP) is the full manufacturer-suggested price for your exact vehicle — the base price, plus any factory-installed options, plus the manufacturer's destination/delivery charge, all added together. This is the same "Total" figure printed on your vehicle's official window sticker, sometimes shown as a separate line from the base "Manufacturer's Suggested Retail Price." It doesn't include sales tax, title and registration fees, dealer documentation fees, or anything a dealer adds on their own. Our guarantee always compares a dealer's offer against this full number — so you're never left guessing which figure on the sticker actually counts. | Total Suggested Retail Price (Total SRP) is the full manufacturer-suggested price printed on a car's official window sticker — its base price, plus the factory-installed options on that car, plus the manufacturer's destination/delivery charge, all added together. It's sometimes shown as a separate line from the base "Manufacturer's Suggested Retail Price," and it doesn't include sales tax, title and registration fees, dealer documentation fees, or anything a dealer adds on their own. Our guarantee compares each offer's negotiated price with that car's own Total SRP, for a car that matches the make, model and trim you chose. Options, color, add-ons, taxes and fees don't affect it. |
+| Offer card, under the price (`offer-price-copy.ts`, short) | Negotiated price for the car. Excludes tax, title, registration, doc fee and add-ons. | Negotiated price for the car. (once the out-the-door line is on the card) |
+| Offer badge | Best value | Lowest out-the-door |
+| Offer card / detail, options summary | *(none)* | Options you wanted: {N} of {M} |
+| Detail chart and accept block, out-of-state tax | *(none)* | Sales tax · Paid at registration (our estimate) {$X} |
+| Detail chart, title & registration estimate | *(none)* | Title & registration · Our estimate {$X} |
+| Detail chart note, delivery | *(none)* | Delivery estimate from the dealer. It doesn't affect your guarantee. |
+| Dealer page, buyer's area | *(was drafted as "near {state}, ZIP area {xxx}xx")* | ZIP area {xxx}xx, {ST} · About {N} miles from you (when the link names a car) |
+| Agent Log Offer, required tick | *(none)* | Trim matches what the customer chose ({trim}) |
+| Agent guarantee line (counts) | *(drafted in 6.1)* | Counts toward the guarantee: the trim matches and the negotiated price is {$X} below this car's sticker. |
+| Agent guarantee line (doesn't count, price) | *(drafted in 6.1)* | Doesn't count toward the guarantee: the negotiated price isn't below this car's sticker. |
+| Agent guarantee line (trim not confirmed) | *(none)* | Confirm the trim matches before sending. |
+| Agent window sticker hint | *(none)* | Optional, but attach it if you can — it's how we check the sticker. |
+
 ## 7. Verification plan
 
 - **Accounts:** only disposable accounts: `claude-verify-<ts>-<rand>@levrauto-test.invalid` customers and agents, and the persistent test admin for lead/admin actions.
@@ -804,27 +895,125 @@ The ticked codes are stored in `warnings_confirmed` and logged (`offer_warning_c
 - **Merge size.** Chunk 0 must happen first. Waiting makes it worse.
 - **Column-level grant.** Must be checked against every customer read before running OE-1.
 
-### Questions for Brett
-- **Q1. Should the guarantee check add a trim and required-options match?**
-  - Today it's price below sticker only.
-  - Recommendation: keep the code as is, and record `requirements_match` on each offer as an agent attestation shown on the review page. The Day-30 job keeps its current rule. A change to the guarantee itself would be its own decision.
-- **Q2. What counts as "required options"?** Options:
-  - (a) every feature or package the customer ranked;
-  - (b) only their #1 ranked feature or package;
-  - (c) none (trim only).
-  - Recommendation: (a) for the attestation, shown as "N of N options you want".
-- **Q3. Can "Our estimate" unblock acceptance?** Recommendation: no, acceptance needs the dealer's quote.
-- **Q4. The dealer page's "every field required" vs dealers who don't know tax for out-of-state buyers.** Recommendation: allow an explicit "We don't collect this (out-of-state buyer)" with $0, still required to choose.
-- **Q5. Title and registration for "Our estimate".** Options: a per-state typical amount from research, or leave it for the dealer's quote. Recommendation: the per-state typical amount, labelled as an estimate.
-- **Q6. Delivery in the out-the-door total.** Recommendation: include the delivery estimate as its own line when the customer takes delivery.
-- **Q7. Tax on out-of-state deals.** The buyer usually pays their own state's tax at registration. Recommendation: the dealer page asks "Do you collect the buyer's sales tax?", and the customer breakdown shows "Paid at registration: {estimate}".
-- **Q8. The buyer's area for dealers.** Recommendation: "near {state}, ZIP area {xxx}xx", plus the distance when a listing is named.
-- **Q9. "Best value" badge.** Recommendation: replace it with "Lowest out-the-door". It's factual and is what Terry asked for.
-- **Q10. Keep the short price line on cards once the out-the-door line exists?** Recommendation: shorten it to "Negotiated price for the car."
-- **Q11. Building on the Phase 1 branch (section 1).** Do you agree with merging `main` into it now (chunk 0), before the tester round ends?
-- **Q12. Window sticker required for agent-entered offers too?** Recommendation: strongly encouraged, not required. Agents sometimes log from a phone call. Dealer links require it (decision 5).
+### Answers (Brett, 2026-10-18)
+1. **Guarantee check:** stays price below the car's own sticker. The agent confirms the trim matches on each offer (`trim_match_confirmed`).
+2. **The guarantee is tied to make, model and trim only.** Options (wanted or not), colour, add-ons, taxes, fees and delivery never affect it. Options show to the customer as information ("Options you wanted: N of N").
+   - Core Processes and the business plan are updated, with an attorney-review flag (`e8c35f7`).
+   - Customer copy that could tie the guarantee to options is in 6.4.
+3. **"Our estimate" figures can't be accepted.** Acceptance needs the dealer's quote.
+4. **"We don't collect this (out-of-state buyer)"** is allowed and is still a required choice. The customer sees their estimated tax as "Paid at registration".
+5. **Title and registration:** a per-state typical amount, labelled as an estimate.
+6. **Delivery estimate:** its own out-the-door line when the customer takes delivery. It never counts toward the guarantee.
+7. **Dealer's view of the buyer's area:** "ZIP area 672xx, KS", plus distance when the link names a specific car.
+8. **"Lowest out-the-door" replaces "Best value"**, and the card price line is shortened. Both are in 6.4 for sign-off.
+9. **Window sticker:** optional but encouraged for agent-entered offers; required on dealer links.
+10. **Chunk 0:** go. Merge `main` into `agent-dashboard-phase1-code` and re-run all tests, without pushing or deploying. Status in section 5.1.
+11. **LEVRating:** customers see it. The business plan is updated (`e8c35f7`).
+12. **Large uploads:** direct-to-storage in this phase, including the existing offer-sheet PDF.
+13. **Customer-readable agent notes:** proposed as a small standalone `main` migration (Appendix A), not part of this phase.
 
 ### Suggested changes to the decisions
 - **Decision 7 (7-day links):** keep it. Also cancel a link automatically when the search stops being `searching`.
 - **Decision 6 (review before the customer sees it):** keep it. Add the "submitted N hours ago" age to the review tab now, so the next phase's queue has it.
-- **Decision 9 (LEVRating shown to customers):** the business plan should be updated, and the chip should only appear on confirmed dealerships. An unconfirmed alias shows "New to LEVR — no rating yet".
+- **Decision 9 (LEVRating shown to customers):** the business plan is updated. The chip should only appear on confirmed dealerships. An unconfirmed alias shows "New to LEVR — no rating yet".
+
+---
+
+## Appendix A. Standalone fix on `main`: close the offers table to customers' own database role (draft, not run)
+
+**Can it be fixed now, separately from this phase? Yes.**
+- Every customer page and action that reads or writes `qualifying_offers` uses the server's service-role client. Nothing on the customer side goes through the customer's own role (`authenticated`), and the browser never queries it. So removing that role's access breaks nothing in the app.
+- Today a signed-in customer could use the public anon key and their own session to read every column of their own offers, including agent-only `notes`, `withdrawal_reason`, `withdrawn_by_agent_id` and `logged_by_agent_id`. Row security already stops them seeing anyone else's offers.
+
+**Every customer-side query that touches `qualifying_offers` (checked 2026-10-18 on `main`):**
+
+| File | What it does | Client |
+|---|---|---|
+| `src/lib/customer-dashboard.ts` (`loadOffersBySearchId`, `getDealDetails`, guarantee read at :717) | Your Deal and `/account` offers, delivered_at stamp, guarantee timeline | service role (`createAdminClient`, :505/:664/:809) |
+| `src/app/account/messages/[offerId]/page.tsx` | Offer message thread page | service role |
+| `src/lib/offer-response-actions.ts` | Accept / decline | service role (after `auth.getUser`) |
+| `src/lib/offer-highlight-actions.ts` | Highlight toggle | service role |
+| `src/lib/offer-message-actions.ts` | Send a message, read state | service role |
+| `src/lib/handoff-actions.ts` | Pickup / delivery choice, delivery-estimate request | service role |
+| `src/lib/addon-actions.ts` | Request add-on removal | service role |
+| `src/lib/offer-ownership.ts` | Ownership checks used by deal-progress and add-on actions | service role (passed in) |
+| `src/lib/deal-progress-actions.ts` | Financing capture (via `offer-ownership.ts`) | service role |
+| `src/app/survey/[surveyId]/page.tsx` | Post-deal survey (reads search and alias, not offers directly) | service role |
+
+- The customer's own role reads only `customer_searches` (payment success, switch success, finalize, Your Car), and none of those selects embed offers.
+- The browser client reads only `customers` (the header).
+
+**Migration (draft) — `supabase/migrations/20261018120000_offers_customer_read_lock.sql`:**
+
+```sql
+-- qualifying_offers: no access for anon or authenticated (the app reads it only through
+-- the service role). Closes direct reads of agent-only columns (notes, withdrawal_reason,
+-- withdrawn_by_agent_id, logged_by_agent_id) by a signed-in customer.
+begin;
+drop policy if exists "Customers can view offers on their own searches" on public.qualifying_offers;
+revoke select, insert, update, delete, truncate, references, trigger
+  on public.qualifying_offers from anon, authenticated;
+-- Existing table, so service_role keeps its grants regardless of the 2026-10-30 change.
+-- Stated explicitly anyway so the end state is the same whenever this runs (a no-op today).
+grant select, insert, update, delete on public.qualifying_offers to service_role;
+commit;
+```
+
+**Before/after check (read-only; one result column per privilege, distinct names):**
+
+```sql
+select r.role_name,
+       has_table_privilege(r.role_name, 'public.qualifying_offers', 'SELECT') as can_select_offers,
+       has_column_privilege(r.role_name, 'public.qualifying_offers', 'notes', 'SELECT') as can_read_notes,
+       has_table_privilege(r.role_name, 'public.qualifying_offers', 'INSERT') as can_insert_offers,
+       has_table_privilege(r.role_name, 'public.qualifying_offers', 'UPDATE') as can_update_offers,
+       has_table_privilege(r.role_name, 'public.qualifying_offers', 'DELETE') as can_delete_offers
+from (values ('anon'), ('authenticated'), ('service_role')) as r(role_name)
+order by 1;
+
+select count(*) as offer_policies_left
+from pg_policies where schemaname = 'public' and tablename = 'qualifying_offers';
+```
+
+- **Expected before:** anon and authenticated both true in every column. The table-level privilege exists, which is the leak; row security is what currently filters rows. 1 policy.
+- **Expected after:** anon and authenticated false in every column; service_role true in every column; 0 policies.
+- No new table, view, sequence or function is created, so the 2026-10-30 change doesn't otherwise affect this draft.
+
+**Rolled-back test** (each case in its own sub-block, so one refusal can't abort the others; nothing is kept):
+
+```sql
+begin;
+create temp table offers_lock_check (n int, test text, expected_after text, result text) on commit drop;
+do $$
+declare v text;
+begin
+  begin execute 'set local role anon'; perform 1 from public.qualifying_offers limit 1; execute 'reset role'; v := 'allowed';
+  exception when insufficient_privilege then v := 'refused'; end;
+  insert into offers_lock_check values (1, 'anon reads offers', 'refused', v);
+
+  begin execute 'set local role authenticated'; perform notes from public.qualifying_offers limit 1; execute 'reset role'; v := 'allowed';
+  exception when insufficient_privilege then v := 'refused'; end;
+  insert into offers_lock_check values (2, 'authenticated reads notes', 'refused', v);
+
+  begin execute 'set local role authenticated'; perform offer_price_cents from public.qualifying_offers limit 1; execute 'reset role'; v := 'allowed';
+  exception when insufficient_privilege then v := 'refused'; end;
+  insert into offers_lock_check values (3, 'authenticated reads prices', 'refused', v);
+
+  begin execute 'set local role authenticated'; update public.qualifying_offers set notes = notes where false; execute 'reset role'; v := 'allowed';
+  exception when insufficient_privilege then v := 'refused'; end;
+  insert into offers_lock_check values (4, 'authenticated updates offers', 'refused', v);
+
+  begin execute 'set local role service_role'; perform notes from public.qualifying_offers limit 1; execute 'reset role'; v := 'allowed';
+  exception when insufficient_privilege then v := 'refused'; end;
+  insert into offers_lock_check values (5, 'service_role reads offers', 'allowed', v);
+end $$;
+select n, test, expected_after, result, (expected_after = result) as pass_after from offers_lock_check order by n;
+rollback;
+```
+
+- Run before the migration: cases 1–4 show `allowed` (the leak), case 5 `allowed`.
+- Run after: every row `pass_after = true`.
+- After Brett runs it, I'd re-check Your Deal, an offer detail, accept/decline, highlight, a message and add-on removal on a disposable account, and confirm by count. That's a pure database change with no app code.
+
+**Same pattern, other tables (not proposed now):** `offer_addons`, `deal_progress` and `documents` also have customer SELECT policies the app never uses. They hold no agent-only columns, but locking them the same way would make every offer table "service role only". Say if you want them in the same migration.
+

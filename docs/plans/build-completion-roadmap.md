@@ -49,6 +49,15 @@ Both are backfilled first with everything already approved in agent dashboard Ph
 - **"Not rated" instead of a neutral 50** (added 2026-10-16, Brett). When a vehicle has no data for a score category, show "Not rated" rather than the neutral floor score of 50 (e.g. Maserati and Lexus TZ Safety, Comfort and Reliability in v21).
 - **Very long option lists** (added 2026-10-16, Brett). Revisit trims whose paint and feature lists run very long: Maserati Fuoriserie (about 45 paints and 45 features per trim), Porsche Paint to Sample and exclusive options, and any similar make. For example, group personalisation options under a collapsed section so the core choices show first. Approved as is for now; nothing built.
 
+- **Future: other languages** (added 2026-10-24, Brett). Later, not planned or built now:
+  - The website and customer forms in other languages; Spanish is the likely first.
+  - Possibly bilingual agents, with a way to match a customer to an agent who speaks their language. This fits the existing idea of routing searches to agents by region or make.
+  - **What it would touch:**
+    - all customer-facing wording (`docs/business/site-language-inventory.md` is the list);
+    - every email;
+    - the dealer submission page;
+    - the agent assignment rules (`assign_search`: a language match ahead of round-robin).
+
 ## From tester feedback: Terry (decided 2026-10-17, Brett)
 
 Review: `docs/research/tester-feedback-terry-2026-10-17.md`. Customer-facing wording for every item needs Brett's sign-off.
