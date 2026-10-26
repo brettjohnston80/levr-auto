@@ -63,9 +63,9 @@ LEVR Auto is a nationwide service that negotiates new-car deals on the buyer's b
   - **Rules:**
     - a search keeps the rule in force when it was paid; later changes to the list never change a paid search;
     - **disclosure:** the exception is one of the standard terms every customer accepts once at the start, whatever make they pick (no brand-specific checkbox). Plain lines say "Our money-back guarantee does not apply to {Brand}." wherever the brand matters: intake, Review your search, the checkout summary, Your Deal, the switch screens and Matchmaker. The FAQ entry and one clause in the terms name the four brands;
-    - every guarantee statement on the site carries the line "Money-back guarantee does not apply to Tesla, Rivian, Lucid or Polestar.";
+    - the homepage never names the brands: "Terms apply." links to the FAQ entry "Does the guarantee cover every brand?". The line "Money-back guarantee does not apply to Tesla, Rivian, Lucid or Polestar." sits under the terms checkbox every customer accepts before their first payment;
     - nothing says the fee is non-refundable; the discretionary cancellation refund is the same for every brand;
-    - **launch rule:** the exception must be built and live before Stripe goes live.
+    - **launch rule:** before Stripe goes live, the exception is built and live and the real, attorney-reviewed Terms of Service are published.
   - ⚠ **Attorney review:** the terms change, and whether the disclosure is clear and prominent enough next to an advertised guarantee.
 - Either way, active search continues **free through Day 60**.
 - After Day 60: **$100** per renewable ~30-day extension.
