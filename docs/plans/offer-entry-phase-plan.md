@@ -741,6 +741,70 @@ The ticked codes are stored in `warnings_confirmed` and logged (`offer_warning_c
 
 ---
 
+### 5.0 Fast track: Terry's #2 (interior and options on offers) and #4 (side-by-side comparison) (planned 2026-10-25)
+
+**Dependencies, corrected.** Log Offer can't capture interior, options and fee lines on its own:
+- **Chunk 4's redesigned Log Offer saves drafts and sends through `send_offer_submission`** (chunk 3). That needs the `offer_submissions` table from OE-2, and the pricing module from chunk 2 (the out-the-door sum and its arithmetic check).
+- **Shortcut considered and not recommended:** add the new fields to today's direct-insert form (`logQualifyingOffer`). The chunk 4 redesign would replace that form soon after, so the work would be done twice.
+
+**Order:**
+1. **Chunk 0:** the merge commits once the third test run passes.
+2. **Chunk 1:** OE-1 and OE-2 (both additive), Brett runs them. OE-3 (tax estimates) waits for the tax research.
+3. **Chunk 2:** `offer-pricing.ts`, `offer-warnings.ts`, `vin-check.ts`. `tax-estimate.ts` waits for OE-3.
+4. **Chunk 3:** `send_offer_submission`, and the agent's draft and send actions.
+5. **Chunk 4:** Log Offer captures:
+   - interior;
+   - options, ticked ✓ on the car or ✗ not on the car against the customer's own ranked list, plus any extras on the car;
+   - fee lines (doc fee, sales tax, title & registration, other), with the out-the-door total and its source;
+   - each add-on marked "customer wanted" or "dealer says removable";
+   - Tesla's order fee, prefilled (4.A.1).
+6. **Chunk 6 (optional):** the listing picker, which prefills interior from MarketCheck (83% of listings have it).
+7. **Chunk 9:** the customer card and detail view (interior, the options section, the out-the-door line, "How the price adds up", accept gating).
+8. **Chunk 10:** the comparison (desktop table, phone two-up) and the sorting and badge changes.
+9. **Chunk 11:** sample offers carry interior, options and a dealer-style out-the-door breakdown.
+
+**Left for later:**
+- chunk 5 (parser extension);
+- chunks 7 and 8 (dealer links and the dealer page);
+- OE-3 and 4.D (tax estimates).
+
+So in this track every out-the-door figure is a dealer's quote, and nothing is labelled "Our estimate" yet.
+
+**Where it's built:**
+- **Branch:** a new `offer-entry` branch, cut from `agent-dashboard-phase1-code` once the merge is committed, in its own worktree.
+- **Deploy:** only after Phase 1 is live, as section 1 says. Building can start while Phase 1 waits.
+- **The tester round:** chunk 9's accept gating would block testers' existing sample offers (they have no out-the-door figure), so it can't deploy mid-round unless the sample offers are backfilled.
+
+**OE-1 in production before Phase 1 deploys (checked 2026-10-25): additive and safe with today's live code.**
+- **Columns added to existing tables** (`qualifying_offers`, `offer_addons`, `dealerships`):
+  - every one is nullable, or has a constant default (`offer_source 'agent'`, the booleans `false`, `warnings_confirmed '{}'`);
+  - existing rows pass both new checks, since every out-the-door field is null and the warnings list is empty;
+  - today's inserts (Log Offer, sample offers, add-ons) name their columns, so they're unaffected.
+- **New tables:** `offer_fees` and `offer_vehicle_options` get RLS, the revokes and `service_role` grants. Nothing in live code reads them.
+- **`documents`:** the type check is dropped and re-added in the same transaction, adding `window_sticker`; every existing row stays valid.
+- **The seven new activity types:** categories 'offer' and 'dealer', both allowed by the table (Phase 1 Step 2, already applied in production).
+- **Appendix A lock:** the new `qualifying_offers` columns inherit it; `anon` and `authenticated` have no table privilege.
+- **One thing new code must handle:** offers logged before OE-1 keep `sent_to_customer_at`, interior and every out-the-door field null. Card, detail and comparison must treat null as "not recorded", never as an error.
+- **Not part of this check:** OE-2. It adds functions and tables that reference `agents`, and gets its own check before it runs.
+
+**Question for Brett:** should accept gating (no accepting until the dealer's out-the-door quote is recorded) apply to offers logged before the feature? Today's are only tester sample offers and the review account's. Proposed: only to offers sent after it ships (`sent_to_customer_at` set), so nothing already on Your Deal becomes un-acceptable.
+
+**New customer-facing lines this track needs** (not in 6.3; for sign-off):
+
+| Where | Proposed |
+|---|---|
+| Card vehicle line, no interior recorded | Trim: {trim} · Color: {exterior} (the interior part is left out) |
+| Detail, Vehicle section, no interior recorded | the Interior row is left out |
+| Detail, options section, nothing recorded yet | Your agent hasn't recorded this car's options yet. |
+| Card options summary, nothing recorded or nothing asked for | (hidden) |
+| Card, offer logged before out-the-door pricing | (no out-the-door line; the price line keeps "Excludes tax, title, registration, doc fee and add-ons.") |
+| Comparison cell with no data | — |
+| Comparison, interior not recorded | Not recorded |
+| Comparison, options not recorded | Not recorded yet |
+| Comparison, the customer asked for no options | — |
+| "Compare offers" button | shown only with 2 or more open offers |
+| Phone pager buttons (screen readers) | Show the previous offer / Show the next offer |
+
 ### 5.1 Chunk 0 status (2026-10-18 to 10-24)
 
 - **Merge:** `main` (`e8c35f7`) merged into `agent-dashboard-phase1-code` in its worktree. It's **staged, not committed, not pushed**.
