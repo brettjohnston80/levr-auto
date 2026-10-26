@@ -40,7 +40,15 @@
 | Polestar | Polestar 4 (2026), 4 rows | same files as Lucid | `93b8f7fc…`, 2 trims, unpromoted | 0 synced |
 
 **What's missing or stale:**
-- **Tesla and Rivian:** the 09-16 research predates every rule the import now applies (the CSV format, mapping rules 1–9, the trim-name styling and "Base" re-pass, the site checks, the prices pass, the engine-facts table). **Decided: Cowork redoes it** (Brett sends it separately). When it arrives it goes through the usual review, mapping step, unpromoted import and promotion.
+- **Tesla and Rivian: Cowork's redo arrived 2026-10-25** (`data/tesla-rivian-configurator-full-2026-10.csv`, 17 rows, with notes). Review and mapping dry run: `docs/research/tesla-rivian-configurator-review-2026-10-25.md`.
+  - **Dry run:** 17 → 16 rows, no collisions.
+  - **Two mapping problems (a fix proposed):** Rivian battery-pack names and "quad-motor" are lost by rule 4.
+  - **Held:** the R2 (decision 2; watch item: public ordering).
+  - **Order fee:** Tesla's $250 order fee goes into offer entry as a prefilled fee line (offer-entry plan 4.A.1).
+  - **Model Y L:** grouped under Model Y as "L Premium".
+  - **Model S and X:** gone everywhere except the hard-coded fallback list.
+  - **Matchmaker:** the proposed changes are in that review, section 5.
+  - Nothing is imported until Brett says.
 - **Model coverage to check in that pass:**
   - Tesla: the dataset has no Model S or Model X. Confirm whether they're still sold new in the US; if they are, they need Matchmaker rows too.
   - Rivian: confirm the R2's 2027 US prices and that it's orderable.
@@ -58,7 +66,7 @@
   - **Whose listings these are isn't known:** Tesla, Rivian and Lucid "dealers" in MarketCheck are their own stores or delivery centers; we haven't confirmed that. The first sync of each brand (about 3 calls per model) needs your OK.
 - **Polestar's US exit after MY2026: offer it while inventory lasts, no Cowork pass (Brett, 2026-10-25).**
   - Its research is already in the repo and imported (`93b8f7fc…`, 2 trims); it's promoted with the others in GX-5.
-  - **Hidden automatically when no listings remain:** a small list `data/while-inventory-lasts.json` (`[{"make": "Polestar", "why": "leaving the US after MY2026", "since": "2026-10-25"}]`). Intake (read on each request) offers a listed make or model only while `listings` has at least one row for it; Matchmaker (static) applies the same check at build, so it catches up on the next deploy. One shared check, like `not-offered-models.ts`.
+  - **Hidden automatically when no listings remain:** a small list `data/while-inventory-lasts.json` (`[{"make": "Polestar", "why": "leaving the US after MY2026", "since": "2026-10-25"}]`). An entry may also name a model and model year, so it covers Rivian's 2026 R1T and R1S as well (old trim names, sold from inventory only; Brett, 2026-10-25): `{"make": "Rivian", "model": "R1T", "model_year": "2026", …}` and the same for the R1S. Intake (read on each request) offers a listed make or model only while `listings` has at least one row for it; Matchmaker (static) applies the same check at build, so it catches up on the next deploy. One shared check, like `not-offered-models.ts`.
   - **First inventory sync (planned, needs Brett's OK for the MarketCheck calls):**
     - one `syncListingsForMakeModel("Polestar", "4")`, about 1–3 calls (151 listings in September, so 3 pages at most);
     - after that the weekly scheduler keeps it fresh like any synced model;

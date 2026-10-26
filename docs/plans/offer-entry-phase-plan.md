@@ -667,6 +667,13 @@ The ticked codes are stored in `warnings_confirmed` and logged (`offer_warning_c
 
 ---
 
+### 4.A.1 Manufacturer fees prefilled on Log Offer (added 2026-10-25, Brett's decision 3 on the Tesla research)
+
+- **Tesla's $250 order fee** (every Model 3, Model Y and Cybertruck order; non-refundable in Tesla's own configurator data) is **not part of Total SRP**: the sticker is base + options + destination. It's a fee line in the out-the-door breakdown.
+- **Data file `data/manufacturer-fees.json`:** brand-level entries with make, fee name, amount, whether it's refundable, source and date. The first entry: `{"make": "Tesla", "fee": "Order fee", "amount": 250, "refundable": false, "source": "tesla.com configurator data", "since": "2026-10-25"}`.
+- **Prefill:** for a search whose make has an entry, Log Offer adds the fee as a prefilled fee line. The agent can change or remove it if the store's paperwork differs. It never touches the sticker or the guarantee line.
+- **Rivian:** no entry. Its $500 order deposit is applied to the price, so it isn't a fee.
+
 ### 4.E "Hard to beat sticker" watch list (agent-only; planned 2026-10-24, not built)
 
 **What it is:** a short list of vehicles where getting a dealer below Total SRP is known to be hard (high demand, low supply, or makers that hold dealers to sticker). When a search matches, the agent sees a notice on the search card and in the Log Offer sidebar, so they plan the search accordingly. **It's never shown to customers and never affects the guarantee:** the Day-30 rule, the guarantee line and every customer page ignore it.
