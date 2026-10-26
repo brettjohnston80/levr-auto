@@ -1,5 +1,6 @@
 "use client";
 
+import { OFFER_PRICE_EXCLUDES_FULL } from "@/lib/offer-price-copy";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -203,6 +204,7 @@ export function OfferDetailModal({
                   {formatCents(savings.belowMsrpCents)} below Total SRP ({savings.belowMsrpPercent}% off)
                 </p>
               )}
+              <p className="mt-1 text-xs text-zinc-500">{OFFER_PRICE_EXCLUDES_FULL}</p>
               <DeliveryEstimateLine
                 offerId={offer.id}
                 estimate={offer.deliveryEstimate}

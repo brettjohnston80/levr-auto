@@ -7,6 +7,7 @@ import { setSearchPickupTravel } from "@/lib/handoff-actions";
 import {
   PICKUP_TRAVEL_DEFAULT,
   PICKUP_TRAVEL_PROMPT_BODY,
+  PICKUP_RANGE_NOT_A_SEARCH,
   PICKUP_TRAVEL_QUESTION,
   travelFromValue,
   travelSummary,
@@ -85,6 +86,7 @@ export function PickupRangeControl({ searchId, value }: { searchId: string; valu
       >
         Change
       </button>
+      <p className="mt-1 text-xs text-zinc-500">{PICKUP_RANGE_NOT_A_SEARCH}</p>
       {editing && (
         <div className="mt-3">
           <PickupTravelGauge value={value} onChange={choose} disabled={saving} />

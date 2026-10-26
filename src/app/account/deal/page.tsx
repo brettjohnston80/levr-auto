@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -10,7 +11,13 @@ import { PurchasedCelebration } from "@/components/purchased-celebration";
 import { PostDealSurveyPrompt } from "@/components/post-deal-survey-prompt";
 import { SearchStatusTimeline } from "@/components/search-status-timeline";
 import { deriveSearchTimeline, type SearchTimelineBannerTone } from "@/lib/search-timeline";
-import { SEARCH_STATUS_COPY, getPausedResumeInfo, getStatusCopy, getStatusBadge } from "@/lib/search-status-copy";
+import {
+  SEARCH_STATUS_COPY,
+  UNDECIDED_PAID_COPY,
+  getPausedResumeInfo,
+  getStatusCopy,
+  getStatusBadge,
+} from "@/lib/search-status-copy";
 import { formatCents } from "@/lib/dashboard-format";
 import { GetStartedButton } from "@/components/get-started-button";
 import { PickupRangeControl } from "@/components/pickup-range-control";
@@ -23,6 +30,16 @@ import { GuaranteeTimeline } from "@/components/guarantee-timeline";
 import { deriveGuaranteeTimeline } from "@/lib/guarantee-timeline";
 import { deriveProgressNote } from "@/lib/progress-note";
 import { GENERAL_THREAD_COPY } from "@/lib/offer-messages-shared";
+import {
+  DEAL_CANCELLED_COPY,
+  DEAL_CHANGE_WINDOW_COPY,
+  DEAL_NOT_FINALIZED_COPY,
+  DEAL_SEARCHING_NO_OFFERS_COPY,
+  DEAL_UNDECIDED_HEADING,
+  DEAL_UNPAID_COPY,
+} from "@/lib/deal-empty-copy";
+import { LocalDateTime } from "@/components/local-date-time";
+import { getLatestUnpaidSearch } from "@/lib/unpaid-search";
 
 export const metadata: Metadata = {
   title: "Your Deal — LEVR Auto",
@@ -61,7 +78,7 @@ export default async function DealPage({
   // always solidified by the time it can reach that status).
   const { data: candidateSearches } = await admin
     .from("customer_searches")
-    .select("id, make, model, search_status, solidified_at")
+    .select("id, make, model, search_status, solidified_at, finalized_at, call_requested_at")
     .eq("customer_id", user.id)
     .not("paid_at", "is", null)
     .order("created_at", { ascending: false });
@@ -72,26 +89,60 @@ export default async function DealPage({
       (s.solidified_at !== null || s.search_status === "purchased"),
   );
 
-  // No bounce to /account -- same reasoning as /account/vehicle's own empty
-  // state: this tab is meant to be a stable, revisitable destination.
+  // Nothing live to show yet: say why, from the customer's newest search that
+  // is still in play (tester feedback, wording approved 2026-10-16).
   if (eligible.length === 0) {
+    const inPlay = (candidateSearches ?? []).find((s) => !TERMINAL_STATUSES.includes(s.search_status as string));
+    if (inPlay?.search_status === "awaiting_finalization" && inPlay.make && inPlay.model) {
+      return (
+        <EmptyDeal
+          heading={DEAL_NOT_FINALIZED_COPY.heading}
+          text={inPlay.call_requested_at ? DEAL_NOT_FINALIZED_COPY.callRequestedText : DEAL_NOT_FINALIZED_COPY.text}
+          action={{ href: `/account/vehicle?searchId=${inPlay.id}`, label: DEAL_NOT_FINALIZED_COPY.button }}
+        />
+      );
+    }
+    // Undecided: the agent picks the vehicle with them, so no Your Car button.
+    if (inPlay?.search_status === "awaiting_finalization") {
+      return <EmptyDeal heading={DEAL_UNDECIDED_HEADING} text={UNDECIDED_PAID_COPY} />;
+    }
+    if (inPlay?.search_status === "pending_refinement" && inPlay.finalized_at) {
+      const windowEnds = new Date(new Date(inPlay.finalized_at as string).getTime() + 24 * 60 * 60 * 1000).toISOString();
+      return (
+        <EmptyDeal
+          heading={DEAL_CHANGE_WINDOW_COPY.heading}
+          text={
+            <>
+              {DEAL_CHANGE_WINDOW_COPY.textBefore}
+              <LocalDateTime iso={windowEnds} />
+              {DEAL_CHANGE_WINDOW_COPY.textAfter}
+            </>
+          }
+          action={{ href: `/account/vehicle?searchId=${inPlay.id}`, label: DEAL_CHANGE_WINDOW_COPY.button }}
+        />
+      );
+    }
+    const unpaid = await getLatestUnpaidSearch(admin, user.id);
+    if (unpaid) {
+      return (
+        <EmptyDeal
+          heading={DEAL_UNPAID_COPY.heading}
+          text={DEAL_UNPAID_COPY.text}
+          action={{ href: `/account/vehicle?searchId=${unpaid.id}`, label: DEAL_UNPAID_COPY.button }}
+        />
+      );
+    }
+    if (candidateSearches?.[0]?.search_status === "cancelled") {
+      return <EmptyDeal heading={DEAL_CANCELLED_COPY.heading} text={DEAL_CANCELLED_COPY.text} getStarted />;
+    }
+    // No bounce to /account -- same reasoning as /account/vehicle's own empty
+    // state: this tab is meant to be a stable, revisitable destination.
     return (
-      <section className="bg-zinc-950 py-24">
-        <div className="mx-auto max-w-2xl px-6 text-center">
-          <h1 className="text-2xl font-semibold text-white">No deal yet</h1>
-          <p className="mt-3 text-sm text-zinc-400">
-            Once your search gets underway, this is where you&apos;ll come back to see your offers.
-          </p>
-          <GetStartedButton className="mt-8 inline-flex items-center justify-center rounded-full bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400">
-            Get Started
-          </GetStartedButton>
-          <div className="mt-6">
-            <Link href="/account" className="text-sm text-zinc-400 hover:text-white">
-              ← Back to your account
-            </Link>
-          </div>
-        </div>
-      </section>
+      <EmptyDeal
+        heading="No deal yet"
+        text="Once your search gets underway, this is where you'll come back to see your offers."
+        getStarted
+      />
     );
   }
 
@@ -157,6 +208,10 @@ export default async function DealPage({
   // At most one offer per search can be customer_accepted (2026-09-24), so
   // while one is, every pending card offers only Decline.
   const anOfferIsAccepted = deal.offers.some((o) => o.status === "customer_accepted");
+  // Finalized and live with nothing in yet (tester feedback, 2026-10-16).
+  // Only "searching": a paused search's banner already says why nothing new
+  // is coming, so it keeps the plain "No offers yet".
+  const searchingNoOffers = deal.offers.length === 0 && deal.searchStatus === "searching";
 
   // Purchased-search-only. purchasedQualifyingOfferId is the source of truth
   // for which offer was actually bought (see its own comment on
@@ -227,8 +282,17 @@ export default async function DealPage({
           />
         )}
 
-        {deal.searchStatus !== "purchased" && !suppressStatusParagraph && (
-          <p className="mt-3 text-sm text-zinc-400">{statusLine}</p>
+        {searchingNoOffers && !suppressStatusParagraph ? (
+          // Live with no offers yet: this replaces the progress line (approved
+          // 2026-10-16). After a Day-30 refund the guarantee box below still
+          // says how long the search continues.
+          <div className="mt-4">
+            <h2 className="text-lg font-semibold text-white">{DEAL_SEARCHING_NO_OFFERS_COPY.heading}</h2>
+            <p className="mt-1 text-sm text-zinc-400">{DEAL_SEARCHING_NO_OFFERS_COPY.text}</p>
+          </div>
+        ) : (
+          deal.searchStatus !== "purchased" &&
+          !suppressStatusParagraph && <p className="mt-3 text-sm text-zinc-400">{statusLine}</p>
         )}
 
         {guaranteeTimeline && <GuaranteeTimeline info={guaranteeTimeline} />}
@@ -276,9 +340,12 @@ export default async function DealPage({
 
             <div className="mt-5">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h2 className="text-sm font-semibold text-zinc-300">
-                  {deal.offers.length > 0 ? `Offers (${deal.offers.length})` : "No offers yet"}
-                </h2>
+                {/* Not shown while "We're on it" says the same at the top (2026-10-16). */}
+                {!searchingNoOffers && (
+                  <h2 className="text-sm font-semibold text-zinc-300">
+                    {deal.offers.length > 0 ? `Offers (${deal.offers.length})` : "No offers yet"}
+                  </h2>
+                )}
                 <div className="flex flex-wrap items-center gap-3">
                 {canMap && (
                   <nav aria-label="View" className="flex items-center gap-1 text-xs">
@@ -319,6 +386,16 @@ export default async function DealPage({
                 )}
                 </div>
               </div>
+              {/* Approved 2026-10-17 (Terry's feedback): offers are for the car they chose. */}
+              {deal.offers.length > 0 && (
+                <p className="mt-2 text-xs text-zinc-500">
+                  These offers are for the car you chose. Want a different make or model instead?{" "}
+                  <Link href="/faq#switching" className="text-emerald-400 underline hover:text-emerald-300">
+                    See how switching works
+                  </Link>
+                  .
+                </p>
+              )}
               {deal.offers.length === 0 && (
                 <Link
                   href="/account/messages/general"
@@ -356,6 +433,41 @@ export default async function DealPage({
             </div>
           </>
         )}
+      </div>
+    </section>
+  );
+}
+
+// The centred empty page for a customer with nothing live to show yet.
+function EmptyDeal({
+  heading,
+  text,
+  action,
+  getStarted = false,
+}: {
+  heading: string;
+  text: ReactNode;
+  action?: { href: string; label: string };
+  getStarted?: boolean;
+}) {
+  const buttonClass =
+    "mt-8 inline-flex items-center justify-center rounded-full bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400";
+  return (
+    <section className="bg-zinc-950 py-24">
+      <div className="mx-auto max-w-2xl px-6 text-center">
+        <h1 className="text-2xl font-semibold text-white">{heading}</h1>
+        <p className="mt-3 text-sm text-zinc-400">{text}</p>
+        {action && (
+          <Link href={action.href} className={buttonClass}>
+            {action.label}
+          </Link>
+        )}
+        {getStarted && <GetStartedButton className={buttonClass}>Get Started</GetStartedButton>}
+        <div className="mt-6">
+          <Link href="/account" className="text-sm text-zinc-400 hover:text-white">
+            ← Back to your account
+          </Link>
+        </div>
       </div>
     </section>
   );

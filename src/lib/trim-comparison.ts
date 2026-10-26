@@ -1,3 +1,6 @@
+import { buildsSummary } from "./cab-bed";
+import { formatOptionPrice } from "./option-price";
+import { displayOptionName } from "./option-display";
 import {
   categoryHasRealChoiceAcrossTrims,
   groupIntoPackages,
@@ -21,9 +24,6 @@ import type { ColorSwatchValue } from "@/lib/vehicle-color-swatches";
 // reaches into here for the same wheels/roof/drivetrain summarizers the
 // table uses, in the "N specs" overflow case -- see summarizeDrivetrain).
 
-function formatCents(cents: number): string {
-  return `$${Math.round(cents / 100).toLocaleString()}`;
-}
 
 export type CellTone = "free" | "cost" | "unknown" | "none";
 
@@ -61,13 +61,13 @@ export function priceCellFor(choice: ConfiguratorChoice): ComparisonCell {
   if (choice.availability === "standard") return { text: "Standard", tone: "free" };
   if (choice.availability === "package_only") {
     if (choice.packagePriceCents == null) return { text: "Price not confirmed", tone: "unknown" };
-    return { text: `+${formatCents(choice.packagePriceCents)} pkg`, tone: "cost" };
+    return { text: `${formatOptionPrice(choice.packagePriceCents)} pkg`, tone: "cost" };
   }
   // standalone
   if (choice.priceIsIncluded) return { text: "Included", tone: "free" };
   if (choice.priceCents == null) return { text: "Price not confirmed", tone: "unknown" };
   if (choice.priceCents === 0) return { text: "No extra cost", tone: "free" };
-  return { text: `+${formatCents(choice.priceCents)}`, tone: "cost" };
+  return { text: formatOptionPrice(choice.priceCents), tone: "cost" };
 }
 
 /** Whether a set of cells actually differs -- the gate for "is this row
@@ -114,6 +114,8 @@ export interface ChoiceComparisonRow {
   imageUrl: string | null;
   swatch: ColorSwatchValue | null;
   cellsByTrimId: Record<string, ComparisonCell>;
+  /** Dealer-installed on any compared trim that offers it (2026-10-17). */
+  dealerInstalled: boolean;
 }
 
 /**
@@ -152,19 +154,22 @@ export function computeChoiceComparisonRows(
     }
   }
 
-  return [...byName.keys()].sort((a, b) => a.localeCompare(b)).map((name) => {
+  return [...byName.keys()].sort((a, b) => displayOptionName(a).localeCompare(displayOptionName(b))).map((name) => {
     const representative = byName.get(name)!;
     const cellsByTrimId: Record<string, ComparisonCell> = {};
+    let dealerInstalled = false;
     for (const id of trimIds) {
       const q = configuratorQuestions[id];
       const choice = q ? rawChoicesFor(q).find((c) => c.name === name) : undefined;
       cellsByTrimId[id] = choice ? priceCellFor(choice) : DASH;
+      if (choice?.dealerInstalled) dealerInstalled = true;
     }
     return {
       name,
       imageUrl: representative.imageUrl ?? null,
       swatch: representative.swatch ?? null,
       cellsByTrimId,
+      dealerInstalled,
     };
   });
 }
@@ -288,6 +293,9 @@ export function summarizeRoof(q: ConfiguratorQuestions | undefined): ComparisonC
  * misleading. Full text is only ever shown in the detail modal.
  */
 export function summarizeDrivetrain(q: ConfiguratorQuestions | undefined): ComparisonCell {
+  // Truck builds (cab, bed, drive and sometimes the engine, priced as one): "{N} builds, from {lowest} to {highest}" (2026-10-16).
+  const builds = q ? buildsSummary(q.drivetrain) : null;
+  if (builds) return { text: builds, tone: "none" };
   // Drivetrain twins: the car could be any of them, so name them all
   // rather than one that may be wrong. Wording pending Brett's sign-off.
   if (q?.drivetrainTwins && q.drivetrainTwins.length > 1) {
@@ -320,6 +328,8 @@ export interface FeatureComparisonRow {
   name: string;
   imageUrl: string | null;
   cellsByTrimId: Record<string, ComparisonCell>;
+  /** Dealer-installed on any compared trim that offers it (2026-10-17). */
+  dealerInstalled: boolean;
 }
 
 /**
@@ -352,9 +362,10 @@ export function computeFeatureComparisonRows(
     for (const n of q.featuresUnknown) names.add(n);
   }
 
-  return [...names].sort((a, b) => a.localeCompare(b)).map((name) => {
+  return [...names].sort((a, b) => displayOptionName(a).localeCompare(displayOptionName(b))).map((name) => {
     const cellsByTrimId: Record<string, ComparisonCell> = {};
     let imageUrl: string | null = null;
+    let dealerInstalled = false;
     for (const id of trimIds) {
       const q = configuratorQuestions[id];
       if (!q) {
@@ -378,7 +389,8 @@ export function computeFeatureComparisonRows(
       // same real asset regardless of which trim offers it, so the
       // first one found is as good as any.
       if (!imageUrl && choice?.imageUrl) imageUrl = choice.imageUrl;
+      if (choice?.dealerInstalled) dealerInstalled = true;
     }
-    return { name, imageUrl, cellsByTrimId };
+    return { name, imageUrl, cellsByTrimId, dealerInstalled };
   });
 }

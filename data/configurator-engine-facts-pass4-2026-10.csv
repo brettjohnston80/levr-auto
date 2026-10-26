@@ -1,0 +1,60 @@
+make,model,trim,model_year,engine_option,hp,displacement_l,cylinders,source_url
+Porsche,Macan Electric,GTS,2026,Porsche E-Performance Powertrain with a Permanent Magnet Synchronous Motor on the Front and Rear Axle,563,,,https://newsroom.porsche.com/en_US/2025/products/porsche-macan-gts-electric-40882.html
+Volkswagen,Atlas,Peak Edition,2026,2.0L turbo I4 8-speed automatic 4MOTION AWD,269,2.0,I4,https://media.vw.com/assets/applications/original/19808-2026-atlas-tech-specs-final-towing-update.pdf
+Volkswagen,Atlas,Peak Edition,2026,2.0L turbo I4 8-speed automatic FWD,269,2.0,I4,https://media.vw.com/assets/applications/original/19808-2026-atlas-tech-specs-final-towing-update.pdf
+Volkswagen,Atlas,SE,2026,2.0L turbo I4 8-speed automatic FWD,269,2.0,I4,https://media.vw.com/assets/applications/original/19808-2026-atlas-tech-specs-final-towing-update.pdf
+Volkswagen,Atlas,SE,2026,2.0L turbo I4 8-speed automatic 4MOTION AWD,269,2.0,I4,https://media.vw.com/assets/applications/original/19808-2026-atlas-tech-specs-final-towing-update.pdf
+Volkswagen,Atlas,SE w/Technology,2026,2.0L turbo I4 8-speed automatic FWD,269,2.0,I4,https://media.vw.com/assets/applications/original/19808-2026-atlas-tech-specs-final-towing-update.pdf
+Volkswagen,Atlas,SE w/Technology,2026,2.0L turbo I4 8-speed automatic 4MOTION AWD,269,2.0,I4,https://media.vw.com/assets/applications/original/19808-2026-atlas-tech-specs-final-towing-update.pdf
+Volkswagen,Atlas,SEL,2026,2.0L turbo I4 8-speed automatic 4MOTION AWD,269,2.0,I4,https://media.vw.com/assets/applications/original/19808-2026-atlas-tech-specs-final-towing-update.pdf
+Volkswagen,Atlas,SEL,2026,2.0L turbo I4 8-speed automatic FWD,269,2.0,I4,https://media.vw.com/assets/applications/original/19808-2026-atlas-tech-specs-final-towing-update.pdf
+Volkswagen,Atlas,SEL Premium R-Line,2026,2.0L turbo I4 8-speed automatic 4MOTION AWD,269,2.0,I4,https://media.vw.com/assets/applications/original/19808-2026-atlas-tech-specs-final-towing-update.pdf
+Volkswagen,Atlas,SEL Premium R-Line,2026,2.0L turbo I4 8-speed automatic FWD,269,2.0,I4,https://media.vw.com/assets/applications/original/19808-2026-atlas-tech-specs-final-towing-update.pdf
+Audi,A3,Base,2027,2.0L turbo I4 40 TFSI 7-speed S tronic quattro AWD,201,2.0,I4,https://www.audiusa.com/en/models/a3/a3/2027/overview/
+Audi,A3,Black optic plus,2027,2.0L turbo I4 40 TFSI 7-speed S tronic quattro AWD,201,2.0,I4,https://www.audiusa.com/en/models/a3/a3/2027/overview/
+Audi,A3,S line plus,2027,2.0L turbo I4 40 TFSI 7-speed S tronic quattro AWD,201,2.0,I4,https://www.audiusa.com/en/models/a3/a3/2027/overview/
+Audi,A5,Premium,2027,2.0L turbo I4 7-speed S tronic quattro AWD,268,2.0,I4,https://www.audiusa.com/en/models/a5/a5/2027/overview/
+Audi,A6,Premium,2027,3.0L turbo V6 mild hybrid 7-speed S tronic quattro AWD,362,3.0,V6,https://www.audiusa.com/en/models/a6/a6-sedan/2027/overview/
+Audi,A6 Sportback e-tron,Premium,2027,Single-motor electric RWD,375,,,https://www.audiusa.com/en/models/a6/a6-sedan/2027/overview/
+Audi,A6 Sportback e-tron,Premium,2027,Dual-motor electric quattro AWD,456,,,https://www.audiusa.com/en/models/a6-e-tron/a6-sportback-e-tron/2027/overview/
+Audi,A6 Sportback e-tron,Premium Plus,2027,Single-motor electric RWD,375,,,https://www.audiusa.com/en/models/a6/a6-sedan/2027/overview/
+Audi,A6 Sportback e-tron,Premium Plus,2027,Dual-motor electric quattro AWD,456,,,https://www.audiusa.com/en/models/a6-e-tron/a6-sportback-e-tron/2027/overview/
+Audi,A6 Sportback e-tron,Prestige,2027,Single-motor electric RWD,375,,,https://www.audiusa.com/en/models/a6/a6-sedan/2027/overview/
+Audi,A6 Sportback e-tron,Prestige,2027,Dual-motor electric quattro AWD,456,,,https://www.audiusa.com/en/models/a6-e-tron/a6-sportback-e-tron/2027/overview/
+Audi,A8,55 TFSI quattro,2027,3.0L turbo V6 mild hybrid 8-speed tiptronic quattro AWD,335,3.0,V6,https://www.audiusa.com/en/models/a8/a8-sedan/2027/overview/
+Audi,Q3,S line,2027,2.0L turbo I4 TFSI 7-speed S tronic quattro AWD,255,2.0,I4,https://www.audiusa.com/en/models/q3/q3/2027/overview/
+Audi,Q4 Sportback e-tron,Premium,2026,55 e-tron electric quattro AWD,335,,,https://www.audiusa.com/en/models/q4/q4-sportback-e-tron/2026/overview/
+Audi,Q4 Sportback e-tron,Premium Plus,2026,55 e-tron electric quattro AWD,335,,,https://www.audiusa.com/en/models/q4/q4-sportback-e-tron/2026/overview/
+Audi,Q4 e-tron,Premium,2026,45 e-tron electric RWD,282,,,https://www.audiusa.com/en/models/q4/q4-e-tron/2026/overview/
+Audi,Q4 e-tron,Premium,2026,55 e-tron electric quattro AWD,335,,,https://www.audiusa.com/en/models/q4/q4-e-tron/2026/overview/
+Audi,Q4 e-tron,Premium Plus,2026,45 e-tron electric RWD,282,,,https://www.audiusa.com/en/models/q4/q4-e-tron/2026/overview/
+Audi,Q4 e-tron,Premium Plus,2026,55 e-tron electric quattro AWD,335,,,https://www.audiusa.com/en/models/q4/q4-e-tron/2026/overview/
+Audi,Q5,Premium,2027,TFSI S tronic quattro AWD,268,,,https://www.audiusa.com/en/models/q5/q5/2027/overview/
+Audi,Q5 Sportback,Premium,2027,TFSI S tronic quattro AWD,268,,,https://www.audiusa.com/en/models/q5/q5-sportback/2027/overview/
+Audi,Q8,Premium,2027,55 TFSI 3.0L turbo V6 mild hybrid 8-speed automatic quattro AWD,335,3.0,V6,https://www.audiusa.com/en/models/q8/q8/2027/overview/
+Audi,Q8,Premium Plus,2027,55 TFSI 3.0L turbo V6 mild hybrid 8-speed automatic quattro AWD,335,3.0,V6,https://www.audiusa.com/en/models/q8/q8/2027/overview/
+Audi,Q8,Prestige,2027,55 TFSI 3.0L turbo V6 mild hybrid 8-speed automatic quattro AWD,335,3.0,V6,https://www.audiusa.com/en/models/q8/q8/2027/overview/
+Audi,RS 3,Base,2027,2.5L turbo I5 7-speed S tronic quattro AWD,394,2.5,I5,https://www.audiusa.com/en/models/a3/rs3-sedan/2027/overview/
+Audi,RS 6 Avant,Performance,2026,4.0L twin-turbo V8 mild hybrid 8-speed tiptronic quattro AWD,621,4.0,V8,https://www.audiusa.com/en/models/a6/rs6-avant/2026/overview/
+Audi,RS e-tron GT,performance,2027,Dual-motor electric quattro AWD,912,,,https://www.audiusa.com/en/models/e-tron-gt/rs-e-tron-gt/2027/overview/
+Audi,S3,Base,2027,2.0L turbo I4 7-speed S tronic quattro AWD,328,2.0,I4,https://www.audiusa.com/en/models/a3/s3/2027/overview/
+Audi,S5,Premium,2027,3.0L turbo V6 7-speed S tronic quattro AWD,362,3.0,V6,https://www.audiusa.com/en/models/a5/s5/2027/overview/
+Audi,S8,4.0 TFSI quattro,2027,4.0L twin-turbo V8 mild hybrid 8-speed tiptronic quattro AWD,563,4.0,V8,https://www.audiusa.com/en/models/a8/s8-sedan/2027/overview/
+Audi,SQ5,Premium,2027,TFSI S tronic quattro AWD,362,,,https://www.audiusa.com/en/models/q5/sq5/2027/overview/
+Audi,SQ5 Sportback,Premium,2027,TFSI S tronic quattro AWD,362,,,https://www.audiusa.com/en/models/q5/sq5-sportback/2027/overview/
+Mitsubishi,Outlander Sport,S,2027,2.0L 4-cyl / CVT / FWD,148,2.0,I4,https://www.mitsubishicars.com/cars-and-suvs/outlander-sport/specs
+Mitsubishi,Outlander Sport,ES,2027,2.0L 4-cyl / CVT / FWD,148,2.0,I4,https://www.mitsubishicars.com/cars-and-suvs/outlander-sport/specs
+Mitsubishi,Outlander Sport,ES,2027,2.0L 4-cyl / CVT / AWC AWD,148,2.0,I4,https://www.mitsubishicars.com/cars-and-suvs/outlander-sport/specs
+Mitsubishi,Outlander Sport,LE,2027,2.0L 4-cyl / CVT / FWD,148,2.0,I4,https://www.mitsubishicars.com/cars-and-suvs/outlander-sport/specs
+Mitsubishi,Outlander Sport,LE,2027,2.0L 4-cyl / CVT / AWC AWD,148,2.0,I4,https://www.mitsubishicars.com/cars-and-suvs/outlander-sport/specs
+Mitsubishi,Outlander Sport,SE,2027,2.0L 4-cyl / CVT / FWD,148,2.0,I4,https://www.mitsubishicars.com/cars-and-suvs/outlander-sport/specs
+Mitsubishi,Outlander Sport,SE,2027,2.0L 4-cyl / CVT / AWC AWD,148,2.0,I4,https://www.mitsubishicars.com/cars-and-suvs/outlander-sport/specs
+Mitsubishi,Outlander Sport,SEL,2027,2.4L 4-cyl / CVT / AWC AWD,168,2.4,I4,https://www.mitsubishicars.com/cars-and-suvs/outlander-sport/specs
+Mitsubishi,Outlander Sport,Trail Edition,2027,2.0L 4-cyl / CVT / AWC AWD,148,2.0,I4,https://www.mitsubishicars.com/cars-and-suvs/outlander-sport/specs
+Mitsubishi,Outlander Sport,Ralliart,2027,2.0L 4-cyl / CVT / AWC AWD,148,2.0,I4,https://www.mitsubishicars.com/cars-and-suvs/outlander-sport/specs
+Mitsubishi,Eclipse Cross,ES,2026,1.5L turbo 4-cyl / CVT / S-AWC AWD,152,1.5,I4,https://www.mitsubishicars.com/cars-and-suvs/eclipse-cross/specs
+Mitsubishi,Eclipse Cross,LE,2026,1.5L turbo 4-cyl / CVT / S-AWC AWD,152,1.5,I4,https://www.mitsubishicars.com/cars-and-suvs/eclipse-cross/specs
+Mitsubishi,Eclipse Cross,SE,2026,1.5L turbo 4-cyl / CVT / S-AWC AWD,152,1.5,I4,https://www.mitsubishicars.com/cars-and-suvs/eclipse-cross/specs
+Mitsubishi,Eclipse Cross,Black Edition,2026,1.5L turbo 4-cyl / CVT / S-AWC AWD,152,1.5,I4,https://www.mitsubishicars.com/cars-and-suvs/eclipse-cross/specs
+Mitsubishi,Eclipse Cross,SEL,2026,1.5L turbo 4-cyl / CVT / S-AWC AWD,152,1.5,I4,https://www.mitsubishicars.com/cars-and-suvs/eclipse-cross/specs
+Mitsubishi,Eclipse Cross,Ralliart,2026,1.5L turbo 4-cyl / CVT / S-AWC AWD,152,1.5,I4,https://www.mitsubishicars.com/cars-and-suvs/eclipse-cross/specs

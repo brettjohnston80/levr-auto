@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { FinalizeChoice } from "@/components/finalize-choice";
+import { TESTER_INSTANT_START_ENABLED } from "@/lib/tester-sample-offers";
+import { isTestEmail } from "@/lib/test-accounts";
 import { getFinalizeChoiceData } from "@/lib/finalize-choice-data";
 
 export const metadata: Metadata = {
@@ -68,6 +70,7 @@ export default async function FinalizePage({
           modelYear={(search.model_year as number | null) ?? null}
           modelYearOptions={modelYearOptions}
           inventoryBlock={inventoryBlock}
+          startsImmediately={TESTER_INSTANT_START_ENABLED && isTestEmail(user.email)}
         />
       </div>
     </section>

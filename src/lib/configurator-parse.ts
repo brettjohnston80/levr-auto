@@ -42,6 +42,8 @@ export interface ParsedOption extends ParsedPrice {
   packagePriceCents: number | null;
   packageContents: string[] | null;
   notes: string | null;
+  /** Installed by the dealer/port, not the factory. Set by the import's dealer-installed rule (configurator-dealer-installed.ts). */
+  dealerInstalled: boolean;
 }
 
 export interface ParsedPackage {
@@ -328,6 +330,7 @@ export function parseOptionColumn(
       packagePriceCents: null,
       packageContents: null,
       notes: note,
+      dealerInstalled: false,
     };
 
     if (availability === "package_only") {

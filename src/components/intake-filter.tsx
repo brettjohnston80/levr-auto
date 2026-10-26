@@ -5,7 +5,7 @@ import { MAKES_AND_MODELS as FALLBACK_MAKES_AND_MODELS, FLAT_PRICE, withCurrent 
 import type { MakeModelOptions, ModelYearOptions } from "@/lib/intake-vehicle-options";
 import { soleYearForModel, yearsForModel } from "@/lib/model-year-select";
 import { countNearbyInventory } from "@/lib/inventory-count";
-import { INVENTORY_RADIUS_MILES } from "@/lib/inventory-radius";
+import { nearbyInventoryCopy } from "@/lib/inventory-radius";
 import { createClient } from "@/lib/supabase/client";
 import { saveIntakeSearch, saveUndecidedIntakeSearch } from "@/lib/intake-actions";
 import type { IntakeChoices, MatchmakerContext } from "@/lib/intake-choices";
@@ -225,7 +225,7 @@ function MatchCounter({
   if (count === 0) {
     return (
       <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-1.5 text-xs font-semibold text-amber-300">
-        No nearby matches yet — we can search nationwide for you.
+        {nearbyInventoryCopy(0)}
       </div>
     );
   }
@@ -239,7 +239,7 @@ function MatchCounter({
       }`}
     >
       <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-      {count.toLocaleString()} {count === 1 ? "vehicle" : "vehicles"} within {INVENTORY_RADIUS_MILES} miles
+      {nearbyInventoryCopy(count)}
     </div>
   );
 }
@@ -594,8 +594,8 @@ export function IntakeFilter({
             </div>
 
             <p className="mt-6 text-xs text-zinc-500">
-              You&apos;ll fine-tune trim, color, and options right after checkout — before we
-              start reaching out to dealers.
+              After checkout you&apos;ll choose your exact trim, color and options. Your agent then
+              goes to dealers for that car, so every offer is for what you chose.
             </p>
           </div>
         </div>
@@ -644,9 +644,7 @@ export function IntakeFilter({
                 <p
                   className={`mt-1 text-xs font-medium ${matchCount === 0 ? "text-amber-400" : "text-emerald-400"}`}
                 >
-                  {matchCount === 0
-                    ? `No nearby matches yet — we can search nationwide for you.`
-                    : `${matchCount.toLocaleString()} ${matchCount === 1 ? "vehicle matches" : "vehicles match"} within ${INVENTORY_RADIUS_MILES} miles`}
+                  {nearbyInventoryCopy(matchCount)}
                 </p>
               )}
             </div>

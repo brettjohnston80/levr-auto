@@ -9,6 +9,7 @@ import {
   configuratorFuelClass,
   listingPowertrainClass,
   matchConfiguratorTrim,
+  bodySplitFor,
   normalizeTrimForMatch,
   sortChoices,
   type ConfiguratorChoice,
@@ -17,7 +18,7 @@ import {
   type MatchOutcome,
   type PowertrainClass,
 } from "@/lib/configurator-matching";
-import type { TrimOption } from "@/lib/finalize-trims";
+import type { BodySplitter, TrimOption } from "@/lib/finalize-trims";
 
 // Server-side read path for the configurator question flow (step 7 of 9).
 //
@@ -54,6 +55,7 @@ interface OptionRow {
   package_name: string | null;
   package_price_cents: number | null;
   package_contents: string[] | null;
+  dealer_installed: boolean;
 }
 
 // CHOICE_AVAILABILITY now lives in configurator-matching.ts (2026-09-16) --
@@ -82,6 +84,7 @@ function toChoice(row: OptionRow): ConfiguratorChoice {
     packageName: row.package_name,
     packagePriceCents: row.package_price_cents,
     packageContents: row.package_contents,
+    dealerInstalled: row.dealer_installed === true,
   };
 }
 
@@ -212,8 +215,10 @@ export async function getConfiguratorQuestionsForTrims(
   const results = new Map<string, TrimGatingResult>();
   const matchedTrimIds = new Set<string>();
   for (const option of trimOptions) {
-    const outcome = matchConfiguratorTrim(candidates, {
-      trim: option.trim,
+    // A body-split option (2026-10-16) matches only the research rows of its own body.
+    const pool = option.body ? candidates.filter((c) => bodyStyleById.get(c.id) === option.body) : candidates;
+    const outcome = matchConfiguratorTrim(pool, {
+      trim: option.baseTrim ?? option.trim,
       year: option.year,
       // A trim split by powertrain (buildTrimOptions, 2026-10-11) carries
       // its own; every other option uses its listings' powertrains.
@@ -233,7 +238,7 @@ export async function getConfiguratorQuestionsForTrims(
       const { data, error } = await admin
         .from("configurator_options")
         .select(
-          "id, trim_id, category, name, availability, price_cents, price_is_included, package_name, package_price_cents, package_contents",
+          "id, trim_id, category, name, availability, price_cents, price_is_included, package_name, package_price_cents, package_contents, dealer_installed",
         )
         .in("trim_id", chunk)
         .order("id")
@@ -460,7 +465,7 @@ async function loadDrivetrainTwins(
       const { data, error } = await admin
         .from("configurator_options")
         .select(
-          "id, trim_id, category, name, availability, price_cents, price_is_included, package_name, package_price_cents, package_contents",
+          "id, trim_id, category, name, availability, price_cents, price_is_included, package_name, package_price_cents, package_contents, dealer_installed",
         )
         .in("trim_id", chunk)
         .order("id")
@@ -535,7 +540,7 @@ export async function getConfiguratorQuestionsForResolvedTrimIds(
       const { data, error } = await admin
         .from("configurator_options")
         .select(
-          "id, trim_id, category, name, availability, price_cents, price_is_included, package_name, package_price_cents, package_contents",
+          "id, trim_id, category, name, availability, price_cents, price_is_included, package_name, package_price_cents, package_contents, dealer_installed",
         )
         .in("trim_id", chunk)
         .order("id")
@@ -584,3 +589,45 @@ export async function getConfiguratorQuestionsForResolvedTrimIds(
 
 /** Re-exported so callers need only one import for the common case. */
 export { configuratorFuelClass };
+
+
+/**
+ * The body splitter for one make/model (2026-10-16): built from the LIVE
+ * batch's research rows, so a trim is split by body only when our research
+ * really has a row per body. Null when the make has no live batch or no
+ * such rows, which leaves buildTrimOptions exactly as before.
+ */
+export async function getBodySplitter(make: string | null, model: string | null): Promise<BodySplitter | undefined> {
+  if (!make || !model) return undefined;
+  const admin = createAdminClient();
+  const batchId = await liveConfiguratorBatchId(admin, make);
+  if (!batchId) return undefined;
+  const rows: (ConfiguratorTrimCandidate & { bodyStyle: string | null })[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await admin
+      .from("configurator_trims")
+      .select("id, make, model, trim, model_year, fuel_type, body_style")
+      .eq("batch_id", batchId)
+      .ilike("make", make)
+      .ilike("model", model)
+      .order("id")
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) return undefined;
+    for (const r of data ?? []) {
+      rows.push({
+        id: r.id as string, make: r.make as string, model: r.model as string, trim: r.trim as string,
+        modelYear: r.model_year as number, fuelType: (r.fuel_type as string | null) ?? null, bodyStyle: (r.body_style as string | null) ?? null,
+      });
+    }
+    if (!data || data.length < PAGE_SIZE) break;
+  }
+  const twins = new Set<string>();
+  const seen = new Map<string, Set<string>>();
+  for (const r of rows) {
+    const k = `${normalizeTrimForMatch(r.trim)}::${r.modelYear}`;
+    seen.set(k, (seen.get(k) ?? new Set()).add(r.bodyStyle ?? ""));
+  }
+  for (const [k, b] of seen) if (b.size > 1) twins.add(k);
+  if (twins.size === 0) return undefined;
+  return (trim, year) => bodySplitFor(rows, { trim, year });
+}

@@ -1,0 +1,13 @@
+import puppeteer from "puppeteer-core"; import fs from "node:fs"; import os from "node:os"; import path from "node:path";
+import { createAdminClient } from "../lib/admin.mjs";
+const a = createAdminClient(); const since = new Date(Date.now() - 2000).toISOString();
+const b = await puppeteer.launch({ executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", headless: true, userDataDir: fs.mkdtempSync(path.join(os.tmpdir(), "c1b-ns-")) });
+const p = await b.newPage(); await p.goto("http://localhost:3100/agent", { waitUntil: "networkidle0", timeout: 180000 });
+await p.type('input[name="email"]', `claude-verify-${Date.now()}-x@levrauto-test.invalid`); await p.type('input[name="password"]', "Whatever!1a");
+await p.click('button[type="submit"]'); await p.waitForSelector('[role="alert"]', { timeout: 60000 });
+const msg = await p.evaluate(() => document.querySelector('[role="alert"]').textContent); await b.close();
+const { count } = await a.from("agent_signin_attempts").select("id", { count: "exact", head: true }).gte("created_at", since);
+console.log(`missing secret → "${msg}" | attempts recorded: ${count}`);
+const good = msg.trim() === "That didn't work. Check your details and try again." && count === 0;
+console.log(`${good ? "PASS" : "FAIL"}  without AGENT_SIGNIN_HASH_SECRET, sign-in fails closed with the generic error and records nothing`);
+console.log(`${good ? 1 : 0} passed, ${good ? 0 : 1} failed`);

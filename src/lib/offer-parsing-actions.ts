@@ -3,18 +3,7 @@
 import { getAuthorizedAgent } from "./agent-auth";
 import { getAnthropic } from "./anthropic";
 import type Anthropic from "@anthropic-ai/sdk";
-
-export interface ParsedOfferAddon {
-  description: string;
-  amountCents: number;
-}
-
-export interface ParsedOffer {
-  dealerName: string | null;
-  dealerContact: string | null;
-  offerPriceCents: number | null;
-  addons: ParsedOfferAddon[];
-}
+import { toParsedOffer, type ParsedOffer } from "./offer-parse-normalize";
 
 export type ParseDealerOfferResult = { ok: true; parsed: ParsedOffer } | { ok: false; error: string };
 
@@ -43,15 +32,25 @@ const EXTRACT_OFFER_TOOL: Anthropic.Tool = {
       offer_price_dollars: {
         type: ["number", "null"],
         description:
-          "The dealer's offered price for the vehicle itself, in dollars, NOT including any itemized " +
-          "add-on fees (list those separately in addons). This is the dealer's price, never the vehicle's " +
-          "MSRP or sticker price -- do not extract or infer MSRP under any circumstances. Null if no clear " +
-          "vehicle price is stated.",
+          "The dealer's offered price for the vehicle itself, in dollars, as the dealer states it, NOT " +
+          "including any itemized add-on fees (list those separately in addons) and NOT including a " +
+          "destination charge the dealer lists separately (put that in destination_dollars). This is the " +
+          "dealer's price, never the vehicle's MSRP or sticker price -- do not extract or infer MSRP under " +
+          "any circumstances. Null if no clear vehicle price is stated.",
+      },
+      destination_dollars: {
+        type: ["number", "null"],
+        description:
+          "The manufacturer's destination charge (also called destination and handling, freight, or " +
+          "delivery, processing and handling), in dollars, ONLY when the dealer lists it as a separate " +
+          "amount on top of the vehicle price. Null if it isn't listed separately or the dealer says the " +
+          "price already includes it. Never put destination in addons.",
       },
       addons: {
         type: "array",
         description:
-          "Itemized fees beyond the vehicle price itself (doc fee, destination, dealer add-ons, etc.), " +
+          "Itemized fees beyond the vehicle price itself (doc fee, dealer add-ons, etc.), never the " +
+          "destination charge (that goes in destination_dollars), " +
           "each with its own description and dollar amount. Empty array if none are itemized.",
         items: {
           type: "object",
@@ -72,29 +71,6 @@ const SYSTEM_PROMPT =
   "review and can edit everything you extract before it's saved -- accuracy matters, but when something " +
   "is ambiguous or absent, leave it null/empty rather than guessing. Always respond by calling the " +
   "extract_dealer_offer tool.";
-
-function toParsedOffer(input: Record<string, unknown>): ParsedOffer {
-  const rawAddons = Array.isArray(input.addons) ? input.addons : [];
-  const addons: ParsedOfferAddon[] = rawAddons
-    .filter((a): a is { description: unknown; amount_dollars: unknown } => typeof a === "object" && a !== null)
-    .map((a) => ({
-      description: String(a.description ?? "").trim(),
-      amountCents: Math.round(Number(a.amount_dollars ?? 0) * 100),
-    }))
-    .filter((a) => a.description.length > 0 && Number.isFinite(a.amountCents) && a.amountCents > 0);
-
-  const priceDollars = input.offer_price_dollars;
-  const offerPriceCents =
-    typeof priceDollars === "number" && Number.isFinite(priceDollars) ? Math.round(priceDollars * 100) : null;
-
-  return {
-    dealerName: typeof input.dealer_name === "string" && input.dealer_name.trim() ? input.dealer_name.trim() : null,
-    dealerContact:
-      typeof input.dealer_contact === "string" && input.dealer_contact.trim() ? input.dealer_contact.trim() : null,
-    offerPriceCents,
-    addons,
-  };
-}
 
 /**
  * Parses a dealer reply -- pasted text or an uploaded offer-sheet PDF --

@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { parse } from "csv-parse/sync";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { parseConfiguratorRow, type ParsedOption } from "@/lib/configurator-parse";
+import { engineFactsFromRows, heldModelsFromJson, mapConfiguratorRows, type MappingReport } from "@/lib/configurator-mapping";
+import { applyDealerInstalledRule, dealerInstalledPackagesFromRows, type DealerInstalledPackage, type DealerInstalledReport } from "@/lib/configurator-dealer-installed";
 
 // Durable import for the Toyota/Honda configurator datasets (step 4 of 9),
 // same shape as import-vehicle-dataset: CRON_SECRET-gated, one new
@@ -55,6 +57,47 @@ export async function POST(req: NextRequest) {
     Array.isArray(body.makes) && body.makes.length > 0 ? body.makes.map((m: unknown) => String(m)) : null;
   // See parsePrice: a blank price means "not published" in this source.
   const parseOptions = { blankPriceUnknown: body.blankPriceUnknown === true };
+  // The mechanical D2 rules (configurator-mapping.ts), opt-in so every
+  // existing import (Toyota/Honda, Wave 1) behaves exactly as before.
+  // engineFactsFile: the Cowork re-pass's official hp/size table (data/...csv).
+  const useMapping = body.mapping === true;
+  let engineFacts: ReturnType<typeof engineFactsFromRows> | undefined;
+  // One file or a list (pass 3 added its own facts file, 2026-10-16); later files win on the same engine.
+  const factsFiles: string[] = typeof body.engineFactsFile === "string" ? [body.engineFactsFile] : Array.isArray(body.engineFactsFile) ? body.engineFactsFile.map(String) : [];
+  if (useMapping && factsFiles.length > 0) {
+    const factRows: Record<string, string>[] = [];
+    for (const f of factsFiles) {
+      try {
+        factRows.push(...(parse(readFileSync(join(process.cwd(), "data", f), "utf-8"), { columns: true, skip_empty_lines: true }) as Record<string, string>[]));
+      } catch {
+        return NextResponse.json({ error: `could not read data/${f}` }, { status: 400 });
+      }
+    }
+    engineFacts = engineFactsFromRows(factRows);
+  }
+  // Models held out of the import until released (shared with the Matchmaker
+  // dataset build). Read every time the mapping runs; a missing or broken
+  // file stops the import rather than letting held rows through.
+  let heldModels: ReturnType<typeof heldModelsFromJson> = [];
+  if (useMapping) {
+    try {
+      heldModels = heldModelsFromJson(readFileSync(join(process.cwd(), "data", "held-models.json"), "utf-8"));
+    } catch (e) {
+      return NextResponse.json({ error: `could not read data/held-models.json: ${(e as Error).message}` }, { status: 400 });
+    }
+  }
+  // GM's dealer-installed packages (restored from pass 3, 2026-10-17).
+  // Read with the mapping, like held models; a missing file stops the import.
+  let dealerInstalledPackages: DealerInstalledPackage[] = [];
+  if (useMapping) {
+    try {
+      const diText = readFileSync(join(process.cwd(), "data", "configurator-dealer-installed-packages-2026-10.csv"), "utf-8");
+      dealerInstalledPackages = dealerInstalledPackagesFromRows(parse(diText, { columns: true, skip_empty_lines: true, trim: true }));
+    } catch (e) {
+      return NextResponse.json({ error: `could not read data/configurator-dealer-installed-packages-2026-10.csv: ${(e as Error).message}` }, { status: 400 });
+    }
+  }
+  const mappingReports: Record<string, MappingReport> = {};
 
   // --- read + parse every file before touching the DB -------------------
   const parsedRows = [];
@@ -68,7 +111,12 @@ export async function POST(req: NextRequest) {
     // `trim: false` on purpose: the delimited option strings carry
     // meaningful leading/trailing spaces around ' | ' and ' ;; ', and the
     // parser handles its own trimming per field.
-    const rawRows: CsvRow[] = parse(csvText, { columns: true, skip_empty_lines: true, trim: false });
+    let rawRows: CsvRow[] = parse(csvText, { columns: true, skip_empty_lines: true, trim: false });
+    if (useMapping) {
+      const mapped = mapConfiguratorRows(rawRows, { engineFacts, heldModels });
+      mappingReports[filename] = mapped.report;
+      rawRows = mapped.rows;
+    }
     for (const raw of rawRows) {
       const row = parseConfiguratorRow(raw, parseOptions);
       if (makes && !makes.includes(row.make)) continue;
@@ -77,6 +125,14 @@ export async function POST(req: NextRequest) {
   }
   if (parsedRows.length === 0) {
     return NextResponse.json({ error: "no rows matched" }, { status: 400 });
+  }
+  // GM's LPO code on any import; the listed packages only with the mapping.
+  const dealerInstalled: DealerInstalledReport = applyDealerInstalledRule(parsedRows, dealerInstalledPackages);
+  // Two rows with the same trim identity would fail the unique constraint
+  // half-way; refuse before anything is written.
+  const collisions = Object.values(mappingReports).flatMap((r) => r.collisions);
+  if (collisions.length > 0) {
+    return NextResponse.json({ error: "mapping produced duplicate trims", collisions }, { status: 400 });
   }
 
   // --- aggregate counts + the audit trail for dropped items -------------
@@ -187,6 +243,7 @@ export async function POST(req: NextRequest) {
         package_price_cents: o.packagePriceCents,
         package_contents: o.packageContents,
         notes: o.notes,
+        dealer_installed: o.dealerInstalled,
       });
     }
   });
@@ -214,5 +271,14 @@ export async function POST(req: NextRequest) {
     dropped,
     availability,
     availabilityMethod,
+    dealerInstalled,
+    mapping: useMapping
+      ? Object.fromEntries(
+          Object.entries(mappingReports).map(([file, r]) => [
+            file,
+            { rowsIn: r.rowsIn, rowsOut: r.rowsOut, changed: r.changed, unmapped: r.unmapped, dropped: r.dropped, corrections: r.corrections, held: r.held },
+          ]),
+        )
+      : null,
   });
 }

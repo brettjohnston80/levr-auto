@@ -39,6 +39,7 @@ Until then, agent management happens through the database functions (`add_agent`
 | The hourly jobs running from a preview | Vercel only runs cron jobs on the **production** deployment, so a preview never triggers them. Beyond that, the new sweep route returns `skipped: not production` unless `process.env.VERCEL_ENV === "production"` or it's running locally under `next dev`. |
 | Assigning real searches, sending emails, or calling Stripe from a preview | One helper, `src/lib/runtime-env.ts`, provides `isPreviewDeploy()` (how it tells local, preview and production apart is in section 1.1). Every new side-effecting path refuses to run on a preview: the payment-time assignment, the sweeps, alert emails, refund issuing and recording, and the assigned-agent call email. Stripe's webhook only points at `www`, so a preview never receives payments in the first place. |
 | Local testing reaching a real inbox or real money | Local `next dev` uses the production database, Stripe **test mode** keys, and the real ZeptoMail key. So:<br>(1) all test data is on disposable scratch accounts, created, used, deleted and confirmed by count;<br>(2) scratch agents are inserted with `in_rotation = false`, so no real payment can be assigned to one;<br>(3) outside production, agent and alert emails are only ever sent to `@levrauto-test.invalid` recipients, which `sendEmail` already suppresses. Any other recipient is logged, not sent. So local testing never emails Brett;<br>(4) refunds only touch payments on scratch accounts, in Stripe test mode. |
+| A test acting as a real agent (added 2026-10-12) | **No test ever acts as LEVRID 1 or any real agent, even for writes deleted afterwards.** Runs needing a lead or admin actor act as the persistent test admin `claude-verify-admin@levrauto-test.invalid` (Brett's choice (a); created by Step 13: no LEVRID, out of rotation, never linked to a login, never deleted). Each run deletes only the rows it wrote, confirms by count, and fails if Brett's activity count changed. Step 13 also makes the last-admin/lead checks, the no-lead alert fallback, admin-audience alerts and agent lists ignore test-domain agents. Before Step 13, Brett created a one-off test admin with a SQL Editor snippet. |
 
 ### 1.1 Telling local, preview and production apart (found 2026-10-12)
 Brett's local `.env.local` contains `VERCEL_ENV="production"`, put there by `vercel env pull`. So `VERCEL_ENV` alone can't tell local dev from production. `src/lib/runtime-env.ts` therefore uses:
@@ -160,6 +161,10 @@ Chunk 1 is now six small chunks, **1a–1f**, described in section 7. Each one e
 
   It runs from the hourly sweep route, and straight after any `assignSearch` that returned an `alert_id`. Skipped on a preview. Outside production, only test-suffix recipients get mail (chunk 0).
 - **Files:** `src/lib/agent-alerts.ts` (new), `src/app/api/cron/agent-sweeps/route.ts`, `src/lib/search-assignment.ts`.
+- **Added in review (2026-10-14, Brett):**
+  - **Auto-resolve:** an open `assignment_failed` alert closes itself once the search has an agent (payment-time or sweep assignment, any switch path for the old and new search, or `reassignSearch`). `resolved_by_agent_id` stays null; `details` gains `auto_resolved: true` and `auto_resolved_by`.
+  - **Known gap, accepted for now:** a reassignment run directly in the SQL Editor (`reassign_search` outside the app) does **not** close the alert. Closing it there would need a database trigger; revisit with the Phase 3 alerts screen.
+  - The immediate lead-fallback / no-lead emails are tested with a test-only empty-rotation simulation (`AGENT_ASSIGN_SIMULATE_NO_ROTATION=1`, ignored in production), never by changing a real rotation.
 - **Verified by:**
   - scratch lead and admin agents (`@levrauto-test.invalid`, so sends are suppressed and logged), plus three scratch alerts:
     - one `assignment_lead_fallback` → leads;
@@ -192,6 +197,10 @@ Chunk 1 is now six small chunks, **1a–1f**, described in section 7. Each one e
   3. records it for its real amount, with reason `guarantee`.
 - **Cancellation reasons:** `resolveCancellation` takes a reason per refund line and calls `record_payment_refund` instead of `record_refund`.
 - **Who can use them:** any agent (decided).
+- **Decided in review (2026-10-14, Brett):**
+  - **Switch chains:** a guarantee refund follows the switch chain back to the original $699 payment.
+  - **$100 paid-switch fees are refunded too:** each fee on the chain is its own Stripe refund (its own idempotency key `guarantee_<search>_<payment>`), recorded with reason `guarantee`; the confirm and success texts show the total and each part. "Record a refund already issued in Stripe" accepts a refund of any fee on the chain.
+  - Part-refunded rows stay on the list, showing what's left.
 - **Files:**
   - `src/app/internal/refunds-due/page.tsx`;
   - `src/lib/refunds-due.ts` (remaining balance, refunded rows dropped);
@@ -253,12 +262,175 @@ Chunk 1 is now six small chunks, **1a–1f**, described in section 7. Each one e
   - **screenshots** of the admin table, desktop and phone, in `~/Downloads/agent-phase1-chunk7/`;
   - everything deleted afterwards and confirmed 0.
 
+### Chunk 7b: unpaged reads and long id lists (added 2026-10-14, Brett)
+Found by a codebase-wide sweep after a test cleanup hit PostgREST's silent 1,000-row limit. Two failure modes:
+- **Row limit:** a plain read returns at most 1,000 rows and cuts the rest off silently.
+- **Id-list length:** a `.in()` lookup puts every id in the request URL; measured 2026-10-14, 600 uuids work and about **650 or more are refused ("Bad Request")**. Most call sites ignored that error, so they quietly showed "unknown customer" or skipped everyone.
+
+**Fixed in 7b** (shared helpers in `src/lib/supabase/paged.ts`: `fetchAllPages`, `chunks`, `fetchByIds`):
+1. `dealership-queue.ts` listing counts per dealer (every listing; ~6,000 already, so `/internal/dealerships` counts were wrong on the live site too).
+2. `dealership-queue.ts` unconfirmed dealer aliases (390, growing with every make).
+3. `outreach-queue.ts` listings per searched make/model (dealer list and the Log Offer listing dropdown; Civic 715).
+4. `outreach-queue.ts` listings per make/model for the agent finalization form's trims.
+5. `inventory-count.ts` intake "matching listings near you" count (customer-facing), plus its dealer-ZIP lookup.
+6. Long id lists: `outreach-queue.ts` customers, offers, add-ons, deal progress, documents, configurator selections, trim and combination preferences for active searches, and both message loaders in `offer-messages.ts` (found when the test with 700 active searches made the whole outreach queue fail to load); the customer lookup in all six other agent queues (switch calls, cancellation calls, overdue follow-ups, paused, consultation, blocked); `day60-extension.ts` both customer lookups. `notification-digest.ts` already chunked its lists; it now uses the shared helper.
+
+**Verified 2026-10-14 (before → after, same tests on the code with and without 7b):** intake count 1,000 → 1,100 of 1,100; outreach dealer list 5 dealers / 1,000 listings → 6 / 1,100 (the dealer only in the last 100 listings now appears); agent finalize trims missing "Late Edition" → present; unconfirmed aliases shown 604 → 700 of 700 (queue 1,096); dealership counts 7 per dealer → 200 (late dealer 0 → 100). With 700 active searches (past the ~650-id limit): the outreach queue failed to load → all 700 with emails; switch and cancellation queues 700 rows with 0 emails → 700 with emails; the Day-60 lookup shape refused in one request → 700 rows in chunks.
+
+**Left for the offer-entry phase** (they only grow with real-customer volume; each needs more than 1,000 rows in one state, or ~650 ids, before anything is lost):
+- reads of all searches in one state: `outreach-queue.ts` active searches, finalization calls, switch calls, cancellation calls, overdue follow-ups, paused, consultation, blocked; `day60-extension.ts` reminders, pause and resume reminders; `guarantee-assessment.ts`; `search-solidification.ts`; `post-deal-survey.ts`; `refunds-due.ts`; `social-generation.ts` testimonial and deal selectors; `offer-sheet-cleanup.ts`;
+- `notification-digest.ts` pending daily-update events (more than 1,000 a day);
+- the offer-activity and general-thread queues' customer lookups (`outreach-queue.ts`, `.in("id", customerIds)` with names).
+
 ### Chunk 8: deploy rehearsal (no push)
+**Rehearsed 2026-10-14/15:** merge onto `main` with no conflicts (27 commits, 89 files), `tsc`, `next build --webpack` and lint (the same 9 older errors as `main`) all clean; every chunk's tests passed in one pass (two harness-only stops reran clean: c6-A 24/24, the 1f rehearsal 24/24); the six changed job routes checked under production settings against a stub database (no `?only=` → `scoped: false` and the same queries as `main`; `?only=` → `[job-scoped]` log, `scoped: true` with the ids); cleanup by count 0, Brett's activity 2 → 2.
 - Full `next build`, `tsc --noEmit` and lint.
 - One local end-to-end pass of chunks 3–7 together, on fresh scratch accounts.
 - A written diff summary for Brett.
 - The `vercel.json` branch setting is removed in the merge commit.
 - The deploy-day checklist (section 5) is filled in with the exact commands.
+- **Where the changed scheduled jobs run (added 2026-10-14, `src/lib/job-scope.ts`):** the Day-60 reminder, pause and resume-reminder jobs, the notification digest and the article reminder (their code changed in Phase 1) follow the same rule as the assignment sweep:
+  - **production:** runs the whole job, as Vercel Cron does. A manual call with `?only=<id>,<id>` (it needs `CRON_SECRET`) **is honoured, not ignored**: it limits that run to the named ids. Vercel Cron never sends `?only=`, so scheduled runs are always the whole job;
+  - **preview build:** never runs;
+  - **local and anything else:** refused unless `?only=` names the ids.
+  - **A scoped run is always visible (Brett, 2026-10-14):** it logs `[job-scoped] {job} scoped ids=…`, and its JSON response includes `scoped: true` and the ids, so a manual run is never mistaken for a scheduled one. An unscoped run returns `scoped: false`. The agent sweep does the same for `?only=` (searches) and `?alerts=` (alerts).
+
+
+**Assignment rules test, rolled back (written and run 2026-10-15).** It covers the four assignment rules no scripted run had exercised (traceability A2, A4, A5, A6): continuity; a deactivated agent being skipped; lead fallback when nobody is in rotation; and no lead (unassigned, with an admin alert, and an active admin never picked).
+- **How it avoids touching Brett:** the stand-in agents use non-test `claude-verify-assign-…@levrauto.com` addresses (because `assign_search` ignores `@levrauto-test.invalid` agents), and they exist only inside the transaction. For C and D, `is_test_agent_email()` is redefined inside the transaction so it also counts Brett's address as a test agent, which means nobody real is in rotation without his row ever being updated. The `rollback` restores everything, the function included. Searches go on Brett's own customer record, as in Step 4's test D.
+- **Run by Brett in the SQL Editor, 2026-10-15. Passed:** `continuity | true | round_robin | true | true | lead_fallback | true | assignment_lead_fallback / leads | unassigned | true | assignment_no_lead / admins | true | new_history_rows 3 | brett_row_unchanged true`. After-check: `0 | 0 | 0 | 1 | admin / in rotation true / active true | false | 0` (no stand-ins, searches or history left; LEVRID counter 1; Brett's row unchanged; the function restored; no open alerts).
+- A2, A4, A5 and A6 are now verified by test in `docs/business/system-models/04-traceability-assignment-signin.md` and `05-verification-matrix.md`.
+
+```sql
+-- Phase 1 assignment test, rolled back (2026-10-15). Covers the four rules no run has exercised:
+--   A. continuity        B. a deactivated agent is skipped
+--   C. lead fallback when nobody is in rotation        D. no lead: unassigned + admin alert
+-- Run ALL lines together as one query. Everything ends in ROLLBACK, so nothing is kept.
+-- Your agent row is never updated. Stand-in agents use NON-test addresses, because assign_search
+-- ignores @levrauto-test.invalid agents. For C and D, is_test_agent_email() is redefined INSIDE this
+-- transaction so it also counts your address as a test agent; the ROLLBACK restores the original.
+-- Searches go on your own customer record (bjohnston@levrauto.com), as in Step 4's test D.
+begin;
+
+-- 0. Starting state, for the end checks.
+select set_config('assigntest.brett_row', (select row_to_json(a)::text from public.agents a where a.levrid = 1), true);
+select set_config('assigntest.customer', (select c.id::text from public.customers c join auth.users u on u.id = c.id
+                                          where lower(u.email) = 'bjohnston@levrauto.com'), true);
+
+-- 1. Stand-in agents (flag route, stand-in rows only). Older created_at so they sort ahead of you on ties.
+select set_config('levr.agent_admin', 'on', true);
+insert into public.agents (email, name, role, in_rotation, created_at) values
+  ('claude-verify-assign-cont@levrauto.com',  'CLAUDE VERIFY STAND-IN CONTINUITY',  'agent', true,  '2000-01-02'),
+  ('claude-verify-assign-rr@levrauto.com',    'CLAUDE VERIFY STAND-IN ROUND-ROBIN', 'agent', true,  '2000-01-01'),
+  ('claude-verify-assign-lead@levrauto.com',  'CLAUDE VERIFY STAND-IN LEAD',        'lead',  false, '2000-01-01'),
+  ('claude-verify-assign-admin@levrauto.com', 'CLAUDE VERIFY STAND-IN ADMIN',       'admin', false, '2000-01-01');
+select set_config('levr.agent_admin', 'off', true);
+select set_config('assigntest.cont',  (select id::text from public.agents where email = 'claude-verify-assign-cont@levrauto.com'), true);
+select set_config('assigntest.rr',    (select id::text from public.agents where email = 'claude-verify-assign-rr@levrauto.com'), true);
+select set_config('assigntest.lead',  (select id::text from public.agents where email = 'claude-verify-assign-lead@levrauto.com'), true);
+select set_config('assigntest.admin', (select id::text from public.agents where email = 'claude-verify-assign-admin@levrauto.com'), true);
+
+-- 2. Searches on your customer record: an earlier search already with the continuity stand-in,
+--    then four paid, unassigned searches (one per part).
+select set_config('levr.assignment', 'on', true);
+insert into public.customer_searches (customer_id, make, model, model_year, paid_at, assigned_agent_id, assigned_at)
+values (current_setting('assigntest.customer')::uuid, 'Toyota', 'Camry', 2026, now() - interval '2 days',
+        current_setting('assigntest.cont')::uuid, now() - interval '1 day');
+select set_config('levr.assignment', 'off', true);
+with s as (insert into public.customer_searches (customer_id, make, model, model_year, paid_at)
+           values (current_setting('assigntest.customer')::uuid, 'Toyota', 'Camry', 2026, now()) returning id)
+select set_config('assigntest.s1', (select id::text from s), true);
+with s as (insert into public.customer_searches (customer_id, make, model, model_year, paid_at)
+           values (current_setting('assigntest.customer')::uuid, 'Toyota', 'Camry', 2026, now()) returning id)
+select set_config('assigntest.s2', (select id::text from s), true);
+with s as (insert into public.customer_searches (customer_id, make, model, model_year, paid_at)
+           values (current_setting('assigntest.customer')::uuid, 'Toyota', 'Camry', 2026, now()) returning id)
+select set_config('assigntest.s3', (select id::text from s), true);
+with s as (insert into public.customer_searches (customer_id, make, model, model_year, paid_at)
+           values (current_setting('assigntest.customer')::uuid, 'Toyota', 'Camry', 2026, now()) returning id)
+select set_config('assigntest.s4', (select id::text from s), true);
+
+-- A. Continuity: the customer's other search has an active, in-rotation agent.
+set local role service_role;          -- the role the website uses
+select set_config('assigntest.a', public.assign_search(current_setting('assigntest.s1')::uuid)::text, true);
+reset role;
+
+-- B. Deactivate that agent: continuity must skip it, and round-robin picks the other stand-in.
+select set_config('levr.agent_admin', 'on', true);
+update public.agents set active = false, in_rotation = false where id = current_setting('assigntest.cont')::uuid;
+select set_config('levr.agent_admin', 'off', true);
+set local role service_role;
+select set_config('assigntest.b', public.assign_search(current_setting('assigntest.s2')::uuid)::text, true);
+reset role;
+
+-- C. Nobody in rotation: take the round-robin stand-in out, and (inside this transaction only)
+--    count your address as a test agent, so you don't count as "in rotation". Your row is untouched.
+select set_config('levr.agent_admin', 'on', true);
+update public.agents set in_rotation = false where id = current_setting('assigntest.rr')::uuid;
+select set_config('levr.agent_admin', 'off', true);
+do $do$
+declare v_brett text := (select lower(email) from public.agents where levrid = 1);
+begin
+  execute format($f$create or replace function public.is_test_agent_email(p_email text) returns boolean
+    language sql immutable set search_path = '' as $b$ select lower(coalesce(p_email, '')) like '%%@levrauto-test.invalid' or lower(coalesce(p_email, '')) = %L $b$$f$, v_brett);
+end
+$do$;
+set local role service_role;
+select set_config('assigntest.c', public.assign_search(current_setting('assigntest.s3')::uuid)::text, true);
+reset role;
+
+-- D. No active lead either: deactivate the lead stand-in. The admin stand-in (active) must not be picked.
+select set_config('levr.agent_admin', 'on', true);
+update public.agents set active = false where id = current_setting('assigntest.lead')::uuid;
+select set_config('levr.agent_admin', 'off', true);
+set local role service_role;
+select set_config('assigntest.d', public.assign_search(current_setting('assigntest.s4')::uuid)::text, true);
+reset role;
+
+set constraints all immediate;
+
+-- Results. Expected (one row):
+--   a_method continuity | a_to_continuity_standin true
+--   b_method round_robin | b_to_round_robin_standin true | b_not_to_deactivated true
+--   c_method lead_fallback | c_to_lead_standin true | c_lead_alert assignment_lead_fallback / leads
+--   d_method unassigned | d_search_unassigned true | d_admin_alert assignment_no_lead / admins | d_admin_standin_not_picked true
+--   new_history_rows 3 | brett_row_unchanged true
+select current_setting('assigntest.a')::jsonb->>'method' as a_method,
+       (current_setting('assigntest.a')::jsonb->>'agent_id') = current_setting('assigntest.cont') as a_to_continuity_standin,
+       current_setting('assigntest.b')::jsonb->>'method' as b_method,
+       (current_setting('assigntest.b')::jsonb->>'agent_id') = current_setting('assigntest.rr') as b_to_round_robin_standin,
+       (current_setting('assigntest.b')::jsonb->>'agent_id') is distinct from current_setting('assigntest.cont') as b_not_to_deactivated,
+       current_setting('assigntest.c')::jsonb->>'method' as c_method,
+       (current_setting('assigntest.c')::jsonb->>'agent_id') = current_setting('assigntest.lead') as c_to_lead_standin,
+       (select al.kind || ' / ' || al.audience from public.agent_alerts al
+         where al.search_id = current_setting('assigntest.s3')::uuid and al.resolved_at is null) as c_lead_alert,
+       current_setting('assigntest.d')::jsonb->>'method' as d_method,
+       (select s.assigned_agent_id is null from public.customer_searches s
+         where s.id = current_setting('assigntest.s4')::uuid) as d_search_unassigned,
+       (select al.kind || ' / ' || al.audience from public.agent_alerts al
+         where al.search_id = current_setting('assigntest.s4')::uuid and al.resolved_at is null) as d_admin_alert,
+       not exists (select 1 from public.customer_searches s
+                    where s.customer_id = current_setting('assigntest.customer')::uuid
+                      and s.assigned_agent_id = current_setting('assigntest.admin')::uuid) as d_admin_standin_not_picked,
+       (select count(*) from public.search_assignments sa
+         where sa.search_id in (current_setting('assigntest.s1')::uuid, current_setting('assigntest.s2')::uuid,
+                                current_setting('assigntest.s3')::uuid, current_setting('assigntest.s4')::uuid)) as new_history_rows,
+       (select row_to_json(a)::text from public.agents a where a.levrid = 1) = current_setting('assigntest.brett_row') as brett_row_unchanged;
+
+rollback;
+```
+
+```sql
+-- After the test (read-only). Expected: 0 | 0 | 0 | 1 | admin / in rotation true / active true | false | 0
+select (select count(*) from public.agents where email like 'claude-verify-assign-%@levrauto.com')        as standin_agents_left,
+       (select count(*) from public.customer_searches s join auth.users u on u.id = s.customer_id
+         where lower(u.email) = 'bjohnston@levrauto.com')                                                 as searches_on_your_customer_record,
+       (select count(*) from public.search_assignments)                                                   as assignment_history_rows,
+       (select last_value from public.agent_levrid_counter)                                               as levrid_counter,
+       (select role || ' / in rotation ' || in_rotation || ' / active ' || active from public.agents where levrid = 1) as your_agent_row,
+       public.is_test_agent_email('bjohnston@levrauto.com')                                               as your_address_counts_as_test,
+       (select count(*) from public.agent_alerts where resolved_at is null)                               as open_alerts;
+```
 
 ---
 
@@ -326,7 +498,20 @@ The stored codes are the neutral ones Brett approved on 2026-10-11. The labels a
   - subject `{who} requested a {finalization|switch|cancellation} call — {vehicle}`;
   - body as today, with the contact list and the "Open this request on /internal/outreach" link.
 - **Only the recipients change** (chunk 6).
-- **Optional addition, open question C5:** one line at the top, `This search is assigned to you.`
+- **Addition approved (C5):** one line at the top. The full email, as it will be sent:
+  - **Subject:** `{customer name or email} requested a {finalization|switch|cancellation} call — {year make model}`
+  - **Body:**
+    > This search is assigned to you.
+    >
+    > {customer name or email} asked for a call to {finalize the trim, color, and options on their | switch away from their current | talk through cancelling their} {year make model} search.
+    >
+    > - Name: {name}
+    > - Email: {email}
+    > - Phone: {phone}
+    >
+    > [Open this request on /internal/outreach]({link to the request's section})
+  - **Example:** "Jane Smith requested a switch call — 2026 Toyota Camry" / "This search is assigned to you. Jane Smith asked for a call to switch away from their current 2026 Toyota Camry search." Contact lines appear only when that detail is on file.
+  - **Sent elsewhere:** when the email goes to leads or admins instead (no agent assigned, or a test account), the first line is left out.
 
 ### 3.6 Agent sign-in pages (`/agent`)
 | Where | Draft text |
@@ -381,6 +566,7 @@ The stored codes are the neutral ones Brett approved on 2026-10-11. The labels a
   - the assignment sweep pages 500 at a time, with a soft cap of 2,000 searches a run;
   - alerts go 50 at a time.
   - Each run returns its counts in the JSON response, so a manual run shows exactly what happened.
+- **A manual run limited to named ids** (`?only=`, and `?alerts=` for the sweep) works in production too: it is logged as `[job-scoped]` and its response says `scoped: true` with the ids (see Chunk 8). Scheduled runs never send it.
 
 ---
 
@@ -398,43 +584,418 @@ The stored codes are the neutral ones Brett approved on 2026-10-11. The labels a
 | Refund buttons move real money | Production Stripe is still in test mode until the live-mode launch item. Once live, Issue refund moves real money, so the wording says so, and it needs the confirm step plus the idempotency key |
 | A merge conflict with `main` work during the round | The branch is rebased on `main` before the rehearsal (chunk 8); any conflict is shown to Brett |
 
-### 5.2 Deploy-day checklist (after the tester round, on Brett's go-ahead)
-1. **Brett confirms:** the tester round is over; any tester cleanup is done or deferred; every chunk is approved; all wording in section 3 is signed off.
-2. **Counts before the deploy** (read-only query, saved):
-   - real paid searches with no agent, expected = real paid searches since Step 10;
-   - open `agent_alerts`;
-   - `agent_activity_log` rows.
-3. **Merge and push:** rebase the branch on `main`, remove the branch's `vercel.json` setting, merge into `main`, push. Vercel builds production.
-4. **Wait for the deployment to be Ready.** Check the `x-vercel-id` region is `pdx1`, and that the cron list shows `agent-sweeps` at `15 * * * *`.
-5. **Run the first sweep by hand:**
+### 5.2 Deploy-day checklist and walkthrough script (after the tester round, on Brett's go-ahead; revised 2026-10-15)
+Commands, ids and SQL filled in by the Chunk 8 rehearsal (2026-10-14). Ids checked read-only that day: LEVRID 1's agent row `9c1b5cde-e8bf-4928-be66-529f13197e85`, linked to the `bjohnston@` login `3213ecaa-c459-4c6e-8109-1a0cf59bde50`; no `brett@` login yet.
+
+**Deploy day is one walkthrough session of about 90 minutes (Brett, 2026-10-15), not only the cutover.** Part 1 is the deploy and the cutover (steps 0–9, unchanged). Part 2 (step 10) is a guided tour of every screen, flow and email Phase 1 changed, on the live site, with what to see and check at each stop. Part 3 (steps 11–13) is cleanup, watching and rollback. Brett drives; Claude runs only the steps marked **(Claude)**, and only once Brett says go on the day.
+
+**Ground rules for the whole session:**
+- **No real money moves.** Stripe stays in test mode; before typing a card on any checkout page, check it shows Stripe's **"Test mode"** label, and use only Stripe's test card `4242 4242 4242 4242` (any future date, any CVC). No live-mode key is set anywhere.
+- **No real customer gets an email.** The only customer used is a disposable walkthrough customer on a `.invalid` address, which never receives email. Agent emails go to Brett's own two addresses.
+- **Off limits all session:** `tester1`–`tester11@levrauto-test.invalid`, `brett-deal-review@levrauto-test.invalid`, `test-verification@levrauto.invalid`, and every real customer. Look at their rows on the agent pages if they appear; never click an action on them.
+- **On real rows, look only.** No Approve on articles or social posts, no Merge on dealerships, no Log offer, no Mark purchased.
+- Two browsers (or two Chrome profiles): **Browser A** for Brett (`brett@`), **Browser B** for the training agent and the walkthrough customer. One browser shares one sign-in, so signing in as someone else in the same browser signs the other person out.
+
+**Before the day (prep):**
+- P1. **The training agent's mailbox:** create the Zoho alias `training@levrauto.com`, delivering to Brett's inbox (Brett, before the day). The tour adds **"LEVR Training Agent"** (`training@levrauto.com`, role Agent), which uses up **LEVRID 2** (Brett, 2026-10-15). It's a **permanent** training and demo agent, not a throwaway: taken out of rotation as soon as it's added, deactivated at the end of the session, and **never deleted**, so it can be reactivated for later walkthroughs and the agent training materials.
+- P2. An authenticator app for the training agent (a second entry on your phone is fine).
+- P3. **MarketCheck:** the walkthrough customer pays for a Toyota Camry. The payment webhook's inventory sync runs for it (test accounts aren't skipped there yet), costing up to 3 calls, or none if Camry was synced in the last 24 hours. Accepted by Brett (2026-10-15).
+
+**Part 1: deploy and cutover (about 20 minutes)**
+
+
+0. **Brett's go-ahead:**
+   - the tester round is over; tester cleanup is done or deferred;
+   - every chunk is approved (0–7b and the Chunk 8 rehearsal) and all wording in section 3 is signed off;
+   - **turn off `ALLOW_TEST_SEEDING`** in Vercel Production once tester cleanup is done;
+   - Stripe stays in test mode (live mode waits for the offer-entry phase);
+   - **Chunks 1b and 1d ship together, never 1b alone** (section 7.4), and **the 1f cutover completes before or at the deploy, never after** (section 5.3): once 1d is live, `bjohnston@levrauto.com` (a customer login) can no longer reach `/internal`, and Brett is the only admin.
+1. **Migrations (read-only check in the SQL Editor):** Steps 1–16 are applied. No migration runs on the day.
+   ```sql
+   select (select count(distinct p.proname) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public' and p.proname in ('assign_search', 'reassign_search', 'claim_cron_job', 'release_cron_job',
+             'record_payment_refund', 'revoke_login_sessions', 'relink_agent_login', 'link_agent_login', 'log_agent_activity',
+             'agent_alert_recipients', 'is_test_customer'))                                        as phase1_functions,
+          (select is_nullable from information_schema.columns where table_schema = 'public'
+             and table_name = 'agent_activity_log' and column_name = 'agent_id')                    as activity_agent_nullable,
+          (select count(*) from public.agent_activity_types where code = 'call_request_resolved_by_customer') as step16_activity_type,
+          (select count(*) from public.refund_reasons where is_active)                               as active_refund_reasons;
+   ```
+   Expected: `phase1_functions` 11, `activity_agent_nullable` YES, `step16_activity_type` 1, `active_refund_reasons` 5. (Checked from the app 2026-10-14 by reading every Phase 1 table and calling the read-only functions: all present.)
+2. **Environment:** `vercel env ls production` (names only) lists every variable the code reads (including `AGENT_SIGNIN_HASH_SECRET`) and none of the test-only switches (`AGENT_*_FORCE_*`, `AGENT_ASSIGN_SIMULATE_NO_ROTATION`, `AGENT_ADMIN_USERS_PAGE_SIZE`, `AGENT_IDLE_LIMIT_MS_OVERRIDE`); `NEXT_PUBLIC_SITE_URL` is `https://www.levrauto.com`; Supabase Email OTP Expiration is still 3600 (matches `SETUP_LINK_LIFETIME_SECONDS`).
+3. **Record baseline counts** (read-only; save the result and the time):
+   ```sql
+   select now()                                                                   as baseline_at,
+          (select count(*) from public.customer_searches s join auth.users u on u.id = s.customer_id
+            where s.paid_at is not null and s.search_status not in ('switched', 'cancelled', 'closed')
+              and lower(u.email) not like '%.invalid')                            as real_paid_active,
+          (select count(*) from public.customer_searches s join auth.users u on u.id = s.customer_id
+            where s.paid_at is not null and s.search_status not in ('switched', 'cancelled', 'closed')
+              and lower(u.email) not like '%.invalid' and s.assigned_agent_id is null) as real_paid_no_agent,
+          (select count(*) from public.agent_alerts where resolved_at is null)       as open_alerts,
+          (select count(*) from public.agent_activity_log)                          as activity_rows,
+          (select a.role || ' / in rotation ' || a.in_rotation || ' / active ' || a.active || ' / ' || a.email
+             from public.agents a where a.levrid = 1)                                as levrid1;
+   ```
+   On 2026-10-14 (rehearsal): 0 real paid active searches, 0 with no agent, 0 open alerts; LEVRID 1 admin / in rotation true / active true / bjohnston@levrauto.com.
+4. **1f Part A, before the merge** (section 5.3; Brett's old access keeps working): Claude runs `scripts/agent-cutover-prepare.mjs` on the branch's local server; Brett sets his password, enrolls his authenticator (plus a backup device) and signs in once on the local branch server.
+5. **Merge and push:** rebase the branch on `main`, remove the branch's `git.deploymentEnabled` line from `vercel.json` in the merge commit, merge into `main`, push. Vercel builds production.
+6. **Wait for Ready:** the `x-vercel-id` region is `pdx1`; the cron list shows `agent-sweeps` at `15 * * * *`.
+7. **1f Part B, straight after Ready, before the sweep** (section 5.3): one SQL Editor transaction removes the holder row and runs `relink_agent_login`; Brett signs in at `www.levrauto.com/agent` as `brett@`; `bjohnston@` is refused at `/internal`.
+8. **First sweep by hand:**
    ```
    curl -s -H "Authorization: Bearer $CRON_SECRET" https://www.levrauto.com/api/cron/agent-sweeps
    ```
-   Expected response:
-   - `assigned` = the count from step 2;
-   - `skipped_test` = the number of paid test-account searches;
-   - `alerts_sent` = 0, or the number of alerts if nobody was in rotation.
-6. **Check after the sweep** (read-only):
-   - real paid searches with no agent = **0**;
-   - `search_assignments` rows added = `assigned`, with method `round_robin` or `continuity`;
-   - test-account searches with an agent = **0**;
-   - no `[agent-activity-failed]` or error lines in production logs for the last 15 minutes.
-7. **Smoke test as Brett:**
-   - `/internal/outreach` and `/internal/admin` load, and the admin table shows assigned agents;
-   - `/internal/refunds-due` loads; no money buttons are clicked unless a real refund is due.
-8. **Watch:**
-   - the next scheduled `:15` sweep runs (cron log) with `assigned 0`;
-   - the next real payment, if any, gets an agent within seconds (webhook) rather than waiting for the sweep.
-8b. **Brett's agent login cutover (Chunk 1f, section 7.7)**, after the sweep checks:
-   1. invite the new agent address;
-   2. Brett sets a password and enrolls two-factor;
-   3. run `relink_agent_login`;
-   4. check the old login can't reach `/internal/*` and the new one can, with two-factor.
-9. **Roll back** if anything in 5–8 is wrong: Vercel "Instant Rollback" to the previous production deployment. The database needs no rollback; the Phase 1 data stays valid and unused by the old code.
+   Expected: `assignment.assigned` and `assignment.examined` = the step 3 count of real paid searches with no agent; `assignment.testCustomersExcluded` > 0; `alerts.claimed` 0 unless nobody is in rotation.
+9. **Checks after the sweep** (read-only; put the step 3 `baseline_at` time in):
+   ```sql
+   select (select count(*) from public.customer_searches s join auth.users u on u.id = s.customer_id
+            where s.paid_at is not null and s.search_status not in ('switched', 'cancelled', 'closed')
+              and lower(u.email) not like '%.invalid' and s.assigned_agent_id is null) as real_paid_no_agent_after,
+          (select string_agg(method || ' ' || n, ', ') from (select method, count(*) n from public.search_assignments
+             where created_at > '<baseline_at>' group by method) m)                      as new_assignments_by_method,
+          (select count(*) from public.customer_searches s join auth.users u on u.id = s.customer_id
+            where lower(u.email) like '%.invalid' and s.assigned_agent_id is not null
+              and s.assigned_at > '<baseline_at>')                                      as test_searches_newly_assigned,
+          (select locked_until <= now() from public.cron_job_locks where job = 'agent-sweeps') as sweep_lock_released;
+   ```
+   Expected: `real_paid_no_agent_after` 0; `new_assignments_by_method` matches `assigned` (`round_robin` / `continuity`); `test_searches_newly_assigned` 0; `sweep_lock_released` true. Then the production logs for the last 15 minutes show no `[assignment-failed]`, `[agent-alert-failed]` or `[agent-activity-failed]` lines.
+10. **Guided tour (Part 2, about 60 minutes).** Do the stops in order; each says what to do, what you should see (wording exactly as signed off, from `docs/business/site-language-inventory.md`) and what to check. Note anything off and carry on unless it's marked **stop**. Write down Brett's activity count first (step 7 left it at 3) so step 11 can compare.
+
+    **W1. Agent sign-in, Browser A** (`www.levrauto.com/agent`)
+    - Do: sign out, then sign in as `brett@levrauto.com` with a **wrong** password, once only.
+    - See: tab title "LEVR Auto agent sign-in", heading "Agent sign-in", fields "Work email" and "Password", a "Forgot your password?" link; the error "That didn't work. Check your details and try again."
+    - Do: sign in with the right password.
+    - See: "Enter your authenticator code", the field "6-digit code", the line "Lost access to your authenticator? Contact your lead."
+    - Do: enter the code. See: you land on `/internal/outreach`; the header reads "LEVR Auto · Agent", "Brett Johnston (LEVRID 1)" and "Sign out", with no marketing header or footer.
+    - Check: one wrong try is fine; five in 15 minutes locks you out for 15 minutes ("Too many sign-in attempts. Wait 15 minutes and try again."), so don't test the lock here.
+
+    **W2. Every `/internal` page as an admin, Browser A**
+    - Do: open each page in turn: `/internal/outreach`, `/internal/agents`, `/internal/admin`, `/internal/refunds-due`, `/internal/dealerships`, `/internal/articles`, `/internal/social`.
+    - See: every page opens with the agent header (as an admin you pass every role gate).
+    - Check on `/internal/agents`: title "Add an agent"; the "Agents" list has columns Name, Work email, Role, LEVRID, Sign-in; your row says LEVRID 1, "Two-factor on" and "(you)", and has **no** "Reset two-factor" button; no holder row and no test agents (they're hidden in production).
+    - Check on `/internal/admin`: the table has an "Assigned Agent" column (filled from each search's own assigned agent; with no real paid searches today it's blank until W9), and with the Status filter on "All" the count reads "{n} of {n}".
+    - Look only: no Approve, Regenerate, Merge or Save on articles, social or dealerships.
+
+    **W3. Add an agent, Browser A**
+    - Do: on `/internal/agents`, enter Name `LEVR Training Agent`, Work email `training@gmail.com`, Role Agent, **Send invite**.
+    - See: "Use a @levrauto.com work email." Nothing is added and no LEVRID is used.
+    - Do: correct the email to `training@levrauto.com`, **Send invite**.
+    - See: "Invite sent to training@levrauto.com. LEVR Training Agent is LEVRID 2." The list shows the new row with "Invite not finished".
+    - Check: the Role picker offers Agent, Lead and Admin (you're an admin; a lead only sees Agent).
+    - Do: take the training agent out of rotation straight away (SQL Editor), so no real search could ever be assigned to it:
+      ```sql
+      select a.levrid      as training_levrid,
+             a.role        as training_role,
+             a.in_rotation as training_in_rotation
+      from public.set_agent_rotation(
+        (select id from public.agents where levrid = 1),
+        (select id from public.agents where lower(email) = 'training@levrauto.com'),
+        false
+      ) a;
+      ```
+      Expected: one row, 2 / agent / false.
+
+    **W4. The invite email and account setup, Browser B**
+    - See in your inbox (to `training@`): subject "You've been invited to the LEVR Auto agent dashboard"; body "Brett Johnston added you as a LEVR Auto agent. Set your password and turn on two-factor sign-in to get started. This link works once and expires in 1 hour:" and the link.
+    - Do: open the link in Browser B. See: "Welcome to the LEVR Auto agent dashboard" and "Continue to set your password and turn on two-factor sign-in." Click **Continue**.
+    - Do: on "Set your password", type two different passwords first. See: "Passwords don't match." Then set a real one that meets the rule shown ("Use at least 8 characters, including an uppercase letter, a lowercase letter, a number, and a special character (like ! or #).") and **Continue**.
+    - See: "Turn on two-factor sign-in", the QR code, and "Can't scan? Enter this key instead:" with the key in groups of four and **Copy key**. Scan, enter the code, **Turn on**.
+    - See: Browser B lands on `/internal/outreach` with "LEVR Training Agent (LEVRID 2)".
+    - Check in Browser A (reload `/internal/agents`): the training agent's row now says "Two-factor on".
+    - Do: open the invite link again in Browser B. See: "This link has expired or has already been used." and "Ask your lead to send a new invite."
+
+    **W5. Role gates as a plain agent, Browser B (the training agent)**
+    - Do: type each address in turn: `/internal/admin`, `/internal/agents`, `/internal/articles`, `/internal/social`.
+    - See: each one sends you back to `/internal/outreach` (lead-only pages).
+    - Do: open `/internal/refunds-due` and `/internal/dealerships`. See: both open (every agent can work refunds and dealerships; merging dealerships is lead-only, so don't click Merge).
+    - Do: open `/account` and `/finalize/anything`. See: both send you to `/internal/outreach` (agent logins never use customer pages).
+    - Check: no customer row was created for the training agent (step 11's check confirms it).
+
+    **W6. Forgot password and two-factor reset (training agent)**
+    - Do (Browser B): **Sign out**, then on `/agent` click **Forgot your password?**, enter `training@levrauto.com`, **Send reset link**.
+    - See: "If that's an agent's work email, we've sent a link to reset the password. Check your inbox." (The same text appears for any address.)
+    - See in the inbox: "Reset your LEVR Auto agent password", body "Use this link to set a new password for the LEVR Auto agent dashboard. It works once and expires in 1 hour. You'll still need your authenticator code to sign in. …". Open it: "Reset your password" / "Continue to set a new password." Set a new password.
+    - Do: sign in as the training agent with the new password. See: the authenticator step is still asked for. Enter the code.
+    - Do (Browser A, `/internal/agents`): on the training agent's row click **Reset two-factor**. See the confirm: "Reset LEVR Training Agent's two-factor sign-in? They'll be signed out everywhere and set it up again next time they sign in. Confirm it's really them by phone or video first." Click **Reset**. See: "LEVR Training Agent's two-factor sign-in was reset. They've been signed out everywhere."
+    - Check (Browser B): click anything; you're sent to `/agent`. The inbox has "Your LEVR Auto two-factor sign-in was reset", body "Brett Johnston reset your two-factor sign-in. The next time you sign in, you'll set it up again. If you didn't ask for this, contact Brett Johnston right away."
+    - Do (Browser B): delete the old authenticator entry, sign in with password; see "Turn on two-factor sign-in" again; set it up; land on `/internal/outreach`.
+
+    **W7. The walkthrough customer pays (Stripe test mode), Browser B**
+    - Do: sign out the training agent in Browser B.
+    - Do **(Claude)**: create the disposable walkthrough customer with the admin API: email `claude-verify-walk-<timestamp>@verify.invalid`, email already confirmed, first name "WALKTHROUGH", last name "TEST CUSTOMER", phone `555-0199`, a random password written to `~/Downloads/levr-walkthrough-customer.txt` (private file, never in chat). `.invalid` means it never receives email and is never auto-assigned; it isn't on the tester domain, so it does show on Refunds due (W10).
+    - Do: at `www.levrauto.com/login`, sign in as that customer. On the homepage pick Toyota Camry, a model year and a ZIP and save the search; in Your Car click **Continue to payment — $699**. On Stripe's page **check "Test mode" is shown (stop if it isn't)**, then pay with `4242 4242 4242 4242`.
+    - See: you come back to the site and are taken to finalize the search. Leave it unfinalized.
+    - Check (SQL Editor):
+      ```sql
+      select s.id                 as walk_search_id,
+             s.paid_at is not null as walk_paid,
+             s.assigned_agent_id  as walk_agent,
+             (select count(*) from public.payments p where p.search_id = s.id) as walk_payments
+      from public.customer_searches s join auth.users u on u.id = s.customer_id
+      where lower(u.email) like 'claude-verify-walk-%@verify.invalid';
+      ```
+      Expected: one row, `walk_paid` true, `walk_agent` null (a test customer is never auto-assigned), `walk_payments` 1. Note `walk_search_id` for the next stops.
+
+    **W8. Reassign the walkthrough search to the training agent (SQL Editor)**
+    ```sql
+    select r.id                                                                       as reassigned_search,
+           r.assigned_agent_id = (select id from public.agents
+                                   where lower(email) = 'training@levrauto.com')   as now_training_agent
+    from public.reassign_search(
+      '<walk_search_id>',
+      (select id from public.agents where lower(email) = 'training@levrauto.com'),
+      (select id from public.agents where levrid = 1),
+      'Deploy-day walkthrough'
+    ) r;
+    ```
+    Expected: one row, `now_training_agent` true. This is what a lead does with `reassignSearch` until the Phase 3 screen exists.
+
+    **W9. The admin table's assigned agents, Browser A** (`/internal/admin`)
+    - See: the walkthrough search's row shows "LEVR Training Agent" under Assigned Agent; real paid searches (if any) show their agent.
+    - Check, the table reads every search (it used to stop at 999):
+      ```sql
+      select count(*) as all_searches from public.customer_searches;
+      ```
+      Expected: equal to the second number in "{n} of {n}" with the filter on All.
+
+    **W10. Switch and cancellation call requests, Browser B (customer) and Browser A (agent)**
+    - Do (SQL Editor): make the walkthrough search live, so it can be switched, and due a guarantee refund (for W11):
+      ```sql
+      update public.customer_searches
+      set search_status = 'searching', finalized_at = coalesce(finalized_at, now()), solidified_at = now(),
+          guarantee_status = 'refunded', guarantee_resolved_at = now()
+      where id = '<walk_search_id>' and paid_at is not null
+      returning id as walk_search_id, search_status as walk_status, guarantee_status as walk_guarantee;
+      ```
+      Expected: one row, searching / refunded.
+    - Do (Browser B, customer, reload `/account`): on the search, start a switch, then choose **Have an agent handle it**.
+    - See in the inbox (to `training@`, because W8 assigned the search): subject "WALKTHROUGH TEST CUSTOMER requested a switch call — {year} Toyota Camry"; first line "This search is assigned to you."; the Name / Email / Phone lines; the link "Open this request on /internal/outreach".
+    - Do (Browser A): follow the link. See the card under "Switch calls requested". Click **Mark call resolved**; see "Outcome" with "Didn't switch", "Couldn't complete the call" and "Other", and "Note (optional)". Pick **Didn't switch**, **Resolve**. See: the card leaves the list.
+    - Do (Browser B): reload `/account`. See: the call option is offered again (a resolved request can be asked for again). Don't ask for it.
+    - Do (Browser B): in the cancellation section, **Request a call with an agent**. See the email "…requested a cancellation call — …" starting "This search is assigned to you."
+    - Do (Browser A): on the card under "Cancellation calls requested", look at the cancellation form: the $699 payment shows "$699.00 refundable" with a **Reason** picker offering Cancellation (the default), Day-30 guarantee, Goodwill, Duplicate charge and Other. **Don't submit the form.** Then **Mark call resolved** → **Couldn't complete the call** → **Resolve**.
+
+    **W11. Refunds due: Issue refund, Browser A** (Stripe test mode; the only refund in the session)
+    - See on `/internal/refunds-due`: the subtitle "Guarantee not met by Day 30. Issue each refund here, or record one that was already issued in Stripe."; the walkthrough row with Refundable $699.00, **Issue refund**, and the link "Record a refund already issued in Stripe".
+    - Check before clicking: it's the walkthrough row. **If any real customer is listed, leave that row alone**: a real row is real money once Stripe is live, and isn't part of this tour.
+    - Do: **Issue refund** on the walkthrough row. See: "Refund $699.00 to WALKTHROUGH TEST CUSTOMER for the Day-30 guarantee? This sends the money back through Stripe and can't be undone." Click **Refund $699.00**.
+    - See: "WALKTHROUGH TEST CUSTOMER: Refunded $699.00. Stripe refund re_…." at the top, and the row leaves the list. (Recording a refund already made in Stripe, and the error messages, were covered by the c5 tests; there's nothing left here to record against.)
+
+    **W12. The customer closes an open call request themselves, Browser B then Browser A**
+    - Do (Browser B): request the cancellation call again (a fresh email arrives, same as before), then cancel the search yourself with **Cancel search permanently**.
+    - Check (Browser A, reload `/internal/outreach`): the cancellation card has gone by itself, with no agent named. SQL check:
+      ```sql
+      select l.action, l.agent_id is null as no_agent_named, l.created_at
+      from public.agent_activity_log l
+      where l.search_id = '<walk_search_id>'
+      order by l.created_at;
+      ```
+      Expected, in order (among others): `search_reassigned`, `call_request_resolved` twice (`no_agent_named` false), `refund_processed`, then `call_request_resolved_by_customer` (`no_agent_named` true).
+
+    **W13. The fixed queues, Browser A** (`/internal/outreach`, look only)
+    - See the section counts: "Vehicle consultation needed", "Finalization calls requested", "Switch calls requested", "Cancellation calls requested", "Customer callbacks requested", "Notification undeliverable", "Overdue follow-ups", "Paused searches", "Delivery estimates to get" (if any), "Active searches". The page loads without an error.
+    - Check against the database (a difference is worth a note, not a stop):
+      ```sql
+      select (select count(*) from public.customer_searches
+               where paid_at is not null and make is null and search_status = 'awaiting_finalization') as consultation_needed,
+             (select count(*) from public.notification_events
+               where agent_callback_requested_at is not null and flag_resolved_at is null)            as callbacks_open,
+             (select count(*) from public.notification_events
+               where flagged_no_deliverable_channel and flag_resolved_at is null)                     as undeliverable_open,
+             (select count(*) from public.dealer_aliases where dealership_id is null)                 as unconfirmed_dealers;
+      ```
+      Expected: `consultation_needed`, `callbacks_open` and `undeliverable_open` match their sections (the old callback queue stopped after the first 1,000 events); `unconfirmed_dealers` matches the unconfirmed count on `/internal/dealerships`.
+
+    **W14. An alert email, end to end** (one harmless alert, to admins only, so just you)
+    - Do (SQL Editor):
+      ```sql
+      insert into public.agent_alerts (kind, audience, details)
+      values ('other', 'admins', '{"error": "deploy-day walkthrough test alert, nothing to do"}')
+      returning id as walk_alert_id;
+      ```
+    - Do **(Claude)**: send only that alert (the all-zeros id keeps the assignment part from looking at any search):
+      ```
+      curl -s -H "Authorization: Bearer $CRON_SECRET" "https://www.levrauto.com/api/cron/agent-sweeps?only=00000000-0000-0000-0000-000000000000&alerts=<walk_alert_id>"
+      ```
+      Expected: `scoped: true` with the two ids, `assignment.examined` 0, `alerts.claimed` 1, `alerts.sent` 1. The log shows one `[job-scoped]` line.
+    - See in your `brett@` inbox: subject "A LEVR Auto agent alert needs attention", body "An alert was raised (deploy-day walkthrough test alert, nothing to do). Search: https://www.levrauto.com/internal/admin" with the link working.
+    - Do (SQL Editor): close it:
+      ```sql
+      select id as resolved_alert_id, resolved_at is not null as is_resolved
+      from public.resolve_agent_alert((select id from public.agents where levrid = 1), '<walk_alert_id>');
+      ```
+      Expected: one row, `is_resolved` true.
+    - The other four alert emails (lead fallback, no agent, assignment failed, activity not recorded) need a real paid search or a real failure, so they aren't triggered here; their wording and sending were checked by c4-simulate.
+
+    **W15. Scheduled jobs and idle sign-out (look only)**
+    - See in Vercel → Cron Jobs: `agent-sweeps` at `15 * * * *` alongside the existing jobs.
+    - Check after the next :15: the production log has an `[agent-sweeps]` line with `scoped: false` and `assigned` 0; no `[assignment-failed]`, `[agent-alert-failed]` or `[agent-activity-failed]` lines.
+    - Idle sign-out (8 hours) can't be shown in a session; it was tested with a 2-minute test limit (idle2). If Browser B is left signed in overnight, it should be on `/agent` in the morning.
+
+11. **Cleanup (Part 3, about 10 minutes), the same session.** The walkthrough search is "live" in the database, so it mustn't wait for tonight's jobs.
+    1. **(Claude)** delete the walkthrough customer by id and everything attached to it: its activity rows, assignment history, notification events, cancellation log, refunds and payments, the search, the customer row and the login. Then confirm by count that nothing with its customer or search id is left. (The Stripe test-mode payment and refund stay in Stripe's test data; nothing to undo there.)
+    2. Deactivate the training agent (Brett, SQL Editor). **Never delete it**: it's the permanent training and demo agent. LEVRID 2 stays its number, and its activity rows (invited, rotation, two-factor reset, deactivated) stay as the real record:
+       ```sql
+       select a.levrid as training_levrid, a.active as training_active, a.in_rotation as training_in_rotation
+       from public.set_agent_active(
+         (select id from public.agents where levrid = 1),
+         (select id from public.agents where lower(email) = 'training@levrauto.com'),
+         false
+       ) a;
+       ```
+       Expected: one row, 2 / false / false. Keep the `training@` Zoho alias and its authenticator entry. To use it again later: `set_agent_active(<LEVRID 1 id>, <training agent id>, true)` (it stays out of rotation), then sign in at `/agent`; if the authenticator entry is gone, a lead or admin resets its two-factor first.
+    3. Delete `~/Downloads/levr-walkthrough-customer.txt`. The W14 test alert stays, resolved (it names no customer or search).
+    4. Final check:
+       ```sql
+       select (select count(*) from auth.users where lower(email) like 'claude-verify-walk-%')        as walk_logins_left,
+              (select count(*) from public.agents where active and lower(email) = 'training@levrauto.com') as training_active_left,
+              (select count(*) from public.customers c where c.id in
+                 (select a.auth_user_id from public.agents a where lower(a.email) = 'training@levrauto.com')) as training_customer_rows,
+              (select a.role || ' / in rotation ' || a.in_rotation || ' / active ' || a.active || ' / ' || a.email
+                 from public.agents a where a.levrid = 1)                                               as levrid1,
+              (select count(*) from public.agent_activity_log l
+                 where l.agent_id = (select id from public.agents where levrid = 1))                   as brett_activity_rows;
+       ```
+       Expected: `walk_logins_left` 0, `training_active_left` 0, `training_customer_rows` 0, `levrid1` "admin / in rotation true / active true / brett@levrauto.com". `brett_activity_rows`: note it. It's 3 (step 7) plus your walkthrough actions that weren't on the walkthrough search (adding the training agent, its rotation, the two-factor reset, resolving the alert, deactivating); the rows on the walkthrough search went with it in 11.1. Not a pass/fail number.
+12. **Watch** (after the session): the next scheduled `:15` sweep (`assigned` 0, `scoped: false`); the next real payment gets an agent within seconds; any alert email reaches Brett's inbox.
+13. **Roll back** if anything in 6–12 is wrong (clean up the walkthrough customer and deactivate the training agent first, step 11):
+    1. Vercel Instant Rollback to the previous production deployment.
+    2. If Part B (step 7) already ran, put LEVRID 1's email back so the old code (which matches agents by email) lets `bjohnston@` in:
+       ```sql
+       update public.agents set email = 'bjohnston@levrauto.com'
+       where id = '9c1b5cde-e8bf-4928-be66-529f13197e85' and levrid = 1
+       returning levrid as rolled_back_levrid, email as rolled_back_email;
+       ```
+       Expected: one row, 1 / bjohnston@levrauto.com. When redeploying later, set it back to `brett@levrauto.com`.
+    3. The database needs no other rollback: production already runs `main` with every Phase 1 migration applied today, and the old code doesn't read the new data.
+
+### 5.3 Brett's cutover to brett@levrauto.com (Chunk 1f runbook, approved 2026-10-14)
+Rehearsed with stand-in test accounts, 24/24 (2026-10-14). Part A runs before checklist step 5 (the merge); Part B straight after step 6 (Ready), before step 8 (the first sweep). Ids (read-only, 2026-10-14): LEVRID 1 = agent row `9c1b5cde-e8bf-4928-be66-529f13197e85`, login `bjohnston@` = `3213ecaa-c459-4c6e-8109-1a0cf59bde50`. Starting state (checked read-only 2026-10-14): LEVRID 1 is admin, in rotation, linked to `bjohnston@` (a customer login with 1 customer record); no `brett@` login exists.
+
+**Part A, before the merge (Brett's old access keeps working throughout)**
+1. Have your authenticator app ready, ideally plus a backup device, and your password manager. Allow about 15 minutes.
+2. Tell Claude to go. Claude starts the branch dev server on port 3100 and runs `scripts/agent-cutover-prepare.mjs --new-email brett@levrauto.com --levrid 1 --base http://localhost:3100`. It adds the holder row and the `brett@levrauto.com` login, and writes `~/Downloads/levr-agent-setup-link.html` (private file, link works once, lasts 1 hour). Claude shows you the ids it prints.
+3. Open that file on this Mac and click "Open the setup page", then Continue.
+4. Set your password.
+5. Scan the QR code with your authenticator, and with the backup device too before you type a code. Enter the code. The entry will be named "levrauto.com".
+6. You'll land on `/internal/outreach` showing "Brett Johnston (new login, temporary)". This is local code against the real database, so just look; don't click any actions.
+7. Click Sign out, go to `http://localhost:3100/agent`, and sign in with `brett@levrauto.com`, your password and a code. You should land on the dashboard again. **This is the two-factor proof.**
+8. Run this check in the SQL Editor:
+   ```sql
+   select a.email                                   as holder_email,
+          a.levrid                                  as holder_levrid,
+          a.in_rotation                             as holder_in_rotation,
+          u.email                                   as new_login_email,
+          u.raw_app_meta_data ->> 'account_type'    as new_login_type,
+          (select count(*) from auth.mfa_factors f
+            where f.user_id = u.id and f.status = 'verified') as verified_authenticators,
+          (select count(*) from public.customers c where c.id = u.id) as new_login_customer_rows,
+          (select b.email from public.agents b where b.levrid = 1)   as levrid1_email_still
+   from public.agents a
+   join auth.users u on u.id = a.auth_user_id
+   where a.email = 'brett-cutover-holder@levrauto-test.invalid';
+   ```
+   Expected: 1 row with
+   - `holder_levrid` null, `holder_in_rotation` false;
+   - `new_login_email` brett@levrauto.com, `new_login_type` agent;
+   - `verified_authenticators` 1 (a backup device that scanned the same QR code shares that one);
+   - `new_login_customer_rows` 0;
+   - `levrid1_email_still` bjohnston@levrauto.com.
+9. Check that `www.levrauto.com/internal/outreach` still opens for you as `bjohnston@`.
+
+If the link expires, Claude reruns the script for a fresh one. If you abandon Part A, run this, then delete `brett@levrauto.com` under Supabase → Authentication → Users:
+```sql
+begin;
+delete from public.agent_activity_log
+where agent_id = (select id from public.agents where email = 'brett-cutover-holder@levrauto-test.invalid');
+delete from public.agents where email = 'brett-cutover-holder@levrauto-test.invalid'
+returning email as removed_holder_email;
+commit;
+```
+Expected: one `removed_holder_email` row.
+
+**Deploy:** checklist steps 5–6 (merge and push, wait for Ready). Your `bjohnston@` agent access ends at that moment. That's fine, because Part B doesn't need the app.
+
+**Part B, right after Ready**
+10. Run this as one block in the SQL Editor:
+    ```sql
+    begin;
+
+    -- 1. Remove the temporary holder (its own activity rows first).
+    delete from public.agent_activity_log
+    where agent_id = (select id from public.agents where email = 'brett-cutover-holder@levrauto-test.invalid');
+    delete from public.agents
+    where email = 'brett-cutover-holder@levrauto-test.invalid';
+
+    -- 2. Move LEVRID 1 to the new login (logged as agent_login_relinked, by LEVRID 1).
+    select r.levrid       as moved_levrid,
+           r.email        as moved_email,
+           r.auth_user_id as moved_login_id
+    from public.relink_agent_login(
+      (select id from public.agents where levrid = 1),
+      (select id from public.agents where levrid = 1),
+      (select id from auth.users where lower(email) = 'brett@levrauto.com')
+    ) r;
+
+    commit;
+    ```
+    Expected: one row with `moved_levrid` 1, `moved_email` brett@levrauto.com, and `moved_login_id` the new login id from step 2. No flag route is needed; the function sets its own.
+11. Run this check:
+    ```sql
+    select a.levrid                                  as after_levrid,
+           a.email                                   as after_agent_email,
+           a.role                                    as after_role,
+           a.active                                  as after_active,
+           a.in_rotation                             as after_in_rotation,
+           u.email                                   as after_login_email,
+           u.raw_app_meta_data ->> 'account_type'    as after_login_type,
+           (select count(*) from auth.mfa_factors f
+             where f.user_id = u.id and f.status = 'verified')            as after_verified_authenticators,
+           (select count(*) from public.agents h
+             where h.email = 'brett-cutover-holder@levrauto-test.invalid') as holder_rows_left,
+           (select count(*) from public.agent_activity_log l
+             where l.agent_id = a.id and l.action = 'agent_login_relinked') as relink_log_rows,
+           (select count(*) from public.customers c
+             where c.id = (select o.id from auth.users o where lower(o.email) = 'bjohnston@levrauto.com')) as old_login_customer_rows
+    from public.agents a
+    join auth.users u on u.id = a.auth_user_id
+    where a.levrid = 1;
+    ```
+    Expected: 1 row with
+    - `after_levrid` 1, `after_agent_email` brett@levrauto.com, `after_role` admin, `after_active` true, `after_in_rotation` true;
+    - `after_login_email` brett@levrauto.com, `after_login_type` agent;
+    - `after_verified_authenticators` 1, `holder_rows_left` 0, `relink_log_rows` 1, `old_login_customer_rows` 1.
+
+    Your activity count goes from 2 to 3 (the relink row).
+12. At `www.levrauto.com/agent`, sign in with `brett@levrauto.com`, your password and a code. You should land on `/internal/outreach` with the header "Brett Johnston (LEVRID 1)". On `/internal/agents`, your row should say "Two-factor on" and there should be no holder row.
+13. At `www.levrauto.com/login`, sign in as `bjohnston@`. It should open `/account` as a customer, and `/internal` should send you to `/agent`.
+14. Carry on with checklist step 8 (the sweep) and the rest.
+
+**If step 12 fails:** use Vercel Instant Rollback to the previous deployment, then run:
+```sql
+update public.agents set email = 'bjohnston@levrauto.com' where levrid = 1
+returning levrid as rolled_back_levrid, email as rolled_back_email;
+```
+Expected: one row, 1 / bjohnston@levrauto.com. Today's code finds agents by email, so `bjohnston@` reaches `/internal` again; the rehearsal proved this against Brett's dev server running `main`. When we redeploy later, set the email back to `brett@levrauto.com`.
 
 ---
 
 ## 6. Open questions for Brett (recommendation first)
+
+**Answers (2026-10-12).** The questions below are kept for the record.
+- **C1:** scratch customers on `@verify.invalid`, with every `.invalid` address suppressed in email (done in Chunk 0). Deleted, and checked by count, after each run.
+- **C2:** replaced by the invite flow (section 7).
+- **C3:** reassign through the SQL Editor (`reassign_search`) until the Phase 3 screens exist. No dropdown now.
+- **C4:** Brett stays in rotation; his live rotation is never toggled during tests. Scratch assignments go when the scratch accounts are deleted (`search_assignments` cascades with the search).
+  - **What does drift:** his `agents.last_assigned_at`, by test runs.
+  - **Why that's harmless:** it only decides who is next among agents in rotation. While Brett is the only one, there is no one else to pick. Once others exist, a recent test run would at worst make Brett look "just assigned", so the next real search goes to someone else first.
+  - **Nothing else moves:** no history row survives a deleted scratch search, assignment writes no activity row, and agent emails are suppressed outside production (Chunk 0).
+- **C5:** add "This search is assigned to you." to the assigned-agent call email. Full text in section 3.5.
+- **C6:** a new route, `/api/cron/agent-sweeps`, at `:15`.
+- **C7:** Issue refund always refunds the full remaining fee.
+- **C8:** push the branch after each approved chunk, with preview builds off.
+
 
 **C1. How do I test assignment locally, given that test accounts are never auto-assigned?**
 - (a) **Recommended:** scratch customers on `@verify.invalid` (undeliverable by definition), with `sendEmail` suppressing every `.invalid` address. They count as real for assignment, can't receive mail, are created directly in the database (never paid through Checkout), and are deleted the same session.
@@ -538,6 +1099,55 @@ Today, every new Supabase login gets a `customers` row from the `handle_new_user
   - Supabase's per-IP limits apply underneath (section 7.2);
   - ours: 5 failed attempts per account per 15 minutes, and 20 per IP per 15 minutes, counted in `agent_signin_attempts`. Then `Too many sign-in attempts…` until the window passes;
   - successful sign-ins are recorded too, for the team activity screen in Phase 3.
+
+**Chunk 1b review (Brett, 2026-10-12):**
+- **⚠ Chunk 1b must never deploy without Chunk 1d.** 1b lets an agent sign in with a password and code, but only 1d makes every agent page and action require the code (`aal2`). Deployed alone, an agent who stops after the password step would still reach agent pages through the old email check. The deploy-day checklist (section 5.2) treats 1b and 1d as one unit.
+- **The marketing header comes off `/internal/*` in Chunk 1d** (not Phase 3), using the same `SiteChrome` wrapper 1b added for `/agent`.
+- **Scrambling key:** emails and IPs in `agent_signin_attempts` are keyed with a dedicated secret, `AGENT_SIGNIN_HASH_SECRET` (at least 32 characters), not the service-role key. If it's missing, sign-in fails closed with the generic error. Brett adds it to `.env.local` and to Vercel Production himself.
+- **Wording changes, signed off:** heading `Agent sign-in` (the browser title stays `LEVR Auto agent sign-in`), and under Verify: `Lost access to your authenticator? Contact your lead.`
+
+**Chunk 1d review (Brett, 2026-10-13):**
+- **Agent header wording signed off:** `LEVR Auto · Agent` · `{agent name} (LEVRID {n})` · `Sign out`, busy `Signing out…`. A test agent with no LEVRID shows just the name.
+- **The pages' own "Signed in as … (email)" lines are removed when the Phase 3 shell lands** (the header now says who is signed in). Not before.
+- **For the Phase 3 shell (Brett, 2026-10-13):** the `/internal` pages are dark while the `/agent` sign-in pages are light, so pick one look for both; and on phones the agent header wraps onto two lines (logo, then name and Sign out), which the shell should fit on one.
+- **Link lifetime confirmed:** Supabase Email OTP Expiration is 3600 seconds, so the emails say "expires in 1 hour" (`SETUP_LINK_LIFETIME_SECONDS`).
+- Agreed: the idle timer counts from the later of the last request and the last sign-in; agent logins are sent away from customer pages; Brett's current agent access ends at deploy until 1f moves him to `brett@levrauto.com`.
+- The three page-only loaders (`getAdminSearches`, `getUnconfirmedAliases`, `getConfirmedDealerships`) are no longer server actions; all 41 remaining agent actions were called directly with no session, a customer session and a password-only agent session: 123 of 123 refused with "Not authorized.", no table changed.
+
+**C16. Role-gated pages and actions (proposed 2026-10-13; Brett to choose; not applied).** Rule of thumb: everything an agent needs to work a customer's deal stays open to every agent (refunds included, Brett's rule); things that publish publicly or undo someone else's work go to leads; nothing today needs admin. Each gate is set on the page (`requireAgent({ minRole })`) AND in each action (`getAuthorizedAgent({ minRole })`).
+- **Agent:** `/internal/outreach` and its actions; `/internal/refunds-due` and the cancellation refund form; customer lookup; extension bypass and agent-comped switch (fee waivers, reason required and logged; the two to make lead if waivers should be tighter); `/internal/dealerships` confirm and salespeople.
+- **Lead:** `revertPurchasedSearch` (undoes a closed deal); `mergeAliasIntoDealership` (not easily undone, changes ratings data); `/internal/admin` (oversight of every agent's work); `/internal/articles` and `/internal/social` (approving publishes publicly).
+- Team actions stay as the database already enforces them.
+
+**Chunk 1e review (Brett, 2026-10-14):**
+- **Step 14 applied:** `revoke_login_sessions(p_auth_user_id)` (security definer, service role only). The reset ends every session FIRST, then removes the authenticators: deleting an authenticator alone left an open two-factor session working (found by the 1e test). The agent check also refuses any login with no verified authenticator right now.
+- **No internal route for resets:** a shared secret plus a caller-supplied actor would let anyone with the secret act as any admin, and it would reuse the cron secret for a different job. The reset is a **"Reset two-factor" action on the Chunk 1g Add-agent page**, behind agent sign-in and two-factor, with the actor taken from the session and the same role rules. Until 1g, resets aren't needed (Brett is the only agent).
+- **Reset email wording signed off** with "right away": `{lead/admin name} reset your two-factor sign-in. The next time you sign in, you'll set it up again. If you didn't ask for this, contact {lead/admin name} right away.` Route-era messages signed off and kept for the 1g action: `You can't reset your own two-factor sign-in.`, `Only leads and admins can reset an agent's two-factor sign-in.`, `Only admins can reset a lead's or an admin's two-factor sign-in.`, `That agent hasn't set up a login yet.`, `Agent not found.`, `Could not sign the agent out: …`.
+- **C16 approved as tested.**
+
+**Chunk 1g review (Brett, 2026-10-14): approved, branch pushed at `5aef2c9`.**
+- **Wording signed off as shown**, including the help line with "1 hour" and all the new list, status and reset text.
+- **Test agents are shown with a TEST badge outside production only**; in production they're hidden (Step 13).
+- **Rotation defaults confirmed by test:** the form sends no rotation value for a real `@levrauto.com` address (`add_agent` then defaults agent = in rotation, lead/admin = out), and `false` for a test address. Checked at both layers: the real `addAgent` with the database call captured (nothing written), and `add_agent` called directly with test addresses (no LEVRID spent).
+- **A LEVRID is spent when someone is added**, so adding with a typo'd email uses up that number. The fix is to deactivate that row and add the person again. Editing an agent's email can come with the Phase 3 team screen.
+- **For the Phase 3 shell:** long emails wrap mid-address in the Work email column; handle it in the new layout.
+
+**Found in the 1f rehearsal (2026-10-14), approved by Brett the same day: sign-outs that should be this browser only.** `signOut()` ends every session on the login by default. A customer (or Brett's old login) refused at `/agent` was signed out of their other devices too, and an idle device would sign an agent out of the device they were actively using. The refusals (agent sign-in, customer `/login` refusing an agent, setup-link accept) and the 8-hour idle sign-out now use `scope: "local"`; the header Sign out is unchanged. Branch commit `eace17f`, approved and pushed with the prepare script (`113f9f2`). **Chunk 1 (1a–1g, 1f rehearsed) is complete.**
+
+**Forgot password: open question C15 (Brett to choose; not built).**
+- **(a) Recommended: self-serve reset by email to the work address.**
+  - **Why:** a password reset alone gets nobody in. The agent still needs their authenticator code (`aal2`), so a stolen inbox isn't enough. Self-serve saves a lead a call for the most common problem (a forgotten password).
+  - **Cost:** it reuses Chunk 1c's set-password page and one-time link (the `/auth/confirm` pattern), so it's small.
+  - **Leaks nothing:** the confirmation never says whether the address is an agent. It's rate-limited with the same counters as sign-in, and an email is only sent to an active agent's agent-only login.
+  - **Wording:**
+    - link under the password field: `Forgot your password?`;
+    - page heading `Reset your password`; field `Work email`; button `Send reset link` · busy `Sending…`;
+    - confirmation (always the same): `If that's an agent's work email, we've sent a link to reset the password. Check your inbox.`;
+    - email subject: `Reset your LEVR Auto agent password`;
+    - email body: `Use this link to set a new password for the LEVR Auto agent dashboard. It works once and expires in {expiry}. You'll still need your authenticator code to sign in. If you didn't ask for this, you can ignore this email: {link}`;
+    - set-password page: the same as the invite (`Set your password`, `New password` · `Confirm password`, the password rule, `Continue`).
+  - **Note:** the link lifetime is one project-wide Supabase setting, shared with customer sign-up and reset links (and with the invite, which section 3.6 says lasts 24 hours). `{expiry}` is filled from that setting, so the two emails can't disagree with it.
+- (b) No self-serve: a line under the password field, `Forgot your password? Contact your lead.`, and a lead or admin sends a fresh invite-style link (Chunk 1g's form or the 1e route). Simplest, but every forgotten password needs a person.
 
 ### 7.5 Invite and two-factor recovery (Chunks 1c and 1e)
 **Invite flow:**

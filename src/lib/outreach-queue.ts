@@ -1,9 +1,12 @@
 import { deliveryEstimateStandard, type DeliveryEstimate, type DeliveryEstimateStatus } from "./delivery-estimate";
+import { getStickerRanges, stickerRangeKey } from "./sticker-ranges";
+import type { StickerRange } from "./sticker-check";
 import { getLastSyncedAt } from "./marketcheck-sync";
 import "server-only";
 import { chunks, fetchAllPages, fetchByIds } from "./supabase/paged";
 import { createAdminClient } from "./supabase/admin";
 import { buildTrimOptions, filterListingsToCommittedYear, type TrimOption } from "./finalize-trims";
+import { getBodySplitter } from "@/lib/configurator-questions";
 import {
   MODEL_YEAR_INVENTORY_BLOCK_ENABLED,
   computeInventoryBlock,
@@ -126,6 +129,13 @@ export interface OutreachSelection {
   packageContents: string[] | null;
   /** Price could not be parsed. Must never render as a blank or as $0. */
   priceUnknown: boolean;
+  /**
+   * Dealer-installed on at least one of the customer's ranked trims
+   * (configurator_options.dealer_installed, 2026-10-17). Read live from the
+   * ranked trims' researched options, so a removable add-on is visible to
+   * the agent before the dealer itemizes it.
+   */
+  dealerInstalled: boolean;
   /**
    * Which of the customer's ranked trims (display label, e.g. "XSE 2026")
    * genuinely offered this option at save time (2026-09-16, ranked-trim-
@@ -322,6 +332,10 @@ export interface OutreachSearch {
   /** When this make/model's listings were last refreshed from MarketCheck. */
   inventoryLastSyncedAt: string | null;
   listings: OutreachListing[];
+  /** What each trim's sticker should be, from our data, for the Log Offer
+   *  sticker warning (2026-10-17). Empty when the search has no model year
+   *  or the dataset has no rows for it. */
+  stickerRanges: StickerRange[];
   offers: OutreachOffer[];
   /**
    * Empty for every search finalized through the generic colour/options
@@ -362,7 +376,7 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
 
   const { data: searches, error: searchesError } = await supabase
     .from("customer_searches")
-    .select("id, make, model, trim, colors, zip, customer_id, pickup_travel_choice, pickup_travel_miles")
+    .select("id, make, model, model_year, trim, colors, zip, customer_id, pickup_travel_choice, pickup_travel_miles")
     .eq("search_status", "searching")
     .order("created_at", { ascending: true });
 
@@ -569,6 +583,7 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
           packageContents: (row.package_contents as string[] | null) ?? null,
           priceUnknown: row.price_unknown === true,
           availableOnTrims: (row.available_on_trims as string[] | null) ?? null,
+          dealerInstalled: false,
         });
         selectionsBySearchId.set(row.search_id as string, list);
       }
@@ -609,6 +624,46 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
         trimPrefsBySearchId.set(row.search_id as string, list);
       }
       if (!data || data.length < SELECTION_PAGE_SIZE) break;
+    }
+  }
+
+  // Dealer-installed answers (2026-10-17): looked up on the trims each
+  // customer ranked. A feature answer is stored under its package's name,
+  // so a package name counts as well as an option name.
+  const rankedTrimIdsBySearch = new Map<string, string[]>();
+  for (const [searchId, prefs] of trimPrefsBySearchId) {
+    const ids = prefs.filter((p) => !p.excluded && p.configuratorTrimId).map((p) => p.configuratorTrimId as string);
+    if (ids.length > 0) rankedTrimIdsBySearch.set(searchId, ids);
+  }
+  const allRankedTrimIds = [...new Set([...rankedTrimIdsBySearch.values()].flat())];
+  const dealerInstalledByTrim = new Map<string, Set<string>>();
+  for (let i = 0; i < allRankedTrimIds.length; i += 100) {
+    const chunk = allRankedTrimIds.slice(i, i + 100);
+    for (let from = 0; ; from += SELECTION_PAGE_SIZE) {
+      const { data, error } = await supabase
+        .from("configurator_options")
+        .select("trim_id, category, name, package_name")
+        .in("trim_id", chunk)
+        .eq("dealer_installed", true)
+        .order("id")
+        .range(from, from + SELECTION_PAGE_SIZE - 1);
+      if (error) {
+        throw new Error(`Failed to load dealer-installed options: ${error.message}`);
+      }
+      for (const r of data ?? []) {
+        const set = dealerInstalledByTrim.get(r.trim_id as string) ?? new Set<string>();
+        set.add(`${r.category}::${r.name}`);
+        if (r.package_name) set.add(`${r.category}::${r.package_name}`);
+        dealerInstalledByTrim.set(r.trim_id as string, set);
+      }
+      if (!data || data.length < SELECTION_PAGE_SIZE) break;
+    }
+  }
+  for (const [searchId, list] of selectionsBySearchId) {
+    const trimIds = rankedTrimIdsBySearch.get(searchId) ?? [];
+    for (const sel of list) {
+      const key = `${sel.category}::${sel.selection}`;
+      sel.dealerInstalled = trimIds.some((id) => dealerInstalledByTrim.get(id)?.has(key) ?? false);
     }
   }
   for (const list of trimPrefsBySearchId.values()) {
@@ -724,6 +779,11 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
     offersBySearchId.set(offer.customer_search_id, list);
   }
 
+  const stickerRangesByVehicle = await getStickerRanges(
+    supabase,
+    searches.map((s) => ({ make: s.make, model: s.model, modelYear: (s.model_year as number | null) ?? null })),
+  );
+
   return searches.map((search) => {
     const rawListings = listingsByMakeModel.get(`${search.make}::${search.model}`) ?? [];
 
@@ -775,6 +835,8 @@ export async function getOutreachQueue(): Promise<OutreachSearch[]> {
       pickupTravel: travel,
       dealers,
       inventoryLastSyncedAt: lastSyncedByMakeModel.get(`${search.make}::${search.model}`) ?? null,
+      stickerRanges:
+        stickerRangesByVehicle.get(stickerRangeKey(search.make, search.model, (search.model_year as number | null) ?? null)) ?? [],
       listings: rawListings.map((l) => ({
         id: l.id,
         vin: l.vin,
@@ -855,14 +917,15 @@ export async function getFinalizationQueue(): Promise<FinalizationQueueSearch[]>
             .from("listings")
             // powertrain: buildTrimOptions splits a trim MarketCheck uses for
             // gas and hybrid alike, so agents see the customer's choices.
-            .select("trim, price_cents, year, powertrain:raw_data->build->>powertrain_type")
+            .select("trim, price_cents, year, powertrain:raw_data->build->>powertrain_type, bodyType:raw_data->build->>body_type, doors:raw_data->build->>doors")
             .eq("make", make)
             .eq("model", model)
             .not("trim", "is", null)
             .order("id")
             .range(from, to),
         );
-        return { make, model, listings: data };
+        // Same body split as /finalize, so the agent sees the customer's options.
+        return { make, model, listings: data, bodySplitter: await getBodySplitter(make, model) };
       })
     ),
   ]);
@@ -876,6 +939,9 @@ export async function getFinalizationQueue(): Promise<FinalizationQueueSearch[]>
   const listingsByMakeModel = new Map(
     listingsByPair.map(({ make, model, listings }) => [`${make}::${model}`, listings])
   );
+  const bodySplitterByMakeModel = new Map(
+    listingsByPair.map(({ make, model, bodySplitter }) => [`${make}::${model}`, bodySplitter])
+  );
 
   return searches.map((search) => {
     const modelYear = (search.model_year as number | null) ?? null;
@@ -888,7 +954,10 @@ export async function getFinalizationQueue(): Promise<FinalizationQueueSearch[]>
       isTest: isTestEmail(customerEmailById.get(search.customer_id) ?? null),
       callRequestedAt: search.call_requested_at as string,
       modelYear,
-      trimOptions: buildTrimOptions(filterListingsToCommittedYear(listings, modelYear)),
+      trimOptions: buildTrimOptions(
+        filterListingsToCommittedYear(listings, modelYear),
+        bodySplitterByMakeModel.get(`${search.make}::${search.model}`),
+      ),
     };
   });
 }

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { displayOptionName } from "@/lib/option-display";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -6,6 +7,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getVehicleDetails } from "@/lib/customer-dashboard";
 import { getFinalizeChoiceData } from "@/lib/finalize-choice-data";
 import { FinalizeChoice } from "@/components/finalize-choice";
+import { TESTER_INSTANT_START_ENABLED } from "@/lib/tester-sample-offers";
+import { isTestEmail } from "@/lib/test-accounts";
 import { Section } from "@/components/trim-detail-modal";
 import { GetStartedButton } from "@/components/get-started-button";
 import { ReviewAndPay } from "@/components/review-and-pay";
@@ -66,7 +69,7 @@ function ExcludedNames({ names }: { names: string[] }) {
   return (
     <p className="mt-2 text-xs text-amber-300">
       <span className="font-semibold">Excluded:</span>{" "}
-      <span className="text-amber-200/80">{names.join(", ")}</span>
+      <span className="text-amber-200/80">{names.map(displayOptionName).join(", ")}</span>
     </p>
   );
 }
@@ -205,6 +208,7 @@ export default async function VehiclePage({
             modelYear={(search.model_year as number | null) ?? null}
             modelYearOptions={modelYearOptions}
             inventoryBlock={inventoryBlock}
+            startsImmediately={TESTER_INSTANT_START_ENABLED && isTestEmail(user.email)}
           />
         </div>
       </section>

@@ -1,5 +1,7 @@
 "use client";
 
+import { findStickerRange, stickerWarnings, type StickerRange } from "@/lib/sticker-check";
+import { DealerInstalledTag } from "@/components/dealer-installed-tag";
 import { useState, type FormEvent } from "react";
 import { logQualifyingOffer } from "@/lib/outreach-actions";
 import { parseDealerOffer } from "@/lib/offer-parsing-actions";
@@ -22,7 +24,29 @@ function fiveDigitZip(zip: string | null): string {
   return match ? match[1] : trimmed;
 }
 
-export function LogOfferForm({ searchId, listings }: { searchId: string; listings: OutreachListing[] }) {
+/** Lower-cased words, for matching a dealer's add-on line to a researched item. */
+function normalizeForMatch(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+export function LogOfferForm({
+  searchId,
+  listings,
+  stickerRanges = [],
+  dealerInstalledItems = [],
+}: {
+  searchId: string;
+  listings: OutreachListing[];
+  /** Expected sticker per trim, from our data (sticker-ranges.ts). */
+  stickerRanges?: StickerRange[];
+  /** Display names of the customer's wanted dealer-installed options and packages (2026-10-17). */
+  dealerInstalledItems?: string[];
+}) {
+  const dealerInstalledNormalized = dealerInstalledItems.map(normalizeForMatch).filter((n) => n.length > 0);
+  const lineIsDealerInstalled = (description: string) => {
+    const d = normalizeForMatch(description);
+    return d.length > 0 && dealerInstalledNormalized.some((n) => d.includes(n) || n.includes(d));
+  };
   const [expanded, setExpanded] = useState(false);
   const [selectedListingId, setSelectedListingId] = useState("");
   const [dealerName, setDealerName] = useState("");
@@ -52,6 +76,10 @@ export function LogOfferForm({ searchId, listings }: { searchId: string; listing
   const [deliveryFee, setDeliveryFee] = useState("");
   const [deliveryNote, setDeliveryNote] = useState("");
   const [addons, setAddons] = useState<AddonLine[]>([]);
+  // Set when the parser found a destination charge listed separately: it's
+  // already in Total SRP, so it goes into the offer price, never an add-on.
+  const [parsedDestinationCents, setParsedDestinationCents] = useState(0);
+  const [parsedDestinationInPrice, setParsedDestinationInPrice] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; error?: string } | null>(null);
 
@@ -106,6 +134,7 @@ export function LogOfferForm({ searchId, listings }: { searchId: string; listing
     setDeliveryFee("");
     setDeliveryNote("");
     setAddons([]);
+    setParsedDestinationCents(0);
     setRawText("");
     setPdfFile(null);
     setParseError(null);
@@ -132,6 +161,8 @@ export function LogOfferForm({ searchId, listings }: { searchId: string; listing
 
     const { parsed } = res;
     setAiParsed(true);
+    setParsedDestinationCents(parsed.destinationCents);
+    setParsedDestinationInPrice(parsed.offerPriceCents != null);
     if (parsed.dealerName) setDealerName(parsed.dealerName);
     if (parsed.dealerContact) setDealerContact(parsed.dealerContact);
     if (parsed.offerPriceCents != null) setOfferPrice((parsed.offerPriceCents / 100).toString());
@@ -254,7 +285,7 @@ export function LogOfferForm({ searchId, listings }: { searchId: string; listing
         </button>
         {parseError && <p className="mt-2 text-xs text-red-400">{parseError}</p>}
         <p className="mt-2 text-xs text-zinc-500">
-          Only pre-fills the fields below — review and edit before saving. MSRP is never parsed; enter it
+          Only pre-fills the fields below — review and edit before saving. Total SRP is never parsed; enter it
           yourself.
         </p>
       </div>
@@ -311,9 +342,17 @@ export function LogOfferForm({ searchId, listings }: { searchId: string; listing
             onChange={(e) => setOfferPrice(e.target.value)}
             className="mt-1 w-full rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
           />
+          {parsedDestinationCents > 0 && (
+            <p className="mt-1 text-xs text-amber-400">
+              {parsedDestinationInPrice
+                ? `The dealer listed destination ($${(parsedDestinationCents / 100).toLocaleString()}) separately, so it's been added to the offer price. Total SRP already includes destination.`
+                : `The dealer listed destination ($${(parsedDestinationCents / 100).toLocaleString()}) separately. Include it in the offer price: Total SRP already includes destination.`}
+            </p>
+          )}
         </div>
         <div>
-          <label className="block text-xs text-zinc-400">MSRP ($) *</label>
+          {/* Relabelled 2026-10-17 (Brett): the guarantee is measured against this. */}
+          <label className="block text-xs text-zinc-400">Total SRP (window sticker total, no dealer addendum) *</label>
           <input
             required
             type="number"
@@ -323,6 +362,16 @@ export function LogOfferForm({ searchId, listings }: { searchId: string; listing
             onChange={(e) => setMsrp(e.target.value)}
             className="mt-1 w-full rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
           />
+          {/* Warn, never block (2026-10-17). */}
+          {stickerWarnings(
+            msrp.trim() ? Math.round(parseFloat(msrp) * 100) : null,
+            listings.find((l) => l.id === selectedListingId)?.msrpCents ?? null,
+            findStickerRange(stickerRanges, vehicleTrim),
+          ).map((w) => (
+            <p key={w.kind} className="mt-1 text-xs text-amber-400">
+              {w.message}
+            </p>
+          ))}
         </div>
         <div>
           <label className="block text-xs text-zinc-400">Vehicle trim (optional)</label>
@@ -411,8 +460,19 @@ export function LogOfferForm({ searchId, listings }: { searchId: string; listing
             + Add line
           </button>
         </div>
+        {dealerInstalledItems.length > 0 && (
+          <p className="mt-1 text-xs text-zinc-500">
+            Dealer-installed items the customer wants (removable, negotiable):{" "}
+            {dealerInstalledItems.map((name, i) => (
+              <span key={name}>
+                {i > 0 ? ", " : ""}
+                <span className="text-zinc-300">{name}</span>
+              </span>
+            ))}
+          </p>
+        )}
         {addons.map((a, i) => (
-          <div key={i} className="mt-2 flex gap-2">
+          <div key={i} className="mt-2 flex items-center gap-2">
             <input
               placeholder="Description"
               value={a.description}
@@ -428,6 +488,7 @@ export function LogOfferForm({ searchId, listings }: { searchId: string; listing
               onChange={(e) => updateAddon(i, "amount", e.target.value)}
               className="w-28 rounded-md border border-white/10 bg-zinc-900 px-3 py-2 text-sm text-white"
             />
+            {lineIsDealerInstalled(a.description) ? <DealerInstalledTag /> : null}
             <button
               type="button"
               onClick={() => removeAddon(i)}

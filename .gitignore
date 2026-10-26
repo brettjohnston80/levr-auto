@@ -56,3 +56,14 @@ skills-lock.json
 # (~/Downloads/camry-civic-originals-2026-09-13). Committing the raw zip
 # would add ~14MB of duplicates of files we already track in a better form.
 /camry_civic_color_images.zip
+
+# Raw configurator scrapes (archived outside the repo, ~/Documents/levr-configurator-raw-archive-2026-10/)
+data/raw/
+
+# Phase 1 end-to-end tests: local browser library copy and run logs (never committed)
+/scripts/tests/phase1/node_modules/
+/.test-logs/
+/scripts/tests/phase1/gen/
+/scripts/tests/phase1/c1/action-ids.json
+/scripts/tests/phase1/c1/gated-ids.json
+/scripts/sql-check/node_modules/

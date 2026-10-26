@@ -1,0 +1,9 @@
+{
+  "name": "levr-phase1-tests",
+  "private": true,
+  "type": "module",
+  "description": "Phase 1 end-to-end tests. Install with: npm install --prefix scripts/tests/phase1",
+  "dependencies": {
+    "puppeteer-core": "23.11.1"
+  }
+}

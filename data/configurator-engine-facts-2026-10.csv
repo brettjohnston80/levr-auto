@@ -1,0 +1,848 @@
+make,model,trim,model_year,engine_option,hp,displacement_l,cylinders,source_url
+Volkswagen,Atlas,Peak Edition,2026,2.0L turbo I4 8-speed automatic 4MOTION AWD,,,,
+Volkswagen,Atlas,Peak Edition,2026,2.0L turbo I4 8-speed automatic FWD,,,,
+Volkswagen,Atlas,SE,2026,2.0L turbo I4 8-speed automatic FWD,,,,
+Volkswagen,Atlas,SE,2026,2.0L turbo I4 8-speed automatic 4MOTION AWD,,,,
+Volkswagen,Atlas,SE w/Technology,2026,2.0L turbo I4 8-speed automatic FWD,,,,
+Volkswagen,Atlas,SE w/Technology,2026,2.0L turbo I4 8-speed automatic 4MOTION AWD,,,,
+Volkswagen,Atlas,SEL,2026,2.0L turbo I4 8-speed automatic 4MOTION AWD,,,,
+Volkswagen,Atlas,SEL,2026,2.0L turbo I4 8-speed automatic FWD,,,,
+Volkswagen,Atlas,SEL Premium R-Line,2026,2.0L turbo I4 8-speed automatic 4MOTION AWD,,,,
+Volkswagen,Atlas,SEL Premium R-Line,2026,2.0L turbo I4 8-speed automatic FWD,,,,
+Volkswagen,Atlas Cross Sport,SE,2026,2.0L turbo I4 8-speed automatic FWD,269,2.0,I4,https://www.vw.com/en/models/atlas-cross-sport.html
+Volkswagen,Atlas Cross Sport,SE,2026,2.0L turbo I4 8-speed automatic 4MOTION AWD,269,2.0,I4,https://www.vw.com/en/models/atlas-cross-sport.html
+Volkswagen,Atlas Cross Sport,SE with Technology,2026,2.0L turbo I4 8-speed automatic FWD,269,2.0,I4,https://www.vw.com/en/models/atlas-cross-sport.html
+Volkswagen,Atlas Cross Sport,SE with Technology,2026,2.0L turbo I4 8-speed automatic 4MOTION AWD,269,2.0,I4,https://www.vw.com/en/models/atlas-cross-sport.html
+Volkswagen,Atlas Cross Sport,SEL,2026,2.0L turbo I4 8-speed automatic 4MOTION AWD,269,2.0,I4,https://www.vw.com/en/models/atlas-cross-sport.html
+Volkswagen,Atlas Cross Sport,SEL,2026,2.0L turbo I4 8-speed automatic FWD,269,2.0,I4,https://www.vw.com/en/models/atlas-cross-sport.html
+Volkswagen,Atlas Cross Sport,SEL Premium R-Line,2026,2.0L turbo I4 8-speed automatic 4MOTION AWD,269,2.0,I4,https://www.vw.com/en/models/atlas-cross-sport.html
+Volkswagen,Atlas Cross Sport,SEL Premium R-Line,2026,2.0L turbo I4 8-speed automatic FWD,269,2.0,I4,https://www.vw.com/en/models/atlas-cross-sport.html
+Volkswagen,Atlas Cross Sport,SEL R-Line Black,2026,2.0L turbo I4 8-speed automatic 4MOTION AWD,269,2.0,I4,https://www.vw.com/en/models/atlas-cross-sport.html
+Volkswagen,Atlas Cross Sport,SEL R-Line Black,2026,2.0L turbo I4 8-speed automatic FWD,269,2.0,I4,https://www.vw.com/en/models/atlas-cross-sport.html
+Volkswagen,Taos,S,2027,1.5L turbo I4 8-speed automatic FWD,174,1.5,I4,https://www.vw.com/en/models/taos.html
+Volkswagen,Taos,S,2027,1.5L turbo I4 8-speed DSG 4MOTION AWD,174,1.5,I4,https://www.vw.com/en/models/taos.html
+Volkswagen,Taos,SE,2027,1.5L turbo I4 8-speed automatic FWD,174,1.5,I4,https://www.vw.com/en/models/taos.html
+Volkswagen,Taos,SE,2027,1.5L turbo I4 8-speed DSG 4MOTION AWD,174,1.5,I4,https://www.vw.com/en/models/taos.html
+Volkswagen,Taos,SE Black,2027,1.5L turbo I4 8-speed automatic FWD,174,1.5,I4,https://www.vw.com/en/models/taos.html
+Volkswagen,Taos,SE Black,2027,1.5L turbo I4 8-speed DSG 4MOTION AWD,174,1.5,I4,https://www.vw.com/en/models/taos.html
+Volkswagen,Taos,SEL,2027,1.5L turbo I4 8-speed DSG 4MOTION AWD,174,1.5,I4,https://www.vw.com/en/models/taos.html
+Volkswagen,Taos,Sport,2027,1.5L turbo I4 8-speed automatic FWD,174,1.5,I4,https://www.vw.com/en/models/taos.html
+Volkswagen,Taos,Sport,2027,1.5L turbo I4 8-speed DSG 4MOTION AWD,174,1.5,I4,https://www.vw.com/en/models/taos.html
+Audi,A3,Base,2027,2.0L turbo I4 40 TFSI 7-speed S tronic quattro AWD,,,,
+Audi,A3,Black optic plus,2027,2.0L turbo I4 40 TFSI 7-speed S tronic quattro AWD,,,,
+Audi,A3,S line plus,2027,2.0L turbo I4 40 TFSI 7-speed S tronic quattro AWD,,,,
+Audi,A5,Premium,2027,2.0L turbo I4 7-speed S tronic quattro AWD,,,,
+Audi,A6,Premium,2027,3.0L turbo V6 mild hybrid 7-speed S tronic quattro AWD,,,,
+Audi,A6 Sportback e-tron,Premium,2027,Single-motor electric RWD,,,,
+Audi,A6 Sportback e-tron,Premium,2027,Dual-motor electric quattro AWD,,,,
+Audi,A6 Sportback e-tron,Premium Plus,2027,Single-motor electric RWD,,,,
+Audi,A6 Sportback e-tron,Premium Plus,2027,Dual-motor electric quattro AWD,,,,
+Audi,A6 Sportback e-tron,Prestige,2027,Single-motor electric RWD,,,,
+Audi,A6 Sportback e-tron,Prestige,2027,Dual-motor electric quattro AWD,,,,
+Audi,A8,55 TFSI quattro,2027,3.0L turbo V6 mild hybrid 8-speed tiptronic quattro AWD,,,,
+Audi,Q3,S line,2027,2.0L turbo I4 TFSI 7-speed S tronic quattro AWD,,,,
+Audi,Q4 Sportback e-tron,Premium,2026,55 e-tron electric quattro AWD,,,,
+Audi,Q4 Sportback e-tron,Premium Plus,2026,55 e-tron electric quattro AWD,,,,
+Audi,Q4 e-tron,Premium,2026,45 e-tron electric RWD,,,,
+Audi,Q4 e-tron,Premium,2026,55 e-tron electric quattro AWD,,,,
+Audi,Q4 e-tron,Premium Plus,2026,45 e-tron electric RWD,,,,
+Audi,Q4 e-tron,Premium Plus,2026,55 e-tron electric quattro AWD,,,,
+Audi,Q5,Premium,2027,TFSI S tronic quattro AWD,,,,
+Audi,Q5 Sportback,Premium,2027,TFSI S tronic quattro AWD,,,,
+Audi,Q6 Sportback e-tron,Premium,2027,Electric quattro AWD,456,,,https://www.audiusa.com/en/models/q6-e-tron/q6-sportback-e-tron/2027/overview/
+Audi,Q6 Sportback e-tron,Premium Plus,2027,Electric quattro AWD,456,,,https://www.audiusa.com/en/models/q6-e-tron/q6-sportback-e-tron/2027/overview/
+Audi,Q6 Sportback e-tron,Prestige,2027,Electric quattro AWD,456,,,https://www.audiusa.com/en/models/q6-e-tron/q6-sportback-e-tron/2027/overview/
+Audi,Q6 e-tron,Premium,2027,Electric quattro AWD,456,,,https://www.audiusa.com/en/models/q6-e-tron/q6-e-tron/2027/overview/
+Audi,Q6 e-tron,Premium Plus,2027,Electric quattro AWD,456,,,https://www.audiusa.com/en/models/q6-e-tron/q6-e-tron/2027/overview/
+Audi,Q6 e-tron,Prestige,2027,Electric quattro AWD,456,,,https://www.audiusa.com/en/models/q6-e-tron/q6-e-tron/2027/overview/
+Audi,Q7,Premium,2026,45 TFSI 2.0L turbo I4 mild hybrid 8-speed automatic quattro AWD,261,,I4,https://www.audiusa.com/en/models/q7/q7/2026/overview/
+Audi,Q7,Premium Plus,2026,45 TFSI 2.0L turbo I4 mild hybrid 8-speed automatic quattro AWD,261,,I4,https://www.audiusa.com/en/models/q7/q7/2026/overview/
+Audi,Q8,Premium,2027,55 TFSI 3.0L turbo V6 mild hybrid 8-speed automatic quattro AWD,,,,
+Audi,Q8,Premium Plus,2027,55 TFSI 3.0L turbo V6 mild hybrid 8-speed automatic quattro AWD,,,,
+Audi,Q8,Prestige,2027,55 TFSI 3.0L turbo V6 mild hybrid 8-speed automatic quattro AWD,,,,
+Audi,RS 3,Base,2027,2.5L turbo I5 7-speed S tronic quattro AWD,,,,
+Audi,RS 6 Avant,Performance,2026,4.0L twin-turbo V8 mild hybrid 8-speed tiptronic quattro AWD,,,,
+Audi,RS 7,Performance,2026,4.0L twin-turbo V8 mild hybrid 8-speed tiptronic quattro AWD,621,4.0,V8,https://www.audiusa.com/en/models/a7/rs7/
+Audi,RS e-tron GT,performance,2026,Dual-motor electric quattro AWD,912,,,https://www.audiusa.com/en/models/e-tron-gt/rs-e-tron-gt/
+Audi,RS e-tron GT,performance,2027,Dual-motor electric quattro AWD,,,,
+Audi,S e-tron GT,Premium Plus,2026,Dual-motor electric quattro AWD,670,,,https://www.audiusa.com/en/models/e-tron-gt/s-e-tron-gt/
+Audi,S e-tron GT,Prestige,2026,Dual-motor electric quattro AWD,670,,,https://www.audiusa.com/en/models/e-tron-gt/s-e-tron-gt/
+Audi,S3,Base,2027,2.0L turbo I4 7-speed S tronic quattro AWD,,,,
+Audi,S5,Premium,2027,3.0L turbo V6 7-speed S tronic quattro AWD,,,,
+Audi,S6 Sportback e-tron,Premium Plus,2027,Dual-motor electric quattro AWD,543,,,https://www.audiusa.com/en/models/a6-e-tron/s6-sportback-e-tron/2027/overview/
+Audi,S6 Sportback e-tron,Prestige,2027,Dual-motor electric quattro AWD,543,,,https://www.audiusa.com/en/models/a6-e-tron/s6-sportback-e-tron/2027/overview/
+Audi,S8,4.0 TFSI quattro,2027,4.0L twin-turbo V8 mild hybrid 8-speed tiptronic quattro AWD,,,,
+Audi,SQ5,Premium,2027,TFSI S tronic quattro AWD,,,,
+Audi,SQ5 Sportback,Premium,2027,TFSI S tronic quattro AWD,,,,
+Audi,SQ6 Sportback e-tron,Premium Plus,2027,Electric quattro AWD,509,,,https://www.audiusa.com/en/models/q6-e-tron/sq6-sportback-e-tron/2027/overview/
+Audi,SQ6 Sportback e-tron,Prestige,2027,Electric quattro AWD,509,,,https://www.audiusa.com/en/models/q6-e-tron/sq6-sportback-e-tron/2027/overview/
+Audi,SQ6 e-tron,Premium Plus,2027,Electric quattro AWD,509,,,https://www.audiusa.com/en/models/q6-e-tron/sq6-e-tron/2027/overview/
+Audi,SQ6 e-tron,Prestige,2027,Electric quattro AWD,509,,,https://www.audiusa.com/en/models/q6-e-tron/sq6-e-tron/2027/overview/
+Audi,SQ8,Premium Plus,2027,4.0L twin-turbo V8 mild hybrid 8-speed automatic quattro AWD,500,,,https://www.audiusa.com/en/models/q8/sq8/2027/overview/
+Audi,SQ8,Prestige,2027,4.0L twin-turbo V8 mild hybrid 8-speed automatic quattro AWD,500,,,https://www.audiusa.com/en/models/q8/sq8/2027/overview/
+GMC,Terrain,Elevation,2026,"FWD, 1.5L Turbo 4-cylinder engine, Continuous Variable Transmission (CVT)",,1.5,I4,https://www.gmc.com/suvs/previous-year/terrain
+GMC,Terrain,Elevation,2026,"AWD, 1.5L Turbo 4-cylinder engine, 8-speed automatic transmission",,1.5,I4,https://www.gmc.com/suvs/previous-year/terrain
+GMC,Terrain,AT4,2026,"AWD, 1.5L Turbo 4-cylinder engine, 8-speed automatic transmission",,1.5,I4,https://www.gmc.com/suvs/previous-year/terrain
+GMC,Terrain,Denali,2026,"AWD, 1.5L Turbo 4-cylinder engine, 8-speed automatic transmission",,1.5,I4,https://www.gmc.com/suvs/previous-year/terrain
+GMC,Terrain,Elevation,2027,"FWD, 1.5L Turbo 4-cylinder engine, 8-speed automatic transmission",175,1.5,I4,https://www.gmc.com/suvs/terrain
+GMC,Terrain,Elevation,2027,"AWD, 1.5L Turbo 4-cylinder engine, 8-speed automatic transmission",175,1.5,I4,https://www.gmc.com/suvs/terrain
+GMC,Terrain,AT4,2027,"AWD, 1.5L Turbo 4-cylinder engine, 8-speed automatic transmission",175,1.5,I4,https://www.gmc.com/suvs/terrain
+GMC,Terrain,Denali,2027,"AWD, 1.5L Turbo 4-cylinder engine, 8-speed automatic transmission",175,1.5,I4,https://www.gmc.com/suvs/terrain
+GMC,Acadia,Elevation,2026,"FWD, 2.5L Turbo engine, 8-speed automatic transmission",328,2.5,I4,https://www.gmc.com/suvs/previous-year/acadia
+GMC,Acadia,Elevation,2026,"AWD, 2.5L Turbo engine, 8-speed automatic transmission",328,2.5,I4,https://www.gmc.com/suvs/previous-year/acadia
+GMC,Acadia,Denali,2026,"FWD, 2.5L Turbo engine, 8-speed automatic transmission",328,2.5,I4,https://www.gmc.com/suvs/previous-year/acadia
+GMC,Acadia,Denali,2026,"AWD, 2.5L Turbo engine, 8-speed automatic transmission",328,2.5,I4,https://www.gmc.com/suvs/previous-year/acadia
+GMC,Acadia,Denali Ultimate,2026,"FWD, 2.5L Turbo engine, 8-speed automatic transmission",328,2.5,I4,https://www.gmc.com/suvs/previous-year/acadia
+GMC,Acadia,Denali Ultimate,2026,"AWD, 2.5L Turbo engine, 8-speed automatic transmission",328,2.5,I4,https://www.gmc.com/suvs/previous-year/acadia
+GMC,Acadia,AT4,2026,"AWD, 2.5L Turbo engine, 8-speed automatic transmission",328,2.5,I4,https://www.gmc.com/suvs/previous-year/acadia
+GMC,Acadia,Elevation,2027,"FWD, 2.5L Turbo engine, 8-speed automatic transmission",328,2.5,I4,https://www.gmc.com/suvs/acadia
+GMC,Acadia,Elevation,2027,"AWD, 2.5L Turbo engine, 8-speed automatic transmission",328,2.5,I4,https://www.gmc.com/suvs/acadia
+GMC,Acadia,Denali,2027,"FWD, 2.5L Turbo engine, 8-speed automatic transmission",328,2.5,I4,https://www.gmc.com/suvs/acadia
+GMC,Acadia,Denali,2027,"AWD, 2.5L Turbo engine, 8-speed automatic transmission",328,2.5,I4,https://www.gmc.com/suvs/acadia
+GMC,Acadia,Denali Ultimate,2027,"FWD, 2.5L Turbo engine, 8-speed automatic transmission",328,2.5,I4,https://www.gmc.com/suvs/acadia
+GMC,Acadia,Denali Ultimate,2027,"AWD, 2.5L Turbo engine, 8-speed automatic transmission",328,2.5,I4,https://www.gmc.com/suvs/acadia
+GMC,Acadia,AT4,2027,"AWD, 2.5L Turbo engine, 8-speed automatic transmission",328,2.5,I4,https://www.gmc.com/suvs/acadia
+GMC,Yukon,Elevation,2026,"2WD, 5.3L V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon,Elevation,2026,"4WD, 5.3L V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon,Elevation,2026,"2WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",,3.0,I6,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon,Elevation,2026,"4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",,3.0,I6,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon,Denali,2026,"2WD, 6.2L V8 engine, 10-speed automatic transmission",,6.2,V8,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon,Denali,2026,"4WD, 6.2L V8 engine, 10-speed automatic transmission",,6.2,V8,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon,Denali,2026,"2WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",,3.0,I6,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon,Denali,2026,"4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",,3.0,I6,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon,AT4,2026,"4WD, 5.3L V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon,AT4,2026,"4WD, 6.2L V8 engine, 10-speed automatic transmission",,6.2,V8,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon,AT4,2026,"4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",,3.0,I6,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon,AT4 Ultimate,2026,"4WD, 6.2L V8 engine, 10-speed automatic transmission",,6.2,V8,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon,AT4 Ultimate,2026,"4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",,3.0,I6,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon,Denali Ultimate,2026,"4WD, 6.2L V8 engine, 10-speed automatic transmission",,6.2,V8,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon,Denali Ultimate,2026,"4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",,3.0,I6,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon,Elevation,2027,"2WD, 5.3L V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/suvs/yukon
+GMC,Yukon,Elevation,2027,"4WD, 5.3L V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/suvs/yukon
+GMC,Yukon,Elevation,2027,"2WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",305,3.0,I6,https://www.gmc.com/suvs/yukon
+GMC,Yukon,Elevation,2027,"4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",305,3.0,I6,https://www.gmc.com/suvs/yukon
+GMC,Yukon,Denali,2027,"2WD, 6.2L V8 engine, 10-speed automatic transmission",,6.2,V8,https://www.gmc.com/suvs/yukon
+GMC,Yukon,Denali,2027,"2WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",305,3.0,I6,https://www.gmc.com/suvs/yukon
+GMC,Yukon,Denali,2027,"4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",305,3.0,I6,https://www.gmc.com/suvs/yukon
+GMC,Yukon,Denali,2027,"4WD, 6.2L V8 engine, 10-speed automatic transmission",,6.2,V8,https://www.gmc.com/suvs/yukon
+GMC,Yukon,AT4,2027,"4WD, 5.3L V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/suvs/yukon
+GMC,Yukon,AT4,2027,"4WD, 6.2L V8 engine, 10-speed automatic transmission",,6.2,V8,https://www.gmc.com/suvs/yukon
+GMC,Yukon,AT4,2027,"4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",305,3.0,I6,https://www.gmc.com/suvs/yukon
+GMC,Yukon,AT4 Ultimate,2027,"4WD, 6.2L V8 engine, 10-speed automatic transmission",,6.2,V8,https://www.gmc.com/suvs/yukon
+GMC,Yukon,AT4 Ultimate,2027,"4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",305,3.0,I6,https://www.gmc.com/suvs/yukon
+GMC,Yukon,Denali Ultimate,2027,"4WD, 6.2L V8 engine, 10-speed automatic transmission",,6.2,V8,https://www.gmc.com/suvs/yukon
+GMC,Yukon,Denali Ultimate,2027,"4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",305,3.0,I6,https://www.gmc.com/suvs/yukon
+GMC,Yukon XL,Elevation,2026,"2WD, 5.3L V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon XL,Elevation,2026,"4WD, 5.3L V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon XL,Elevation,2026,"2WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",,3.0,I6,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon XL,Elevation,2026,"4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",,3.0,I6,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon XL,Denali,2026,"2WD, 6.2L V8 engine, 10-speed automatic transmission",,6.2,V8,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon XL,Denali,2026,"4WD, 6.2L V8 engine, 10-speed automatic transmission",,6.2,V8,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon XL,Denali,2026,"2WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",,3.0,I6,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon XL,Denali,2026,"4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",,3.0,I6,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon XL,AT4,2026,"4WD, 5.3L V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon XL,AT4,2026,"4WD, 6.2L V8 engine, 10-speed automatic transmission",,6.2,V8,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon XL,AT4,2026,"4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",,3.0,I6,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon XL,AT4 Ultimate,2026,"4WD, 6.2L V8 engine, 10-speed automatic transmission",,6.2,V8,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon XL,AT4 Ultimate,2026,"4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",,3.0,I6,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon XL,Denali Ultimate,2026,"4WD, 6.2L V8 engine, 10-speed automatic transmission",,6.2,V8,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon XL,Denali Ultimate,2026,"4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",,3.0,I6,https://www.gmc.com/suvs/previous-year/yukon
+GMC,Yukon XL,Elevation,2027,"2WD, 5.3L V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/suvs/yukon
+GMC,Yukon XL,Elevation,2027,"4WD, 5.3L V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/suvs/yukon
+GMC,Yukon XL,Elevation,2027,"2WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",305,3.0,I6,https://www.gmc.com/suvs/yukon
+GMC,Yukon XL,Elevation,2027,"4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",305,3.0,I6,https://www.gmc.com/suvs/yukon
+GMC,Yukon XL,Denali,2027,"2WD, 6.2L V8 engine, 10-speed automatic transmission",,6.2,V8,https://www.gmc.com/suvs/yukon
+GMC,Yukon XL,Denali,2027,"2WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",305,3.0,I6,https://www.gmc.com/suvs/yukon
+GMC,Yukon XL,Denali,2027,"4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",305,3.0,I6,https://www.gmc.com/suvs/yukon
+GMC,Yukon XL,Denali,2027,"4WD, 6.2L V8 engine, 10-speed automatic transmission",,6.2,V8,https://www.gmc.com/suvs/yukon
+GMC,Yukon XL,AT4,2027,"4WD, 5.3L V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/suvs/yukon
+GMC,Yukon XL,AT4,2027,"4WD, 6.2L V8 engine, 10-speed automatic transmission",,6.2,V8,https://www.gmc.com/suvs/yukon
+GMC,Yukon XL,AT4,2027,"4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",305,3.0,I6,https://www.gmc.com/suvs/yukon
+GMC,Yukon XL,AT4 Ultimate,2027,"4WD, 6.2L V8 engine, 10-speed automatic transmission",,6.2,V8,https://www.gmc.com/suvs/yukon
+GMC,Yukon XL,AT4 Ultimate,2027,"4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",305,3.0,I6,https://www.gmc.com/suvs/yukon
+GMC,Yukon XL,Denali Ultimate,2027,"4WD, 6.2L V8 engine, 10-speed automatic transmission",,6.2,V8,https://www.gmc.com/suvs/yukon
+GMC,Yukon XL,Denali Ultimate,2027,"4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",305,3.0,I6,https://www.gmc.com/suvs/yukon
+GMC,Canyon,Elevation,2026,"Crew Cab, Short Box, 2WD, TurboMax engine, 8-speed automatic transmission",310,2.7,I4,https://www.gmc.com/trucks/canyon
+GMC,Canyon,Elevation,2026,"Crew Cab, Short Box, 4WD, TurboMax engine, 8-speed automatic transmission",310,2.7,I4,https://www.gmc.com/trucks/canyon
+GMC,Canyon,AT4,2026,"Crew Cab, Short Box, 4WD, TurboMax engine, 8-speed automatic transmission",310,2.7,I4,https://www.gmc.com/trucks/canyon
+GMC,Canyon,Denali,2026,"Crew Cab, Short Box, 4WD, TurboMax engine, 8-speed automatic transmission",310,2.7,I4,https://www.gmc.com/trucks/canyon
+GMC,Canyon,AT4X,2026,"Crew Cab, Short Box, 4WD, TurboMax engine, 8-speed automatic transmission",310,2.7,I4,https://www.gmc.com/trucks/canyon
+GMC,Sierra 1500,Pro,2026,"Crew Cab, Short Bed, 2WD, TurboMax engine, 8-speed automatic transmission",310,2.7,I4,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,Pro,2026,"Regular Cab, Standard Bed, 2WD, TurboMax engine, 8-speed automatic transmission",310,2.7,I4,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,Pro,2026,"Regular Cab, Long Bed, 2WD, TurboMax engine, 8-speed automatic transmission",310,2.7,I4,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,Pro,2026,"Regular Cab, Long Bed, 2WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,Pro,2026,"Double Cab, Standard Bed, 2WD, TurboMax engine, 8-speed automatic transmission",310,2.7,I4,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,Pro,2026,"Regular Cab, Standard Bed, 4WD, TurboMax engine, 8-speed automatic transmission",310,2.7,I4,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,Pro,2026,"Regular Cab, Long Bed, 4WD, TurboMax engine, 8-speed automatic transmission",310,2.7,I4,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,Pro,2026,"Double Cab, Standard Bed, 2WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,Pro,2026,"Double Cab, Standard Bed, 4WD, TurboMax engine, 8-speed automatic transmission",310,2.7,I4,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,Pro,2026,"Regular Cab, Long Bed, 4WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,Pro,2026,"Crew Cab, Short Bed, 2WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,Pro,2026,"Double Cab, Standard Bed, 4WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,Pro,2026,"Crew Cab, Short Bed, 4WD, TurboMax engine, 8-speed automatic transmission",310,2.7,I4,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,Pro,2026,"Crew Cab, Standard Bed, 4WD, TurboMax engine, 8-speed automatic transmission",310,2.7,I4,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,Pro,2026,"Crew Cab, Short Bed, 4WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,Pro,2026,"Crew Cab, Standard Bed, 4WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,SLE,2026,"Crew Cab, Short Bed, 2WD, TurboMax engine, 8-speed automatic transmission",310,2.7,I4,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,SLE,2026,"Double Cab, Standard Bed, 2WD, TurboMax engine, 8-speed automatic transmission",310,2.7,I4,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,SLE,2026,"Double Cab, Standard Bed, 2WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,SLE,2026,"Double Cab, Standard Bed, 4WD, TurboMax engine, 8-speed automatic transmission",310,2.7,I4,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,SLE,2026,"Crew Cab, Short Bed, 2WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,SLE,2026,"Double Cab, Standard Bed, 4WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,SLE,2026,"Crew Cab, Short Bed, 4WD, TurboMax engine, 8-speed automatic transmission",310,2.7,I4,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,SLE,2026,"Crew Cab, Standard Bed, 4WD, TurboMax engine, 8-speed automatic transmission",310,2.7,I4,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,SLE,2026,"Crew Cab, Short Bed, 4WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,SLE,2026,"Crew Cab, Standard Bed, 4WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,SLE,2026,"Crew Cab, Short Bed, 4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",,3.0,I6,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,SLE,2026,"Crew Cab, Standard Bed, 4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",,3.0,I6,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,Elevation,2026,"Crew Cab, Short Bed, 2WD, TurboMax engine, 8-speed automatic transmission",310,2.7,I4,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,Elevation,2026,"Double Cab, Standard Bed, 2WD, TurboMax engine, 8-speed automatic transmission",310,2.7,I4,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,Elevation,2026,"Double Cab, Standard Bed, 2WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,Elevation,2026,"Double Cab, Standard Bed, 2WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,Elevation,2026,"Double Cab, Standard Bed, 2WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",,3.0,I6,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,Elevation,2026,"Double Cab, Standard Bed, 4WD, TurboMax engine, 8-speed automatic transmission",310,2.7,I4,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,Elevation,2026,"Crew Cab, Short Bed, 2WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,Elevation,2026,"Double Cab, Standard Bed, 4WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,Elevation,2026,"Crew Cab, Short Bed, 2WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,Elevation,2026,"Double Cab, Standard Bed, 4WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,Elevation,2026,"Crew Cab, Short Bed, 2WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",,3.0,I6,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,Elevation,2026,"Crew Cab, Short Bed, 4WD, TurboMax engine, 8-speed automatic transmission",310,2.7,I4,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,Elevation,2026,"Double Cab, Standard Bed, 4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",,3.0,I6,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,Elevation,2026,"Crew Cab, Standard Bed, 4WD, TurboMax engine, 8-speed automatic transmission",310,2.7,I4,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,Elevation,2026,"Crew Cab, Short Bed, 4WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,Elevation,2026,"Crew Cab, Standard Bed, 4WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,Elevation,2026,"Crew Cab, Short Bed, 4WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,Elevation,2026,"Crew Cab, Short Bed, 4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",,3.0,I6,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,Elevation,2026,"Crew Cab, Standard Bed, 4WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,Elevation,2026,"Crew Cab, Short Bed, 4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",,3.0,I6,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,Elevation,2026,"Crew Cab, Standard Bed, 4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",,3.0,I6,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,SLT,2026,"Crew Cab, Short Bed, 2WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,SLT,2026,"Crew Cab, Short Bed, 2WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,SLT,2026,"Crew Cab, Short Bed, 2WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",,3.0,I6,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,SLT,2026,"Crew Cab, Short Bed, 4WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,SLT,2026,"Crew Cab, Standard Bed, 4WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,SLT,2026,"Crew Cab, Short Bed, 4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission",,3.0,I6,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,SLT,2026,"Crew Cab, Short Bed, 4WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,SLT,2026,"Crew Cab, Standard Bed, 4WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,SLT,2026,"Crew Cab, Short Bed, 4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",,3.0,I6,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,SLT,2026,"Crew Cab, Standard Bed, 4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",,3.0,I6,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,SLT,2026,"Crew Cab, Short Bed, 4WD, 6.2L EcoTec3 V8 engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",420,6.2,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/denali
+GMC,Sierra 1500,SLT,2026,"Crew Cab, Standard Bed, 4WD, 6.2L EcoTec3 V8 engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",420,6.2,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/denali
+GMC,Sierra 1500,AT4,2026,"Crew Cab, Short Bed, 4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",,3.0,I6,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,AT4,2026,"Crew Cab, Standard Bed, 4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",,3.0,I6,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,AT4,2026,"Crew Cab, Short Bed, 4WD, 6.2L EcoTec3 V8 engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",420,6.2,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/denali
+GMC,Sierra 1500,AT4,2026,"Crew Cab, Standard Bed, 4WD, 6.2L EcoTec3 V8 engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",420,6.2,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/denali
+GMC,Sierra 1500,Denali,2026,"Crew Cab, Short Bed, 2WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,Denali,2026,"Crew Cab, Short Bed, 2WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",,3.0,I6,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,Denali,2026,"Crew Cab, Short Bed, 4WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,Denali,2026,"Crew Cab, Standard Bed, 4WD, 5.3L EcoTec3 V8 engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",,5.3,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/sle-elevation-slt
+GMC,Sierra 1500,Denali,2026,"Crew Cab, Short Bed, 4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",,3.0,I6,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,Denali,2026,"Crew Cab, Standard Bed, 4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",,3.0,I6,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,Denali,2026,"Crew Cab, Short Bed, 4WD, 6.2L EcoTec3 V8 engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",420,6.2,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/denali
+GMC,Sierra 1500,Denali,2026,"Crew Cab, Standard Bed, 4WD, 6.2L EcoTec3 V8 engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",420,6.2,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/denali
+GMC,Sierra 1500,AT4X,2026,"Crew Cab, Short Bed, 4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",,3.0,I6,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 1500,AT4X,2026,"Crew Cab, Short Bed, 4WD, 6.2L EcoTec3 V8 engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",420,6.2,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/denali
+GMC,Sierra 1500,Denali Ultimate,2026,"Crew Cab, Short Bed, 4WD, 6.2L EcoTec3 V8 engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",420,6.2,V8,https://www.gmc.com/trucks/previous-year/sierra/1500/denali
+GMC,Sierra 1500,Denali Ultimate,2026,"Crew Cab, Short Bed, 4WD, 3.0L Duramax Turbo Diesel engine, 10-speed automatic transmission with Electronic Precision shift and front bucket seats",,3.0,I6,https://www.gmc.com/trucks/previous-year/sierra/1500
+GMC,Sierra 2500HD,Pro,2026,"Crew Cab, Standard Bed, 2WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Pro,2026,"Regular Cab, Long Bed, 2WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Pro,2026,"Double Cab, Standard Bed, 2WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Pro,2026,"Double Cab, Long Bed, 2WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Pro,2026,"Regular Cab, Long Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Pro,2026,"Crew Cab, Long Bed, 2WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Pro,2026,"Double Cab, Standard Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Pro,2026,"Double Cab, Long Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Pro,2026,"Crew Cab, Standard Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Pro,2026,"Crew Cab, Long Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Pro,2026,"Regular Cab, Long Bed, 2WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Pro,2026,"Double Cab, Standard Bed, 2WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Pro,2026,"Double Cab, Long Bed, 2WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Pro,2026,"Regular Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Pro,2026,"Crew Cab, Standard Bed, 2WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Pro,2026,"Regular Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission with integrated Power Take-Off (PTO)",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Pro,2026,"Crew Cab, Long Bed, 2WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Pro,2026,"Double Cab, Standard Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Pro,2026,"Double Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Pro,2026,"Double Cab, Standard Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission with integrated Power Take-Off (PTO)",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Pro,2026,"Double Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission with integrated Power Take-Off (PTO)",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Pro,2026,"Crew Cab, Standard Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Pro,2026,"Crew Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Pro,2026,"Crew Cab, Standard Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission with integrated Power Take-Off (PTO)",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Pro,2026,"Crew Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission with integrated Power Take-Off (PTO)",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,SLE,2026,"Crew Cab, Standard Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,SLE,2026,"Regular Cab, Long Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,SLE,2026,"Double Cab, Standard Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,SLE,2026,"Double Cab, Long Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,SLE,2026,"Crew Cab, Long Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,SLE,2026,"Regular Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,SLE,2026,"Regular Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission with integrated Power Take-Off (PTO)",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,SLE,2026,"Double Cab, Standard Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,SLE,2026,"Double Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,SLE,2026,"Double Cab, Standard Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission with integrated Power Take-Off (PTO)",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,SLE,2026,"Double Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission with integrated Power Take-Off (PTO)",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,SLE,2026,"Crew Cab, Standard Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,SLE,2026,"Crew Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,SLE,2026,"Crew Cab, Standard Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission with integrated Power Take-Off (PTO)",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,SLE,2026,"Crew Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission with integrated Power Take-Off (PTO)",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,SLT,2026,"Crew Cab, Standard Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,SLT,2026,"Crew Cab, Long Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,SLT,2026,"Crew Cab, Standard Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,SLT,2026,"Crew Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,AT4,2026,"Crew Cab, Standard Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,AT4,2026,"Crew Cab, Long Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,AT4,2026,"Crew Cab, Standard Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,AT4,2026,"Crew Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,AT4X,2026,"Crew Cab, Standard Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,AT4X,2026,"Crew Cab, Standard Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Denali,2026,"Crew Cab, Standard Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Denali,2026,"Crew Cab, Long Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Denali,2026,"Crew Cab, Standard Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Denali,2026,"Crew Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Denali Ultimate,2026,"Crew Cab, Standard Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 2500HD,Denali Ultimate,2026,"Crew Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,Pro,2026,"Crew Cab, Standard Bed, 2WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,Pro,2026,"Regular Cab, Long Bed, 2WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,Pro,2026,"Double Cab, Long Bed, 2WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,Pro,2026,"Regular Cab, Long Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,Pro,2026,"Crew Cab, Long Bed, 2WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,Pro,2026,"Double Cab, Long Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,Pro,2026,"Crew Cab, Standard Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,Pro,2026,"Crew Cab, Long Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,Pro,2026,"Regular Cab, Long Bed, 2WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,Pro,2026,"Double Cab, Long Bed, 2WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,Pro,2026,"Regular Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,Pro,2026,"Crew Cab, Standard Bed, 2WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,Pro,2026,"Regular Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission with integrated Power Take-Off (PTO)",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,Pro,2026,"Crew Cab, Long Bed, 2WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,Pro,2026,"Double Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,Pro,2026,"Double Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission with integrated Power Take-Off (PTO)",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,Pro,2026,"Crew Cab, Standard Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,Pro,2026,"Crew Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,Pro,2026,"Crew Cab, Standard Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission with integrated Power Take-Off (PTO)",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,Pro,2026,"Crew Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission with integrated Power Take-Off (PTO)",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,SLE,2026,"Crew Cab, Standard Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,SLE,2026,"Regular Cab, Long Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,SLE,2026,"Double Cab, Long Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,SLE,2026,"Crew Cab, Long Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,SLE,2026,"Regular Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,SLE,2026,"Regular Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission with integrated Power Take-Off (PTO)",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,SLE,2026,"Double Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,SLE,2026,"Double Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission with integrated Power Take-Off (PTO)",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,SLE,2026,"Crew Cab, Standard Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,SLE,2026,"Crew Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,SLE,2026,"Crew Cab, Standard Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission with integrated Power Take-Off (PTO)",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,SLE,2026,"Crew Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission with integrated Power Take-Off (PTO)",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,SLT,2026,"Crew Cab, Standard Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,SLT,2026,"Crew Cab, Long Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,SLT,2026,"Crew Cab, Standard Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,SLT,2026,"Crew Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,AT4,2026,"Crew Cab, Standard Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,AT4,2026,"Crew Cab, Long Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,AT4,2026,"Crew Cab, Standard Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,AT4,2026,"Crew Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,Denali,2026,"Crew Cab, Standard Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,Denali,2026,"Crew Cab, Long Bed, 4WD, 6.6L V8 Gas engine, 10-speed automatic transmission",,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,Denali,2026,"Crew Cab, Standard Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,Denali,2026,"Crew Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,Denali Ultimate,2026,"Crew Cab, Standard Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra 3500HD,Denali Ultimate,2026,"Crew Cab, Long Bed, 4WD, 6.6L Duramax Turbo-Diesel V8 engine, 10-speed automatic transmission",470,6.6,V8,https://www.gmc.com/trucks/sierra/2500hd-3500hd
+GMC,Sierra EV,Denali,2026,"Standard Range battery, Crew Cab, Short Bed, 4WD",,,,
+GMC,Sierra EV,Elevation,2026,"Standard Range battery, Crew Cab, Short Bed, 4WD",605,,,https://www.gmc.com/electric/previous-year/sierra-ev
+GMC,Sierra EV,AT4,2026,"Extended Range battery, Crew Cab, Short Bed, 4WD",,,,
+GMC,HUMMER EV Pickup,2X,2026,"Crew Cab, Short Box, 4WD",570,,,https://www.gmc.com/electric/hummer-ev/pickup-truck
+GMC,HUMMER EV Pickup,3X,2026,"Crew Cab, Short Box, 4WD",830,,,https://www.gmc.com/electric/hummer-ev/pickup-truck
+GMC,HUMMER EV SUV,2X,2026,4WD,570,,,https://www.gmc.com/electric/hummer-ev/suv
+GMC,HUMMER EV SUV,3X,2026,4WD,830,,,https://www.gmc.com/electric/hummer-ev/suv
+Buick,Envista,Preferred,2026,"FWD, ECOTEC 1.2L Turbo engine, 6-speed automatic transmission",,1.2,I3,https://www.buick.com/suvs/envista
+Buick,Envista,Sport Touring,2026,"FWD, ECOTEC 1.2L Turbo engine, 6-speed automatic transmission",,1.2,I3,https://www.buick.com/suvs/envista
+Buick,Envista,Avenir,2026,"FWD, ECOTEC 1.2L Turbo engine, 6-speed automatic transmission",,1.2,I3,https://www.buick.com/suvs/envista
+Buick,Encore GX,Preferred,2026,"FWD, ECOTEC 1.2L Turbo engine, Continuous Variable Transmission (CVT)",,1.2,I3,https://www.buick.com/suvs/encore-gx
+Buick,Encore GX,Preferred,2026,"FWD, ECOTEC 1.3L Turbo engine, Continuous Variable Transmission (CVT)",,1.3,I3,https://www.buick.com/suvs/encore-gx
+Buick,Encore GX,Preferred,2026,"AWD, ECOTEC 1.3L Turbo engine, 9-speed automatic transmission",,1.3,I3,https://www.buick.com/suvs/encore-gx
+Buick,Encore GX,Sport Touring,2026,"FWD, ECOTEC 1.3L Turbo engine, Continuous Variable Transmission (CVT)",,1.3,I3,https://www.buick.com/suvs/encore-gx
+Buick,Encore GX,Sport Touring,2026,"AWD, ECOTEC 1.3L Turbo engine, 9-speed automatic transmission",,1.3,I3,https://www.buick.com/suvs/encore-gx
+Buick,Encore GX,Avenir,2026,"FWD, ECOTEC 1.3L Turbo engine, Continuous Variable Transmission (CVT)",,1.3,I3,https://www.buick.com/suvs/encore-gx
+Buick,Encore GX,Avenir,2026,"AWD, ECOTEC 1.3L Turbo engine, 9-speed automatic transmission",,1.3,I3,https://www.buick.com/suvs/encore-gx
+Buick,Envision,Preferred,2026,"AWD, 2.0L Turbo ECOTEC 4-cylinder engine, 9-speed automatic transmission",228,2.0,I4,https://www.buick.com/suvs/envision
+Buick,Envision,Sport Touring,2026,"AWD, 2.0L Turbo ECOTEC 4-cylinder engine, 9-speed automatic transmission",228,2.0,I4,https://www.buick.com/suvs/envision
+Buick,Envision,Avenir,2026,"AWD, 2.0L Turbo ECOTEC 4-cylinder engine, 9-speed automatic transmission",228,2.0,I4,https://www.buick.com/suvs/envision
+Buick,Enclave,Preferred,2026,"FWD, 2.5L Turbo engine, 8-speed automatic transmission",,2.5,I4,https://www.buick.com/suvs/previous-year/enclave
+Buick,Enclave,Preferred,2026,"AWD, 2.5L Turbo engine, 8-speed automatic transmission",,2.5,I4,https://www.buick.com/suvs/previous-year/enclave
+Buick,Enclave,Sport Touring,2026,"FWD, 2.5L Turbo engine, 8-speed automatic transmission",,2.5,I4,https://www.buick.com/suvs/previous-year/enclave
+Buick,Enclave,Sport Touring,2026,"AWD, 2.5L Turbo engine, 8-speed automatic transmission",,2.5,I4,https://www.buick.com/suvs/previous-year/enclave
+Buick,Enclave,Avenir,2026,"FWD, 2.5L Turbo engine, 8-speed automatic transmission",,2.5,I4,https://www.buick.com/suvs/previous-year/enclave
+Buick,Enclave,Avenir,2026,"AWD, 2.5L Turbo engine, 8-speed automatic transmission",,2.5,I4,https://www.buick.com/suvs/previous-year/enclave
+Buick,Enclave,Preferred,2027,"FWD, 2.5L Turbo engine, 8-speed automatic transmission",,2.5,I4,https://www.buick.com/suvs/enclave
+Buick,Enclave,Preferred,2027,"AWD, 2.5L Turbo engine, 8-speed automatic transmission",,2.5,I4,https://www.buick.com/suvs/enclave
+Buick,Enclave,Sport Touring,2027,"FWD, 2.5L Turbo engine, 8-speed automatic transmission",,2.5,I4,https://www.buick.com/suvs/enclave
+Buick,Enclave,Sport Touring,2027,"AWD, 2.5L Turbo engine, 8-speed automatic transmission",,2.5,I4,https://www.buick.com/suvs/enclave
+Buick,Enclave,Avenir,2027,"FWD, 2.5L Turbo engine, 8-speed automatic transmission",,2.5,I4,https://www.buick.com/suvs/enclave
+Buick,Enclave,Avenir,2027,"AWD, 2.5L Turbo engine, 8-speed automatic transmission",,2.5,I4,https://www.buick.com/suvs/enclave
+Cadillac,CT5,Premium Luxury,2026,"Rear-Wheel Drive, 2.0L Twin-scroll turbocharged 4-cylinder engine, 10-speed automatic transmission",237,2.0,I4,https://www.cadillac.com/sedans/ct5/specs
+Cadillac,CT5,Premium Luxury,2026,"All-Wheel Drive, 2.0L Twin-scroll turbocharged 4-cylinder engine, 10-speed automatic transmission",237,2.0,I4,https://www.cadillac.com/sedans/ct5/specs
+Cadillac,CT5,Sport,2026,"Rear-Wheel Drive, 2.0L Twin-scroll turbocharged 4-cylinder engine, 10-speed automatic transmission",237,2.0,I4,https://www.cadillac.com/sedans/ct5/specs
+Cadillac,CT5,Sport,2026,"All-Wheel Drive, 2.0L Twin-scroll turbocharged 4-cylinder engine, 10-speed automatic transmission",237,2.0,I4,https://www.cadillac.com/sedans/ct5/specs
+Cadillac,CT5,V,2026,"Rear-Wheel Drive, 3.0L Twin Turbo V6 engine, 10-speed automatic transmission",360,3.0,V6,https://cadillac.com/sedans/ct5-v-blackwing
+Cadillac,CT5,V,2026,"All-Wheel Drive, 3.0L Twin Turbo V6 engine, 10-speed automatic transmission",360,3.0,V6,https://cadillac.com/sedans/ct5-v-blackwing
+Cadillac,CT5,V Blackwing,2026,"Rear-Wheel Drive, 6.2L Supercharged V8 DI engine, 6-speed manual transmission",668,6.2,V8,https://cadillac.com/sedans/ct5-v-blackwing
+Cadillac,CT5,V Blackwing,2026,"Rear-Wheel Drive, 6.2L Supercharged V8 DI engine, 10-speed automatic transmission",668,6.2,V8,https://cadillac.com/sedans/ct5-v-blackwing
+Cadillac,Escalade,Base,2026,"Rear-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/preceding-year/escalade/specs
+Cadillac,Escalade,Base,2026,"Four-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/preceding-year/escalade/specs
+Cadillac,Escalade,Luxury,2026,"Rear-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/preceding-year/escalade/specs
+Cadillac,Escalade,Luxury,2026,"Four-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/preceding-year/escalade/specs
+Cadillac,Escalade,Sport,2026,"Rear-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/preceding-year/escalade/specs
+Cadillac,Escalade,Sport,2026,"Four-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/preceding-year/escalade/specs
+Cadillac,Escalade,Platinum Luxury,2026,"Rear-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/preceding-year/escalade/specs
+Cadillac,Escalade,Platinum Luxury,2026,"Four-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/preceding-year/escalade/specs
+Cadillac,Escalade,Platinum Sport,2026,"Rear-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/preceding-year/escalade/specs
+Cadillac,Escalade,Platinum Sport,2026,"Four-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/preceding-year/escalade/specs
+Cadillac,Escalade,V-Series,2026,"All-Wheel Drive, 6.2L Supercharged V8 DI engine, 10-speed automatic transmission",682,6.2,V8,https://www.cadillac.com/suvs/preceding-year/escalade/specs
+Cadillac,Escalade,Luxury,2027,"Two-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/escalade/specs
+Cadillac,Escalade,Luxury,2027,"Four-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/escalade/specs
+Cadillac,Escalade,Sport,2027,"Two-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/escalade/specs
+Cadillac,Escalade,Sport,2027,"Four-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/escalade/specs
+Cadillac,Escalade,Platinum Luxury,2027,"Four-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/escalade/specs
+Cadillac,Escalade,Platinum Sport,2027,"Four-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/escalade/specs
+Cadillac,Escalade,V-Series,2027,"All-Wheel Drive, 6.2L Supercharged V8 DI engine, 10-speed automatic transmission",682,6.2,V8,https://www.cadillac.com/suvs/escalade/specs
+Cadillac,Escalade ESV,Base,2026,"Rear-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/preceding-year/escalade/specs
+Cadillac,Escalade ESV,Base,2026,"Four-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/preceding-year/escalade/specs
+Cadillac,Escalade ESV,Luxury,2026,"Rear-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/preceding-year/escalade/specs
+Cadillac,Escalade ESV,Luxury,2026,"Four-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/preceding-year/escalade/specs
+Cadillac,Escalade ESV,Sport,2026,"Rear-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/preceding-year/escalade/specs
+Cadillac,Escalade ESV,Sport,2026,"Four-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/preceding-year/escalade/specs
+Cadillac,Escalade ESV,Platinum Luxury,2026,"Rear-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/preceding-year/escalade/specs
+Cadillac,Escalade ESV,Platinum Luxury,2026,"Four-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/preceding-year/escalade/specs
+Cadillac,Escalade ESV,Platinum Sport,2026,"Rear-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/preceding-year/escalade/specs
+Cadillac,Escalade ESV,Platinum Sport,2026,"Four-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/preceding-year/escalade/specs
+Cadillac,Escalade ESV,V-Series,2026,"All-Wheel Drive, 6.2L Supercharged V8 DI engine, 10-speed automatic transmission",682,6.2,V8,https://www.cadillac.com/suvs/preceding-year/escalade/specs
+Cadillac,Escalade ESV,Luxury,2027,"Two-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/escalade/specs
+Cadillac,Escalade ESV,Luxury,2027,"Four-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/escalade/specs
+Cadillac,Escalade ESV,Sport,2027,"Two-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/escalade/specs
+Cadillac,Escalade ESV,Sport,2027,"Four-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/escalade/specs
+Cadillac,Escalade ESV,Platinum Luxury,2027,"Four-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/escalade/specs
+Cadillac,Escalade ESV,Platinum Sport,2027,"Four-Wheel Drive, 6.2L V8 engine, 10-speed automatic transmission",420,6.2,V8,https://www.cadillac.com/suvs/escalade/specs
+Cadillac,Escalade ESV,V-Series,2027,"All-Wheel Drive, 6.2L Supercharged V8 DI engine, 10-speed automatic transmission",682,6.2,V8,https://www.cadillac.com/suvs/escalade/specs
+Cadillac,Escalade IQ,Luxury,2026,"Dual Motor All-Wheel Drive, Electric drive unit(s), Integral drive unit with electric motor",750,,,https://www.cadillac.com/electric/escalade-iq/specs
+Cadillac,Escalade IQ,Sport,2026,"Dual Motor All-Wheel Drive, Electric drive unit(s), Integral drive unit with electric motor",750,,,https://www.cadillac.com/electric/escalade-iq/specs
+Cadillac,Escalade IQ,Premium Luxury,2026,"Dual Motor All-Wheel Drive, Electric drive unit(s), Integral drive unit with electric motor",750,,,https://www.cadillac.com/electric/escalade-iq/specs
+Cadillac,Escalade IQ,Premium Sport,2026,"Dual Motor All-Wheel Drive, Electric drive unit(s), Integral drive unit with electric motor",750,,,https://www.cadillac.com/electric/escalade-iq/specs
+Cadillac,Escalade IQL,Luxury,2026,"Dual Motor All-Wheel Drive, Electric drive unit(s), Integral drive unit with electric motor",750,,,https://www.cadillac.com/electric/escalade-iql
+Cadillac,Escalade IQL,Sport,2026,"Dual Motor All-Wheel Drive, Electric drive unit(s), Integral drive unit with electric motor",750,,,https://www.cadillac.com/electric/escalade-iql
+Cadillac,Escalade IQL,Premium Luxury,2026,"Dual Motor All-Wheel Drive, Electric drive unit(s), Integral drive unit with electric motor",750,,,https://www.cadillac.com/electric/escalade-iql
+Cadillac,Escalade IQL,Premium Sport,2026,"Dual Motor All-Wheel Drive, Electric drive unit(s), Integral drive unit with electric motor",750,,,https://www.cadillac.com/electric/escalade-iql
+Cadillac,Lyriq,Luxury,2026,"Single Motor Rear-Wheel Drive, Electric drive unit(s)",365,,,https://www.cadillac.com/electric/preceding-year/lyriq/specs
+Cadillac,Lyriq,Luxury,2026,"Dual Motor All-Wheel Drive, Electric drive unit(s)",515,,,https://www.cadillac.com/electric/preceding-year/lyriq/specs
+Cadillac,Lyriq,Premium Luxury,2026,"Single Motor Rear-Wheel Drive, Electric drive unit(s)",365,,,https://www.cadillac.com/electric/preceding-year/lyriq/specs
+Cadillac,Lyriq,Premium Luxury,2026,"Dual Motor All-Wheel Drive, Electric drive unit(s)",515,,,https://www.cadillac.com/electric/preceding-year/lyriq/specs
+Cadillac,Lyriq,Signature Luxury,2026,"Single Motor Rear-Wheel Drive, Electric drive unit(s)",365,,,https://www.cadillac.com/electric/preceding-year/lyriq/specs
+Cadillac,Lyriq,Signature Luxury,2026,"Dual Motor All-Wheel Drive, Electric drive unit(s)",515,,,https://www.cadillac.com/electric/preceding-year/lyriq/specs
+Cadillac,Lyriq,Sport,2026,"Single Motor Rear-Wheel Drive, Electric drive unit(s)",365,,,https://www.cadillac.com/electric/preceding-year/lyriq/specs
+Cadillac,Lyriq,Sport,2026,"Dual Motor All-Wheel Drive, Electric drive unit(s)",515,,,https://www.cadillac.com/electric/preceding-year/lyriq/specs
+Cadillac,Lyriq,Premium Sport,2026,"Single Motor Rear-Wheel Drive, Electric drive unit(s)",365,,,https://www.cadillac.com/electric/preceding-year/lyriq/specs
+Cadillac,Lyriq,Premium Sport,2026,"Dual Motor All-Wheel Drive, Electric drive unit(s)",515,,,https://www.cadillac.com/electric/preceding-year/lyriq/specs
+Cadillac,Lyriq,Signature Sport,2026,"Single Motor Rear-Wheel Drive, Electric drive unit(s)",365,,,https://www.cadillac.com/electric/preceding-year/lyriq/specs
+Cadillac,Lyriq,Signature Sport,2026,"Dual Motor All-Wheel Drive, Electric drive unit(s)",515,,,https://www.cadillac.com/electric/preceding-year/lyriq/specs
+Cadillac,Lyriq,V,2026,"Dual Motor All-Wheel Drive, Electric drive unit(s)",615,,,https://www.cadillac.com/electric/preceding-year/lyriq/specs
+Cadillac,Lyriq,V Premium,2026,"Dual Motor All-Wheel Drive, Electric drive unit(s)",615,,,https://www.cadillac.com/electric/preceding-year/lyriq/specs
+Cadillac,Lyriq,Luxury,2027,"Single Motor Rear-Wheel Drive, Electric drive unit(s)",365,,,https://www.cadillac.com/electric/lyriq/specs
+Cadillac,Lyriq,Luxury,2027,"Dual Motor All-Wheel Drive, Electric drive unit(s)",515,,,https://www.cadillac.com/electric/lyriq/specs
+Cadillac,Lyriq,Premium Luxury,2027,"Single Motor Rear-Wheel Drive, Electric drive unit(s)",365,,,https://www.cadillac.com/electric/lyriq/specs
+Cadillac,Lyriq,Premium Luxury,2027,"Dual Motor All-Wheel Drive, Electric drive unit(s)",515,,,https://www.cadillac.com/electric/lyriq/specs
+Cadillac,Lyriq,Signature Luxury,2027,"Single Motor Rear-Wheel Drive, Electric drive unit(s)",365,,,https://www.cadillac.com/electric/lyriq/specs
+Cadillac,Lyriq,Signature Luxury,2027,"Dual Motor All-Wheel Drive, Electric drive unit(s)",515,,,https://www.cadillac.com/electric/lyriq/specs
+Cadillac,Lyriq,Sport,2027,"Single Motor Rear-Wheel Drive, Electric drive unit(s)",365,,,https://www.cadillac.com/electric/lyriq/specs
+Cadillac,Lyriq,Sport,2027,"Dual Motor All-Wheel Drive, Electric drive unit(s)",515,,,https://www.cadillac.com/electric/lyriq/specs
+Cadillac,Lyriq,Premium Sport,2027,"Single Motor Rear-Wheel Drive, Electric drive unit(s)",365,,,https://www.cadillac.com/electric/lyriq/specs
+Cadillac,Lyriq,Premium Sport,2027,"Dual Motor All-Wheel Drive, Electric drive unit(s)",515,,,https://www.cadillac.com/electric/lyriq/specs
+Cadillac,Lyriq,Signature Sport,2027,"Single Motor Rear-Wheel Drive, Electric drive unit(s)",365,,,https://www.cadillac.com/electric/lyriq/specs
+Cadillac,Lyriq,Signature Sport,2027,"Dual Motor All-Wheel Drive, Electric drive unit(s)",515,,,https://www.cadillac.com/electric/lyriq/specs
+Cadillac,Lyriq,V,2027,"Dual Motor All-Wheel Drive, Electric drive unit(s)",615,,,https://www.cadillac.com/electric/lyriq/specs
+Cadillac,Lyriq,V Premium,2027,"Dual Motor All-Wheel Drive, Electric drive unit(s)",615,,,https://www.cadillac.com/electric/lyriq/specs
+Cadillac,Optiq,V,2026,"Dual Motor All-Wheel Drive, Electric drive unit, Integral drive unit with electric motor",519,,,https://www.cadillac.com/electric/preceding-year/optiq/specs
+Cadillac,Optiq,Luxury,2026,"Rear-Wheel Drive, Electric drive unit, Integral drive unit with electric motor",315,,,https://www.cadillac.com/electric/preceding-year/optiq/specs
+Cadillac,Optiq,Luxury,2026,"Dual Motor All-Wheel Drive, Electric drive unit, Integral drive unit with electric motor",440,,,https://www.cadillac.com/electric/preceding-year/optiq/specs
+Cadillac,Optiq,Premium Luxury,2026,"Rear-Wheel Drive, Electric drive unit, Integral drive unit with electric motor",315,,,https://www.cadillac.com/electric/preceding-year/optiq/specs
+Cadillac,Optiq,Premium Luxury,2026,"Dual Motor All-Wheel Drive, Electric drive unit, Integral drive unit with electric motor",440,,,https://www.cadillac.com/electric/preceding-year/optiq/specs
+Cadillac,Optiq,Sport,2026,"Rear-Wheel Drive, Electric drive unit, Integral drive unit with electric motor",315,,,https://www.cadillac.com/electric/preceding-year/optiq/specs
+Cadillac,Optiq,Sport,2026,"Dual Motor All-Wheel Drive, Electric drive unit, Integral drive unit with electric motor",440,,,https://www.cadillac.com/electric/preceding-year/optiq/specs
+Cadillac,Optiq,Premium Sport,2026,"Rear-Wheel Drive, Electric drive unit, Integral drive unit with electric motor",315,,,https://www.cadillac.com/electric/preceding-year/optiq/specs
+Cadillac,Optiq,Premium Sport,2026,"Dual Motor All-Wheel Drive, Electric drive unit, Integral drive unit with electric motor",440,,,https://www.cadillac.com/electric/preceding-year/optiq/specs
+Cadillac,Optiq,V,2027,"Dual Motor All-Wheel Drive, Electric drive unit(s), Integral drive unit with electric motor",519,,,https://www.cadillac.com/electric/optiq/specs
+Cadillac,Optiq,Luxury,2027,"Rear-Wheel Drive, Electric drive unit(s), Integral drive unit with electric motor",315,,,https://www.cadillac.com/electric/optiq/specs
+Cadillac,Optiq,Luxury,2027,"Dual Motor All-Wheel Drive, Electric drive unit(s), Integral drive unit with electric motor",440,,,https://www.cadillac.com/electric/optiq/specs
+Cadillac,Optiq,Premium Luxury,2027,"Rear-Wheel Drive, Electric drive unit(s), Integral drive unit with electric motor",315,,,https://www.cadillac.com/electric/optiq/specs
+Cadillac,Optiq,Premium Luxury,2027,"Dual Motor All-Wheel Drive, Electric drive unit(s), Integral drive unit with electric motor",440,,,https://www.cadillac.com/electric/optiq/specs
+Cadillac,Optiq,Sport,2027,"Rear-Wheel Drive, Electric drive unit(s), Integral drive unit with electric motor",315,,,https://www.cadillac.com/electric/optiq/specs
+Cadillac,Optiq,Sport,2027,"Dual Motor All-Wheel Drive, Electric drive unit(s), Integral drive unit with electric motor",440,,,https://www.cadillac.com/electric/optiq/specs
+Cadillac,Optiq,Premium Sport,2027,"Rear-Wheel Drive, Electric drive unit(s), Integral drive unit with electric motor",315,,,https://www.cadillac.com/electric/optiq/specs
+Cadillac,Optiq,Premium Sport,2027,"Dual Motor All-Wheel Drive, Electric drive unit(s), Integral drive unit with electric motor",440,,,https://www.cadillac.com/electric/optiq/specs
+Cadillac,Vistiq,Luxury,2026,"Dual Motor All-Wheel Drive, Electric drive unit(s), Integral drive unit with electric motor",615,,,https://www.cadillac.com/electric/preceding-year/vistiq/specs
+Cadillac,Vistiq,Premium Luxury,2026,"Dual Motor All-Wheel Drive, Electric drive unit(s), Integral drive unit with electric motor",615,,,https://www.cadillac.com/electric/preceding-year/vistiq/specs
+Cadillac,Vistiq,Sport,2026,"Dual Motor All-Wheel Drive, Electric drive unit(s), Integral drive unit with electric motor",615,,,https://www.cadillac.com/electric/preceding-year/vistiq/specs
+Cadillac,Vistiq,Platinum,2026,"Dual Motor All-Wheel Drive, Electric drive unit(s), Integral drive unit with electric motor",615,,,https://www.cadillac.com/electric/preceding-year/vistiq/specs
+Cadillac,Vistiq,Luxury,2027,"Dual Motor All-Wheel Drive, Electric drive unit(s), Integral drive unit with electric motor",615,,,https://www.cadillac.com/electric/vistiq/specs
+Cadillac,Vistiq,Premium Luxury,2027,"Dual Motor All-Wheel Drive, Electric drive unit(s), Integral drive unit with electric motor",615,,,https://www.cadillac.com/electric/vistiq/specs
+Cadillac,Vistiq,Sport,2027,"Dual Motor All-Wheel Drive, Electric drive unit(s), Integral drive unit with electric motor",615,,,https://www.cadillac.com/electric/vistiq/specs
+Cadillac,Vistiq,Platinum,2027,"Dual Motor All-Wheel Drive, Electric drive unit(s), Integral drive unit with electric motor",615,,,https://www.cadillac.com/electric/vistiq/specs
+Cadillac,XT5,Luxury,2026,"Front-Wheel Drive, 2.0L Turbo 4-cylinder engine, 9-speed automatic transmission with 2.0L Turbo engine",235,2.0,I4,https://www.cadillac.com/suvs/xt5
+Cadillac,XT5,Luxury,2026,"All-Wheel Drive, 2.0L Turbo 4-cylinder engine, 9-speed automatic transmission with 2.0L Turbo engine",235,2.0,I4,https://www.cadillac.com/suvs/xt5
+Cadillac,XT5,Premium Luxury,2026,"Front-Wheel Drive, 2.0L Turbo 4-cylinder engine, 9-speed automatic transmission with 2.0L Turbo engine",235,2.0,I4,https://www.cadillac.com/suvs/xt5
+Cadillac,XT5,Premium Luxury,2026,"Front-Wheel Drive, 3.6L V6 engine, 9-speed automatic transmission for 3.6L engine",310,3.6,V6,https://www.cadillac.com/suvs/xt5
+Cadillac,XT5,Premium Luxury,2026,"All-Wheel Drive, 2.0L Turbo 4-cylinder engine, 9-speed automatic transmission with 2.0L Turbo engine",235,2.0,I4,https://www.cadillac.com/suvs/xt5
+Cadillac,XT5,Premium Luxury,2026,"All-Wheel Drive, 3.6L V6 engine, 9-speed automatic transmission for 3.6L engine",310,3.6,V6,https://www.cadillac.com/suvs/xt5
+Cadillac,XT5,Sport,2026,"All-Wheel Drive, 3.6L V6 engine, 9-speed automatic transmission for 3.6L engine",310,3.6,V6,https://www.cadillac.com/suvs/xt5
+Lincoln,Aviator,Premiere,2026,3.0L twin-turbocharged V6 engine with Auto Start-Stop Technology,383,3.0,V6,https://www.lincoln.com/luxury-suvs/aviator/2026/
+Lincoln,Aviator,Reserve,2026,3.0L twin-turbocharged V6 engine with Auto Start-Stop Technology,383,3.0,V6,https://www.lincoln.com/luxury-suvs/aviator/2026/
+Lincoln,Aviator,Black Label,2026,3.0L twin-turbocharged V6 engine with Auto Start-Stop Technology,383,3.0,V6,https://www.lincoln.com/luxury-suvs/aviator/2026/
+Lincoln,Aviator,Premiere,2027,Twin-Turbocharged 3.0L V6 Engine with Auto Start-Stop Technology,400,3.0,V6,https://www.lincoln.com/luxury-suvs/aviator/
+Lincoln,Aviator,Reserve,2027,Twin-Turbocharged 3.0L V6 Engine with Auto Start-Stop Technology,400,3.0,V6,https://www.lincoln.com/luxury-suvs/aviator/
+Lincoln,Aviator,Black Label,2027,Twin-Turbocharged 3.0L V6 Engine with Auto Start-Stop Technology,400,3.0,V6,https://www.lincoln.com/luxury-suvs/aviator/
+Lincoln,Corsair,Premiere,2026,2.0L Turbocharged I-4 Engine with Auto Start-Stop Technology,,2.0,I4,https://www.lincoln.com/build-price/corsair/choose-model/build?configId=USACorsair2026&vehicleTrim=premiere
+Lincoln,Corsair,Reserve,2026,2.0L Turbocharged I-4 Engine with Auto Start-Stop Technology,,2.0,I4,https://www.lincoln.com/build-price/corsair/choose-model/build?configId=USACorsair2026&vehicleTrim=premiere
+Lincoln,Corsair,Grand Touring,2026,2.5L i-VCT Atkinson I-4 Plug-In Hybrid Engine with eRAD,,2.5,I4,https://www.lincoln.com/build-price/corsair/choose-model/build?configId=USACorsair2026&vehicleTrim=grandtouring
+Lincoln,Nautilus,Premiere,2026,2.0L Turbocharged I-4 HEV Engine,285,2.0,I4,https://www.lincoln.com/luxury-suvs/nautilus/
+Lincoln,Nautilus,Premiere,2026,2.0L I4 - Turbocharged Engine,250,2.0,I4,https://www.lincoln.com/luxury-suvs/nautilus/
+Lincoln,Nautilus,Reserve,2026,2.0L Turbocharged I-4 HEV Engine,285,2.0,I4,https://www.lincoln.com/luxury-suvs/nautilus/
+Lincoln,Nautilus,Reserve,2026,2.0L I4 - Turbocharged Engine,250,2.0,I4,https://www.lincoln.com/luxury-suvs/nautilus/
+Lincoln,Nautilus,Black Label,2026,2.0L Turbocharged I-4 HEV Engine,285,2.0,I4,https://www.lincoln.com/luxury-suvs/nautilus/
+Lincoln,Nautilus,Black Label,2026,2.0L I4 - Turbocharged Engine,250,2.0,I4,https://www.lincoln.com/luxury-suvs/nautilus/
+Lincoln,Navigator,Premiere,2026,Twin-Turbocharged 3.5L V6 Engine with Auto Start-Stop Technology,432,3.5,V6,https://www.lincoln.com/luxury-suvs/navigator/2026/
+Lincoln,Navigator,Reserve,2026,Twin-Turbocharged 3.5L V6 Engine with Auto Start-Stop Technology,432,3.5,V6,https://www.lincoln.com/luxury-suvs/navigator/2026/
+Lincoln,Navigator,Black Label,2026,Twin-Turbocharged 3.5L V6 Engine with Auto Start-Stop Technology,432,3.5,V6,https://www.lincoln.com/luxury-suvs/navigator/2026/
+Lincoln,Navigator,Premiere,2027,Twin-Turbocharged 3.5L V6 Engine with Auto Start-Stop Technology,440,3.5,V6,https://www.lincoln.com/luxury-suvs/navigator/
+Lincoln,Navigator,Reserve,2027,Twin-Turbocharged 3.5L V6 Engine with Auto Start-Stop Technology,440,3.5,V6,https://www.lincoln.com/luxury-suvs/navigator/
+Lincoln,Navigator,Black Label,2027,Twin-Turbocharged 3.5L V6 Engine with Auto Start-Stop Technology,440,3.5,V6,https://www.lincoln.com/luxury-suvs/navigator/
+Lincoln,Navigator L,Premiere,2026,Twin-Turbocharged 3.5L V6 Engine with Auto Start-Stop Technology,432,3.5,V6,https://www.lincoln.com/luxury-suvs/navigator/2026/
+Lincoln,Navigator L,Reserve,2026,Twin-Turbocharged 3.5L V6 Engine with Auto Start-Stop Technology,432,3.5,V6,https://www.lincoln.com/luxury-suvs/navigator/2026/
+Lincoln,Navigator L,Black Label,2026,Twin-Turbocharged 3.5L V6 Engine with Auto Start-Stop Technology,432,3.5,V6,https://www.lincoln.com/luxury-suvs/navigator/2026/
+Lincoln,Navigator L,Premiere,2027,Twin-Turbocharged 3.5L V6 Engine with Auto Start-Stop Technology,440,3.5,V6,https://www.lincoln.com/luxury-suvs/navigator/
+Lincoln,Navigator L,Reserve,2027,Twin-Turbocharged 3.5L V6 Engine with Auto Start-Stop Technology,440,3.5,V6,https://www.lincoln.com/luxury-suvs/navigator/
+Lincoln,Navigator L,Black Label,2027,Twin-Turbocharged 3.5L V6 Engine with Auto Start-Stop Technology,440,3.5,V6,https://www.lincoln.com/luxury-suvs/navigator/
+Mercedes-Benz,Maybach S-Class,S 580 4MATIC,2027,"4.0L V8 biturbo with mild hybrid drive, all-wheel drive (4MATIC)",530,4.0,V8,https://www.mbusa.com/en/vehicles/model/s-class/maybach/s580z4
+Mercedes-Benz,Maybach S-Class,S 680 4MATIC,2027,"6.0L V12 biturbo, all-wheel drive (4MATIC)",621,6.0,V12,https://www.mbusa.com/en/vehicles/model/s-class/maybach/s680z4
+BMW,2 Series,230i,2026,2.0-liter BMW TwinPower Turbo inline 4-cylinder 8-Speed Sport Automatic Transmission RWD,255,2.0,I4,https://www.bmwusa.com/vehicles/2-series/coupe/overview.html
+BMW,2 Series,230i,2026,2.0-liter BMW TwinPower Turbo inline 4-cylinder 8-Speed Sport Automatic Transmission xDrive AWD,255,2.0,I4,https://www.bmwusa.com/vehicles/2-series/coupe/overview.html
+BMW,2 Series,M240i,2027,3.0-liter BMW TwinPower Turbo inline 6-cylinder 8-Speed Sport Automatic Transmission RWD,386,3.0,I6,https://www.bmwusa.com/vehicles/m-models/m2-coupe/overview.html
+BMW,2 Series,M240i,2027,3.0-liter BMW TwinPower Turbo inline 6-cylinder 8-Speed Sport Automatic Transmission xDrive AWD,386,3.0,I6,https://www.bmwusa.com/vehicles/m-models/m2-coupe/overview.html
+BMW,M2,Base,2027,3.0-liter BMW M TwinPower Turbo inline 6-cylinder RWD,473,3.0,I6,https://www.bmwusa.com/vehicles/m-models/m2-coupe/overview.html
+BMW,M2,Base,2027,3.0-liter BMW M TwinPower Turbo inline 6-cylinder M Sport Steptronic 8-Speed Automatic Transmission M xDrive AWD,473,3.0,I6,https://www.bmwusa.com/vehicles/m-models/m2-coupe/overview.html
+BMW,2 Series Gran Coupe,228,2027,2.0-liter BMW TwinPower Turbo inline 4-cylinder 7-Speed Dual Clutch Transmission FWD,241,2.0,I4,https://www.bmwusa.com/vehicles/2-series/gran-coupe/overview.html
+BMW,2 Series Gran Coupe,228,2027,2.0-liter BMW TwinPower Turbo inline 4-cylinder 7-Speed Dual Clutch Transmission xDrive AWD,241,2.0,I4,https://www.bmwusa.com/vehicles/2-series/gran-coupe/overview.html
+BMW,2 Series Gran Coupe,M235 xDrive,2027,2.0-liter BMW M TwinPower Turbo inline 4-cylinder 7-Speed Dual Clutch Transmission with Shift Paddles xDrive AWD,312,2.0,I4,https://www.bmwusa.com/vehicles/m-series/m235-xdrive-gran-coupe/bmw-m235-xdrive-gran-coupe.html
+BMW,3 Series,330i,2026,2.0-liter BMW TwinPower Turbo inline 4-cylinder 8-Speed Sport Automatic Transmission RWD,255,2.0,I4,https://www.bmwusa.com/vehicles/3-series/sedan/overview.html
+BMW,3 Series,330i,2026,2.0-liter BMW TwinPower Turbo inline 4-cylinder 8-Speed Sport Automatic Transmission xDrive AWD,255,2.0,I4,https://www.bmwusa.com/vehicles/3-series/sedan/overview.html
+BMW,3 Series,M340i,2026,3.0-liter BMW M TwinPower Turbo inline 6-cylinder 8-Speed Sport Automatic Transmission RWD,386,3.0,I6,https://www.bmwusa.com/vehicles/3-series/sedan/overview.html
+BMW,3 Series,M340i,2026,3.0-liter BMW M TwinPower Turbo inline 6-cylinder 8-Speed Sport Automatic Transmission xDrive AWD,386,3.0,I6,https://www.bmwusa.com/vehicles/3-series/sedan/overview.html
+BMW,M3,Base,2027,3.0-liter BMW M TwinPower Turbo inline 6-cylinder Manual Transmission RWD,473,3.0,I6,https://www.bmwusa.com/vehicles/m-models/m3-sedan/overview.html
+BMW,M3,Competition,2027,3.0-liter BMW M TwinPower Turbo inline 6-cylinder RWD,503,3.0,I6,https://www.bmwusa.com/vehicles/m-models/m3-sedan/overview.html
+BMW,M3,Competition,2027,3.0-liter BMW M TwinPower Turbo inline 6-cylinder M xDrive AWD,523,3.0,I6,https://www.bmwusa.com/vehicles/m-models/m3-sedan/overview.html
+BMW,4 Series,430i,2027,2.0-liter BMW TwinPower Turbo inline 4-cylinder 8-Speed Sport Automatic Transmission RWD,255,2.0,I4,https://www.bmwusa.com/vehicles/4-series/coupe/overview.html
+BMW,4 Series,430i,2027,2.0-liter BMW TwinPower Turbo inline 4-cylinder 8-Speed Sport Automatic Transmission xDrive AWD,255,2.0,I4,https://www.bmwusa.com/vehicles/4-series/coupe/overview.html
+BMW,4 Series,M440i,2027,3.0-liter BMW M TwinPower Turbo inline 6-cylinder 8-Speed Sport Automatic Transmission RWD,386,3.0,I6,https://www.bmwusa.com/vehicles/4-series/coupe/overview.html
+BMW,4 Series,M440i,2027,3.0-liter BMW M TwinPower Turbo inline 6-cylinder 8-Speed Sport Automatic Transmission xDrive AWD,386,3.0,I6,https://www.bmwusa.com/vehicles/4-series/coupe/overview.html
+BMW,4 Series Gran Coupe,430i,2027,2.0-liter BMW TwinPower Turbo inline 4-cylinder 8-Speed Sport Automatic Transmission RWD,255,2.0,I4,https://www.bmwusa.com/vehicles/4-series/gran-coupe/overview.html
+BMW,4 Series Gran Coupe,430i,2027,2.0-liter BMW TwinPower Turbo inline 4-cylinder 8-Speed Sport Automatic Transmission xDrive AWD,255,2.0,I4,https://www.bmwusa.com/vehicles/4-series/gran-coupe/overview.html
+BMW,4 Series Gran Coupe,M440i,2027,3.0-liter BMW M TwinPower Turbo inline 6-cylinder 8-Speed Sport Automatic Transmission RWD,386,3.0,I6,https://www.bmwusa.com/vehicles/m-series/4-series-m440i/bmw-m440i-xdrive-gran-coupe.html
+BMW,4 Series Gran Coupe,M440i,2027,3.0-liter BMW M TwinPower Turbo inline 6-cylinder 8-Speed Sport Automatic Transmission xDrive AWD,386,3.0,I6,https://www.bmwusa.com/vehicles/m-series/4-series-m440i/bmw-m440i-xdrive-gran-coupe.html
+BMW,4 Series Convertible,430i,2027,2.0-liter BMW TwinPower Turbo inline 4-cylinder 8-Speed Sport Automatic Transmission RWD,255,2.0,I4,https://www.bmwusa.com/vehicles/4-series/4-series-convertible/bmw-4-series-convertible.html
+BMW,4 Series Convertible,430i,2027,2.0-liter BMW TwinPower Turbo inline 4-cylinder 8-Speed Sport Automatic Transmission xDrive AWD,255,2.0,I4,https://www.bmwusa.com/vehicles/4-series/4-series-convertible/bmw-4-series-convertible.html
+BMW,4 Series Convertible,M440i,2027,3.0-liter BMW M TwinPower Turbo inline 6-cylinder 8-Speed Sport Automatic Transmission RWD,386,3.0,I6,https://www.bmwusa.com/vehicles/4-series/4-series-convertible/bmw-4-series-convertible.html
+BMW,4 Series Convertible,M440i,2027,3.0-liter BMW M TwinPower Turbo inline 6-cylinder 8-Speed Sport Automatic Transmission xDrive AWD,386,3.0,I6,https://www.bmwusa.com/vehicles/4-series/4-series-convertible/bmw-4-series-convertible.html
+BMW,M4,Base,2027,3.0-liter BMW M TwinPower Turbo inline 6-cylinder Manual Transmission RWD,473,3.0,I6,https://www.bmwusa.com/vehicles/m-models/m4-coupe/overview.html
+BMW,M4,Competition,2027,3.0-liter BMW M TwinPower Turbo inline 6-cylinder RWD,503,3.0,I6,https://www.bmwusa.com/vehicles/m-models/m4-coupe/overview.html
+BMW,M4,Competition,2027,3.0-liter BMW M TwinPower Turbo inline 6-cylinder M xDrive AWD,523,3.0,I6,https://www.bmwusa.com/vehicles/m-models/m4-coupe/overview.html
+BMW,M4 Convertible,Competition xDrive,2027,3.0-liter BMW M TwinPower Turbo inline 6-cylinder M xDrive AWD,523,3.0,I6,https://www.bmwusa.com/vehicles/m-series/bmw-4-series-m-models/bmw-m4-convertible.html
+BMW,5 Series,530i,2027,2.0-liter BMW TwinPower Turbo inline 4-cylinder STEPTRONIC automatic transmission with shift Paddles RWD,255,2.0,I4,https://www.bmwusa.com/vehicles/5-series/sedan/overview.html
+BMW,5 Series,530i,2027,2.0-liter BMW TwinPower Turbo inline 4-cylinder STEPTRONIC automatic transmission with shift Paddles xDrive AWD,255,2.0,I4,https://www.bmwusa.com/vehicles/5-series/sedan/overview.html
+BMW,5 Series,540i xDrive,2027,3.0-liter BMW TwinPower Turbo inline 6-cylinder STEPTRONIC automatic transmission with shift Paddles xDrive AWD,375,3.0,I6,https://www.bmwusa.com/vehicles/5-series/sedan/overview.html
+BMW,5 Series,550e xDrive,2027,3.0-liter BMW TwinPower Turbo inline 6-cylinder STEPTRONIC automatic transmission with shift Paddles xDrive AWD,483,3.0,I6,https://www.bmwusa.com/vehicles/5-series/sedan/overview.html
+BMW,M5,Base,2027,4.4-liter BMW M TwinPower Turbo V-8 M xDrive AWD,717,4.4,V8,https://www.bmwusa.com/vehicles/m-series/m5-series/bmw-m5-sedan.html
+BMW,M5 Touring,Base,2027,4.4-liter BMW M TwinPower Turbo V-8 M xDrive AWD,717,4.4,V8,https://www.bmwusa.com/vehicles/m-series/m5-series/bmw-m5-touring.html
+BMW,i5,eDrive40 / xDrive40,2027,Single all-electric motor RWD,335,,,https://www.bmwusa.com/vehicles/all-electric/i5/sedan/overview.html
+BMW,i5,eDrive40 / xDrive40,2027,Dual all-electric motors xDrive AWD,389,,,https://www.bmwusa.com/vehicles/all-electric/i5/sedan/overview.html
+BMW,i5,M60,2027,Dual all-electric motors xDrive AWD,593,,,https://www.bmwusa.com/vehicles/all-electric/i5/sedan/overview.html
+BMW,7 Series,740,2027,3.0-liter BMW TwinPower Turbo inline 6-cylinder 8-Speed Sport Automatic Transmission RWD,394,3.0,I6,https://www.bmwusa.com/vehicles/7-series/sedan/bmw-7-series-sedan-technical-data.html
+BMW,7 Series,740,2027,3.0-liter BMW TwinPower Turbo inline 6-cylinder 8-Speed Sport Automatic Transmission xDrive AWD,394,3.0,I6,https://www.bmwusa.com/vehicles/7-series/sedan/bmw-7-series-sedan-technical-data.html
+BMW,i7,50 xDrive,2027,Dual all-electric motors xDrive AWD,449,,,https://www.bmwusa.com/vehicles/7-series/sedan/bmw-i7-sedan.html
+BMW,i7,60 xDrive,2027,Dual all-electric motors xDrive AWD,536,,,https://www.bmwusa.com/vehicles/7-series/sedan/bmw-i7-sedan.html
+BMW,X1,xDrive28i,2027,2.0-liter BMW TwinPower Turbo inline 4-cylinder 7-Speed Dual Clutch Transmission xDrive AWD,241,2.0,I4,https://www.bmwusa.com/vehicles/x-series/x1/bmw-x1.html
+BMW,X1,M35i,2027,2.0-liter BMW M TwinPower Turbo inline 4-cylinder 7-Speed Dual Clutch Transmission with Shift Paddles xDrive AWD,312,2.0,I4,https://www.bmwusa.com/vehicles/x-series/x1/bmw-x1.html
+BMW,X2,xDrive28i,2027,2.0-liter BMW TwinPower Turbo inline 4-cylinder 7-Speed Dual Clutch Transmission xDrive AWD,241,2.0,I4,https://www.bmwusa.com/vehicles/x-models/x2/sports-activity-coupe/overview.html
+BMW,X2,M35i,2027,2.0-liter BMW M TwinPower Turbo inline 4-cylinder 7-Speed Dual Clutch Transmission with Shift Paddles xDrive AWD,312,2.0,I4,https://www.bmwusa.com/vehicles/m-series/x2-m35i/bmw-x2-m35ixdrive-overview.html
+BMW,X3,30 xDrive,2026,2.0-liter BMW TwinPower Turbo inline 4-cylinder STEPTRONIC automatic transmission with shift Paddles xDrive AWD,255,2.0,I4,https://www.bmwusa.com/vehicles/x-series/x3/bmw-x3.html
+BMW,X3,M50 xDrive,2026,3.0-liter BMW M TwinPower Turbo inline 6-cylinder STEPTRONIC automatic transmission with shift Paddles xDrive AWD,393,3.0,I6,https://www.bmwusa.com/vehicles/x-series/x3/bmw-x3.html
+BMW,X5,40 xDrive,2027,3.0-liter BMW M TwinPower Turbo inline 6-cylinder STEPTRONIC automatic transmission with shift Paddles xDrive AWD,394,3.0,I6,https://www.press.bmwgroup.com/usa/article/attachment/T0458814EN_US/651500
+BMW,X6,xDrive40i,2027,3.0-liter BMW TwinPower Turbo inline 6-cylinder xDrive AWD,375,3.0,I6,https://www.bmwusa.com/vehicles/x-series/x6/bmw-x6.html
+BMW,X6,M60i,2027,4.4-liter BMW M Performance TwinPower Turbo V-8 engine xDrive AWD,523,4.4,V8,https://www.bmwusa.com/vehicles/m-series/x6-m/bmw-x6-m-models.html
+BMW,X6 M,Competition,2027,4.4-liter BMW M TwinPower Turbo V-8 M xDrive AWD,617,4.4,V8,https://www.bmwusa.com/vehicles/m-series/x6-m/bmw-x6-m-models.html
+BMW,X7,xDrive40i,2027,3.0-liter BMW TwinPower Turbo inline 6-cylinder 8-Speed Sport Automatic Transmission xDrive AWD,375,3.0,I6,https://www.bmwusa.com/vehicles/x-series/x7/bmw-x7.html
+BMW,X7,M60i,2027,4.4-liter BMW M TwinPower Turbo V-8 engine 8-Speed Sport Automatic Transmission xDrive AWD,523,4.4,V8,https://www.bmwusa.com/vehicles/x-series/x7/bmw-x7.html
+BMW,XM,Label,2027,4.4-liter BMW M TwinPower Turbo V-8 paired with plug-in hybrid technology 8-Speed Sport Automatic Transmission M xDrive AWD,738,4.4,V8,https://www.bmwusa.com/vehicles/m-series/xm/bmw-xm.html
+BMW,iX3,50 xDrive,2027,Dual all-electric motors xDrive AWD,463,,,https://www.bmwusa.com/vehicles/x-series/ix3/bmw-ix3.html
+MINI,Cooper 2 Door,Signature,2027,161-hp turbocharged engine 7-Speed Dual Clutch Transmission FWD,161,2.0,I4,https://www.miniusa.com/model/2-door/build.html
+MINI,Cooper 2 Door,Signature Plus,2027,161-hp turbocharged engine 7-Speed Dual Clutch Transmission FWD,161,2.0,I4,https://www.miniusa.com/model/2-door/build.html
+MINI,Cooper 2 Door,Iconic,2027,161-hp turbocharged engine 7-Speed Dual Clutch Transmission FWD,161,2.0,I4,https://www.miniusa.com/model/2-door/build.html
+MINI,Cooper 2 Door,S Signature,2027,201-hp turbocharged engine 7-Speed Dual Clutch Transmission FWD,201,2.0,I4,https://www.press.bmwgroup.com/usa/article/detail/T0439621EN_US/the-new-mini-cooper-and-mini-cooper-s-with-gasoline-engines
+MINI,Cooper 2 Door,S Signature Plus,2027,201-hp turbocharged engine 7-Speed Dual Clutch Transmission FWD,201,2.0,I4,https://www.press.bmwgroup.com/usa/article/detail/T0439621EN_US/the-new-mini-cooper-and-mini-cooper-s-with-gasoline-engines
+MINI,Cooper 2 Door,S Iconic,2027,201-hp turbocharged engine 7-Speed Dual Clutch Transmission FWD,201,2.0,I4,https://www.press.bmwgroup.com/usa/article/detail/T0439621EN_US/the-new-mini-cooper-and-mini-cooper-s-with-gasoline-engines
+MINI,Cooper 2 Door,JCW Signature,2027,228-hp turbocharged engine 7-Speed Sport Dual Clutch Transmission FWD,228,2.0,I4,https://www.press.bmwgroup.com/usa/article/detail/T0445878EN_US/high-performance-with-motorsport-dna-the-new-mini-john-cooper-works-and-the-new-mini-john-cooper
+MINI,Cooper 2 Door,JCW Signature Plus,2027,228-hp turbocharged engine 7-Speed Sport Dual Clutch Transmission FWD,228,2.0,I4,https://www.press.bmwgroup.com/usa/article/detail/T0445878EN_US/high-performance-with-motorsport-dna-the-new-mini-john-cooper-works-and-the-new-mini-john-cooper
+MINI,Cooper 2 Door,JCW Iconic,2027,228-hp turbocharged engine 7-Speed Sport Dual Clutch Transmission FWD,228,2.0,I4,https://www.press.bmwgroup.com/usa/article/detail/T0445878EN_US/high-performance-with-motorsport-dna-the-new-mini-john-cooper-works-and-the-new-mini-john-cooper
+MINI,Cooper 4 Door,Signature,2027,161-hp turbocharged engine 7-Speed Dual Clutch Transmission FWD,161,2.0,I4,https://www.miniusa.com/model/2-door/build.html
+MINI,Cooper 4 Door,Signature Plus,2027,161-hp turbocharged engine 7-Speed Dual Clutch Transmission FWD,161,2.0,I4,https://www.miniusa.com/model/2-door/build.html
+MINI,Cooper 4 Door,Iconic,2027,161-hp turbocharged engine 7-Speed Dual Clutch Transmission FWD,161,2.0,I4,https://www.miniusa.com/model/2-door/build.html
+MINI,Cooper 4 Door,S Signature,2027,201-hp turbocharged engine 7-Speed Dual Clutch Transmission FWD,201,2.0,I4,https://www.press.bmwgroup.com/usa/article/detail/T0439621EN_US/the-new-mini-cooper-and-mini-cooper-s-with-gasoline-engines
+MINI,Cooper 4 Door,S Signature Plus,2027,201-hp turbocharged engine 7-Speed Dual Clutch Transmission FWD,201,2.0,I4,https://www.press.bmwgroup.com/usa/article/detail/T0439621EN_US/the-new-mini-cooper-and-mini-cooper-s-with-gasoline-engines
+MINI,Cooper 4 Door,S Iconic,2027,201-hp turbocharged engine 7-Speed Dual Clutch Transmission FWD,201,2.0,I4,https://www.press.bmwgroup.com/usa/article/detail/T0439621EN_US/the-new-mini-cooper-and-mini-cooper-s-with-gasoline-engines
+MINI,Cooper Convertible,Signature,2027,161-hp turbocharged engine 7-Speed Dual Clutch Transmission FWD,161,2.0,I4,https://www.miniusa.com/model/2-door/build.html
+MINI,Cooper Convertible,Signature Plus,2027,161-hp turbocharged engine 7-Speed Dual Clutch Transmission FWD,161,2.0,I4,https://www.miniusa.com/model/2-door/build.html
+MINI,Cooper Convertible,Iconic,2027,161-hp turbocharged engine 7-Speed Dual Clutch Transmission FWD,161,2.0,I4,https://www.miniusa.com/model/2-door/build.html
+MINI,Cooper Convertible,S Signature,2027,201-hp turbocharged engine 7-Speed Dual Clutch Transmission FWD,201,2.0,I4,https://www.press.bmwgroup.com/usa/article/detail/T0439621EN_US/the-new-mini-cooper-and-mini-cooper-s-with-gasoline-engines
+MINI,Cooper Convertible,S Signature Plus,2027,201-hp turbocharged engine 7-Speed Dual Clutch Transmission FWD,201,2.0,I4,https://www.press.bmwgroup.com/usa/article/detail/T0439621EN_US/the-new-mini-cooper-and-mini-cooper-s-with-gasoline-engines
+MINI,Cooper Convertible,S Iconic,2027,201-hp turbocharged engine 7-Speed Dual Clutch Transmission FWD,201,2.0,I4,https://www.press.bmwgroup.com/usa/article/detail/T0439621EN_US/the-new-mini-cooper-and-mini-cooper-s-with-gasoline-engines
+MINI,Cooper Convertible,JCW Signature,2027,228-hp turbocharged engine 7-Speed Sport Dual Clutch Transmission FWD,228,2.0,I4,https://www.press.bmwgroup.com/usa/article/detail/T0445878EN_US/high-performance-with-motorsport-dna-the-new-mini-john-cooper-works-and-the-new-mini-john-cooper
+MINI,Cooper Convertible,JCW Signature Plus,2027,228-hp turbocharged engine 7-Speed Sport Dual Clutch Transmission FWD,228,2.0,I4,https://www.press.bmwgroup.com/usa/article/detail/T0445878EN_US/high-performance-with-motorsport-dna-the-new-mini-john-cooper-works-and-the-new-mini-john-cooper
+MINI,Cooper Convertible,JCW Iconic,2027,228-hp turbocharged engine 7-Speed Sport Dual Clutch Transmission FWD,228,2.0,I4,https://www.press.bmwgroup.com/usa/article/detail/T0445878EN_US/high-performance-with-motorsport-dna-the-new-mini-john-cooper-works-and-the-new-mini-john-cooper
+MINI,Countryman,S ALL4 Signature Plus,2027,241-hp turbocharged engine 7-Speed Dual Clutch Transmission ALL4 AWD,241,2.0,I4,https://www.press.bmwgroup.com/usa/article/detail/T0441041EN_US/next-generation-mini-countryman-s-all4-makes-north-american-debut-on-cross-country-us-roadshow
+MINI,Countryman,S ALL4 Iconic,2027,241-hp turbocharged engine 7-Speed Dual Clutch Transmission ALL4 AWD,241,2.0,I4,https://www.press.bmwgroup.com/usa/article/detail/T0441041EN_US/next-generation-mini-countryman-s-all4-makes-north-american-debut-on-cross-country-us-roadshow
+MINI,Countryman,JCW ALL4 Signature Plus,2027,312-hp turbocharged engine 7-Speed Sport Dual Clutch Transmission ALL4 AWD,312,2.0,I4,https://press.bmwgroup.com/usa/article/detail/T0438182EN_US/powerful-appearance-and-maximum-performance-the-new-mini-john-cooper-works-countryman
+MINI,Countryman,JCW ALL4 Iconic,2027,312-hp turbocharged engine 7-Speed Sport Dual Clutch Transmission ALL4 AWD,312,2.0,I4,https://press.bmwgroup.com/usa/article/detail/T0438182EN_US/powerful-appearance-and-maximum-performance-the-new-mini-john-cooper-works-countryman
+MINI,Countryman,SE ALL4 Signature Plus,2027,308-hp turbocharged engine ALL4 AWD,308,,,https://press.bmwgroup.com/usa/article/detail/T0444675EN_US/mini-celebrates-65-years-with-the-arrival-of-the-2025-countryman-se-all4-in-the-united-states
+MINI,Countryman,SE ALL4 Iconic,2027,308-hp turbocharged engine ALL4 AWD,308,,,https://press.bmwgroup.com/usa/article/detail/T0444675EN_US/mini-celebrates-65-years-with-the-arrival-of-the-2025-countryman-se-all4-in-the-united-states
+Porsche,911,Carrera,2027,3.0-Liter Twin-Turbocharged Boxer 6,388,3.0,flat-6,https://www.porsche.com/usa/models/911/configure/
+Porsche,911,Carrera T,2027,3.0-Liter Twin-Turbocharged Boxer 6,388,3.0,flat-6,https://www.porsche.com/usa/models/911/configure/
+Porsche,911,Carrera Cabriolet,2027,3.0-Liter Twin-Turbocharged Boxer 6,388,3.0,flat-6,https://www.porsche.com/usa/models/911/configure/
+Porsche,911,Carrera S,2027,3.0-Liter Twin-Turbocharged Boxer 6,473,3.0,flat-6,https://www.porsche.com/usa/models/911/configure/
+Porsche,911,Carrera T Cabriolet,2027,3.0-Liter Twin-Turbocharged Boxer 6,388,3.0,flat-6,https://www.porsche.com/usa/models/911/configure/
+Porsche,911,Carrera 4S,2027,3.0-Liter Twin-Turbocharged Boxer 6,473,3.0,flat-6,https://www.porsche.com/usa/models/911/configure/
+Porsche,911,Carrera S Cabriolet,2027,3.0-Liter Twin-Turbocharged Boxer 6,473,3.0,flat-6,https://www.porsche.com/usa/models/911/configure/
+Porsche,911,Carrera 4S Cabriolet,2027,3.0-Liter Twin-Turbocharged Boxer 6,473,3.0,flat-6,https://www.porsche.com/usa/models/911/configure/
+Porsche,911,Targa 4S,2027,3.0-Liter Twin-Turbocharged Boxer 6,473,3.0,flat-6,https://www.porsche.com/usa/models/911/configure/
+Porsche,911,Carrera GTS,2027,3.6 Liter eTurbocharged Boxer 6,532,3.6,flat-6,https://www.porsche.com/usa/models/911/configure/
+Porsche,911,Carrera 4 GTS,2027,3.6 Liter eTurbocharged Boxer 6,532,3.6,flat-6,https://www.porsche.com/usa/models/911/configure/
+Porsche,911,Carrera GTS Cabriolet,2027,3.6 Liter eTurbocharged Boxer 6,532,3.6,flat-6,https://www.porsche.com/usa/models/911/configure/
+Porsche,911,Targa 4 GTS,2027,3.6 Liter eTurbocharged Boxer 6,532,3.6,flat-6,https://www.porsche.com/usa/models/911/configure/
+Porsche,911,Carrera 4 GTS Cabriolet,2027,3.6 Liter eTurbocharged Boxer 6,532,3.6,flat-6,https://www.porsche.com/usa/models/911/configure/
+Porsche,911,GT3,2027,4.0-Liter Naturally Aspirated Boxer 6,502,4.0,flat-6,https://www.porsche.com/usa/models/911/configure/
+Porsche,911,Spirit 70,2026,3.6 Liter eTurbocharged Boxer 6,532,3.6,flat-6,https://www.porsche.com/usa/models/911/configure/
+Porsche,911,Turbo S,2027,3.6 Liter twin-eTurbocharged Boxer 6,701,3.6,flat-6,https://www.porsche.com/usa/models/911/configure/
+Porsche,911,GT3 S/C,2027,4.0-Liter Naturally Aspirated Boxer 6,502,4.0,flat-6,https://www.porsche.com/usa/models/911/configure/
+Porsche,911,Turbo S Cabriolet,2027,3.6 Liter twin-eTurbocharged Boxer 6,701,3.6,flat-6,https://www.porsche.com/usa/models/911/configure/
+Porsche,Taycan,Base,2027,Porsche E-Performance Powertrain with a Permanent Magnet Synchronous Motor on the Rear Axle,402,,,https://www.porsche.com/usa/models/taycan/configure/
+Porsche,Taycan,4,2027,Porsche E-Performance Powertrain with a Permanent Magnet Synchronous Motor on the Front and Rear Axle,402,,,https://www.porsche.com/usa/models/taycan/configure/
+Porsche,Taycan,4S,2027,Porsche E-Performance Powertrain with a Permanent Magnet Synchronous Motor on the Front and Rear Axle,536,,,https://www.porsche.com/usa/models/taycan/configure/
+Porsche,Taycan,GTS,2027,Porsche E-Performance Powertrain with a Permanent Magnet Synchronous Motor on the Front and Rear Axle,690,,,https://www.porsche.com/usa/models/taycan/configure/
+Porsche,Taycan,Turbo,2027,Porsche E-Performance Powertrain with a Permanent Magnet Synchronous Motor on the Front and Rear Axle,871,,,https://www.porsche.com/usa/models/taycan/configure/
+Porsche,Taycan,Turbo S,2027,Porsche E-Performance Powertrain with a Permanent Magnet Synchronous Motor on the Front and Rear Axle,938,,,https://www.porsche.com/usa/models/taycan/configure/
+Porsche,Taycan,Turbo GT,2027,Porsche E-Performance Powertrain with a Permanent Magnet Synchronous Motor on the Front and Rear Axle,1019,,,https://www.porsche.com/usa/models/taycan/configure/
+Porsche,Panamera,Base,2027,2.9 Liter Twin-Turbocharged V6 Engine,348,2.9,V6,https://www.porsche.com/usa/models/panamera/configure/
+Porsche,Panamera,4,2027,2.9 Liter Twin-Turbocharged V6 Engine,348,2.9,V6,https://www.porsche.com/usa/models/panamera/configure/
+Porsche,Panamera,4 E-Hybrid,2027,2.9 Liter Twin-Turbocharged V6 Engine / E-Machine,463,2.9,V6,https://www.porsche.com/usa/models/panamera/configure/
+Porsche,Panamera,4S E-Hybrid,2027,2.9 Liter Twin-Turbocharged V6 Engine / E-Machine,536,2.9,V6,https://www.porsche.com/usa/models/panamera/configure/
+Porsche,Panamera,GTS,2027,4.0-Liter Twin-Turbo V8 Engine,493,4.0,V8,https://www.porsche.com/usa/models/panamera/configure/
+Porsche,Panamera,Turbo E-Hybrid,2027,4.0 Liter Twin-Turbo V8 Engine / E-Machine,670,4.0,V8,https://www.porsche.com/usa/models/panamera/configure/
+Porsche,Panamera,Turbo S E-Hybrid,2027,4.0-Liter Twin-Turbo V8 Engine/E-Machine,771,4.0,V8,https://www.porsche.com/usa/models/panamera/configure/
+Porsche,Macan,Base,2026,2.0 Liter Turbocharged Inline-4,261,2.0,I4,https://www.porsche.com/usa/models/macan/configure/
+Porsche,Macan,T,2026,2.0 Liter Turbocharged Inline-4,261,2.0,I4,https://www.porsche.com/usa/models/macan/configure/
+Porsche,Macan,S,2026,2.9-Liter Twin-Turbocharged V6 Engine,375,2.9,V6,https://www.porsche.com/usa/models/macan/configure/
+Porsche,Macan,GTS,2026,2.9-Liter Twin-Turbocharged V6 Engine,434,2.9,V6,https://www.porsche.com/usa/models/macan/configure/
+Porsche,Macan Electric,Base,2027,Porsche E-Performance Powertrain with a Permanent Magnet Synchronous Motor on the Rear Axle,355,,,https://www.porsche.com/usa/models/macan/configure/
+Porsche,Macan Electric,4,2027,Porsche E-Performance Powertrain with a Permanent Magnet Synchronous Motor on the Front and Rear Axle,402,,,https://www.porsche.com/usa/models/macan/configure/
+Porsche,Macan Electric,4S,2027,Porsche E-Performance Powertrain with a Permanent Magnet Synchronous Motor on the Front and Rear Axle,509,,,https://www.porsche.com/usa/models/macan/configure/
+Porsche,Macan Electric,GTS,2027,Porsche E-Performance Powertrain with a Permanent Magnet Synchronous Motor on the Front and Rear Axle,563,,,https://www.porsche.com/usa/models/macan/configure/
+Porsche,Macan Electric,Turbo,2027,Porsche E-Performance Powertrain with a Permanent Magnet Synchronous Motor on the Front and Rear Axle,630,,,https://www.porsche.com/usa/models/macan/configure/
+Porsche,Cayenne,Base,2027,3.0-Liter Turbocharged V6 Engine,348,3.0,V6,https://www.porsche.com/usa/models/cayenne/
+Porsche,Cayenne,E-Hybrid,2027,3.0-Liter Turbocharged V6 Engine and E-Machine,463,3.0,V6,https://www.porsche.com/usa/models/cayenne/
+Porsche,Cayenne,S,2027,4.0-Liter Twin-Turbo V8 Engine,468,4.0,V8,https://www.porsche.com/usa/models/cayenne/
+Porsche,Cayenne,S E-Hybrid,2027,3.0-Liter Turbocharged V6 Engine and E-Machine,512,3.0,V6,https://www.porsche.com/usa/models/cayenne/
+Porsche,Cayenne,GTS,2027,4.0-Liter Twin-Turbo V8 Engine,493,4.0,V8,https://www.porsche.com/usa/models/cayenne/
+Porsche,Cayenne,Turbo E-Hybrid,2027,4.0-Liter Twin-Turbo V8 Engine and E-Machine,729,4.0,V8,https://www.porsche.com/usa/models/cayenne/
+Porsche,Cayenne Coupe,Base,2027,3.0-Liter Turbocharged V6 Engine,348,3.0,V6,https://www.porsche.com/usa/models/cayenne/
+Porsche,Cayenne Coupe,E-Hybrid,2027,3.0-Liter Turbocharged V6 Engine and E-Machine,463,3.0,V6,https://www.porsche.com/usa/models/cayenne/
+Porsche,Cayenne Coupe,S,2027,4.0-Liter Twin-Turbo V8 Engine,468,4.0,V8,https://www.porsche.com/usa/models/cayenne/
+Porsche,Cayenne Coupe,S E-Hybrid,2027,3.0-Liter Turbocharged V6 Engine and E-Machine,512,3.0,V6,https://www.porsche.com/usa/models/cayenne/
+Porsche,Cayenne Coupe,GTS,2027,4.0-Liter Twin-Turbo V8 Engine,493,4.0,V8,https://www.porsche.com/usa/models/cayenne/
+Porsche,Cayenne Coupe,Turbo E-Hybrid,2027,4.0-Liter Twin-Turbo V8 Engine and E-Machine,729,4.0,V8,https://www.porsche.com/usa/models/cayenne/
+Porsche,Cayenne Coupe,Turbo GT,2027,4.0-Liter Twin-Turbo V8 Engine,650,4.0,V8,https://www.porsche.com/usa/models/cayenne/
+Porsche,Cayenne Electric,Base,2027,Porsche E-Performance Powertrain with a Permanent Magnet Synchronous Motor on the Front and Rear Axle,435,,,https://www.porsche.com/usa/models/cayenne/
+Porsche,Cayenne Electric,S,2027,Porsche E-Performance Powertrain with a permanent magnet synchronous motor on the front and rear axle,657,,,https://www.porsche.com/usa/models/cayenne/
+Porsche,Cayenne Electric,Turbo,2027,Porsche E-Performance Powertrain with a Permanent Magnet Synchronous Motor on the Front and Rear Axle,1139,,,https://www.porsche.com/usa/models/cayenne/
+Porsche,Cayenne Coupe Electric,Base,2027,Porsche E-Performance Powertrain with a Permanent Magnet Synchronous Motor on the Front and Rear Axle,435,,,https://www.porsche.com/usa/models/cayenne/
+Porsche,Cayenne Coupe Electric,S,2027,Porsche E-Performance Powertrain with a permanent magnet synchronous motor on the front and rear axle,657,,,https://www.porsche.com/usa/models/cayenne/
+Porsche,Cayenne Coupe Electric,Turbo,2027,Porsche E-Performance Powertrain with a Permanent Magnet Synchronous Motor on the Front and Rear Axle,1139,,,https://www.porsche.com/usa/models/cayenne/
+Land Rover,Range Rover,SE SWB,2027,"3.0 Liter 6-Cylinder - Ingenium 3,0 litre 6-cylinder 400PS (294kW) Turbocharged Gas MHEV (Automatic)",395,3.0,I6,https://www.rangerover.com/en-us/range-rover/index.html
+Land Rover,Range Rover,SE SWB,2027,"3.0 Liter 6-Cylinder Plug-in Hybrid - Ingenium 3,0 litre 6-cylinder 550HP (405kW) Turbocharged Gas PHEV (Automatic)",542,3.0,I6,https://www.rangerover.com/lr/en_us/l460_k27/4d4m6/a-si6-400_a-std-se_a-swb_p/ipr/personalise/
+Land Rover,Range Rover,SE SWB,2027,"4.4 Liter Twin-turbo V8 - 4,4 litre V8 530PS (390kW) Twin Turbocharged Gas (Automatic)",523,4.4,V8,https://www.rangerover.com/en-us/range-rover/index.html
+Land Rover,Range Rover,SE LWB 7-Seat,2027,"3.0 Liter 6-Cylinder - Ingenium 3,0 litre 6-cylinder 360PS (265kW) Turbocharged Gas MHEV (Automatic)",355,3.0,I6,https://www.rangerover.com/lr/en_us/l460_k27/4d4m6/a-lwb-7_a-si6-400_a-std-se_p/ipr/personalise/
+Land Rover,Range Rover,SE LWB 7-Seat,2027,"4.4 Liter Twin-turbo V8 - 4,4 litre V8 530PS (390kW) Twin Turbocharged Gas (Automatic)",523,4.4,V8,https://www.rangerover.com/en-us/range-rover/index.html
+Land Rover,Range Rover,Autobiography SWB,2027,"3.0 Liter 6-Cylinder Plug-in Hybrid - Ingenium 3,0 litre 6-cylinder 550HP (405kW) Turbocharged Gas PHEV (Automatic)",542,3.0,I6,https://www.rangerover.com/lr/en_us/l460_k27/4d4m6/a-ab_a-si6-550_a-swb_h/ipr/personalise/
+Land Rover,Range Rover,Autobiography SWB,2027,"4.4 Liter Twin-turbo V8 - 4,4 litre V8 530PS (390kW) Twin Turbocharged Gas (Automatic)",523,4.4,V8,https://www.rangerover.com/en-us/range-rover/index.html
+Land Rover,Range Rover,Autobiography LWB 7-Seat,2027,"4.4 Liter Twin-turbo V8 - 4,4 litre V8 530PS (390kW) Twin Turbocharged Gas (Automatic)",523,4.4,V8,https://www.rangerover.com/en-us/range-rover/index.html
+Land Rover,Range Rover,Autobiography LWB,2027,"4.4 Liter Twin-turbo V8 - 4,4 litre V8 530PS (390kW) Twin Turbocharged Gas (Automatic)",523,4.4,V8,https://www.rangerover.com/en-us/range-rover/index.html
+Land Rover,Range Rover,SV SWB,2027,"4.4 Liter Twin-turbo V8 - 4,4 litre V8 615PS (460kW) Twin Turbocharged Gas (Automatic)",606,4.4,V8,https://www.rangerover.com/en-us/range-rover/index.html
+Land Rover,Range Rover,SV Black SWB,2027,"4.4 Liter Twin-turbo V8 - 4,4 litre V8 615PS (460kW) Twin Turbocharged Gas (Automatic)",606,4.4,V8,https://www.rangerover.com/en-us/range-rover/index.html
+Land Rover,Range Rover,SV LWB,2027,"4.4 Liter Twin-turbo V8 - 4,4 litre V8 615PS (460kW) Twin Turbocharged Gas (Automatic)",606,4.4,V8,https://www.rangerover.com/en-us/range-rover/index.html
+Land Rover,Range Rover,SV Ultra SWB,2027,"4.4 Liter Twin-turbo V8 - 4,4 litre V8 615PS (460kW) Twin Turbocharged Gas (Automatic)",606,4.4,V8,https://www.rangerover.com/en-us/range-rover/index.html
+Land Rover,Range Rover,SV Black LWB,2027,"4.4 Liter Twin-turbo V8 - 4,4 litre V8 615PS (460kW) Twin Turbocharged Gas (Automatic)",606,4.4,V8,https://www.rangerover.com/en-us/range-rover/index.html
+Land Rover,Range Rover,SV Ultra LWB,2027,"4.4 Liter Twin-turbo V8 - 4,4 litre V8 615PS (460kW) Twin Turbocharged Gas (Automatic)",606,4.4,V8,https://www.rangerover.com/en-us/range-rover/index.html
+Land Rover,Range Rover Electric,SE SWB,2027,EV550 118.5kWh Electric - EV 118.5kWh 360/580 m/km 550PS (Automatic),542,,,https://media.jlr.com/range-rover/en-us/news/2026/09/range-rover-electric-new-era-original-luxury-suv
+Land Rover,Range Rover Electric,Autobiography SWB,2027,EV550 118.5kWh Electric - EV 118.5kWh 360/580 m/km 550PS (Automatic),542,,,https://media.jlr.com/range-rover/en-us/news/2026/09/range-rover-electric-new-era-original-luxury-suv
+Land Rover,Range Rover Electric,First Edition SWB,2027,EV550 118.5kWh Electric - EV 118.5kWh 360/580 m/km 550PS (Automatic),542,,,https://media.jlr.com/range-rover/en-us/news/2026/09/range-rover-electric-new-era-original-luxury-suv
+Land Rover,Range Rover Electric,Autobiography LWB,2027,EV550 118.5kWh Electric - EV 118.5kWh 360/580 m/km 550PS (Automatic),542,,,https://media.jlr.com/range-rover/en-us/news/2026/09/range-rover-electric-new-era-original-luxury-suv
+Land Rover,Range Rover Electric,First Edition LWB,2027,EV550 118.5kWh Electric - EV 118.5kWh 360/580 m/km 550PS (Automatic),542,,,https://media.jlr.com/range-rover/en-us/news/2026/09/range-rover-electric-new-era-original-luxury-suv
+Land Rover,Range Rover Electric,SV SWB,2027,EV550 118.5kWh Electric - EV 118.5kWh 360/580 m/km 550PS (Automatic),542,,,https://media.jlr.com/range-rover/en-us/news/2026/09/range-rover-electric-new-era-original-luxury-suv
+Land Rover,Range Rover Electric,SV Black SWB,2027,EV550 118.5kWh Electric - EV 118.5kWh 360/580 m/km 550PS (Automatic),542,,,https://media.jlr.com/range-rover/en-us/news/2026/09/range-rover-electric-new-era-original-luxury-suv
+Land Rover,Range Rover Electric,SV LWB,2027,EV550 118.5kWh Electric - EV 118.5kWh 360/580 m/km 550PS (Automatic),542,,,https://media.jlr.com/range-rover/en-us/news/2026/09/range-rover-electric-new-era-original-luxury-suv
+Land Rover,Range Rover Electric,SV Ultra SWB,2027,EV550 118.5kWh Electric - EV 118.5kWh 360/580 m/km 550PS (Automatic),542,,,https://media.jlr.com/range-rover/en-us/news/2026/09/range-rover-electric-new-era-original-luxury-suv
+Land Rover,Range Rover Electric,SV Black LWB,2027,EV550 118.5kWh Electric - EV 118.5kWh 360/580 m/km 550PS (Automatic),542,,,https://media.jlr.com/range-rover/en-us/news/2026/09/range-rover-electric-new-era-original-luxury-suv
+Land Rover,Range Rover Electric,SV Ultra LWB,2027,EV550 118.5kWh Electric - EV 118.5kWh 360/580 m/km 550PS (Automatic),542,,,https://media.jlr.com/range-rover/en-us/news/2026/09/range-rover-electric-new-era-original-luxury-suv
+Land Rover,Range Rover Sport,SE,2027,3.0 Liter 6-Cylinder - Ingenium 3.0 Liter 6-cylinder 355HP Turbocharged Gas MHEV (Automatic),355,3.0,I6,https://www.rangerover.com/lr/en_us/l461_k27/4d41d/a-p360_a-std-se_a-swb_p/ipr/personalise/
+Land Rover,Range Rover Sport,Dynamic SE,2027,3.0 Liter 6-Cylinder - Ingenium 3.0 Liter 6-cylinder 395HP Turbocharged Gas MHEV (Automatic),395,3.0,I6,https://www.rangerover.com/lr/en_us/l461_k27/4d41d/a-dyn-se_a-p400_a-swb_p/ipr/personalise/
+Land Rover,Range Rover Sport,Dynamic SE,2027,3.0 Liter 6-Cylinder Plug-In Hybrid - Ingenium 3.0 Liter 6-cylinder 454HP Turbocharged Gas PHEV (Automatic),454,3.0,I6,https://www.rangerover.com/lr/en_us/l461_k27/4d41d/a-dyn-se_a-p400_a-swb_p/ipr/personalise/
+Land Rover,Range Rover Sport,Battersea Edition,2027,3.0 Liter 6-Cylinder Plug-In Hybrid - Ingenium 3.0 Liter 6-cylinder 544HP Turbocharged Gas PHEV (Automatic),544,3.0,I6,https://www.rangerover.com/lr/en_us/l461_k27/4d41d/a-e550_a-le-5_a-swb_h/ipr/personalise/
+Land Rover,Range Rover Velar,S,2026,"2.0L 4 Cylinder - Ingenium 2,0 liter 4-cylinder 250PS Turbocharged Gas (Automatic)",247,2.0,I4,https://www.rangerover.com/lr/en_us/l560_k2675/4d404/a-250si4_a-l560_a-swb_p/ipr/personalise/
+Land Rover,Range Rover Velar,Belgravia Edition,2026,"2.0L 4 Cylinder - Ingenium 2,0 litre 4-cylinder 250PS Turbocharged Gas (Automatic)",247,2.0,I4,https://www.rangerover.com/lr/en_us/l560_k2675/4d404/a-250si4_a-le5_a-swb_p/ipr/personalise/
+Land Rover,Range Rover Velar,Belgravia Edition,2026,"3.0L 6 Cylinder - Ingenium 3,0 litre 6-cylinder 400PS Turbocharged Gas (Automatic)",395,3.0,I6,https://www.rangerover.com/en-us/range-rover-velar/index.html
+Land Rover,Range Rover Velar,Autobiography,2026,"3.0L 6 Cylinder - Ingenium 3,0 liter 6-cylinder 400PS Turbocharged Gas (Automatic)",395,3.0,I6,https://www.rangerover.com/en-us/range-rover-velar/index.html
+Land Rover,Range Rover Velar,Belgravia Edition Satin,2026,"3.0L 6 Cylinder - Ingenium 3,0 litre 6-cylinder 400PS Turbocharged Gas (Automatic)",395,3.0,I6,https://www.rangerover.com/en-us/range-rover-velar/index.html
+Land Rover,Range Rover Evoque,S,2026,2.0L 4 Cylinder - Ingenium 2.0 liter 4-cylinder 246hp Turbocharged Gas,246,2.0,I4,https://www.rangerover.com/lr/en_us/l551_k2675/4d404/a-evoque_a-p249-a-awd_a-swb_p/ipr/personalise/
+Land Rover,Range Rover Evoque,Hoxton Edition,2026,2.0L 4 Cylinder - Ingenium 2.0 liter 4-cylinder 246hp Turbocharged Gas,246,2.0,I4,https://www.rangerover.com/lr/en_us/l551_k2675/4d404/a-p249-a-awd_a-swb_le5_p/ipr/personalise/
+Land Rover,Defender 90,S,2027,"3.0L 6 Cylinder - Ingenium 3,0 liter 6-cylinder 296 Hp Turbocharged Gas MHEV (Automatic)",296,3.0,I6,https://www.landroverusa.com/lr/en_us/l663_k27/4d46a/a-90_a-l663-s_a-p300-i6_p/ipr/personalise/
+Land Rover,Defender 90,Vertex,2027,"3.0L 6 Cylinder - Ingenium 3,0 liter 6-cylinder 395 Hp Twin Turbocharged Gas MHEV (Automatic)",395,3.0,I6,https://www.landroverusa.com/lr/en_us/l663_k27/4d46a/a-90_a-p400_a-xs_p/ipr/personalise/
+Land Rover,Defender 110,S,2027,"3.0L 6 Cylinder - Ingenium 3,0 liter 6-cylinder 296 Hp Turbocharged Gas MHEV (Automatic)",296,3.0,I6,https://www.landroverusa.com/lr/en_us/l663_k27/4d46a/a-110_a-l663-s_a-p300-i6-110_p/ipr/personalise/
+Land Rover,Defender 110,X-Dynamic SE,2027,"3.0L 6 Cylinder - Ingenium 3,0 liter 6-cylinder 395 Hp Turbocharged Gas MHEV (Automatic)",395,3.0,I6,https://www.landroverusa.com/lr/en_us/l663_k27/4d46a/a-110_a-p400-110_a-xdyn-se_p/ipr/personalise/
+Land Rover,Defender 110,Trophy Edition,2027,"3.0L 6 Cylinder - Ingenium 3,0 liter 6-cylinder 395 Hp Turbocharged Gas MHEV (Automatic)",395,3.0,I6,https://www.landroverusa.com/lr/en_us/l663_k27/4d46a/a-110_a-le17_a-p400-110_p/ipr/personalise/
+Land Rover,Defender 110,Trophy Edition,2027,"3.0L 6 Cylinder - Ingenium 3,0 liter 6-cylinder 395 Hp Twin Turbocharged Gas MHEV (Automatic)",395,3.0,I6,https://www.landroverusa.com/lr/en_us/l663_k27/4d46a/a-110_a-le17_a-p400-110_p/ipr/personalise/
+Land Rover,Defender 110,X,2027,"3.0L 6 Cylinder - Ingenium 3,0 liter 6-cylinder 395 Hp Turbocharged Gas MHEV (Automatic)",395,3.0,I6,https://www.landroverusa.com/lr/en_us/l663_k27/4d46a/a-110_a-p400-110_a-x_p/ipr/personalise/
+Land Rover,Defender 110,Vertex,2027,"3.0L 6 Cylinder - Ingenium 3,0 liter 6-cylinder 395 Hp Twin Turbocharged Gas MHEV (Automatic)",395,3.0,I6,https://www.landroverusa.com/lr/en_us/l663_k27/4d46a/a-110_a-p400-110_a-xs_p/ipr/personalise/
+Land Rover,Defender 130,S,2027,"3.0L 6 Cylinder - Ingenium 3,0 liter 6-cylinder 296 Hp Turbocharged Gas (Automatic)",296,3.0,I6,https://www.landroverusa.com/lr/en_us/l663_k27/4d46a/a-130_a-l663-s_a-p300-130_p/ipr/personalise/
+Land Rover,Defender 130,X-Dynamic SE,2027,"3.0L 6 Cylinder - Ingenium 3,0 liter 6-cylinder 395 Hp Turbocharged Gas MHEV (Automatic)",395,3.0,I6,https://www.landroverusa.com/lr/en_us/l663_k27/4d46a/a-130_a-p400-130_a-xdyn-se_p/ipr/personalise/
+Land Rover,Defender 130,Outbound,2027,"3.0L 6 Cylinder - Ingenium 3,0 liter 6-cylinder 395 Hp Twin Turbocharged Gas MHEV (Automatic)",395,3.0,I6,https://www.landroverusa.com/lr/en_us/l663_k27/4d46a/a-130_a-le13_a-p400-130_p/ipr/personalise/
+Land Rover,Defender 130,Vertex,2027,"3.0L 6 Cylinder - Ingenium 3,0 liter 6-cylinder 395 Hp Turbocharged Gas MHEV (Automatic)",395,3.0,I6,https://www.landroverusa.com/lr/en_us/l663_k27/4d46a/a-130_a-p400-130_a-xs_p/ipr/personalise/
+Land Rover,Discovery,S,2027,3.0L 6 Cylinder - Ingenium 3.0 Litres 6-cylinder 360hp Turbocharged Gas (Automatic),360,3.0,I6,https://www.landroverusa.com/lr/en_us/l462_k27/4d48q/a-p360_a-std_a-std-wb_p/ipr/personalise/
+Land Rover,Discovery,Landmark,2027,3.0L 6 Cylinder - Ingenium 3.0 Litres 6-cylinder 360hp Turbocharged Gas (Automatic),360,3.0,I6,https://www.landroverusa.com/lr/en_us/l462_k27/4d48q/a-p360_a-std-wb_a-vdyn_p/ipr/personalise/
+Land Rover,Discovery,Tempest,2027,3.0L 6 Cylinder - Ingenium 3.0 Litres 6-cylinder 360hp Turbocharged Gas (Automatic),360,3.0,I6,https://www.landroverusa.com/lr/en_us/l462_k27/4d48q/a-le9_a-p360_a-std-wb_p/ipr/personalise/
+Land Rover,Discovery Sport,Landmark,2026,"2.0L 4 Cylinder Gas - Ingenium 2,0 liter 4-cylinder 249hp Turbocharged Gas (Automatic)",249,2.0,I4,https://www.landroverusa.com/lr/en_us/l550_k265/4d404/a-p249_a-rdyn-se_a-swb_p/ipr/personalise/
+Lexus,TZ,450e Premium,2027,"Battery-electric, AWD",,,,
+Lexus,TZ,450e Premium Touring,2027,"Battery-electric, AWD",,,,
+Lexus,TZ,450e Luxury,2027,"Battery-electric, AWD",,,,
+Genesis,G80,2.5T,2026,"2.5L 4-CYL Automatic Transmission AWD, 300 hp, 8-Speed Automatic, AWD",300,2.5,I4,https://www.genesis.com/us/en/g80
+Genesis,G80,2.5T Advanced,2026,"2.5L 4-CYL Automatic Transmission AWD, 300 hp, 8-Speed Automatic, AWD",300,2.5,I4,https://www.genesis.com/us/en/g80
+Genesis,G80,2.5T Sport Prestige,2026,"2.5L 4-CYL Automatic Transmission AWD, 300 hp, 8-Speed Automatic, AWD",300,2.5,I4,https://www.genesis.com/us/en/g80
+Genesis,G80,2.5T,2027,"2.5L 4-CYL Automatic Transmission AWD, 300 hp, 8-Speed Automatic, AWD",300,2.5,I4,https://www.genesis.com/us/en/g80
+Genesis,G80,2.5T Advanced,2027,"2.5L 4-CYL Automatic Transmission AWD, 300 hp, 8-Speed Automatic, AWD",300,2.5,I4,https://www.genesis.com/us/en/g80
+Genesis,G80,2.5T Sport Prestige,2027,"2.5L 4-CYL Automatic Transmission AWD, 300 hp, 8-Speed Automatic, AWD",300,2.5,I4,https://www.genesis.com/us/en/g80
+Volvo,XC40,Core,2026,"B4 FWD Gas (mild hybrid), 194 hp",194,,,https://www.volvocars.com/us/cars/xc40/specifications/
+Volvo,XC40,Core,2026,"B5 AWD Gas (mild hybrid), 247 hp",247,,,https://www.volvocars.com/us/cars/xc40/specifications/
+Volvo,XC40,Plus,2026,"B4 FWD Gas (mild hybrid), 194 hp",194,,,https://www.volvocars.com/us/cars/xc40/specifications/
+Volvo,XC40,Plus,2026,"B5 AWD Gas (mild hybrid), 247 hp",247,,,https://www.volvocars.com/us/cars/xc40/specifications/
+Volvo,XC40,Ultra,2026,"B5 AWD Gas (mild hybrid), 247 hp",247,,,https://www.volvocars.com/us/cars/xc40/specifications/
+Volvo,XC40,Black Edition,2026,"B5 AWD Gas (mild hybrid), 247 hp",247,,,https://www.volvocars.com/us/cars/xc40/specifications/
+Volvo,XC60,Core,2027,"B5 AWD Gas (mild hybrid), 247 hp",247,,,https://www.volvocars.com/us/cars/xc60/specifications/
+Volvo,XC60,Plus,2027,"B5 AWD Gas (mild hybrid), 247 hp",247,,,https://www.volvocars.com/us/cars/xc60/specifications/
+Volvo,XC60,Ultra,2027,"B5 AWD Gas (mild hybrid), 247 hp",247,,,https://www.volvocars.com/us/cars/xc60/specifications/
+Volvo,XC60,T8 Plus,2027,"T8 AWD Plug-in hybrid, 401 hp",401,,,https://www.volvocars.com/us/cars/xc60-hybrid/specifications/
+Volvo,XC60,T8 Ultra,2027,"T8 AWD Plug-in hybrid, 401 hp",401,,,https://www.volvocars.com/us/cars/xc60-hybrid/specifications/
+Volvo,XC60,T8 Black Edition,2027,"T8 AWD Plug-in hybrid, 401 hp",401,,,https://www.volvocars.com/us/cars/xc60-hybrid/specifications/
+Volvo,XC90,Core,2026,"B5 AWD Gas (mild hybrid), 247 hp",247,,,https://www.volvocars.com/us/cars/xc90/
+Volvo,XC90,Core,2026,"B6 AWD Gas (mild hybrid), 295 hp",295,,,https://www.volvocars.com/us/cars/xc90/
+Volvo,XC90,Plus,2026,"B5 AWD Gas (mild hybrid), 247 hp",247,,,https://www.volvocars.com/us/cars/xc90/
+Volvo,XC90,Plus,2026,"B6 AWD Gas (mild hybrid), 295 hp",295,,,https://www.volvocars.com/us/cars/xc90/
+Volvo,XC90,Ultra,2026,"B5 AWD Gas (mild hybrid), 247 hp",247,,,https://www.volvocars.com/us/cars/xc90/
+Volvo,XC90,Ultra,2026,"B6 AWD Gas (mild hybrid), 295 hp",295,,,https://www.volvocars.com/us/cars/xc90/
+Volvo,XC90,T8 Core,2026,"T8 AWD Plug-in hybrid, 455 hp",455,,,https://www.volvocars.com/us/cars/xc90-hybrid/
+Volvo,XC90,T8 Plus,2026,"T8 AWD Plug-in hybrid, 455 hp",455,,,https://www.volvocars.com/us/cars/xc90-hybrid/
+Volvo,XC90,T8 Ultra,2026,"T8 AWD Plug-in hybrid, 455 hp",455,,,https://www.volvocars.com/us/cars/xc90-hybrid/
+Volvo,V60 Cross Country,Plus,2026,"B5 AWD Gas (mild hybrid), 247 hp",247,,,https://www.volvocars.com/us/cars/v60-cross-country/
+Volvo,V60 Cross Country,Ultra,2026,"B5 AWD Gas (mild hybrid), 247 hp",247,,,https://www.volvocars.com/us/cars/v60-cross-country/
+Dodge,Charger,R/T,2026,3.0L Twin Turbo Sixpack SO,420,3.0,I6,https://media.stellantisnorthamerica.com/newsrelease.do?id=27272
+Dodge,Charger,R/T Plus,2026,3.0L Twin Turbo Sixpack SO,420,3.0,I6,https://media.stellantisnorthamerica.com/newsrelease.do?id=27272
+Dodge,Charger,Scat Pack,2026,3.0L Twin Turbo Sixpack HO with Stop/Start,550,3.0,I6,https://media.stellantisnorthamerica.com/newsrelease.do?id=27272
+Dodge,Charger,Scat Pack Plus,2026,3.0L Twin Turbo Sixpack HO with Stop/Start,550,3.0,I6,https://media.stellantisnorthamerica.com/newsrelease.do?id=27272
+Dodge,Charger,R/T,2027,3.0L Twin Turbo SIXPACK SO with Stop/Start,420,3.0,I6,https://media.stellantisnorthamerica.com/newsrelease.do?id=27787
+Dodge,Charger,R/T Plus,2027,3.0L Twin Turbo SIXPACK SO with Stop/Start,420,3.0,I6,https://media.stellantisnorthamerica.com/newsrelease.do?id=27787
+Dodge,Charger,Scat Pack,2027,3.0L Twin Turbo SIXPACK HO with Stop/Start,550,3.0,I6,https://media.stellantisnorthamerica.com/newsrelease.do?id=27787
+Dodge,Charger,Scat Pack Plus,2027,3.0L Twin Turbo SIXPACK HO with Stop/Start,550,3.0,I6,https://media.stellantisnorthamerica.com/newsrelease.do?id=27787
+Dodge,Charger Daytona,Scat Pack,2026,400V G2500 Front / Rear Electric-Drive Motors,670,,,https://media.stellantisnorthamerica.com/newsrelease.do?id=27272
+Dodge,Charger Daytona,Scat Pack Plus,2026,400V G2500 Front / Rear Electric-Drive Motors,670,,,https://media.stellantisnorthamerica.com/newsrelease.do?id=27272
+Dodge,Charger Daytona,Scat Pack Plus,2027,400V G2500 Front / Rear Electric-Drive Motors,670,,,https://media.stellantisnorthamerica.com/newsrelease.do?id=27787
+Dodge,Durango,GT,2026,AWD HEMI V8,,,,
+Dodge,Durango,GT,2026,3.6L V6 24V VVT Pentastar Engine with Stop/Start,295,3.6,V6,https://embargoed.stellantisnorthamerica.com/newsrelease.do?id=27268
+Dodge,Durango,GT,2026,5.7L V8 HEMI MDS VVT Engine,360,5.7,V8,https://media.stellantisnorthamerica.com/newsrelease.do?id=27912
+Dodge,Durango,GT Plus,2026,AWD HEMI V8,,,,
+Dodge,Durango,GT Plus,2026,3.6L V6 24V VVT Pentastar Engine with Stop/Start,295,3.6,V6,https://embargoed.stellantisnorthamerica.com/newsrelease.do?id=27268
+Dodge,Durango,GT Plus,2026,5.7L V8 HEMI MDS VVT Engine,360,5.7,V8,https://media.stellantisnorthamerica.com/newsrelease.do?id=27912
+Dodge,Durango,GT Plus A250 edition,2026,AWD HEMI V8,,,,
+Dodge,Durango,GT Plus A250 edition,2026,3.6L V6 24V VVT Pentastar Engine with Stop/Start,295,3.6,V6,https://www.dodge.com/news/2026-dodge-durango-gt-america250-edition.html
+Dodge,Durango,GT Plus A250 edition,2026,5.7L V8 HEMI MDS VVT Engine,360,5.7,V8,https://media.stellantisnorthamerica.com/newsrelease.do?id=27912
+Dodge,Durango,R/T 392 Launch Edition,2026,6.4L V8 SRT HEMI MDS Engine,475,6.4,V8,https://media.stellantisnorthamerica.com/newsrelease.do?id=27912
+Dodge,Durango,GT HEMI Premium,2026,AWD HEMI V8,,,,
+Dodge,Durango,GT HEMI Premium,2026,5.7L V8 HEMI MDS VVT Engine,360,5.7,V8,https://media.stellantisnorthamerica.com/newsrelease.do?id=27912
+Dodge,Durango,GT HEMI Premium A250 edition,2026,AWD HEMI V8,,,,
+Dodge,Durango,GT HEMI Premium A250 edition,2026,5.7L V8 HEMI MDS VVT Engine,360,5.7,V8,https://media.stellantisnorthamerica.com/newsrelease.do?id=27912
+Dodge,Durango,R/T 392 Premium Launch Edition,2026,6.4L V8 SRT HEMI MDS Engine,475,6.4,V8,https://media.stellantisnorthamerica.com/newsrelease.do?id=27912
+Dodge,Durango,SRT Hellcat,2026,6.2L Supercharged HEMI V8 SRT Engine,710,6.2,V8,https://media.stellantisnorthamerica.com/newsrelease.do?id=27912
+Dodge,Durango,SRT Hellcat Jailbreak,2026,6.2L Supercharged HEMI V8 SRT Engine,710,6.2,V8,https://media.stellantisnorthamerica.com/newsrelease.do?id=27912
+Dodge,Durango,GT HEMI,2027,AWD HEMI V8,,,,
+Dodge,Durango,GT HEMI,2027,5.7L HEMI V8 with MDS & VVT Engine,360,5.7,V8,https://media.stellantisnorthamerica.com/newsrelease.do?id=27784
+Dodge,Durango,GT HEMI Plus,2027,AWD HEMI V8,,,,
+Dodge,Durango,GT HEMI Plus,2027,5.7L HEMI V8 with MDS & VVT Engine,360,5.7,V8,https://media.stellantisnorthamerica.com/newsrelease.do?id=27784
+Dodge,Durango,GT HEMI Premium,2027,AWD HEMI V8,,,,
+Dodge,Durango,GT HEMI Premium,2027,5.7L HEMI V8 with MDS & VVT Engine,360,5.7,V8,https://media.stellantisnorthamerica.com/newsrelease.do?id=27784
+Dodge,Durango,R/T 392,2027,6.4L HEMI SRT V8 MDS Engine,475,6.4,V8,https://media.stellantisnorthamerica.com/newsrelease.do?id=27784
+Dodge,Durango,R/T 392 Plus,2027,6.4L HEMI SRT V8 MDS Engine,475,6.4,V8,https://media.stellantisnorthamerica.com/newsrelease.do?id=27784
+Dodge,Durango,R/T 392 Premium,2027,6.4L HEMI SRT V8 MDS Engine,475,6.4,V8,https://media.stellantisnorthamerica.com/newsrelease.do?id=27784
+Dodge,Durango,SRT Hellcat,2027,6.2L Supercharged HEMI SRT V8 Engine,710,6.2,V8,https://media.stellantisnorthamerica.com/newsrelease.do?id=27784
+Dodge,Durango,SRT Hellcat Jailbreak,2027,6.2L Supercharged HEMI SRT V8 Engine,710,6.2,V8,https://media.stellantisnorthamerica.com/newsrelease.do?id=27784
+Chrysler,Pacifica,Select,2026,3.6L V6 24V VVT Engine with Stop/Start,287,3.6,V6,https://media.stellantisnorthamerica.com/newsrelease.do?id=27615
+Chrysler,Pacifica,Limited,2026,3.6L V6 24V VVT Engine with Stop/Start,287,3.6,V6,https://media.stellantisnorthamerica.com/newsrelease.do?id=27615
+Chrysler,Pacifica,Pinnacle,2026,3.6L V6 24V VVT Engine with Stop/Start,287,3.6,V6,https://media.stellantisnorthamerica.com/newsrelease.do?id=27615
+Chrysler,Pacifica,LX,2027,3.6L V6 24V VVT Engine with Stop/Start,287,3.6,V6,https://media.stellantisnorthamerica.com/newsrelease.do?id=27615
+Chrysler,Pacifica,Select,2027,3.6L V6 24V VVT Engine with Stop/Start,287,3.6,V6,https://media.stellantisnorthamerica.com/newsrelease.do?id=27615
+Chrysler,Pacifica,Limited,2027,3.6L V6 24V VVT Engine with Stop/Start,287,3.6,V6,https://media.stellantisnorthamerica.com/newsrelease.do?id=27615
+Chrysler,Pacifica,Pinnacle,2027,3.6L V6 24V VVT Engine with Stop/Start,287,3.6,V6,https://media.stellantisnorthamerica.com/newsrelease.do?id=27615
+Chrysler,Voyager,LX,2026,3.6L V6 24V VVT Engine with Stop/Start,287,3.6,V6,https://www.chrysler.com/2026/voyager/specs.html
+Alfa Romeo,Tonale,Sprint,2026,2.0L I4 DOHC DI Turbo Engine with Stop/Start,268,2.0,I4,https://media.stellantisnorthamerica.com/newsrelease.do?id=27381
+Alfa Romeo,Tonale,Sport Speciale,2026,2.0L I4 DOHC DI Turbo Engine with Stop/Start,268,2.0,I4,https://media.stellantisnorthamerica.com/newsrelease.do?id=27381
+Alfa Romeo,Tonale,Veloce,2026,2.0L I4 DOHC DI Turbo Engine with Stop/Start,268,2.0,I4,https://media.stellantisnorthamerica.com/newsrelease.do?id=27381
+Mitsubishi,Outlander,ES,2026,1.5L turbo 4-cyl mild hybrid / CVT / FWD,174,1.5,I4,https://media.mitsubishicars.com/en-US/releases/release-f7ea0666f1a4de228f8d4bfa7b00b65a-2026-mitsubishi-outlander-technical-specifications
+Mitsubishi,Outlander,ES,2026,1.5L turbo 4-cyl mild hybrid / CVT / S-AWC AWD,174,1.5,I4,https://media.mitsubishicars.com/en-US/releases/release-f7ea0666f1a4de228f8d4bfa7b00b65a-2026-mitsubishi-outlander-technical-specifications
+Mitsubishi,Outlander,LE,2026,1.5L turbo 4-cyl mild hybrid / CVT / FWD,174,1.5,I4,https://media.mitsubishicars.com/en-US/releases/release-f7ea0666f1a4de228f8d4bfa7b00b65a-2026-mitsubishi-outlander-technical-specifications
+Mitsubishi,Outlander,LE,2026,1.5L turbo 4-cyl mild hybrid / CVT / S-AWC AWD,174,1.5,I4,https://media.mitsubishicars.com/en-US/releases/release-f7ea0666f1a4de228f8d4bfa7b00b65a-2026-mitsubishi-outlander-technical-specifications
+Mitsubishi,Outlander,SE,2026,1.5L turbo 4-cyl mild hybrid / CVT / FWD,174,1.5,I4,https://media.mitsubishicars.com/en-US/releases/release-f7ea0666f1a4de228f8d4bfa7b00b65a-2026-mitsubishi-outlander-technical-specifications
+Mitsubishi,Outlander,SE,2026,1.5L turbo 4-cyl mild hybrid / CVT / S-AWC AWD,174,1.5,I4,https://media.mitsubishicars.com/en-US/releases/release-f7ea0666f1a4de228f8d4bfa7b00b65a-2026-mitsubishi-outlander-technical-specifications
+Mitsubishi,Outlander,SEL,2026,1.5L turbo 4-cyl mild hybrid / CVT / FWD,174,1.5,I4,https://media.mitsubishicars.com/en-US/releases/release-f7ea0666f1a4de228f8d4bfa7b00b65a-2026-mitsubishi-outlander-technical-specifications
+Mitsubishi,Outlander,SEL,2026,1.5L turbo 4-cyl mild hybrid / CVT / S-AWC AWD,174,1.5,I4,https://media.mitsubishicars.com/en-US/releases/release-f7ea0666f1a4de228f8d4bfa7b00b65a-2026-mitsubishi-outlander-technical-specifications
+Mitsubishi,Outlander,Trail Edition,2026,1.5L turbo 4-cyl mild hybrid / CVT / S-AWC AWD,174,1.5,I4,https://media.mitsubishicars.com/en-US/releases/release-f7ea0666f1a4de228f8d4bfa7b00b65a-2026-mitsubishi-outlander-technical-specifications
+Mitsubishi,Outlander,Black Edition,2026,1.5L turbo 4-cyl mild hybrid / CVT / FWD,174,1.5,I4,https://media.mitsubishicars.com/en-US/releases/release-f7ea0666f1a4de228f8d4bfa7b00b65a-2026-mitsubishi-outlander-technical-specifications
+Mitsubishi,Outlander,Black Edition,2026,1.5L turbo 4-cyl mild hybrid / CVT / S-AWC AWD,174,1.5,I4,https://media.mitsubishicars.com/en-US/releases/release-f7ea0666f1a4de228f8d4bfa7b00b65a-2026-mitsubishi-outlander-technical-specifications
+Mitsubishi,Outlander,Ralliart,2026,1.5L turbo 4-cyl mild hybrid / CVT / S-AWC AWD,174,1.5,I4,https://media.mitsubishicars.com/en-US/releases/release-f7ea0666f1a4de228f8d4bfa7b00b65a-2026-mitsubishi-outlander-technical-specifications
+Mitsubishi,Outlander PHEV,ES,2026,2.4L PHEV with front and rear electric motors / single-speed electric drive / S-AWC AWD,297,,,https://media.mitsubishicars.com/en-US/releases/2026-mitsubishi-outlander-plug-in-hybrid-mid-cycle-refresh-pricing-to-start-at-43245
+Mitsubishi,Outlander PHEV,SE,2026,2.4L PHEV with front and rear electric motors / single-speed electric drive / S-AWC AWD,297,,,https://media.mitsubishicars.com/en-US/releases/2026-mitsubishi-outlander-plug-in-hybrid-mid-cycle-refresh-pricing-to-start-at-43245
+Mitsubishi,Outlander PHEV,SEL,2026,2.4L PHEV with front and rear electric motors / single-speed electric drive / S-AWC AWD,297,,,https://media.mitsubishicars.com/en-US/releases/2026-mitsubishi-outlander-plug-in-hybrid-mid-cycle-refresh-pricing-to-start-at-43245
+Mitsubishi,Outlander PHEV,Black Edition,2026,2.4L PHEV with front and rear electric motors / single-speed electric drive / S-AWC AWD,297,,,https://media.mitsubishicars.com/en-US/releases/2026-mitsubishi-outlander-plug-in-hybrid-mid-cycle-refresh-pricing-to-start-at-43245
+Mitsubishi,Outlander Sport,S,2027,2.0L 4-cyl / CVT / FWD,,2.0,I4,https://www.mitsubishicars.com/cars-and-suvs/outlander-sport/trims
+Mitsubishi,Outlander Sport,ES,2027,2.0L 4-cyl / CVT / FWD,,2.0,I4,https://www.mitsubishicars.com/cars-and-suvs/outlander-sport/trims
+Mitsubishi,Outlander Sport,ES,2027,2.0L 4-cyl / CVT / AWC AWD,,2.0,I4,https://www.mitsubishicars.com/cars-and-suvs/outlander-sport/trims
+Mitsubishi,Outlander Sport,LE,2027,2.0L 4-cyl / CVT / FWD,,2.0,I4,https://www.mitsubishicars.com/cars-and-suvs/outlander-sport/trims
+Mitsubishi,Outlander Sport,LE,2027,2.0L 4-cyl / CVT / AWC AWD,,2.0,I4,https://www.mitsubishicars.com/cars-and-suvs/outlander-sport/trims
+Mitsubishi,Outlander Sport,SE,2027,2.0L 4-cyl / CVT / FWD,,2.0,I4,https://www.mitsubishicars.com/cars-and-suvs/outlander-sport/trims
+Mitsubishi,Outlander Sport,SE,2027,2.0L 4-cyl / CVT / AWC AWD,,2.0,I4,https://www.mitsubishicars.com/cars-and-suvs/outlander-sport/trims
+Mitsubishi,Outlander Sport,SEL,2027,2.4L 4-cyl / CVT / AWC AWD,,2.4,I4,https://www.mitsubishicars.com/cars-and-suvs/outlander-sport/trims
+Mitsubishi,Outlander Sport,Trail Edition,2027,2.0L 4-cyl / CVT / AWC AWD,,2.0,I4,https://www.mitsubishicars.com/cars-and-suvs/outlander-sport/trims
+Mitsubishi,Outlander Sport,Ralliart,2027,2.0L 4-cyl / CVT / AWC AWD,,2.0,I4,https://www.mitsubishicars.com/cars-and-suvs/outlander-sport/trims
+Mitsubishi,Eclipse Cross,ES,2026,1.5L turbo 4-cyl / CVT / S-AWC AWD,,1.5,I4,https://www.mitsubishicars.com/cars-and-suvs/eclipse-cross/trims
+Mitsubishi,Eclipse Cross,LE,2026,1.5L turbo 4-cyl / CVT / S-AWC AWD,,1.5,I4,https://www.mitsubishicars.com/cars-and-suvs/eclipse-cross/trims
+Mitsubishi,Eclipse Cross,SE,2026,1.5L turbo 4-cyl / CVT / S-AWC AWD,,1.5,I4,https://www.mitsubishicars.com/cars-and-suvs/eclipse-cross/trims
+Mitsubishi,Eclipse Cross,Black Edition,2026,1.5L turbo 4-cyl / CVT / S-AWC AWD,,1.5,I4,https://www.mitsubishicars.com/cars-and-suvs/eclipse-cross/trims
+Mitsubishi,Eclipse Cross,SEL,2026,1.5L turbo 4-cyl / CVT / S-AWC AWD,,1.5,I4,https://www.mitsubishicars.com/cars-and-suvs/eclipse-cross/trims
+Mitsubishi,Eclipse Cross,Ralliart,2026,1.5L turbo 4-cyl / CVT / S-AWC AWD,,1.5,I4,https://www.mitsubishicars.com/cars-and-suvs/eclipse-cross/trims
+Polestar,4,Rear motor,2026,Rear motor electric / single-speed / RWD,272,,,https://www.polestar.com/us/polestar-4/specifications/
+Polestar,4,Dual motor,2026,Dual motor electric / single-speed / AWD,544,,,https://www.polestar.com/us/polestar-4/specifications/
+Lucid,Air,Pure,2027,Single rear motor electric / RWD,430,,,https://lucidmotors.com/air
+Lucid,Air,Touring,2027,Dual motor electric / AWD,620,,,https://lucidmotors.com/air
+Lucid,Air,Grand Touring,2027,Dual motor electric / AWD,819,,,https://lucidmotors.com/air
+Lucid,Air,Sapphire,2027,Tri-motor electric / AWD,1234,,,https://lucidmotors.com/air
+Lucid,Gravity,Touring,2027,Dual motor electric / AWD,560,,,https://lucidmotors.com/gravity
+Lucid,Gravity,Grand Touring,2027,Dual motor electric / AWD,828,,,https://lucidmotors.com/gravity
+Lucid,Gravity,GT-S,2027,Dual motor electric / AWD,1070,,,https://lucidmotors.com/gravity

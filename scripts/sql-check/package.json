@@ -1,0 +1,7 @@
+{
+  "name": "levr-sql-check",
+  "private": true,
+  "type": "module",
+  "description": "Offline parse check for migrations (libpg-query, the real Postgres parser compiled to WASM). No database connection.",
+  "dependencies": { "libpg-query": "17.1.1" }
+}

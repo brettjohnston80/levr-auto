@@ -1,5 +1,6 @@
 "use client";
 
+import { drivetrainHeading, formatCabBedLine } from "@/lib/cab-bed";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import type { TrimOption } from "@/lib/finalize-trims";
@@ -14,6 +15,7 @@ import {
   type ComparisonCell,
 } from "@/lib/trim-comparison";
 import { PriceTag, PackageNote } from "@/components/configurator-questions";
+import { displayOptionName } from "@/lib/option-display";
 import { ColorDot, Thumb } from "@/components/ranking-question";
 import { resolveWheelImage } from "@/lib/vehicle-wheel-images";
 
@@ -82,12 +84,12 @@ export function ChoiceRow({ choice }: { choice: ConfiguratorChoice }) {
   return (
     <li className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
       <span className="flex shrink-0 items-center gap-1.5">
-        <Thumb item={{ id: choice.name, label: choice.name, imageUrl: choice.imageUrl ?? null }} />
-        <ColorDot item={{ id: choice.name, label: choice.name, swatch: choice.swatch ?? null }} />
+        <Thumb item={{ id: choice.name, label: displayOptionName(choice.name), imageUrl: choice.imageUrl ?? null }} />
+        <ColorDot item={{ id: choice.name, label: displayOptionName(choice.name), swatch: choice.swatch ?? null }} />
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-3">
-          <span className="min-w-0 text-sm font-medium text-white">{choice.name}</span>
+          <span className="min-w-0 text-sm font-medium text-white">{displayOptionName(choice.name)}</span>
           <PriceTag choice={choice} />
         </div>
         <PackageNote choice={choice} />
@@ -207,10 +209,10 @@ function SpecLine({ label, cell }: { label: string; cell: ComparisonCell }) {
 function FeatureChip({ choice }: { choice: ConfiguratorChoice }) {
   return (
     <span
-      title={choice.name}
+      title={displayOptionName(choice.name)}
       className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[11px] font-medium text-zinc-300"
     >
-      {choice.name}
+      {displayOptionName(choice.name)}
       <PriceTag choice={choice} />
     </span>
   );
@@ -286,7 +288,7 @@ function Highlights({
           )}
           {showRoof && <SpecLine label="Roof" cell={roofCell} />}
           {questions.drivetrain.length > 0 && (
-            <SpecLine label="Drivetrain" cell={summarizeDrivetrain(questions)} />
+            <SpecLine label={drivetrainHeading(questions.drivetrain.map((c) => c.name))} cell={summarizeDrivetrain(questions)} />
           )}
         </div>
       )}
@@ -476,7 +478,10 @@ export function TrimDetailModal({
                 title="Roof"
                 choices={questions.roof.filter((c) => !roofChoiceIsRedundant(c, questions.features))}
               />
-              <Section title="Drivetrain" choices={questions.drivetrain} />
+              <Section
+                title={drivetrainHeading(questions.drivetrain.map((c) => c.name))}
+                choices={questions.drivetrain.map((c) => ({ ...c, name: formatCabBedLine(c.name) }))}
+              />
               {/* Grouped by package (2026-09-20 reversal) -- a multi-item
                   package renders as ONE row under its package name, not one
                   row per member feature, matching how the customer actually
