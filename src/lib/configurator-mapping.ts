@@ -222,7 +222,10 @@ const WORD_NUMBERS: Record<string, string> = {
 export interface EngineParts {
   base: string | null; // "3.0L twin-turbo V6 mild hybrid" or "Dual-motor electric"
   hp: number | null;
-  /** Battery size for an EV line, e.g. "82 kWh" (kept, Brett 2026-10-16). */
+  /**
+   * Battery for an EV line: its size, e.g. "82 kWh" (kept, Brett 2026-10-16), or, when the maker
+   * publishes no kWh figure, the pack's name, e.g. "Large battery" (Rivian; Brett 2026-10-25).
+   */
   battery: string | null;
   transmission: string | null;
   drivetrain: string | null;
@@ -266,13 +269,15 @@ export function readEngineParts(text: string, fact?: EngineFact): EngineParts {
   const isElectric = !size && !isTransmissionText && /electric|\bmotors?\b|\bkWh\b|battery-electric/i.test(t);
   let base: string | null = null;
   if (isElectric) {
-    const motors = /tri[-\s]?motor/i.test(t)
-      ? "Tri-motor electric"
-      : /dual[-\s]?motor|twin motor|front\s*(?:\/|&)\s*rear|front \/ rear/i.test(t)
-        ? "Dual-motor electric"
-        : /single[-\s]?(?:rear\s)?motor|rear motor|single motor/i.test(t)
-          ? "Single-motor electric"
-          : "Electric";
+    const motors = /quad[-\s]?motor/i.test(t)
+      ? "Quad-motor electric"
+      : /tri[-\s]?motor/i.test(t)
+        ? "Tri-motor electric"
+        : /dual[-\s]?motor|twin motor|front\s*(?:\/|&)\s*rear|front \/ rear/i.test(t)
+          ? "Dual-motor electric"
+          : /single[-\s]?(?:rear\s)?motor|rear motor|single motor/i.test(t)
+            ? "Single-motor electric"
+            : "Electric";
     base = motors;
   } else if (size) {
     base = [size, aspiration, layout, /\bdiesel\b/i.test(t) ? "diesel" : null, electrification].filter(Boolean).join(" ");
@@ -295,7 +300,10 @@ export function readEngineParts(text: string, fact?: EngineFact): EngineParts {
   if (dt) drivetrain = driveToken(dt[1]);
 
   const kwh = isElectric ? t.match(/(\d{2,3}(?:\.\d)?)\s*-?\s*kWh\b/i) : null;
-  const battery = kwh ? `${kwh[1]} kWh` : null;
+  // No kWh figure: keep a named pack, so two packs on one trim (Rivian's Large and Max) stay apart.
+  const pack = isElectric && !kwh ? t.match(/\b(standard|large|max|long[-\s]range|extended[-\s]range)[-\s](?:battery|pack)\b/i) : null;
+  const packName = pack ? pack[1].toLowerCase().replace(/[-\s]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : null;
+  const battery = kwh ? `${kwh[1]} kWh` : packName ? `${packName} battery` : null;
 
   return { base, hp, battery, transmission, drivetrain };
 }

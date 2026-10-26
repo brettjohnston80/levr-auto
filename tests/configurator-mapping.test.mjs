@@ -39,6 +39,31 @@ describe("rule 4: engine lines in one short format", () => {
     assert.equal(M.formatEngine(M.readEngineParts("Dual motor electric / single-speed / AWD")), "Dual-motor electric, single-speed, AWD");
   });
 
+  it("keeps a named battery pack when there's no kWh figure (Rivian; Brett 2026-10-25)", () => {
+    // R1 Premium: the standard Large pack and the $7,000 Max (Long Range) pack must stay distinct.
+    assert.equal(M.formatEngine(M.readEngineParts("Dual-motor electric, Large battery, 533 hp, AWD")), "Dual-motor electric, Large battery, 533 hp, AWD");
+    assert.equal(M.formatEngine(M.readEngineParts("Dual-motor electric, Max battery, 533 hp, AWD")), "Dual-motor electric, Max battery, 533 hp, AWD");
+    assert.equal(M.readEngineParts("Dual-Motor Standard Pack AWD").battery, "Standard battery");
+    assert.equal(M.readEngineParts("Single-motor electric, long-range battery, RWD").battery, "Long Range battery");
+    // A kWh figure still wins, and a gas engine never gets a battery.
+    assert.equal(M.readEngineParts("Dual-motor electric, 123 kWh, Max battery, AWD").battery, "123 kWh");
+    assert.equal(M.readEngineParts("2.5L hybrid I4 with large battery, AWD").battery, null);
+  });
+
+  it("recognises a quad-motor EV (Rivian; Brett 2026-10-25)", () => {
+    assert.equal(M.formatEngine(M.readEngineParts("Quad-motor electric, Max battery, 1025 hp, AWD")), "Quad-motor electric, Max battery, 1025 hp, AWD");
+    assert.equal(M.readEngineParts("Quad Motor AWD").base, "Quad-motor electric");
+    assert.equal(M.readEngineParts("Tri-motor electric, 845 hp, AWD").base, "Tri-motor electric");
+  });
+
+  it("the Tesla/Rivian research maps with battery names and motor counts intact", () => {
+    const { rows } = M.mapConfiguratorRows(read("tesla-rivian-configurator-full-2026-10.csv"));
+    const engines = (model, trim) => rows.find((r) => r.model === model && r.trim === trim).drivetrain_engine_variants.split(" ;; ").map((i) => i.split(" | ")[0]);
+    assert.deepEqual(engines("R1T", "Premium"), ["Dual-motor electric, Large battery, 533 hp, AWD", "Dual-motor electric, Max battery, 533 hp, AWD"]);
+    assert.deepEqual(engines("R1S", "Quad"), ["Quad-motor electric, Max battery, 1025 hp, AWD"]);
+    assert.deepEqual(engines("Cybertruck", "Cyberbeast"), ["Tri-motor electric, 123 kWh, 845 hp, AWD"]);
+  });
+
   it("keeps an EV's battery size (and never reads kW as kWh)", () => {
     assert.equal(M.formatEngine(M.readEngineParts("82 kWh dual-motor 4MOTION AWD 335 hp")), "Dual-motor electric, 82 kWh, 335 hp, AWD");
     assert.equal(M.formatEngine(M.readEngineParts("EV550 118.5kWh Electric - EV 118.5kWh 360/580 m/km 550PS (Automatic)")), "Electric, 118.5 kWh, automatic");
