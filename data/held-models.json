@@ -3,5 +3,6 @@
   {"make": "Maserati", "model": "MCPURA", "why": "no published US prices yet (covers MCPURA and MCPURA Cielo)", "since": "2026-10-16"},
   {"make": "Maserati", "model": "GT2 Stradale", "why": "no published US prices yet", "since": "2026-10-16"},
   {"make": "Dodge", "model": "Charger", "trim": "Daytona Scat Pack", "model_year": "2027", "why": "Dodge's 2027 Build & Price lists only the Daytona Scat Pack Plus; held until the later Cowork pass confirms whether a plain 2027 Scat Pack exists", "since": "2026-10-16"},
-  {"make": "Cadillac", "model": "Vistiq", "model_year": "2026", "why": "the 2026 Vistiq is no longer on cadillac.com's configurator (2027 stays)", "since": "2026-10-16"}
+  {"make": "Cadillac", "model": "Vistiq", "model_year": "2026", "why": "the 2026 Vistiq is no longer on cadillac.com's configurator (2027 stays)", "since": "2026-10-16"},
+  {"make": "Rivian", "model": "R2", "why": "ordering is open only to reservation holders (Performance trim); held until Rivian opens public ordering (watch item, re-check monthly)", "since": "2026-10-25"}
 ]
