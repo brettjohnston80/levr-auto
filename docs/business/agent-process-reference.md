@@ -104,3 +104,35 @@ How each agent workflow works, written for the people who use it. One section pe
 - **For:** leads (and admins when there's no lead; some alerts go to admins only).
 - **What arrives by email:** the assignment alerts described in section 6, plus "An agent action wasn't recorded in the activity log" (the action itself went through; only the history is affected).
 - **What to do:** follow the email (put someone in rotation, reassign, or nothing for the activity-log one). An alerts screen comes with the Phase 3 dashboard.
+
+---
+
+## 11. Working a direct-sale search (Tesla, Rivian, Lucid, Polestar) — DRAFT for Brett's review (2026-10-24, not built)
+
+**Status:** draft. Nothing here is built; the plan is `docs/plans/guarantee-exceptions-plan.md`.
+
+**What's different:** these brands sell at prices the maker sets (Polestar through dealers acting as its agents at its set price), so there's no discount to negotiate, and **the money-back guarantee doesn't apply** to these searches. The customer was told before paying and ticked a box agreeing to it. Your job is to find the best real price on their exact car and take the ordering work off their hands.
+
+**Who can do it:** every agent, like any search.
+
+**Steps:**
+1. **Read the search:** the customer's trims, colours, options and pickup range, as for any search. The search card shows "No guarantee: {Brand} (direct sale)".
+2. **Find the cars that exist now:**
+   - the maker's own in-stock inventory (often a lower price than ordering new, and available sooner);
+   - demo and loaner cars, which can come with a discount and low miles: ask what's available near the customer and further away if they'll travel or take delivery;
+   - for Polestar, the inventory at the dealers that act as its agents.
+3. **Price a factory order** for the exact build as the comparison, with its current delivery estimate.
+4. **Catch every current offer:**
+   - manufacturer credits, financing and lease rates;
+   - loyalty, conquest and referral programs;
+   - delivery and destination charges, and any fees for a delivery date.
+
+   Point the customer to EV incentive programs, but never promise they qualify: that's for them to confirm.
+5. **Log each real option as an offer** (store, delivery center or agent dealer as the dealer; the real price; inventory, demo or order in the notes), so the customer can compare them on Your Deal like any offer.
+6. **Handle the order** once they choose:
+   - help them through the maker's order or reservation steps (they pay any deposit directly to the maker, never to LEVR);
+   - track the delivery date;
+   - keep them updated in messages.
+7. **Timeline:** the search runs through Day 60 and can be extended for $100, as for any search. There's **no Day-30 check** and these searches never appear on Refunds due. If the customer asks about a refund, it's a cancellation conversation (section 8), not a guarantee refund.
+
+**What the customer sees:** the same Your Deal page and offers, with a "No money-back guarantee on this search" box in place of the guarantee timeline.
