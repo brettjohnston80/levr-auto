@@ -62,8 +62,10 @@ LEVR Auto is a nationwide service that negotiates new-car deals on the buyer's b
   - **One list:** `data/guarantee-exceptions.json`, at brand level, with the reason and the date each brand was added. Brands are added or removed without code changes. Future candidates: Scout Motors and Jaguar when they launch.
   - **Rules:**
     - a search keeps the rule in force when it was paid; later changes to the list never change a paid search;
-    - any brand on the list must be shown to the customer before payment: on intake, on Review your search, with a required agreement checkbox at checkout, in the FAQ and in the terms;
-    - every guarantee statement on the site carries the line "Guarantee not available for Tesla, Rivian, Lucid or Polestar. See FAQ."
+    - **disclosure:** the exception is one of the standard terms every customer accepts once at the start, whatever make they pick (no brand-specific checkbox). Plain lines say "Our money-back guarantee does not apply to {Brand}." wherever the brand matters: intake, Review your search, the checkout summary, Your Deal, the switch screens and Matchmaker. The FAQ entry and one clause in the terms name the four brands;
+    - every guarantee statement on the site carries the line "Money-back guarantee does not apply to Tesla, Rivian, Lucid or Polestar.";
+    - nothing says the fee is non-refundable; the discretionary cancellation refund is the same for every brand;
+    - **launch rule:** the exception must be built and live before Stripe goes live.
   - ⚠ **Attorney review:** the terms change, and whether the disclosure is clear and prominent enough next to an advertised guarantee.
 - Either way, active search continues **free through Day 60**.
 - After Day 60: **$100** per renewable ~30-day extension.

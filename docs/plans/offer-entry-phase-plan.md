@@ -685,29 +685,32 @@ The ticked codes are stored in `warnings_confirmed` and logged (`offer_warning_c
 
 **Notice (wording for sign-off):** "Hard to beat the sticker: {why} (checked {date})." In amber, the same style as the existing "price not confirmed" notes.
 
-**Starting entries,** checked against our dataset's names 2026-10-24. The `why` and source date for each come from Brett's brand research (`claude/no-guarantee-brand-research-2026-10.md` in the claude.ai project); Brett to paste them.
+**Starting entries** (Brett's research `claude/no-guarantee-brand-research-2026-10`, as of 2026-10-24; checked against our dataset's names). The `why` column is the notice text; the date is the source date.
 
-| Make | Model | Narrowed by | In our dataset? |
-|---|---|---|---|
-| Toyota | RAV4 | fuel type Hybrid or PHEV (every 2026 RAV4 in the dataset is one of these, so in practice the whole model) | yes |
-| Toyota | Corolla Cross | fuel type Hybrid | yes |
-| Toyota | Sienna | | yes |
-| Toyota | GR86 | | yes |
-| Toyota | GR Supra | | yes |
-| Lexus | GX | | yes |
-| Honda | Prelude | | yes |
-| Honda | Civic | trim Type R | yes |
-| Chevrolet | Corvette | trims ZR1, ZR1X | yes (2026, 2027) |
-| Cadillac | Celestiq | | **no** (not in the dataset, so it can't be searched; entry kept for when it is) |
-| Ford | Mustang | trim GTD | **no** (the dataset has EcoBoost, GT and Dark Horse only) |
-| Ford | F-150 | trim Raptor R | yes |
-| Ford | Maverick | fuel type Hybrid | yes |
-| Ram | 1500 | trim TRX | **no** (the 2026 1500 in the dataset has no TRX) |
-| Porsche | 911 | trims Turbo S, and the GT models: GT3, GT3 w/Touring Package, GT3 S/C | yes. Brett to confirm "GT models" means the GT3 family, not the GTS trims. |
-| BMW | M2 | trim CS | yes |
-| BMW | M3 | trim CS (the dataset's 2027 "CS Handschalter") | yes |
-| Mercedes-Benz | G-Class | | yes |
-| Kia | Telluride | model year 2027, "lower trims" | yes. Brett to name the trims (the 2027 list starts LX, S, EX, EX X-Line…). |
+| Make | Model | Narrowed by | Why (source, date) | In our dataset? |
+|---|---|---|---|---|
+| Toyota | RAV4 | fuel type Hybrid or PHEV | +4–5% over sticker, markups $4k–$15.7k (Carscoops 2026-05-19; Consumer Reports 2026-10-14) | yes (every 2026 RAV4 in the dataset is Hybrid or PHEV) |
+| Toyota | Corolla Cross | fuel type Hybrid | +4% (Consumer Reports 2026-10-14) | yes |
+| Toyota | Sienna | | listed above MSRP on average (VINdow Sticker, Apr 2026) | yes |
+| Toyota | GR86 | | +3% (Consumer Reports 2026-10-04) | yes |
+| Toyota | GR Supra | | listed above MSRP on average (VINdow Sticker, Apr 2026) | yes |
+| Lexus | GX | | +1.8% to +2.4% on all trims, 260 sales (TrueCar 2026-10-24) | yes |
+| Honda | Prelude | | about +1% (TrueCar 2026-09-20) | yes |
+| Honda | Civic | trim Type R | dealer markups (owner reports, Jan 2026; weak source) | yes |
+| Chevrolet | Corvette | trims ZR1, ZR1X | markups of $100k+ (GM Authority, Dec 2025; stale) | yes |
+| Cadillac | Celestiq | | (from the research list; no figure given) | **no**, kept so it matches once added |
+| Ford | Mustang | trim GTD | (from the research list; no figure given) | **no**, kept so it matches once added |
+| Ford | F-150 | trim Raptor R | $12k–$25k asks (forums, Dec 2025–Feb 2026; weak source) | yes |
+| Ford | Maverick | fuel type Hybrid | about +7% (CarEdge, Apr 2026) | yes |
+| Ram | 1500 | trim TRX | (from the research list; no figure given) | **no**, kept so it matches once added |
+| Porsche | 911 | trim Turbo S | $10k–$70k markups (autoevolution 2026-05-29) | yes |
+| Porsche | 911 | the GT models: GT3, GT3 RS, S/T, Spyder RS | allocation, $30k–$80k over (Automonitor 2026) | GT3 yes (as "GT3", "GT3 w/Touring Package", "GT3 S/C"); GT3 RS, S/T and Spyder RS not in the dataset yet |
+| BMW | M2 | trim CS | +4.0% (TrueCar 2026-10-24) | yes |
+| BMW | M3 | trim CS | allocation, markups up to $25k (BMWBlog 2026-05-31) | yes, as the 2027 "CS Handschalter" |
+| Mercedes-Benz | G-Class | | +4.7% to +6.3% (TrueCar 2026-10-24) | yes |
+| Kia | Telluride | model year 2027, trims LX, S, EX, X-Line EX | +0.1% to +0.6% (TrueCar 2026-10-24) | yes; our dataset spells the last one "EX X-Line", so the entry uses that spelling |
+
+**Source strength:** the notice shows the source and date as given, so an agent can see when a source is weak or stale (Civic Type R, Corvette ZR1, Raptor R). Entries should be re-checked on the periodic review schedule (business plan, "Data & Policy Freshness").
 
 **Verification:** a disposable agent and a test search for a listed vehicle (notice shown on the card and in Log Offer), one with a non-matching trim (no notice), and a customer view of the same search (no notice anywhere).
 
