@@ -135,10 +135,11 @@
 | W14 | Agent search card badge | No guarantee: {Brand} (direct sale) |
 | W15 | Agent offer page line (offer-entry 6.1) | No guarantee for this brand. |
 | W16 | Admin table, guarantee column | Not applicable |
+| W17 | Tesla Full Self-Driving (Supervised), configurator price line (in place of "Price not confirmed") | Subscription only: $99/month from Tesla |
 
 (W9–W11 are replaced by the FAQ entry M11 and the homepage "Terms apply." links in section 4a.)
 
-**Sign-off (Brett, 2026-10-25):** W1, W2, W3, W3a, W4, W5, W6, W7, W8, W12, W14, W15 and W16 approved; W13 approved pending attorney review.
+**Sign-off (Brett, 2026-10-25):** W1, W2, W3, W3a, W4, W5, W6, W7, W8, W12, W14, W15, W16 and W17 approved; W13 approved pending attorney review. **W17's price and date** live in `data/manufacturer-subscriptions.json`: `[{"make": "Tesla", "item": "Full Self-Driving (Supervised)", "price_per_month": 99, "source": "tesla.com configurator", "since": "2026-10-25"}]`. The line is built from that file, so a price change is a data edit.
 
 **Attorney review:** W13 changes the customer terms. Also worth asking: whether the fine print and the once-only acceptance are a clear and prominent enough disclosure next to an advertised guarantee.
 
@@ -223,8 +224,16 @@ Working a direct-sale search is drafted in `docs/business/agent-process-referenc
 - **GX-4:** agent screens W14–W16; the agent process section; the site-language inventory.
 - **GX-5:** data:
   - promote the Lucid and Polestar batches;
-  - import Tesla and Rivian after their Cowork redo;
-  - the first syncs (Polestar 4 first, then the others), on Brett's OK for the MarketCheck calls;
+  - import Tesla and Rivian (research reviewed 2026-10-25; mapping fix `ddd5ff5`), with W17 for FSD and the Tesla order fee (offer-entry 4.A.1);
+  - Matchmaker v22 (built and scored 2026-10-25, not imported): Tesla 2027 rows, Cybertruck and Rivian 2027 destination fixes, R1 Premium Long Range, R2 held;
+  - remove the Model S and X from the fallback list in `src/lib/vehicle-data.ts`;
+  - **the first inventory syncs, just before go-live, each on Brett's OK with the exact call count at that time** (Brett, 2026-10-25). The sync reads at most 3 pages (3 calls) per model:
+    - Tesla Model 3, Model Y and Cybertruck (up to 9 calls);
+    - Rivian R1T and R1S (up to 6; the R2 is held);
+    - Lucid Air and Gravity (up to 6);
+    - **total up to 21 calls**;
+    - after that the scheduler refreshes them monthly (about 21 calls a month while nobody searches them) or weekly once a real customer does;
+    - Polestar 4 is already synced (2026-10-25) and refreshes on schedule;
   - trim-name mappings for the listings.
 - **GX-6:** terms text, after attorney review.
 

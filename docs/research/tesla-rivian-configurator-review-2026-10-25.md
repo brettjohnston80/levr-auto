@@ -122,3 +122,25 @@ The list proposed for Polestar (`data/while-inventory-lasts.json`) is extended t
 6. **R1 Premium Long Range rows:** add them? If so, what range should they show?
 7. **FSD display:** keep "Price not confirmed", or use a subscription note (wording needed)?
 8. **First Rivian and Tesla syncs:** when to run them (they need your OK for the MarketCheck calls; 286 calls are left until 2026-11-01).
+
+## 8. Brett's answers (2026-10-25) and what was done
+
+1. **Rule 4 fix: done.**
+   - Committed on `configurator-mapping` as `ddd5ff5`; not pushed until Brett says. No live data changes.
+   - **What it does:** it keeps a named battery pack when there's no kWh figure, and recognises "quad-motor".
+   - **Tests:** 3 new; all 135 pass.
+   - **Effect:** re-run over every committed research file (3,777 mapped rows), only 7 Rivian rows change, for example "Dual-motor electric, Large battery, 533 hp, AWD" and "…Max battery…", and "Quad-motor electric, Max battery, 1025 hp, AWD".
+2. **Tesla:** 2027 Model 3 and Model Y rows added; the 2026 rows stay under the "while inventory lasts" rule.
+3. **Cybertruck Dual Motor and Premium:** 600 hp blanked.
+4. **Rivian Launch Edition rows:** follow the inventory rule, with no special handling.
+5. **Rivian 2026 destination:** left blank. The inventory-only rows use each listing's own sticker.
+6. **R1 Premium Long Range rows:** added ($86,990 / $90,990, "up to 420 miles", source in `manufacturer_link`).
+7. **FSD:** shows "Subscription only: $99/month from Tesla" in place of "Price not confirmed". It's approved, and added to the guarantee-exceptions wording table (W17). The price and date sit in `data/manufacturer-subscriptions.json` (planned, GX-5), so a price change is a one-line data edit.
+8. **Inventory syncs: held.** They're planned in GX-5 and run just before go-live, with Brett asked then for the exact call count (guarantee-exceptions plan, GX-5).
+
+**Matchmaker v22 is built and scored, not imported:** `docs/research/matchmaker-v22-score-changes-2026-10-25.md`. Only Price Value moves, on 9 rows (the Cybertruck and 2027 R1 destination fixes); no other make changes.
+
+**Files waiting for Brett's go, not committed:**
+- `scripts/build-matchmaker-v22.py`;
+- `data/matchmaker-vehicle-dataset-2026-v22.csv` and `…-v22-scored.csv`;
+- the R2 entry in `data/held-models.json` (the import route reads it).
