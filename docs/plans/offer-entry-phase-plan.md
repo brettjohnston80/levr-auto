@@ -743,6 +743,13 @@ The ticked codes are stored in `warnings_confirmed` and logged (`offer_warning_c
 
 ### 5.0 Fast track: Terry's #2 (interior and options on offers) and #4 (side-by-side comparison) (planned 2026-10-25)
 
+**Signed off by Brett 2026-10-25:**
+- **Order:** chunk 0 merge, then chunks 1, 2, 3, 4, 6, 9, 10, 11, on a new `offer-entry` branch cut from `agent-dashboard-phase1-code` after the merge commits.
+- **Then:** guarantee-exceptions GX-1 to GX-6 follow right after; both must be done before Stripe goes live.
+- **Later:** the parser (chunk 5), dealer links (chunks 7–8) and tax estimates (OE-3).
+- **Building starts now,** not after the tester round; tester feedback that arrives later is folded in as it comes.
+- **Wording:** approved as proposed, including every line marked new, with the five changes recorded in 6.3.
+
 **Dependencies, corrected.** Log Offer can't capture interior, options and fee lines on its own:
 - **Chunk 4's redesigned Log Offer saves drafts and sends through `send_offer_submission`** (chunk 3). That needs the `offer_submissions` table from OE-2, and the pricing module from chunk 2 (the out-the-door sum and its arithmetic check).
 - **Shortcut considered and not recommended:** add the new fields to today's direct-insert form (`logQualifyingOffer`). The chunk 4 redesign would replace that form soon after, so the work would be done twice.
@@ -787,7 +794,7 @@ So in this track every out-the-door figure is a dealer's quote, and nothing is l
 - **One thing new code must handle:** offers logged before OE-1 keep `sent_to_customer_at`, interior and every out-the-door field null. Card, detail and comparison must treat null as "not recorded", never as an error.
 - **Not part of this check:** OE-2. It adds functions and tables that reference `agents`, and gets its own check before it runs.
 
-**Question for Brett:** should accept gating (no accepting until the dealer's out-the-door quote is recorded) apply to offers logged before the feature? Today's are only tester sample offers and the review account's. Proposed: only to offers sent after it ships (`sent_to_customer_at` set), so nothing already on Your Deal becomes un-acceptable.
+**Decided (Brett, 2026-10-25): accept gating applies only to offers sent after the feature ships** (`sent_to_customer_at` set). Older offers stay acceptable as today.
 
 **New customer-facing lines this track needs** (not in 6.3; for sign-off):
 
@@ -925,6 +932,8 @@ So in this track every out-the-door figure is a dealer's quote, and nothing is l
 
 ### 6.3 Customer (card, detail, accept, comparison, email)
 
+**Signed off 2026-10-25** (with the changes marked below, the delivery and removable-add-on notes in 6.4, and the new empty/partial-state lines in 5.0).
+
 | Where | Text |
 |---|---|
 | Card vehicle line | Trim: {trim} · Color: {exterior} · Interior: {interior} |
@@ -935,7 +944,7 @@ So in this track every out-the-door figure is a dealer's quote, and nothing is l
 | Detail chart heading | How the price adds up |
 | Chart rows | Window sticker · Discount · Car price · Dealer add-ons · Doc fee · Sales tax · Title & registration · Other fees · Delivery estimate · Out-the-door |
 | Estimate note | Taxes are our estimate for now — your dealer will confirm the exact amount. |
-| Removable add-on note | Don't want the {add-on}? The dealer says they'll remove it. |
+| Removable add-on note | ~~Don't want the {add-on}? The dealer says they'll remove it.~~ **Approved 2026-10-25:** Don't want the {add-on}? The dealer will remove it. Just tell your agent. |
 | Options section | Options on this car · What you asked for · Also on this car |
 | Option marks | ✓ On the car · ✗ Not on this car |
 | Sticker link | View the window sticker |
@@ -950,9 +959,11 @@ So in this track every out-the-door figure is a dealer's quote, and nothing is l
 | Add-on removable note | can be removed |
 | Figures from values | Dealer's quote · Our estimate · Requested |
 | Badge | Lowest out-the-door |
-| Button | Choose this offer |
+| Button | ~~Choose this offer~~ **Approved 2026-10-25:** View and accept (opens that offer's detail view; accepting still happens only there, with the existing confirm-before-accept step) |
+| Comparison column header (approved 2026-10-25) | {dealer name} · {city} · {N} miles · LEVRating {n.n} ({count}) / New to LEVR — no rating yet |
 | Phone pager | {a} and {b} of {N} |
 | Sort label change | Best total price (now sorts by out-the-door) |
+| Default sort on Your Deal (approved 2026-10-25) | Best total price, so the "Lowest out-the-door" badge and the top of the list agree. The other sorts stay. |
 | New-offer email line (added) | Out-the-door: {$X} ({dealer's quote / our estimate}). / The dealer's out-the-door quote is on its way. |
 | New email: out-the-door arrived (subject) | Your out-the-door price from {dealer} is in |
 | New email: body | {dealer} sent their out-the-door price for your {make} {model}: {$X}. You can now accept this offer. Go to Your Deal. |
@@ -976,7 +987,7 @@ So in this track every out-the-door figure is a dealer's quote, and nothing is l
 | Offer card / detail, options summary | *(none)* | Options you wanted: {N} of {M} |
 | Detail chart and accept block, out-of-state tax | *(none)* | Sales tax · Paid at registration (our estimate) {$X} |
 | Detail chart, title & registration estimate | *(none)* | Title & registration · Our estimate {$X} |
-| Detail chart note, delivery | *(none)* | Delivery estimate from the dealer. It doesn't affect your guarantee. |
+| Detail chart note, delivery | *(none)* | ~~Delivery estimate from the dealer. It doesn't affect your guarantee.~~ **Approved 2026-10-25:** Delivery isn't part of the car price. (No guarantee mention: the exception brands have none, and the estimate may not come from the dealer.) |
 | Dealer page, buyer's area | *(was drafted as "near {state}, ZIP area {xxx}xx")* | ZIP area {xxx}xx, {ST} · About {N} miles from you (when the link names a car) |
 | Agent Log Offer, required tick | *(none)* | Trim matches what the customer chose ({trim}) |
 | Agent guarantee line (counts) | *(drafted in 6.1)* | Counts toward the guarantee: the trim matches and the negotiated price is {$X} below this car's sticker. |
