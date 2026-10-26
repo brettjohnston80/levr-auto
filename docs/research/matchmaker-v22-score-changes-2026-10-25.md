@@ -1,9 +1,8 @@
 # Matchmaker v22: score changes vs the live v21 (2026-10-25)
 
-**Not imported.** `data/matchmaker-vehicle-dataset-2026-v22.csv` is built by `scripts/build-matchmaker-v22.py` from v21. It's scored with `data/matchmaker_scoring_pipeline.py` into `…-v22-scored.csv`. Brett's decisions: `docs/research/tesla-rivian-configurator-review-2026-10-25.md`, section 8.
+**LIVE since 2026-10-25 (Brett's go):** imported as batch `3b86a2af-8f6a-4028-8346-65c1e839792f` (2,287 rows, verified by paging), promoted 2026-10-26 02:33:26 UTC, redeployed after promotion (`levr-auto-c7a39j1w9`) and checked on www (screenshots in `~/Downloads/levr-matchmaker-v22-2026-10-25/`). The v21 rollback (`9b458ac3…`) is kept until about 2026-11-01. `data/matchmaker-vehicle-dataset-2026-v22.csv` is built by `scripts/build-matchmaker-v22.py` from v21. It's scored with `data/matchmaker_scoring_pipeline.py` into `…-v22-scored.csv`. Brett's decisions: `docs/research/tesla-rivian-configurator-review-2026-10-25.md`, section 8.
 
 - **The pipeline was checked first:** it reproduces the live `v21-scored` byte for byte.
-- **Nothing was imported or promoted.** Import (unpromoted), promotion and the `/matchmaker` redeploy wait for Brett's go, and the Tesla/Rivian data goes live only with guarantee-exceptions GX-5.
 
 ## Rows: 2,276 → 2,287
 
