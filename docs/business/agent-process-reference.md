@@ -136,3 +136,15 @@ How each agent workflow works, written for the people who use it. One section pe
 7. **Timeline:** the search runs through Day 60 and can be extended for $100, as for any search. There's **no Day-30 check** and these searches never appear on Refunds due. If the customer asks about a refund, it's a cancellation conversation (section 8), not a guarantee refund.
 
 **What the customer sees:** the same Your Deal page and offers, with a "No money-back guarantee on this search" box in place of the guarantee timeline.
+
+## 12. Sending an offer (offer entry; built on the `offer-entry` branch, not live yet)
+- **For:** every agent. The redesigned Log Offer page (Chunk 4) is where you do this; these are the rules behind it.
+- **Steps:**
+  1. **Save draft** as often as you like. A draft is never shown to the customer.
+  2. **Send to customer** checks everything on the server first: the amounts, the VIN, the out-the-door total against the lines (within $1), good until (today to 60 days out), and whether a delivery estimate is needed.
+  3. If a warning applies (price not below the sticker, the same VIN or the same dealer already on an offer, a search that isn't active), tick it to send anyway. Only the warnings that apply are saved with the offer.
+  4. Confirm the trim matches what the customer chose; Send refuses without it.
+  5. The offer, its add-ons, fees and options all appear at once, and the customer's new-offer email goes out after that.
+- **Discard:** only a dealer's submission (from a dealer link), and you must say why. Your own drafts just stay as drafts.
+- **What the customer sees:** nothing until you send. With no out-the-door figure yet, they see "Out-the-door quote requested".
+

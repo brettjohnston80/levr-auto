@@ -234,3 +234,33 @@ Where: `src/components/log-offer-form.tsx`, text and thresholds in `src/lib/stic
 | `You entered {typed}, but the linked listing's sticker is {listing}. Check the window sticker's total — it should match the listing.` | Under the field, when the sticker differs from the linked listing by more than $100 | agents |
 | `You entered {typed}, which is below this trim's base price plus destination ({low}). Check the window sticker's total, which includes destination.` | Under the field, when more than $500 below base + destination for the typed trim | agents |
 | `You entered {typed}, well above what this trim should cost with every factory option we know of ({low}–{high}). If the sticker includes a dealer addendum, enter only the manufacturer's total.` | Under the field, when above the range by more than the greater of $5,000 or 15% | agents |
+
+## 16. Sending an offer: draft, send, discard (agent; offer entry Chunk 3) — approved 2026-10-27
+Where: `src/lib/offer-entry-copy.ts` on the `offer-entry` branch (not deployed). The first three lines are from the offer-entry plan, section 6.1; the rest approved by Brett 2026-10-27.
+
+| Text | Where it appears | Audience |
+|---|---|---|
+| `Draft saved. The customer can't see it.` | After Save draft | agents |
+| `Sent to {customer first name}.` (`Sent to the customer.` when there's no first name) | After Send | agents |
+| `No out-the-door figures yet. The customer will see "Out-the-door quote requested", and can't accept until you record the dealer's quote.` | After Send, when no out-the-door figure was recorded | agents |
+| `Your agent account isn't active, so you can't send offers.` | Send refused: agent not active | agents |
+| `This draft no longer exists. Reload the page.` | Send refused: submission not found | agents |
+| `This offer has already been sent or discarded. Reload the page.` | Send or discard refused: already sent or discarded | agents |
+| `This search isn't active. Tick the warning to send it anyway.` | Send refused: search not `searching` | agents |
+| `Confirm the trim matches what the customer chose before sending.` | Send refused: trim not confirmed | agents |
+| `The price isn't below the sticker, so this offer won't count toward the guarantee. Tick the warning to send it anyway.` | Send refused: price at or above the sticker, warning not ticked | agents |
+| `List the add-ons, or tick "No add-ons".` | Send refused | agents |
+| `List any other fees, or tick "No other fees".` | Send refused | agents |
+| `Tick each warning to send this offer.` | Send refused: a warning isn't ticked | agents |
+| `That VIN isn't valid. Check for a mistyped character.` | Send refused: VIN check | agents |
+| `Check the amounts: the sticker and price must be above $0, add-ons above $0, and no line over $250,000.` | Send refused: amounts | agents |
+| `The out-the-door total doesn't match the lines (within $1). Check for a missing or extra line.` | Send refused: out-the-door mismatch | agents |
+| `Good until must be today or later, and no more than 60 days out.` | Send refused | agents |
+| Log Offer's delivery-estimate line (section 6 of this file, 2026-10-10) | Send refused: delivery estimate standard | agents |
+| `That search no longer exists.` | Send refused | agents |
+| `Enter the dealer's name.` | Send refused | agents |
+| `Say why you're discarding this submission.` | Discard refused: no reason | agents |
+| `Only a dealer's submission can be discarded.` | Discard refused: an agent's own draft | agents |
+| `The offer wasn't sent. Nothing reached the customer. Try again.` | Send failed unexpectedly | agents |
+| `You're signed out. Sign in again to continue.` | Any of the three, signed out | agents |
+
