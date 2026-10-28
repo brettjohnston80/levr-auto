@@ -6,7 +6,7 @@
 const path = require("path"); const fs = require("fs");
 const tests = path.resolve(__dirname, ".."); const root = path.resolve(tests, "../../..");
 const ts = require(root + "/node_modules/typescript");
-const start = ["agent-invite", "agent-accounts", "email", "runtime-env", "test-accounts", "agent-two-factor-reset", "agent-invite-lifetime", "agent-activity"];
+const start = ["agent-invite", "agent-accounts", "email", "runtime-env", "test-accounts", "agent-two-factor-reset", "agent-invite-lifetime", "agent-activity", "offer-submission"];
 for (const [dir, admin] of [["real", "../../lib/admin.mjs"], ["spy", "../../c1g/spy-admin.mjs"]]) {
   const out = path.join(tests, "gen", dir); fs.mkdirSync(out, { recursive: true });
   const seen = new Set(); const queue = [...start];

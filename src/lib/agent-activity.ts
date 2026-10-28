@@ -51,7 +51,10 @@ export type AgentActivityCode =
   | "agent_invited"
   | "agent_two_factor_enrolled"
   | "agent_two_factor_reset"
-  | "call_request_resolved";
+  | "call_request_resolved"
+  // Offer entry (OE-1 codes; offer_sent and offer_warning_confirmed are written by send_offer_submission).
+  | "offer_draft_saved"
+  | "dealer_submission_discarded";
 
 export interface ActivityLinks {
   searchId?: string | null;

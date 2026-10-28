@@ -1,7 +1,6 @@
 "use server";
 
 import { travelFromColumns, travelFromValue, travelToColumns } from "./pickup-travel";
-import { haversineMiles } from "./geo";
 import { deliveryEstimateStandard } from "./delivery-estimate";
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
@@ -14,7 +13,8 @@ import { MODEL_YEAR_INVENTORY_BLOCK_ENABLED, loadInventoryBlock } from "./invent
 import { AGENT_INVENTORY_BLOCK_REFUSAL } from "./inventory-block-copy";
 import { logNotificationEvent } from "./notifications";
 import { logAgentActivity } from "./agent-activity";
-import { getOrCreateDealerAlias } from "./dealer-aliases";
+import { resolveOfferDealerAlias } from "./offer-dealer-alias";
+import { zipDistanceMiles } from "./zip-distance";
 import { destinationAddonRefusal } from "./offer-parse-normalize";
 
 export interface LogOfferResult {
@@ -250,35 +250,6 @@ export async function logQualifyingOffer(formData: FormData): Promise<LogOfferRe
   return { ok: true };
 }
 
-async function resolveOfferDealerAlias(
-  admin: ReturnType<typeof createAdminClient>,
-  listingId: string | null,
-  dealerName: string,
-  dealerCity: string | null,
-  dealerState: string | null,
-): Promise<string | null> {
-  try {
-    if (listingId) {
-      const { data: listing } = await admin
-        .from("listings")
-        .select("dealer_name, dealer_city, dealer_state, mc_dealer_id")
-        .eq("id", listingId)
-        .maybeSingle();
-      if (listing?.dealer_name) {
-        return await getOrCreateDealerAlias(
-          listing.dealer_name as string,
-          (listing.dealer_city as string | null) ?? null,
-          (listing.dealer_state as string | null) ?? null,
-          (listing.mc_dealer_id as number | null) ?? null,
-        );
-      }
-    }
-    return await getOrCreateDealerAlias(dealerName, dealerCity, dealerState, null);
-  } catch (e) {
-    console.error("logQualifyingOffer: dealer alias not resolved", e instanceof Error ? e.message : e);
-    return null;
-  }
-}
 
 /** The activity-log links for an offer: its search and customer. Null links if not found. */
 // Two plain reads: an embedded join is ambiguous here (customer_searches also points back at
@@ -1307,19 +1278,6 @@ function parseDeliveryEstimateFields(formData: FormData): { columns: DeliveryCol
   return { error: "Invalid delivery estimate choice." };
 }
 
-/** ZIP-centroid distance in miles, null when either ZIP is unknown. */
-async function zipDistanceMiles(
-  admin: ReturnType<typeof createAdminClient>,
-  zipA: string | null,
-  zipB: string | null,
-): Promise<number | null> {
-  if (!zipA || !zipB) return null;
-  const { data } = await admin.from("zip_coordinates").select("zip, latitude, longitude").in("zip", [zipA, zipB]);
-  const a = data?.find((z) => z.zip === zipA);
-  const b = data?.find((z) => z.zip === zipB);
-  if (!a || !b) return null;
-  return haversineMiles(a.latitude as number, a.longitude as number, b.latitude as number, b.longitude as number);
-}
 
 export interface SetDeliveryEstimateResult {
   ok: boolean;
