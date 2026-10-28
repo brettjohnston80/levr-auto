@@ -256,7 +256,7 @@ Where: `src/lib/offer-entry-copy.ts` on the `offer-entry` branch (not deployed).
 | `Check the amounts: the sticker and price must be above $0, add-ons above $0, and no line over $250,000.` | Send refused: amounts | agents |
 | `The out-the-door total doesn't match the lines (within $1). Check for a missing or extra line.` | Send refused: out-the-door mismatch | agents |
 | `Good until must be today or later, and no more than 60 days out.` | Send refused | agents |
-| Log Offer's delivery-estimate line (section 6 of this file, 2026-10-10) | Send refused: delivery estimate standard | agents |
+| `This dealer is beyond the customer's pickup range (or they prefer delivery), so a delivery estimate is standard: enter the dealer's fee, mark it requested from the dealer, or mark that the dealer doesn't deliver.` (Log Offer's existing line, reused) | Send refused: delivery estimate needed | agents |
 | `That search no longer exists.` | Send refused | agents |
 | `Enter the dealer's name.` | Send refused | agents |
 | `Say why you're discarding this submission.` | Discard refused: no reason | agents |
