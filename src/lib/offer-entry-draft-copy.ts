@@ -1,8 +1,8 @@
 /**
- * DRAFT agent-facing wording for the Log Offer page (offer entry, Chunk 4), waiting for
- * Brett's sign-off. Everything else on the page is approved wording from the offer-entry plan,
- * sections 6.1 and 6.4 (or Log Offer's existing, approved lines). Nothing ships until this
- * whole file is approved and folded into offer-entry-copy.ts.
+ * Agent-facing wording for the Log Offer page (offer entry, Chunk 4). APPROVED by Brett
+ * 2026-10-27. Everything else on the page is approved wording from the offer-entry plan,
+ * sections 6.1 and 6.4, or Log Offer's existing lines. Recorded in
+ * docs/business/site-language-inventory.md, section 17.
  */
 import type { ManufacturerFee } from "./offer-entry-context";
 
