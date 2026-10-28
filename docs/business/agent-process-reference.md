@@ -154,3 +154,10 @@ How each agent workflow works, written for the people who use it. One section pe
 - **What the customer sees:** an email, "Your out-the-door price from {dealer} is in", and the offer becomes acceptable.
 - **Corrections:** a recorded quote can't be changed. Withdraw the offer and send a corrected one.
 
+## 14. Withdrawing an offer, or releasing an accepted one (offer entry; not live yet)
+- **For:** every agent.
+- **Withdraw a pending offer** (the customer hasn't accepted): under the offer on the outreach page, click **Withdraw this offer**, choose a reason (Car sold · Dealer pulled the quote · Correcting the offer · Other, which needs a note) and click **Withdraw it**. Use it when the dealer corrects a quote: withdraw, then send the corrected offer.
+- **Release an accepted offer** (the deal fell through): **Release this accepted offer**, the same reason choice, then **Confirm release**.
+- **What the customer sees:** an email, and the card reads "No longer available · withdrawn {date}". They never see your reason or note.
+- **The guarantee:** a withdrawn or released offer no longer counts toward the 30-day guarantee, unless the reason is **Car sold**. Then the sold rule decides: it counts if the customer hadn't responded within 24 hours of the offer reaching them. So pick "Car sold" only when the car really sold.
+

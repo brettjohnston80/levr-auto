@@ -312,3 +312,20 @@ Where: on the `offer-entry` branch (not deployed). Customer lines: `src/lib/offe
 | `Out-the-door recorded. {first name} can now accept this offer.` (`The customer` without a first name) · `Out-the-door {$X} · Dealer's quote` | After recording | agents |
 | `This offer was logged before out-the-door pricing, so there's nothing to record.` · `This offer isn't open any more.` · `The dealer's out-the-door quote is already recorded and can't be changed. To correct it, withdraw this offer and send a corrected one.` · `The out-the-door total doesn't match the lines (within $1). Check for a missing or extra line.` | Record refused | agents |
 
+
+## 19. Withdrawing an offer, and the reason choice on release (agent and customer; offer entry, OE-5/OE-5b) — approved 2026-10-27/28
+Where: on the `offer-entry` branch (not deployed). Agent lines: `WITHDRAW_COPY` / `WITHDRAW_REASONS` in `src/lib/offer-entry-draft-copy.ts`; email in `src/lib/notifications.ts`.
+
+| Text | Where it appears | Audience |
+|---|---|---|
+| `Withdraw this offer` | Button under a pending offer (outreach) | agents |
+| `Why are you withdrawing this offer? The customer won't see your reason.` | Heading of the reason fields (withdraw and release) | agents |
+| `Reason` · `Car sold` · `Dealer pulled the quote` · `Correcting the offer` · `Other` | Reason choice (withdraw and release) | agents |
+| `Note (required for Other). The customer won't see it.` | Note field | agents |
+| `Withdraw it` | Confirm button | agents |
+| `Offer withdrawn. {first name} has been told.` (`The customer` without a first name) | After withdrawing | agents |
+| `Choose a reason.` · `Add a note for "Other".` · `Only an offer the customer hasn't accepted can be withdrawn. To release an accepted offer, use "Release this accepted offer".` | Refusals | agents |
+| `Withdrew an offer before the customer accepted` | Activity log label | agents |
+| `An update on your offer from {dealer}` · `Your agent withdrew the offer from {dealer}, so it can no longer be accepted. If there's a corrected offer, you'll find it in Your Deal. Your agent will be in touch about what happened.` | Email when a pending offer is withdrawn | customers |
+| `Your agent withdrew the offer from {dealer}` | Daily-update line (exists so the list stays complete; highlights aren't in the daily update) | customers |
+| `No longer available · withdrawn {date}` | Offer card for any withdrawn offer (withdrawn or released) | customers |
