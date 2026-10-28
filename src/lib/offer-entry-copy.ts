@@ -1,26 +1,27 @@
 /**
  * Agent-facing wording for the offer-entry draft and send actions (Chunk 3).
  *
- * Lines marked APPROVED are signed off in the offer-entry plan, section 6.1. Lines marked
- * DRAFT are new and wait for Brett's sign-off; nothing ships until every line is approved.
+ * Every line here is approved: the first three in the offer-entry plan, section 6.1; the rest by
+ * Brett on 2026-10-27 (Chunk 3). Recorded in docs/business/site-language-inventory.md.
  */
 
 /** APPROVED (6.1). */
 export const DRAFT_SAVED = "Draft saved. The customer can't see it.";
-/** APPROVED (6.1): "Sent to {customer first name}." The fallback "the customer" is DRAFT. */
+/** APPROVED (6.1): "Sent to {customer first name}." The fallback "the customer" APPROVED 2026-10-27. */
 export const sentTo = (firstName: string | null) => `Sent to ${firstName?.trim() || "the customer"}.`;
 /** APPROVED (6.1). */
 export const OTD_MISSING_AT_SEND =
   'No out-the-door figures yet. The customer will see "Out-the-door quote requested", and can\'t accept until you record the dealer\'s quote.';
 
-/** DRAFT: the database function's refusal codes, and the server's own checks. */
+/** APPROVED (Brett, 2026-10-27): the database function's refusal codes, and the server's own checks. */
 export const SEND_REFUSALS: Record<string, string> = {
   agent_not_active: "Your agent account isn't active, so you can't send offers.",
   submission_not_found: "This draft no longer exists. Reload the page.",
   submission_not_sendable: "This offer has already been sent or discarded. Reload the page.",
   search_inactive: "This search isn't active. Tick the warning to send it anyway.",
   trim_not_confirmed: "Confirm the trim matches what the customer chose before sending.",
-  above_sticker_unconfirmed: "The price isn't below the sticker. Tick the warning to send it anyway.",
+  above_sticker_unconfirmed:
+    "The price isn't below the sticker, so this offer won't count toward the guarantee. Tick the warning to send it anyway.",
   addons_contradiction: 'List the add-ons, or tick "No add-ons".',
   other_fees_contradiction: 'List any other fees, or tick "No other fees".',
   warnings_unconfirmed: "Tick each warning to send this offer.",

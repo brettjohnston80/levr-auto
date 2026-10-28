@@ -4,7 +4,7 @@
 -- authenticated false, service_role true, PUBLIC false; security definer, search_path=public);
 -- rolled-back test 20/21 on the first run. Case 10 was a test problem (its throwaway inactive
 -- agent was left in rotation, which agents_deactivated_not_in_rotation refuses); the test was
--- corrected and re-run separately.
+-- corrected and re-run separately: 21/21 pass, including case 10 (agent_not_active).
 --
 -- ADDITIONS ONLY: one new function. Nothing in today's live code on main calls it.
 --
