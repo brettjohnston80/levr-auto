@@ -288,3 +288,27 @@ Where: `/internal/outreach/[searchId]/offer` on the `offer-entry` branch (not de
 | `Waiting on the customer` · `Accepted` · `Declined` · `Released` | Offer statuses in the sidebar | agents |
 | `Offer sent, but the quote PDF failed to upload: {error}.` / `Offer sent, but the quote PDF record failed to save: {error}.` | After a send with a quote PDF | agents |
 
+## 18. Offers sent through offer entry: customer card, detail, accept gating, out-the-door (offer entry Chunk 9) — approved 2026-10-27
+Where: on the `offer-entry` branch (not deployed). Customer lines: `src/lib/offer-customer-copy.ts`, all from the offer-entry plan (6.3 signed off 2026-10-25, 6.4, 5.0). Agent lines: `src/lib/offer-entry-draft-copy.ts`. Offers logged the old way show none of the customer lines below except the LEVRating chip.
+
+| Text | Where it appears | Audience |
+|---|---|---|
+| `Trim: {trim} · Color: {exterior} · Interior: {interior}` | Offer card | customers |
+| `LEVRating {n.n} ({count})` / `New to LEVR — no rating yet` | Beside the dealer, card and detail (every offer) | customers |
+| `Negotiated price for the car.` | Card, under the price, once the out-the-door line is on the card | customers |
+| `Out-the-door: {$X} · Dealer's quote` / `Out-the-door quote requested` | Card | customers |
+| `Good until {date}` | Card and detail | customers |
+| `Options you wanted: {N} of {M}` | Card | customers |
+| `How the price adds up` · `Window sticker · Discount · Car price · Dealer add-ons · Doc fee · Sales tax · Title & registration · Other fees · Delivery estimate · Out-the-door` | Detail chart | customers |
+| `Don't want the {add-on}? The dealer will remove it. Just tell your agent.` · `Delivery isn't part of the car price.` | Under the chart | customers |
+| `Options on this car` · `What you asked for` · `Also on this car` · `✓ On the car` · `✗ Not on this car` · `Your agent hasn't recorded this car's options yet.` | Detail (new-flow offers only) | customers |
+| `View the window sticker` · `A note from your agent` | Detail | customers |
+| `Out-the-door quote requested — you can accept once it arrives.` | Detail footer, and the server's refusal | customers |
+| `Your out-the-door price` | Above the accept explanation once the quote is in | customers |
+| `Out-the-door: {$X} ({dealer's quote / our estimate}).` / `The dealer's out-the-door quote is on its way.` | New-offer email (new-flow offers) | customers |
+| `Your out-the-door price from {dealer} is in` · `{dealer} sent their out-the-door price for your {make} {model}: {$X}. You can now accept this offer. Go to Your Deal.` | Out-the-door email | customers |
+| `Record the dealer's out-the-door quote before confirming a deposit. The customer can't accept this offer until then.` | Deposit refused | agents |
+| `Waiting for the dealer's out-the-door quote. The customer can't accept until it's recorded.` · `Record out-the-door` · `The price and sticker can't change on a sent offer. Log a new offer instead.` · `Out-the-door total (dealer's quote)` | Record out-the-door panel | agents |
+| `Out-the-door recorded. {first name} can now accept this offer.` (`The customer` without a first name) · `Out-the-door {$X} · Dealer's quote` | After recording | agents |
+| `This offer was logged before out-the-door pricing, so there's nothing to record.` · `This offer isn't open any more.` · `The dealer's out-the-door quote is already recorded and can't be changed. To correct it, withdraw this offer and send a corrected one.` · `The out-the-door total doesn't match the lines (within $1). Check for a missing or extra line.` | Record refused | agents |
+

@@ -148,3 +148,9 @@ How each agent workflow works, written for the people who use it. One section pe
 - **Discard:** only a dealer's submission (from a dealer link), and you must say why. Your own drafts just stay as drafts.
 - **What the customer sees:** nothing until you send. With no out-the-door figure yet, they see "Out-the-door quote requested".
 
+## 13. Recording the dealer's out-the-door quote (offer entry; not live yet)
+- **For:** every agent, on an offer sent without an out-the-door figure. The customer can't accept it until you record the dealer's quote.
+- **Steps:** on the outreach page, under the offer, click **Record out-the-door**. Enter the doc fee, sales tax, title & registration and any other fees (or tick "No other fees"), then the dealer's out-the-door total. It must match the lines within $1. Click **Record out-the-door**.
+- **What the customer sees:** an email, "Your out-the-door price from {dealer} is in", and the offer becomes acceptable.
+- **Corrections:** a recorded quote can't be changed. Withdraw the offer and send a corrected one.
+

@@ -389,6 +389,13 @@ commit;
 - **A recorded quote can't be recorded again (Brett, 2026-10-27).** If a dealer corrects a figure afterwards, the agent withdraws the offer and sends a corrected one.
 - **Later item:** editing a recorded out-the-door quote (with its own history), if withdrawing and re-sending proves clumsy in practice.
 
+### 3.3c Migration OE-5: an agent withdraws a pending offer (Brett, 2026-10-27; planned, not applied)
+
+- **Why:** a recorded out-the-door quote can't be changed, so a dealer's correction means withdrawing the offer and sending a corrected one. Today only an accepted offer can be released.
+- **Database (OE-5, `docs/sql/oe5/` on the branch):** activity type `offer_withdrawn_pending`, and `withdraw_pending_offer(offer, agent, reason)`: pending offers only, reason required, one transaction. `withdrawn` is already a legal status with its who/when/why columns. Releasing an accepted offer is unchanged.
+- **App:** a "Withdraw this offer" control on pending offers (outreach card), reason required; the customer gets an email and the card shows the offer as withdrawn; Accept is gone.
+- **Guarantee:** unchanged by OE-5. Today a withdrawn offer (pending or released) still counts toward the guarantee if it was delivered below its sticker, because the Day-30 check never reads status. Recommendation and decision: see the Chunk 9 report (2026-10-27).
+
 ### 3.4 Migration OE-3: customer state for tax estimates
 
 ```sql
