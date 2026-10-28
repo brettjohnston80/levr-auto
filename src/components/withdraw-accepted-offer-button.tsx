@@ -2,26 +2,29 @@
 
 import { useState } from "react";
 import { withdrawAcceptedOffer } from "@/lib/outreach-actions";
+import { WithdrawReasonFields, withdrawReasonProblem } from "./withdraw-reason-fields";
 
 // Agent-only. Same inline confirm shape as MarkPurchasedButton, plus a
 // required reason -- releasing an accepted offer is a real judgment call
-// worth a note, like revertPurchasedSearch.
+// worth a note, like revertPurchasedSearch. Same reason choice as withdrawing a pending offer.
 export function WithdrawAcceptedOfferButton({ offerId }: { offerId: string }) {
   const [confirming, setConfirming] = useState(false);
-  const [reason, setReason] = useState("");
+  const [reasonCode, setReasonCode] = useState("");
+  const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
   async function handleConfirm() {
-    if (!reason.trim()) {
-      setError("A reason is required.");
+    const problem = withdrawReasonProblem(reasonCode, note);
+    if (problem) {
+      setError(problem);
       return;
     }
     setSubmitting(true);
     setError(null);
 
-    const res = await withdrawAcceptedOffer(offerId, reason);
+    const res = await withdrawAcceptedOffer(offerId, reasonCode, note);
     setSubmitting(false);
     if (!res.ok) {
       setError(res.error ?? "Something went wrong.");
@@ -41,12 +44,12 @@ export function WithdrawAcceptedOfferButton({ offerId }: { offerId: string }) {
           This moves the offer to &ldquo;withdrawn&rdquo; so the customer can accept a different offer on this
           search. It can&apos;t be undone — if the deal comes back, log it as a new offer.
         </span>
-        <textarea
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          rows={2}
-          placeholder="Why is this deal being released? (required)"
-          className="w-full max-w-md rounded-md border border-white/10 bg-zinc-900 px-2 py-1 text-xs text-white"
+        <WithdrawReasonFields
+          idPrefix={`release-${offerId}`}
+          reasonCode={reasonCode}
+          note={note}
+          onReasonCode={setReasonCode}
+          onNote={setNote}
         />
         <span className="inline-flex items-center gap-2">
           <button

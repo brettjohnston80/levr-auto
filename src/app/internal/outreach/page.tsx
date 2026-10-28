@@ -26,6 +26,7 @@ import { ResolveNotificationCallbackButton } from "@/components/resolve-notifica
 import { MarkSoldButton } from "@/components/mark-sold-button";
 import { MarkPurchasedButton } from "@/components/mark-purchased-button";
 import { WithdrawAcceptedOfferButton } from "@/components/withdraw-accepted-offer-button";
+import { WithdrawPendingOfferButton } from "@/components/withdraw-pending-offer-button";
 import { AgentOfferThread } from "@/components/agent-offer-thread";
 import { OfferMessageList } from "@/components/offer-message-list";
 import { OfferMessageComposer } from "@/components/offer-message-composer";
@@ -1041,6 +1042,11 @@ export default async function OutreachQueuePage() {
                             <div className="ml-4">
                               <AddOfferAddonForm offerId={offer.id} />
                             </div>
+                            {offer.status === "pending" && (
+                              <div className="ml-4 mt-1">
+                                <WithdrawPendingOfferButton offerId={offer.id} />
+                              </div>
+                            )}
 
                             {offer.status === "customer_accepted" && (
                               <div className="mt-3 ml-4 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.03] p-3">

@@ -64,3 +64,36 @@ export const RECORD_OTD_COPY = {
     otd_mismatch: "The out-the-door total doesn't match the lines (within $1). Check for a missing or extra line.",
   } as Record<string, string>,
 };
+
+/** APPROVED (Brett, 2026-10-27/28), agent-facing: withdrawing a pending offer, and the same
+ *  reason choice on "Release this accepted offer". Reason labels match withdraw_pending_offer. */
+export const WITHDRAW_REASONS = [
+  { code: "car_sold", label: "Car sold" },
+  { code: "dealer_pulled", label: "Dealer pulled the quote" },
+  { code: "correcting", label: "Correcting the offer" },
+  { code: "other", label: "Other" },
+] as const;
+export type WithdrawReasonCode = (typeof WITHDRAW_REASONS)[number]["code"];
+
+export const WITHDRAW_COPY = {
+  button: "Withdraw this offer",
+  heading: "Why are you withdrawing this offer? The customer won't see your reason.",
+  reasonLabel: "Reason",
+  noteLabel: "Note (required for Other). The customer won't see it.",
+  confirm: "Withdraw it",
+  done: (firstName: string | null) => `Offer withdrawn. ${firstName?.trim() || "The customer"} has been told.`,
+  refusals: {
+    reason_missing: "Choose a reason.",
+    reason_code_invalid: "Choose a reason.",
+    note_required: 'Add a note for "Other".',
+    offer_not_pending:
+      'Only an offer the customer hasn\'t accepted can be withdrawn. To release an accepted offer, use "Release this accepted offer".',
+    offer_not_found: "That offer no longer exists.",
+    agent_not_active: "Not authorized.",
+    not_authorized: "Not authorized.",
+  } as Record<string, string>,
+};
+
+export function isWithdrawReasonCode(code: string): code is WithdrawReasonCode {
+  return WITHDRAW_REASONS.some((r) => r.code === code);
+}

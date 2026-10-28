@@ -16,7 +16,7 @@ import { logAgentActivity } from "./agent-activity";
 import { resolveOfferDealerAlias } from "./offer-dealer-alias";
 import { zipDistanceMiles } from "./zip-distance";
 import { awaitingOtdQuote } from "./offer-accept-gate";
-import { DEPOSIT_BLOCKED_AWAITING_OTD } from "./offer-entry-draft-copy";
+import { DEPOSIT_BLOCKED_AWAITING_OTD, WITHDRAW_COPY, WITHDRAW_REASONS } from "./offer-entry-draft-copy";
 import { destinationAddonRefusal } from "./offer-parse-normalize";
 
 export interface LogOfferResult {
@@ -485,10 +485,11 @@ export interface WithdrawAcceptedOfferResult {
  * offer. Guarded by .eq("status", "customer_accepted") on the write, so a
  * double-click is a clean no-op.
  *
- * Writes ONLY status + the three withdrawn_* columns. customer_responded_at,
- * delivered_at and vehicle_sold_at are left exactly as they were -- the
- * Day-30 guarantee evaluation reads those (never status), so a release can't
- * change a guarantee outcome. deal_progress, documents and add-ons are kept
+ * Writes status, the withdrawn_* columns and the reason code (the reason
+ * choice, Brett 2026-10-27). customer_responded_at and delivered_at are left
+ * as they were. Guarantee: a released offer no longer counts unless the
+ * reason is "Car sold", which also sets vehicle_sold_at so the sold rule
+ * decides (guarantee.ts). deal_progress, documents and add-ons are kept
  * as history; every action on them already requires customer_accepted, so
  * they simply go inert. One-way: if the deal comes back together, the agent
  * logs it as a new offer.
@@ -498,22 +499,32 @@ export interface WithdrawAcceptedOfferResult {
  * between the purchased check and the write. Only one agent exists today;
  * fully closing this would need a row-locking RPC.
  */
-export async function withdrawAcceptedOffer(offerId: string, reason: string): Promise<WithdrawAcceptedOfferResult> {
+export async function withdrawAcceptedOffer(
+  offerId: string,
+  reasonCode: string,
+  note: string | null
+): Promise<WithdrawAcceptedOfferResult> {
   const agent = await getAuthorizedAgent();
   if (!agent) {
     return { ok: false, error: "Not authorized." };
   }
 
-  const trimmedReason = reason?.trim();
-  if (!trimmedReason) {
-    return { ok: false, error: "A reason is required." };
+  // The reason choice (Brett, 2026-10-27), same as withdrawing a pending offer.
+  const reason = WITHDRAW_REASONS.find((r) => r.code === reasonCode);
+  if (!reason) {
+    return { ok: false, error: WITHDRAW_COPY.refusals.reason_missing };
   }
+  const trimmedNote = note?.trim() || null;
+  if (reason.code === "other" && !trimmedNote) {
+    return { ok: false, error: WITHDRAW_COPY.refusals.note_required };
+  }
+  const trimmedReason = (trimmedNote ?? reason.label).slice(0, 500);
 
   const admin = createAdminClient();
 
   const { data: offer, error: offerError } = await admin
     .from("qualifying_offers")
-    .select("id, customer_search_id, status, dealer_name")
+    .select("id, customer_search_id, status, dealer_name, vehicle_sold_at")
     .eq("id", offerId)
     .maybeSingle();
 
@@ -547,6 +558,9 @@ export async function withdrawAcceptedOffer(offerId: string, reason: string): Pr
       withdrawn_at: new Date().toISOString(),
       withdrawn_by_agent_id: agent.id,
       withdrawal_reason: trimmedReason,
+      withdrawal_reason_code: reason.code,
+      // "Car sold": the sold rule then decides the guarantee (Brett, 2026-10-27).
+      ...(reason.code === "car_sold" && !offer.vehicle_sold_at ? { vehicle_sold_at: new Date().toISOString() } : {}),
     })
     .eq("id", offerId)
     .eq("status", "customer_accepted")
@@ -568,7 +582,10 @@ export async function withdrawAcceptedOffer(offerId: string, reason: string): Pr
     eventData: { dealerName: (offer.dealer_name as string | null) ?? "the dealership" },
   });
 
-  await logAgentActivity(agent.id, "offer_released", await offerLinks(admin, offerId), { reason: trimmedReason });
+  await logAgentActivity(agent.id, "offer_released", await offerLinks(admin, offerId), {
+    reason: trimmedReason,
+    reason_code: reason.code,
+  });
 
   revalidatePath("/internal/outreach");
   revalidatePath("/account");

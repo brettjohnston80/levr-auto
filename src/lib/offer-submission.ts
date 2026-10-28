@@ -414,3 +414,36 @@ export async function recordOtdFor(
   const { data: customer } = await admin.from("customers").select("first_name").eq("id", search!.customer_id).maybeSingle();
   return { ok: true, customerFirstName: (customer?.first_name as string | null) ?? null };
 }
+
+export type WithdrawResult = { ok: true; customerFirstName: string | null } | { ok: false; code: string };
+
+/** Withdraw a pending offer (OE-5b): the reason choice, then the customer is told. */
+export async function withdrawPendingOfferFor(
+  agentId: string,
+  offerId: string,
+  reasonCode: string,
+  note: string | null,
+): Promise<WithdrawResult> {
+  if (!reasonCode) return { ok: false, code: "reason_missing" };
+  const admin = createAdminClient();
+  const { error } = await admin.rpc("withdraw_pending_offer", {
+    p_offer_id: offerId,
+    p_agent_id: agentId,
+    p_reason_code: reasonCode,
+    p_note: note?.trim() || null,
+  });
+  if (error) {
+    const code = /^[a-z_]+$/.test(error.message) ? error.message : "send_failed";
+    if (code === "send_failed") console.error("withdrawPendingOffer: withdraw_pending_offer failed", error.message);
+    return { ok: false, code };
+  }
+  const { data: offer } = await admin.from("qualifying_offers").select("customer_search_id, dealer_name").eq("id", offerId).single();
+  await logNotificationEvent({
+    customerSearchId: offer!.customer_search_id as string,
+    eventType: "offer_withdrawn",
+    eventData: { dealerName: (offer!.dealer_name as string | null) ?? "the dealership", wasPending: true },
+  });
+  const { data: search } = await admin.from("customer_searches").select("customer_id").eq("id", offer!.customer_search_id).single();
+  const { data: customer } = await admin.from("customers").select("first_name").eq("id", search!.customer_id).maybeSingle();
+  return { ok: true, customerFirstName: (customer?.first_name as string | null) ?? null };
+}

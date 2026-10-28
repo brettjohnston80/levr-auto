@@ -153,10 +153,17 @@ export function OfferCard({
             estimate={offer.deliveryEstimate}
             canRequest={offer.threadOpen && (offer.status === "pending" || offer.status === "customer_accepted")}
           />
-          <p className="mt-1 text-xs text-zinc-500">
-            Delivered {formatDate(offer.deliveredAt)} — status: {offer.status.replace(/_/g, " ")}
-            {statusDate && ` on ${formatDate(statusDate)}`}
-          </p>
+          {offer.status === "withdrawn" ? (
+            // Approved (Brett, 2026-10-27).
+            <p className="mt-1 text-xs text-zinc-500">
+              No longer available{offer.withdrawnAt && ` · withdrawn ${formatDate(offer.withdrawnAt)}`}
+            </p>
+          ) : (
+            <p className="mt-1 text-xs text-zinc-500">
+              Delivered {formatDate(offer.deliveredAt)} — status: {offer.status.replace(/_/g, " ")}
+              {statusDate && ` on ${formatDate(statusDate)}`}
+            </p>
+          )}
           {beyondRange && offer.pickupTravel?.choice === "distance" && offer.distanceMiles !== null && (
             <p className="mt-1 text-sm text-amber-300">
               {outOfRangeCopy(offer.distanceMiles, offer.pickupTravel.miles)}

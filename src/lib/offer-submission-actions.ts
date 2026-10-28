@@ -14,6 +14,8 @@ import {
   type OfferPayload,
   type SaveDraftResult,
   type SendResult,
+  withdrawPendingOfferFor,
+  type WithdrawResult,
 } from "./offer-submission";
 
 // Every agent may draft, send and discard: it's the core of working a customer's deal (C16).
@@ -67,5 +69,16 @@ export async function recordOfferOtd(
   if (!agent) return { ok: false, code: "not_authorized" };
   const result = await recordOtdFor(agent.id, offerId, fees, otdTotalCents, otherFeesNone);
   if (result.ok) revalidatePath("/internal/outreach");
+  return result;
+}
+
+export async function withdrawPendingOffer(offerId: string, reasonCode: string, note: string | null): Promise<WithdrawResult> {
+  const agent = await getAuthorizedAgent();
+  if (!agent) return { ok: false, code: "not_authorized" };
+  const result = await withdrawPendingOfferFor(agent.id, offerId, reasonCode, note);
+  if (result.ok) {
+    revalidatePath("/internal/outreach");
+    revalidatePath("/account/deal");
+  }
   return result;
 }

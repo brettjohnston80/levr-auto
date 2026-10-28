@@ -57,6 +57,8 @@ export interface SearchPurchasedData {
 }
 export interface OfferWithdrawnData {
   dealerName: string;
+  /** Offer entry (OE-5): a pending offer withdrawn before the customer accepted. */
+  wasPending?: boolean;
 }
 export interface GuaranteeResolvedData {
   outcome: "met" | "refunded";
@@ -138,6 +140,13 @@ export function composeEventEmail(
     // Approved copy (2026-09-27).
     case "offer_withdrawn": {
       const d = eventData as unknown as OfferWithdrawnData;
+      // Approved copy (2026-10-27), a pending offer withdrawn.
+      if (d.wasPending) {
+        return {
+          subject: `An update on your offer from ${d.dealerName}`,
+          html: `<p>Your agent withdrew the offer from ${d.dealerName}, so it can no longer be accepted. If there's a corrected offer, you'll find it in Your Deal. Your agent will be in touch about what happened.</p>`,
+        };
+      }
       return {
         subject: "An update on your accepted offer",
         html: `<p>Your accepted offer from ${d.dealerName} was released, so you can choose another offer. Your agent will be in touch about what happened.</p>`,
@@ -195,6 +204,7 @@ export function composeEventLine(
     // the switch stays exhaustive.
     case "offer_withdrawn": {
       const d = eventData as unknown as OfferWithdrawnData;
+      if (d.wasPending) return `Your agent withdrew the offer from ${d.dealerName}`;
       return `Your accepted offer from ${d.dealerName} was released`;
     }
     case "guarantee_resolved": {
