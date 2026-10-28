@@ -264,3 +264,27 @@ Where: `src/lib/offer-entry-copy.ts` on the `offer-entry` branch (not deployed).
 | `The offer wasn't sent. Nothing reached the customer. Try again.` | Send failed unexpectedly | agents |
 | `You're signed out. Sign in again to continue.` | Any of the three, signed out | agents |
 
+## 17. Log Offer page (agent; offer entry Chunk 4) — approved 2026-10-27
+Where: `/internal/outreach/[searchId]/offer` on the `offer-entry` branch (not deployed): `src/components/offer-entry-form.tsx`, new lines in `src/lib/offer-entry-draft-copy.ts`. The page also uses the offer-entry plan's approved lines (sections 6.1 and 6.4: button "Log an offer", the page title, step names, tiles, guarantee lines, the trim tick, fee labels, add-on ticks, "No add-ons" / "No other fees", "What the customer will see", Step 5 labels, the four send warnings and "Yes, send it") and Log Offer's existing lines (sticker warnings, AI parse, delivery estimate).
+
+| Text | Where it appears | Audience |
+|---|---|---|
+| `Back to outreach` | Top of the page; after a send | agents |
+| `Drafts on this search` · `{dealer}` (or `No dealer yet`) · `saved {date}` | Drafts list | agents |
+| `Paste text` | Step 1 choice (next to `Attach quote`) | agents |
+| Step 1 help without `Attach the window sticker if you have it.` (until the window-sticker upload exists) | Step 1 | agents |
+| `Trim on the car` | Step 2 field | agents |
+| `The customer didn't rank any options.` | Step 3, nothing ranked | agents |
+| `Option name` · `Installed by: not sure` / `Factory` / `Dealer-installed` / `Port-installed` · `Remove` | Step 3 extra row | agents |
+| `Dealer add-ons` · `Add-on` · `+ Add an add-on` | Step 4 | agents |
+| `Fee name` · `+ Add a fee` | Step 4 other fees | agents |
+| `Prefilled: {make}'s ${amount} {fee} (non-refundable). Change or remove it if the store's paperwork differs.` | Step 4, e.g. Tesla's order fee | agents |
+| `Your lines add up to {$X}` (from the dealer page, plan 6.2) | Step 4 | agents |
+| `The lines add up to {$X}, but the out-the-door total is {$Y}. Check for a missing or extra line.` | Step 4, totals differ by more than $1 | agents |
+| `Notes for agents (not shown to the customer)` | Step 5 | agents |
+| `Mark each option the customer wants as on the car or not on the car.` | Send blocked, options unticked | agents |
+| `Trims` · `Exterior` · `Interior` · `Options` | Sidebar, what the customer wants | agents |
+| `No other offers yet.` · `{dealer} · {status} · Out-the-door {$X}` / `Out-the-door requested` / `no out-the-door yet` | Sidebar, other offers | agents |
+| `Waiting on the customer` · `Accepted` · `Declined` · `Released` | Offer statuses in the sidebar | agents |
+| `Offer sent, but the quote PDF failed to upload: {error}.` / `Offer sent, but the quote PDF record failed to save: {error}.` | After a send with a quote PDF | agents |
+

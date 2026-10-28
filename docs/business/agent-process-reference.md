@@ -138,7 +138,7 @@ How each agent workflow works, written for the people who use it. One section pe
 **What the customer sees:** the same Your Deal page and offers, with a "No money-back guarantee on this search" box in place of the guarantee timeline.
 
 ## 12. Sending an offer (offer entry; built on the `offer-entry` branch, not live yet)
-- **For:** every agent. The redesigned Log Offer page (Chunk 4) is where you do this; these are the rules behind it.
+- **For:** every agent. On a search card, click **Log an offer** to open the Log Offer page: 1 paste the quote, 2 pick the car (exterior and interior show whether they're the customer's pick), 3 tick each option the customer wants as on the car or not, add anything else on the sticker, and tick that the trim matches, 4 enter the sticker, price, fees, add-ons and the dealer's out-the-door total, 5 good until, dealer contact and a note to the customer. The right-hand side shows what the customer will see as you type. Tesla's $250 order fee is filled in for you.
 - **Steps:**
   1. **Save draft** as often as you like. A draft is never shown to the customer.
   2. **Send to customer** checks everything on the server first: the amounts, the VIN, the out-the-door total against the lines (within $1), good until (today to 60 days out), and whether a delivery estimate is needed.
