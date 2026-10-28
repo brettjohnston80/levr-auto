@@ -389,12 +389,22 @@ commit;
 - **A recorded quote can't be recorded again (Brett, 2026-10-27).** If a dealer corrects a figure afterwards, the agent withdraws the offer and sends a corrected one.
 - **Later item:** editing a recorded out-the-door quote (with its own history), if withdrawing and re-sending proves clumsy in practice.
 
-### 3.3c Migration OE-5: an agent withdraws a pending offer (Brett, 2026-10-27; planned, not applied)
+### 3.3c Migration OE-5: withdrawing an offer, with a reason (Brett, 2026-10-27; revised, not applied)
 
 - **Why:** a recorded out-the-door quote can't be changed, so a dealer's correction means withdrawing the offer and sending a corrected one. Today only an accepted offer can be released.
-- **Database (OE-5, `docs/sql/oe5/` on the branch):** activity type `offer_withdrawn_pending`, and `withdraw_pending_offer(offer, agent, reason)`: pending offers only, reason required, one transaction. `withdrawn` is already a legal status with its who/when/why columns. Releasing an accepted offer is unchanged.
-- **App:** a "Withdraw this offer" control on pending offers (outreach card), reason required; the customer gets an email and the card shows the offer as withdrawn; Accept is gone.
-- **Guarantee:** unchanged by OE-5. Today a withdrawn offer (pending or released) still counts toward the guarantee if it was delivered below its sticker, because the Day-30 check never reads status. Recommendation and decision: see the Chunk 9 report (2026-10-27).
+- **Database (OE-5, `docs/sql/oe5/` on the branch):** `qualifying_offers.withdrawal_reason_code` (`car_sold` / `dealer_pulled` / `correcting` / `other`), activity type `offer_withdrawn_pending`, and `withdraw_pending_offer(offer, agent, reason code, note)`: pending offers only, "Other" needs a note, "Car sold" sets `vehicle_sold_at`, one transaction. `withdrawn` is already a legal status with its who/when/why columns.
+  - The reason code isn't required by a constraint yet, because today's live release on `main` writes a withdrawal without one. **OE-5b (after the offer-entry deploy):** `check (status <> 'withdrawn' or withdrawal_reason_code is not null)`, once every withdrawn row has a code (production had 0 withdrawn offers on 2026-10-27).
+- **App:**
+  - "Withdraw this offer" on pending offers (outreach card): the reason choice (Car sold · Dealer pulled the quote · Correcting the offer · Other, with a note), then the customer email.
+  - "Release this accepted offer" gets the same reason choice, writes the code, and "Car sold" sets `vehicle_sold_at` there too.
+  - The customer card for a withdrawn offer: "No longer available · withdrawn {date}" (approved 2026-10-27).
+- **Guarantee rule (decided 2026-10-27, Brett):** a withdrawn offer doesn't count, unless the reason is "Car sold", when the existing sold rule decides (it counts if the customer didn't respond within 24 hours of delivery). Core Processes updated; Terms and service agreement flagged for attorney review.
+- **Guarantee change, planned (app code on the branch, not built until Brett approves the plan):**
+  1. `evaluateOfferGuaranteeContribution` (`src/lib/guarantee.ts`) takes the offer's `status` and `withdrawalReasonCode`. A withdrawn offer whose code isn't `car_sold` returns `does_not_count` (including any old withdrawn row with no code). `car_sold` falls through to the unchanged sold rule, with `vehicle_sold_at` set by the withdrawal.
+  2. Its three callers read the two new columns: the Day-30 check (`guarantee-assessment.ts`), the customer's guarantee timeline (`customer-dashboard.ts`) and the search timeline (`search-timeline.ts`).
+  3. Unit tests: pending/accepted unchanged; withdrawn for each of the four reasons; "Car sold" with the customer responding inside and outside 24 hours; an old withdrawn row with no code; a withdrawn offer above the sticker.
+  4. A real-data run: a disposable search with one withdrawn offer (Correcting) and nothing else assesses as `refunded`; with a "Car sold" withdrawal and no response it assesses as `met`.
+  5. Nothing changes for any search already resolved, because the Day-30 check only touches `guarantee_status = 'pending'`.
 
 ### 3.4 Migration OE-3: customer state for tax estimates
 
