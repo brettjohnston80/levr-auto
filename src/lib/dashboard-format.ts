@@ -18,3 +18,8 @@ export function formatDate(iso: string): string {
 export function formatLongDate(iso: string | Date): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
+
+/** A date-only value (YYYY-MM-DD) as "Oct 31", read as that calendar day wherever the viewer is. */
+export function formatDayMonth(ymd: string): string {
+  return new Date(`${ymd}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}

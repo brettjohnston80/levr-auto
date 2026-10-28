@@ -9,7 +9,23 @@ import { respondToOffer } from "@/lib/offer-response-actions";
 import { computeOfferSavings } from "@/lib/offer-comparison";
 import { DeliveryEstimateLine } from "@/components/delivery-estimate-line";
 import { DELIVERY_ESTIMATE_COPY, deliveryEstimatePending } from "@/lib/delivery-estimate";
-import { formatCents } from "@/lib/dashboard-format";
+import { formatCents, formatDayMonth } from "@/lib/dashboard-format";
+import { OfferPriceBreakdown } from "@/components/offer-price-breakdown";
+import { awaitingOtdQuote } from "@/lib/offer-accept-gate";
+import {
+  ACCEPT_BLOCKED_AWAITING_OTD,
+  ACCEPT_BLOCK_HEADING,
+  AGENT_NOTE_HEADING,
+  OPTIONS_ALSO,
+  OPTIONS_ASKED,
+  OPTIONS_HEADING,
+  OPTIONS_NOT_RECORDED,
+  OPTION_OFF,
+  OPTION_ON,
+  VIEW_WINDOW_STICKER,
+  goodUntilLine,
+  levratingChip,
+} from "@/lib/offer-customer-copy";
 import { SilhouetteIcon } from "@/components/vehicle-silhouette";
 import { HighlightToggle } from "@/components/offer-highlight-controls";
 import { OfferMessageList } from "@/components/offer-message-list";
@@ -89,6 +105,12 @@ export function OfferDetailModal({
   const beyondRange = isBeyondPickupRange(offer.pickupTravel, offer.distanceMiles, offer.handoffMethod);
   const savings = computeOfferSavings(offer);
   const vehicleName = [make, model].filter(Boolean).join(" ");
+  // Offer entry (Chunk 9): offers sent through the new flow show the breakdown and options,
+  // and can be accepted only once the dealer's out-the-door quote is in.
+  const isNewFlow = offer.sentToCustomerAt != null;
+  const acceptBlocked = awaitingOtdQuote({ sentToCustomerAt: offer.sentToCustomerAt, otdSource: offer.otd?.source ?? null });
+  const askedOptions = offer.options.filter((o) => o.customerAskedFor);
+  const alsoOptions = offer.options.filter((o) => !o.customerAskedFor);
 
   useEffect(() => {
     dialogRef.current?.focus();
@@ -176,6 +198,7 @@ export function OfferDetailModal({
               <h2 id={`offer-detail-${offer.id}`} className="text-xl font-semibold text-white">
                 {offer.dealerName}
               </h2>
+              <span className="text-xs text-zinc-500">{levratingChip(offer.levrating)}</span>
               {isBestValue && (
                 <span className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-semibold text-zinc-950">
                   Best value
@@ -205,6 +228,21 @@ export function OfferDetailModal({
                 </p>
               )}
               <p className="mt-1 text-xs text-zinc-500">{OFFER_PRICE_EXCLUDES_FULL}</p>
+              {offer.goodUntil && <p className="mt-1 text-xs text-zinc-400">{goodUntilLine(formatDayMonth(offer.goodUntil))}</p>}
+              {isNewFlow && (
+                <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4">
+                  <OfferPriceBreakdown
+                    input={{
+                      stickerCents: offer.msrpCents,
+                      priceCents: offer.offerPriceCents,
+                      addons: offer.addons.map((a) => ({ description: a.description, amountCents: a.amountCents, dealerSaysRemovable: a.dealerSaysRemovable })),
+                      fees: offer.fees,
+                      deliveryCents: offer.deliveryEstimate?.status === "provided" ? offer.deliveryEstimate.cents : null,
+                      otd: offer.otd,
+                    }}
+                  />
+                </div>
+              )}
               <DeliveryEstimateLine
                 offerId={offer.id}
                 estimate={offer.deliveryEstimate}
@@ -232,11 +270,12 @@ export function OfferDetailModal({
               </Section>
             )}
 
-            {(offer.vehicleTrim || offer.vehicleExteriorColor || offer.vin || offer.stockNumber || offer.inTransit) && (
+            {(offer.vehicleTrim || offer.vehicleExteriorColor || offer.vehicleInteriorColor || offer.vin || offer.stockNumber || offer.inTransit) && (
               <Section title="Vehicle">
                 <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
                   {offer.vehicleTrim && <Row label="Trim" value={offer.vehicleTrim} />}
                   {offer.vehicleExteriorColor && <Row label="Color" value={offer.vehicleExteriorColor} />}
+                  {offer.vehicleInteriorColor && <Row label="Interior" value={offer.vehicleInteriorColor} />}
                   {offer.vin && <Row label="VIN" value={offer.vin} />}
                   {offer.stockNumber && <Row label="Stock #" value={offer.stockNumber} />}
                 </dl>
@@ -245,6 +284,51 @@ export function OfferDetailModal({
                     In transit to the dealer
                   </span>
                 )}
+              </Section>
+            )}
+
+            {isNewFlow && (
+              <Section title={OPTIONS_HEADING}>
+                {offer.options.length === 0 ? (
+                  <p className="text-sm text-zinc-400">{OPTIONS_NOT_RECORDED}</p>
+                ) : (
+                  <div className="space-y-3 text-sm">
+                    {askedOptions.length > 0 && (
+                      <div>
+                        <p className="text-xs text-zinc-500">{OPTIONS_ASKED}</p>
+                        <ul className="mt-1 space-y-1">
+                          {askedOptions.map((o) => (
+                            <li key={o.name} className="flex flex-wrap justify-between gap-2 text-zinc-200">
+                              <span>{o.name}</span>
+                              <span className={o.onTheCar ? "text-emerald-400" : "text-amber-300"}>{o.onTheCar ? OPTION_ON : OPTION_OFF}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {alsoOptions.length > 0 && (
+                      <div>
+                        <p className="text-xs text-zinc-500">{OPTIONS_ALSO}</p>
+                        <ul className="mt-1 space-y-1 text-zinc-300">
+                          {alsoOptions.map((o) => (
+                            <li key={o.name}>{o.name}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {offer.windowStickerUrl && (
+                  <a href={offer.windowStickerUrl} target="_blank" rel="noreferrer" className="mt-3 inline-block text-sm text-emerald-400 underline hover:text-emerald-300">
+                    {VIEW_WINDOW_STICKER}
+                  </a>
+                )}
+              </Section>
+            )}
+
+            {offer.noteToCustomer && (
+              <Section title={AGENT_NOTE_HEADING}>
+                <p className="whitespace-pre-line text-sm text-zinc-200">{offer.noteToCustomer}</p>
               </Section>
             )}
 
@@ -323,8 +407,17 @@ export function OfferDetailModal({
               plain bottom-0 left a 32px strip where modal content scrolled
               visibly underneath the footer. */}
           <div className="sticky -bottom-8 rounded-b-3xl border-t border-white/10 bg-zinc-950/95 p-5 pb-13 backdrop-blur sm:px-8">
-            {isPending && !anotherOfferAccepted && (
+            {isPending && !anotherOfferAccepted && acceptBlocked && (
+              <p className="mb-3 text-sm text-amber-300">{ACCEPT_BLOCKED_AWAITING_OTD}</p>
+            )}
+            {isPending && !anotherOfferAccepted && !acceptBlocked && (
               <>
+                {isNewFlow && offer.otd && (
+                  <div className="mb-3">
+                    <p className="text-xs font-semibold text-zinc-300">{ACCEPT_BLOCK_HEADING}</p>
+                    <p className="text-lg font-semibold text-white">{formatCents(offer.otd.totalCents)}</p>
+                  </div>
+                )}
                 <p className="mb-3 text-xs text-zinc-400">{ACCEPT_EXPLANATION}</p>
                 <p className="mb-2 text-xs font-semibold text-zinc-300">{HANDOFF_ACCEPT_PROMPT}</p>
                 <div className="mb-3">
@@ -336,7 +429,7 @@ export function OfferDetailModal({
               <p className="mb-3 text-xs text-zinc-500">You&apos;ve already accepted another offer on this search.</p>
             )}
             <div className="flex flex-wrap items-center gap-2">
-              {isPending && !anotherOfferAccepted && (
+              {isPending && !anotherOfferAccepted && !acceptBlocked && (
                 <button
                   type="button"
                   disabled={submitting !== null || acceptHandoff === null}
@@ -366,7 +459,7 @@ export function OfferDetailModal({
                 </button>
               )}
             </div>
-            {isPending && !anotherOfferAccepted && acceptHandoff === null && (
+            {isPending && !anotherOfferAccepted && !acceptBlocked && acceptHandoff === null && (
               <p className="mt-2 text-xs text-zinc-500">{HANDOFF_ACCEPT_DISABLED_HINT}</p>
             )}
             {error && <p className="mt-2 text-sm text-red-400">{error}</p>}

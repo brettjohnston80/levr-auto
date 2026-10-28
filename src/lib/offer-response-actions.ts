@@ -1,5 +1,8 @@
 "use server";
 
+import { awaitingOtdQuote } from "./offer-accept-gate";
+import { ACCEPT_BLOCKED_AWAITING_OTD } from "./offer-customer-copy";
+
 import { HANDOFF_REQUIRED_ERROR, isHandoffMethod, type HandoffMethod } from "./pickup-travel";
 import { revalidatePath } from "next/cache";
 import { createClient } from "./supabase/server";
@@ -62,7 +65,7 @@ export async function respondToOffer(
 
   const { data: offer, error: offerError } = await admin
     .from("qualifying_offers")
-    .select("id, customer_search_id, dealer_name")
+    .select("id, customer_search_id, dealer_name, sent_to_customer_at, otd_source")
     .eq("id", offerId)
     .maybeSingle();
 
@@ -78,6 +81,15 @@ export async function respondToOffer(
 
   if (searchError || !search || search.customer_id !== user.id) {
     return { ok: false, error: "Not authorized." };
+  }
+
+  // Accept gating (offer entry): an offer sent through the new flow needs the dealer's
+  // out-the-door quote first. Declining is never restricted.
+  if (
+    response === "accepted" &&
+    awaitingOtdQuote({ sentToCustomerAt: offer.sent_to_customer_at as string | null, otdSource: offer.otd_source as string | null })
+  ) {
+    return { ok: false, error: ACCEPT_BLOCKED_AWAITING_OTD };
   }
 
   if (response === "accepted") {

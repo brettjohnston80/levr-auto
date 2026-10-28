@@ -44,3 +44,7 @@ export const OFFER_ENTRY_DRAFT_COPY = {
     withdrawn: "Released",
   } as Record<string, string>,
 };
+
+/** DRAFT (Chunk 9), agent-facing: deposit refused on an offer without the dealer's out-the-door quote. */
+export const DEPOSIT_BLOCKED_AWAITING_OTD =
+  "Record the dealer's out-the-door quote before confirming a deposit. The customer can't accept this offer until then.";

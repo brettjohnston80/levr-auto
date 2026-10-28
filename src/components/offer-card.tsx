@@ -7,7 +7,15 @@ import { ServiceAgreementSigning } from "@/components/service-agreement-signing"
 import { computeOfferSavings } from "@/lib/offer-comparison";
 import { DeliveryEstimateLine } from "@/components/delivery-estimate-line";
 import { DELIVERY_ESTIMATE_COPY, deliveryEstimatePending } from "@/lib/delivery-estimate";
-import { formatCents, formatDate } from "@/lib/dashboard-format";
+import { formatCents, formatDate, formatDayMonth } from "@/lib/dashboard-format";
+import {
+  NEGOTIATED_PRICE_SHORT,
+  OTD_REQUESTED,
+  goodUntilLine,
+  levratingChip,
+  optionsSummary,
+  otdLine,
+} from "@/lib/offer-customer-copy";
 import type { DashboardOffer } from "@/lib/customer-dashboard";
 import {
   DELIVERY_EXPLANATION,
@@ -79,7 +87,10 @@ export function OfferCard({
         />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <span className="font-semibold text-white">{offer.dealerName}</span>
+            <span className="flex flex-wrap items-baseline gap-x-2">
+              <span className="font-semibold text-white">{offer.dealerName}</span>
+              <span className="text-xs text-zinc-500">{levratingChip(offer.levrating)}</span>
+            </span>
             <div className="flex flex-wrap gap-2">
               {isBestValue && (
                 <span className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-semibold text-zinc-950">
@@ -95,11 +106,15 @@ export function OfferCard({
           </div>
           {/* Color as text too, not only in the photo (Terry's feedback, 2026-10-17); "Color" matches the
               detail view's label. */}
-          {(offer.vehicleTrim || offer.vehicleExteriorColor) && (
+          {(offer.vehicleTrim || offer.vehicleExteriorColor || offer.vehicleInteriorColor) && (
             <p className="mt-0.5 text-xs text-zinc-500">
-              {offer.vehicleTrim && <span>Trim: {offer.vehicleTrim}</span>}
-              {offer.vehicleTrim && offer.vehicleExteriorColor && <span aria-hidden="true"> · </span>}
-              {offer.vehicleExteriorColor && <span>Color: {offer.vehicleExteriorColor}</span>}
+              {[
+                offer.vehicleTrim && `Trim: ${offer.vehicleTrim}`,
+                offer.vehicleExteriorColor && `Color: ${offer.vehicleExteriorColor}`,
+                offer.vehicleInteriorColor && `Interior: ${offer.vehicleInteriorColor}`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             </p>
           )}
           <p className="mt-2 text-sm text-zinc-400">
@@ -114,7 +129,25 @@ export function OfferCard({
               {formatCents(savings.belowMsrpCents)} below Total SRP ({savings.belowMsrpPercent}% off)
             </p>
           )}
-          <p className="mt-0.5 text-xs text-zinc-500">{OFFER_PRICE_EXCLUDES_SHORT}</p>
+          {offer.sentToCustomerAt ? (
+            <>
+              <p className="mt-0.5 text-xs text-zinc-500">{NEGOTIATED_PRICE_SHORT}</p>
+              <p className="mt-1 text-sm text-zinc-300">
+                {offer.otd ? otdLine(formatCents(offer.otd.totalCents), offer.otd.source) : <span className="text-amber-300">{OTD_REQUESTED}</span>}
+              </p>
+              {offer.goodUntil && <p className="mt-0.5 text-xs text-zinc-500">{goodUntilLine(formatDayMonth(offer.goodUntil))}</p>}
+            </>
+          ) : (
+            <p className="mt-0.5 text-xs text-zinc-500">{OFFER_PRICE_EXCLUDES_SHORT}</p>
+          )}
+          {offer.options.some((o) => o.customerAskedFor) && (
+            <p className="mt-0.5 text-xs text-zinc-400">
+              {optionsSummary(
+                offer.options.filter((o) => o.customerAskedFor && o.onTheCar).length,
+                offer.options.filter((o) => o.customerAskedFor).length,
+              )}
+            </p>
+          )}
           <DeliveryEstimateLine
             offerId={offer.id}
             estimate={offer.deliveryEstimate}

@@ -26,6 +26,23 @@ export interface DashboardAddon {
   amountCents: number;
   removalStatus: string;
   dealerResponse: string | null;
+  /** The dealer says it can come off (offer entry, OE-1); null when not asked. */
+  dealerSaysRemovable: boolean | null;
+}
+
+/** A fee line on the offer (offer entry, OE-1 offer_fees). */
+export interface DashboardOfferFee {
+  kind: "doc_fee" | "sales_tax" | "title_registration" | "other";
+  label: string | null;
+  amountCents: number;
+}
+
+/** An option on the offered car, ticked by the agent against the customer's ranked list (OE-1). */
+export interface DashboardOfferOption {
+  name: string;
+  customerAskedFor: boolean;
+  onTheCar: boolean;
+  installKind: "factory" | "dealer" | "port" | null;
 }
 
 export interface DashboardDealProgress {
@@ -123,6 +140,19 @@ export interface DashboardOffer {
    *  coordinates when available, else the dealer ZIP's centroid (flagged
    *  approximate), else null -- no pin. */
   mapLocation: { lat: number; lng: number; approximate: boolean } | null;
+  // ---- Offer entry (OE-1, Chunk 9). Every one is null/empty on offers logged before it. ----
+  vehicleInteriorColor: string | null;
+  /** Set only on offers sent through the offer-entry flow. Decides accept gating (Brett, 2026-10-25). */
+  sentToCustomerAt: string | null;
+  goodUntil: string | null;
+  noteToCustomer: string | null;
+  /** The recorded out-the-door total; null = not recorded (requested, on sent offers). */
+  otd: { totalCents: number; source: "dealer_quote" | "estimate" } | null;
+  fees: DashboardOfferFee[];
+  options: DashboardOfferOption[];
+  /** The dealer's LEVRating; null = "New to LEVR — no rating yet". */
+  levrating: { rating: number; count: number } | null;
+  windowStickerUrl: string | null;
 }
 
 export interface DashboardSearch {
@@ -205,7 +235,7 @@ async function loadOffersBySearchId(
   const { data: offers, error: offersError } = await supabase
     .from("qualifying_offers")
     .select(
-      "id, customer_search_id, listing_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at, withdrawn_at, vehicle_trim, vehicle_exterior_color, customer_highlighted_at, last_agent_message_at, customer_messages_read_at, handoff_method, dealer_street, dealer_city, dealer_state, dealer_zip, vin, stock_number, delivery_estimate_status, delivery_estimate_cents, delivery_estimate_note"
+      "id, customer_search_id, listing_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at, withdrawn_at, vehicle_trim, vehicle_exterior_color, customer_highlighted_at, last_agent_message_at, customer_messages_read_at, handoff_method, dealer_street, dealer_city, dealer_state, dealer_zip, vin, stock_number, delivery_estimate_status, delivery_estimate_cents, delivery_estimate_note, vehicle_interior_color, sent_to_customer_at, good_until, note_to_customer, otd_source, otd_total_cents, dealer_alias_id"
     )
     .in("customer_search_id", searchIds)
     .order("received_at", { ascending: false });
@@ -225,7 +255,7 @@ async function loadOffersBySearchId(
   if (offerIds.length > 0) {
     const { data: addons, error: addonsError } = await supabase
       .from("offer_addons")
-      .select("id, qualifying_offer_id, description, amount_cents, removal_status, dealer_response")
+      .select("id, qualifying_offer_id, description, amount_cents, removal_status, dealer_response, addon_dealer_says_removable")
       .in("qualifying_offer_id", offerIds);
 
     if (addonsError) {
@@ -240,6 +270,7 @@ async function loadOffersBySearchId(
         amountCents: addon.amount_cents,
         removalStatus: addon.removal_status,
         dealerResponse: addon.dealer_response,
+        dealerSaysRemovable: (addon.addon_dealer_says_removable as boolean | null) ?? null,
       });
       addonsByOfferId.set(addon.qualifying_offer_id, list);
     }
@@ -249,6 +280,58 @@ async function loadOffersBySearchId(
   const dealProgressByOfferId = new Map<string, DashboardDealProgress>();
   const serviceAgreementSignedAtByOfferId = new Map<string, string>();
   const offerSheetUrlByOfferId = new Map<string, string>();
+  const windowStickerUrlByOfferId = new Map<string, string>();
+
+  // Offer entry (Chunk 9): fee lines, the options on the car, and the dealer's LEVRating.
+  const feesByOfferId = new Map<string, DashboardOfferFee[]>();
+  const optionsByOfferId = new Map<string, DashboardOfferOption[]>();
+  const levratingByAliasId = new Map<string, { rating: number; count: number }>();
+  const entryP = (async () => {
+    if (offerIds.length === 0) return;
+    const aliasIds = [...new Set((offers ?? []).map((o) => o.dealer_alias_id as string | null).filter((x): x is string => !!x))];
+    const [{ data: fees, error: feesError }, { data: opts, error: optsError }, { data: aliases, error: aliasError }] = await Promise.all([
+      supabase.from("offer_fees").select("qualifying_offer_id, fee_kind, fee_label, fee_amount_cents, created_at").in("qualifying_offer_id", offerIds).order("created_at"),
+      supabase
+        .from("offer_vehicle_options")
+        .select("qualifying_offer_id, vehicle_option_name, customer_asked_for, on_the_car, install_kind, created_at")
+        .in("qualifying_offer_id", offerIds)
+        .order("created_at"),
+      aliasIds.length > 0
+        ? supabase.from("dealer_aliases").select("id, dealership_id").in("id", aliasIds)
+        : Promise.resolve({ data: [] as { id: string; dealership_id: string | null }[], error: null }),
+    ]);
+    if (feesError) throw new Error(`Failed to load offer fees: ${feesError.message}`);
+    if (optsError) throw new Error(`Failed to load offer options: ${optsError.message}`);
+    if (aliasError) throw new Error(`Failed to load dealer aliases: ${aliasError.message}`);
+    for (const f of fees ?? []) {
+      const list = feesByOfferId.get(f.qualifying_offer_id as string) ?? [];
+      list.push({ kind: f.fee_kind as DashboardOfferFee["kind"], label: (f.fee_label as string | null) ?? null, amountCents: f.fee_amount_cents as number });
+      feesByOfferId.set(f.qualifying_offer_id as string, list);
+    }
+    for (const o of opts ?? []) {
+      const list = optionsByOfferId.get(o.qualifying_offer_id as string) ?? [];
+      list.push({
+        name: o.vehicle_option_name as string,
+        customerAskedFor: o.customer_asked_for as boolean,
+        onTheCar: o.on_the_car as boolean,
+        installKind: (o.install_kind as DashboardOfferOption["installKind"]) ?? null,
+      });
+      optionsByOfferId.set(o.qualifying_offer_id as string, list);
+    }
+    const dealershipIds = [...new Set((aliases ?? []).map((a) => a.dealership_id).filter((x): x is string => !!x))];
+    if (dealershipIds.length > 0) {
+      const { data: ships, error: shipError } = await supabase
+        .from("dealerships")
+        .select("id, levrating, levrating_count")
+        .in("id", dealershipIds);
+      if (shipError) throw new Error(`Failed to load LEVRatings: ${shipError.message}`);
+      const byShip = new Map((ships ?? []).map((d) => [d.id as string, d]));
+      for (const a of aliases ?? []) {
+        const d = a.dealership_id ? byShip.get(a.dealership_id) : undefined;
+        if (d && d.levrating != null) levratingByAliasId.set(a.id, { rating: Number(d.levrating), count: (d.levrating_count as number) ?? 0 });
+      }
+    }
+  })();
 
   const progressP = (async () => {
   if (offerIds.length > 0) {
@@ -263,7 +346,7 @@ async function loadOffersBySearchId(
         supabase
           .from("documents")
           .select("qualifying_offer_id, type, uploaded_at, signed_at, storage_path")
-          .in("type", ["financing_proof", "service_agreement", "offer_sheet"])
+          .in("type", ["financing_proof", "service_agreement", "offer_sheet", "window_sticker"])
           .is("deleted_at", null)
           .in("qualifying_offer_id", offerIds)
           .order("uploaded_at", { ascending: false }),
@@ -283,7 +366,11 @@ async function loadOffersBySearchId(
     // "mint on every page load, never persist" convention already used for
     // financing_proof on the agent side (getOutreachQueue).
     const offerSheetPathByOfferId = new Map<string, string>();
+    const stickerPathByOfferId = new Map<string, string>();
     for (const doc of docs ?? []) {
+      if (doc.type === "window_sticker" && doc.storage_path && !stickerPathByOfferId.has(doc.qualifying_offer_id)) {
+        stickerPathByOfferId.set(doc.qualifying_offer_id, doc.storage_path);
+      }
       if (doc.type === "financing_proof" && doc.uploaded_at && !latestUploadByOfferId.has(doc.qualifying_offer_id)) {
         latestUploadByOfferId.set(doc.qualifying_offer_id, doc.uploaded_at);
       }
@@ -295,14 +382,18 @@ async function loadOffersBySearchId(
       }
     }
 
-    await Promise.all(
-      [...offerSheetPathByOfferId.entries()].map(async ([offerId, path]) => {
+    await Promise.all([
+      ...[...offerSheetPathByOfferId.entries()].map(async ([offerId, path]) => {
         const { data } = await supabase.storage.from("documents").createSignedUrl(path, 900);
         if (data?.signedUrl) {
           offerSheetUrlByOfferId.set(offerId, data.signedUrl);
         }
-      })
-    );
+      }),
+      ...[...stickerPathByOfferId.entries()].map(async ([offerId, path]) => {
+        const { data } = await supabase.storage.from("documents").createSignedUrl(path, 900);
+        if (data?.signedUrl) windowStickerUrlByOfferId.set(offerId, data.signedUrl);
+      }),
+    ]);
 
     for (const row of progressRows ?? []) {
       dealProgressByOfferId.set(row.qualifying_offer_id, {
@@ -398,7 +489,7 @@ async function loadOffersBySearchId(
   ]);
   })();
 
-  const [messagesByOfferId] = await Promise.all([messagesP, addonsP, progressP, deliveredP, detailP]);
+  const [messagesByOfferId] = await Promise.all([messagesP, addonsP, progressP, deliveredP, detailP, entryP]);
 
   const mapLocationFor = (
     listingDetail: { lat: number | null; lng: number | null } | undefined,
@@ -475,6 +566,18 @@ async function loadOffersBySearchId(
           }
         : null,
       mapLocation: mapLocationFor(listingDetail, offer.dealer_zip),
+      vehicleInteriorColor: (offer.vehicle_interior_color as string | null) ?? null,
+      sentToCustomerAt: (offer.sent_to_customer_at as string | null) ?? null,
+      goodUntil: (offer.good_until as string | null) ?? null,
+      noteToCustomer: (offer.note_to_customer as string | null) ?? null,
+      otd:
+        offer.otd_source && offer.otd_total_cents != null
+          ? { totalCents: offer.otd_total_cents as number, source: offer.otd_source as "dealer_quote" | "estimate" }
+          : null,
+      fees: feesByOfferId.get(offer.id) ?? [],
+      options: optionsByOfferId.get(offer.id) ?? [],
+      levrating: offer.dealer_alias_id ? levratingByAliasId.get(offer.dealer_alias_id as string) ?? null : null,
+      windowStickerUrl: windowStickerUrlByOfferId.get(offer.id) ?? null,
     });
     offersBySearchId.set(offer.customer_search_id, list);
   }

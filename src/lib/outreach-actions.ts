@@ -15,6 +15,8 @@ import { logNotificationEvent } from "./notifications";
 import { logAgentActivity } from "./agent-activity";
 import { resolveOfferDealerAlias } from "./offer-dealer-alias";
 import { zipDistanceMiles } from "./zip-distance";
+import { awaitingOtdQuote } from "./offer-accept-gate";
+import { DEPOSIT_BLOCKED_AWAITING_OTD } from "./offer-entry-draft-copy";
 import { destinationAddonRefusal } from "./offer-parse-normalize";
 
 export interface LogOfferResult {
@@ -745,7 +747,7 @@ export async function resolveAddonRemoval(
 async function getAcceptedOfferOrError(admin: ReturnType<typeof createAdminClient>, offerId: string) {
   const { data: offer, error } = await admin
     .from("qualifying_offers")
-    .select("id, status, customer_search_id, dealer_name")
+    .select("id, status, customer_search_id, dealer_name, sent_to_customer_at, otd_source")
     .eq("id", offerId)
     .maybeSingle();
 
@@ -755,7 +757,12 @@ async function getAcceptedOfferOrError(admin: ReturnType<typeof createAdminClien
   if (offer.status !== "customer_accepted") {
     return { ok: false as const, error: "This offer hasn't been accepted yet." };
   }
-  return { ok: true as const, customerSearchId: offer.customer_search_id, dealerName: offer.dealer_name };
+  return {
+    ok: true as const,
+    customerSearchId: offer.customer_search_id,
+    dealerName: offer.dealer_name,
+    awaitingOtd: awaitingOtdQuote({ sentToCustomerAt: offer.sent_to_customer_at as string | null, otdSource: offer.otd_source as string | null }),
+  };
 }
 
 export interface ConfirmAvailabilityResult {
@@ -839,6 +846,10 @@ export async function confirmDepositReceived(
   const offerCheck = await getAcceptedOfferOrError(admin, offerId);
   if (!offerCheck.ok) {
     return offerCheck;
+  }
+  // Accept gating (offer entry): no deposit on an offer still waiting for the dealer's out-the-door quote.
+  if (offerCheck.awaitingOtd) {
+    return { ok: false, error: DEPOSIT_BLOCKED_AWAITING_OTD };
   }
 
   const { error } = await admin.from("deal_progress").upsert(

@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "./supabase/admin";
 import { sendEmail } from "./email";
 import { formatLongDate } from "./dashboard-format";
+import { newOfferEmailOtdLine, otdArrivedBody, otdArrivedSubject } from "./offer-customer-copy";
 
 export type NotificationEventType =
   | "offer_logged"
@@ -9,7 +10,8 @@ export type NotificationEventType =
   | "deal_progress_update"
   | "search_purchased"
   | "offer_withdrawn"
-  | "guarantee_resolved";
+  | "guarantee_resolved"
+  | "otd_recorded";
 
 /**
  * Notification rules (2026-09-27, docs/plans/guarantee-progress-notifications-plan.md):
@@ -24,6 +26,7 @@ export const HIGHLIGHT_EVENT_TYPES: NotificationEventType[] = [
   "deal_progress_update",
   "search_purchased",
   "guarantee_resolved",
+  "otd_recorded",
 ];
 export const DAILY_UPDATE_EVENT_TYPES: NotificationEventType[] = ["offer_response_recorded"];
 
@@ -31,6 +34,15 @@ export interface OfferLoggedData {
   dealerName: string;
   offerPriceCents: number;
   msrpCents: number;
+  /** Offer entry: present on offers sent through the new flow, which carry an out-the-door line. */
+  sentFlow?: boolean;
+  otdTotalCents?: number | null;
+  otdSource?: "dealer_quote" | "estimate" | null;
+}
+/** Offer entry: the dealer's out-the-door quote was recorded on a sent offer (accept unblocked). */
+export interface OtdRecordedData {
+  dealerName: string;
+  otdTotalCents: number;
 }
 export interface OfferResponseRecordedData {
   dealerName: string;
@@ -58,7 +70,8 @@ type LogNotificationEventInput =
   | { customerSearchId: string; eventType: "deal_progress_update"; eventData: DealProgressUpdateData }
   | { customerSearchId: string; eventType: "search_purchased"; eventData: SearchPurchasedData }
   | { customerSearchId: string; eventType: "offer_withdrawn"; eventData: OfferWithdrawnData }
-  | { customerSearchId: string; eventType: "guarantee_resolved"; eventData: GuaranteeResolvedData };
+  | { customerSearchId: string; eventType: "guarantee_resolved"; eventData: GuaranteeResolvedData }
+  | { customerSearchId: string; eventType: "otd_recorded"; eventData: OtdRecordedData };
 
 // Link under every highlight email. Needs Brett's sign-off (2026-09-27).
 const HIGHLIGHT_LINK_LABEL = "Go to Your Deal";
@@ -88,7 +101,11 @@ export function composeEventEmail(
       const d = eventData as unknown as OfferLoggedData;
       return {
         subject: `A new offer just came in on your ${vehicle}`,
-        html: `<p>Good news — ${d.dealerName} sent over a new offer: ${formatPriceCents(d.offerPriceCents)}. Log into your account to review the details and decide what's next.</p>`,
+        html:
+          `<p>Good news — ${d.dealerName} sent over a new offer: ${formatPriceCents(d.offerPriceCents)}. Log into your account to review the details and decide what's next.</p>` +
+          (d.sentFlow
+            ? `<p>${newOfferEmailOtdLine(d.otdTotalCents != null ? formatPriceCents(d.otdTotalCents) : null, d.otdSource ?? null)}</p>`
+            : ""),
       };
     }
     case "offer_response_recorded": {
@@ -124,6 +141,13 @@ export function composeEventEmail(
       return {
         subject: "An update on your accepted offer",
         html: `<p>Your accepted offer from ${d.dealerName} was released, so you can choose another offer. Your agent will be in touch about what happened.</p>`,
+      };
+    }
+    case "otd_recorded": {
+      const d = eventData as unknown as OtdRecordedData;
+      return {
+        subject: otdArrivedSubject(d.dealerName),
+        html: `<p>${otdArrivedBody(d.dealerName, vehicle, formatPriceCents(d.otdTotalCents))}</p>`,
       };
     }
     case "guarantee_resolved": {
@@ -176,6 +200,10 @@ export function composeEventLine(
     case "guarantee_resolved": {
       const d = eventData as unknown as GuaranteeResolvedData;
       return d.outcome === "met" ? "Your LEVR guarantee was delivered" : "Your $699 is being refunded";
+    }
+    case "otd_recorded": {
+      const d = eventData as unknown as OtdRecordedData;
+      return `${d.dealerName} sent their out-the-door price: ${formatPriceCents(d.otdTotalCents)}`;
     }
   }
 }

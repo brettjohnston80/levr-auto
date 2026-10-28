@@ -299,7 +299,14 @@ export async function sendOfferFor(
   await logNotificationEvent({
     customerSearchId: searchId,
     eventType: "offer_logged",
-    eventData: { dealerName: sendPayload.dealer_name, offerPriceCents: payload.offer_price_cents, msrpCents: payload.msrp_cents },
+    eventData: {
+      dealerName: sendPayload.dealer_name,
+      offerPriceCents: payload.offer_price_cents,
+      msrpCents: payload.msrp_cents,
+      sentFlow: true,
+      otdTotalCents: payload.otd_source ? payload.otd_total_cents ?? null : null,
+      otdSource: payload.otd_source ?? null,
+    },
   });
 
   return {
