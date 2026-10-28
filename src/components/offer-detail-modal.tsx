@@ -1,5 +1,6 @@
 "use client";
 
+import { COMPARE_COPY } from "@/lib/offer-comparison-rows";
 import { OFFER_PRICE_EXCLUDES_FULL } from "@/lib/offer-price-copy";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -72,7 +73,7 @@ export function OfferDetailModal({
   offer,
   make,
   model,
-  isBestValue,
+  isLowestOtd,
   anotherOfferAccepted,
   onClose,
   onResponded,
@@ -80,7 +81,7 @@ export function OfferDetailModal({
   offer: DashboardOffer;
   make: string | null;
   model: string | null;
-  isBestValue: boolean;
+  isLowestOtd: boolean;
   anotherOfferAccepted: boolean;
   onClose: () => void;
   /** Tells the card behind the modal, so it shows the result straight away
@@ -199,9 +200,9 @@ export function OfferDetailModal({
                 {offer.dealerName}
               </h2>
               <span className="text-xs text-zinc-500">{levratingChip(offer.levrating)}</span>
-              {isBestValue && (
+              {isLowestOtd && (
                 <span className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-semibold text-zinc-950">
-                  Best value
+                  {COMPARE_COPY.badge}
                 </span>
               )}
               {offer.isBelowMsrp && (

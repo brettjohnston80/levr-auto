@@ -1,3 +1,4 @@
+import { COMPARE_COPY } from "@/lib/offer-comparison-rows";
 import { OfferCardActions } from "@/components/offer-card-actions";
 import { OFFER_PRICE_EXCLUDES_SHORT } from "@/lib/offer-price-copy";
 import { OfferPhoto } from "@/components/offer-photo";
@@ -43,7 +44,7 @@ export function OfferCard({
   offer,
   make,
   model,
-  isBestValue,
+  isLowestOtd,
   anotherOfferAccepted,
   initiallyOpen = false,
 }: {
@@ -52,7 +53,7 @@ export function OfferCard({
   offer: DashboardOffer;
   make: string | null;
   model: string | null;
-  isBestValue: boolean;
+  isLowestOtd: boolean;
   /** True while a different offer on this search is customer_accepted --
    *  a pending card then offers only Decline. Goes false again the moment
    *  an agent releases that offer, so Accept comes back. */
@@ -92,9 +93,9 @@ export function OfferCard({
               <span className="text-xs text-zinc-500">{levratingChip(offer.levrating)}</span>
             </span>
             <div className="flex flex-wrap gap-2">
-              {isBestValue && (
+              {isLowestOtd && (
                 <span className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-semibold text-zinc-950">
-                  Best value
+                  {COMPARE_COPY.badge}
                 </span>
               )}
               {offer.isBelowMsrp && (
@@ -183,7 +184,7 @@ export function OfferCard({
             offer={offer}
             make={make}
             model={model}
-            isBestValue={isBestValue}
+            isLowestOtd={isLowestOtd}
             anotherOfferAccepted={anotherOfferAccepted}
             initiallyOpen={initiallyOpen}
           />

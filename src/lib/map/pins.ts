@@ -13,6 +13,8 @@ export interface OfferPin {
   highlighted: boolean;
   dealerName: string;
   priceCents: number;
+  /** Offer entry (Chunk 10): the out-the-door figure, shown under the price. */
+  otd: { totalCents: number; source: "dealer_quote" | "estimate" } | null;
   distanceMiles: number | null;
   photoUrl: string | null;
 }

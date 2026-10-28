@@ -745,6 +745,9 @@ export interface DealDetails {
   guaranteeResolvedAt: string | null;
   guaranteeDeliveredAt: string | null;
   searchDeadline: string | null;
+  /** Offer comparison (offer entry, Chunk 10): the colours the customer ranked (not excluded),
+   *  so each offer's exterior and interior can show "✓" or "not your pick". */
+  customerPicks: { exterior: string[]; interior: string[] };
 }
 
 /**
@@ -783,17 +786,30 @@ export async function getDealDetails(searchId: string, customerId: string): Prom
   if (!search) return null;
 
   // Independent lookups, run together (2026-10-10).
-  const [{ data: surveyRow, error: surveyError }, { data: customerRow }, { data: zipRow }] = await Promise.all([
+  const [{ data: surveyRow, error: surveyError }, { data: customerRow }, { data: zipRow }, { data: pickRows, error: picksError }] = await Promise.all([
     supabase.from("post_deal_surveys").select("id, submitted_at").eq("customer_search_id", searchId).maybeSingle(),
     supabase.from("customers").select("notify_by_email").eq("id", customerId).maybeSingle(),
     search.zip
       ? supabase.from("zip_coordinates").select("latitude, longitude").eq("zip", search.zip).maybeSingle()
       : Promise.resolve({ data: null as { latitude: number; longitude: number } | null }),
+    supabase
+      .from("search_option_selections")
+      .select("category, selection")
+      .eq("search_id", searchId)
+      .in("category", ["exterior_color", "interior"])
+      .eq("excluded", false),
   ]);
 
   if (surveyError) {
     throw new Error(`Failed to load post-deal survey: ${surveyError.message}`);
   }
+  if (picksError) {
+    throw new Error(`Failed to load colour picks: ${picksError.message}`);
+  }
+  const customerPicks = {
+    exterior: (pickRows ?? []).filter((r) => r.category === "exterior_color").map((r) => r.selection as string),
+    interior: (pickRows ?? []).filter((r) => r.category === "interior").map((r) => r.selection as string),
+  };
   const customerLocation = zipRow ? { lat: zipRow.latitude as number, lng: zipRow.longitude as number } : null;
   const pickupTravel = travelFromColumns(
     search.pickup_travel_choice as string | null,
@@ -862,6 +878,7 @@ export async function getDealDetails(searchId: string, customerId: string): Prom
           search_deadline_at: (search.search_deadline_at as string | null) ?? null,
         }).toISOString()
       : null,
+    customerPicks,
   };
 }
 

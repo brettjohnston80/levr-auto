@@ -32,14 +32,14 @@ export function OfferCardActions({
   offer,
   make,
   model,
-  isBestValue,
+  isLowestOtd,
   anotherOfferAccepted,
   initiallyOpen = false,
 }: {
   offer: DashboardOffer;
   make: string | null;
   model: string | null;
-  isBestValue: boolean;
+  isLowestOtd: boolean;
   anotherOfferAccepted: boolean;
   /** Deep link (/account/deal?offer=...) -- open this offer's detail view on load. */
   initiallyOpen?: boolean;
@@ -147,7 +147,7 @@ export function OfferCardActions({
           offer={offer}
           make={make}
           model={model}
-          isBestValue={isBestValue}
+          isLowestOtd={isLowestOtd}
           anotherOfferAccepted={anotherOfferAccepted}
           onClose={close}
           onResponded={setResponded}

@@ -1,5 +1,6 @@
 "use client";
 
+import { otdLine } from "@/lib/offer-customer-copy";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useEffect, useRef, useState } from "react";
 import type { GeoJSONSource, Map as MapboxMap, MapLayerMouseEvent } from "mapbox-gl";
@@ -323,6 +324,7 @@ function PinPreview({ pin, onOpenOffer }: { pin: OfferPin; onOpenOffer: (offerId
       <div className="min-w-0">
         <p className="font-semibold text-white">{pin.dealerName}</p>
         <p className="text-sm text-zinc-300">{formatCents(pin.priceCents)}</p>
+        {pin.otd && <p className="text-xs text-zinc-300">{otdLine(formatCents(pin.otd.totalCents), pin.otd.source)}</p>}
         {pin.distanceMiles !== null && (
           <p className="text-xs text-zinc-400">{MAP_COPY.milesAway(roundMiles(pin.distanceMiles))}</p>
         )}

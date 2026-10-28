@@ -1,26 +1,25 @@
-import { valueCents } from "./offer-comparison";
-import { deliveryEstimatePending, totalPriceCents } from "./delivery-estimate";
+import { toCompareOffer, valueCents } from "./offer-comparison";
+import { compareByOtd } from "./offer-comparison-rows";
 import type { DashboardOffer } from "./customer-dashboard";
 
-// Your Deal sorting (2026-09-26). Default is best discount, so the offer
-// carrying the "Best value" badge (largest dollar savings) lands on top and
-// the badge and the order never disagree. Lives in the URL (?sort=), not
-// stored per customer.
+// Your Deal sorting (2026-09-26). Lives in the URL (?sort=), not stored per
+// customer. Offer entry (Chunk 10, approved 2026-10-25): the default is "Best
+// total price", which now sorts by out-the-door, so the "Lowest out-the-door"
+// badge and the top of the list agree.
 
 export type OfferSort = "discount" | "price" | "closest";
-export const DEFAULT_OFFER_SORT: OfferSort = "discount";
+export const DEFAULT_OFFER_SORT: OfferSort = "price";
 
 // Approved copy (2026-09-26).
 export const OFFER_SORT_LABEL = "Sort by";
 export const OFFER_SORT_OPTIONS: { value: OfferSort; label: string }[] = [
-  { value: "discount", label: "Best discount" },
-  // Renamed 2026-10-10: ranks on price plus a known delivery estimate.
   { value: "price", label: "Best total price" },
+  { value: "discount", label: "Best discount" },
   { value: "closest", label: "Closest" },
 ];
 
 export function parseOfferSort(value: string | undefined): OfferSort {
-  return value === "price" || value === "closest" ? value : DEFAULT_OFFER_SORT;
+  return value === "discount" || value === "closest" ? value : DEFAULT_OFFER_SORT;
 }
 
 // Status beats the sort: an accepted offer stays pinned first, declined and
@@ -31,7 +30,7 @@ function statusRank(status: string): number {
   return 2;
 }
 
-// Delivery-inclusive (2026-10-10), the same basis as the Best value badge.
+// Delivery-inclusive (2026-10-10).
 const savingsOf = (o: DashboardOffer) => valueCents(o);
 
 export function sortOffers(offers: DashboardOffer[], sort: OfferSort): DashboardOffer[] {
@@ -39,13 +38,10 @@ export function sortOffers(offers: DashboardOffer[], sort: OfferSort): Dashboard
     const s = statusRank(a.status) - statusRank(b.status);
     if (s !== 0) return s;
     if (sort === "price") {
-      // Offers still waiting on a delivery estimate have no real total yet,
-      // so they sort after every offer whose total is known (Brett,
-      // 2026-10-10); "Best discount" keeps them in place by price.
-      const pa = deliveryEstimatePending(a) ? 1 : 0;
-      const pb = deliveryEstimatePending(b) ? 1 : 0;
-      if (pa !== pb) return pa - pb;
-      return totalPriceCents(a) - totalPriceCents(b);
+      // By out-the-door, offers without one last; within each group, offers
+      // still waiting on a delivery estimate sort after the known ones (Brett,
+      // 2026-10-10), then price + delivery as before.
+      return compareByOtd(toCompareOffer(a), toCompareOffer(b));
     }
     if (sort === "closest") {
       // Unknown distances go last, then fall back to best discount.

@@ -6,7 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getDealDetails } from "@/lib/customer-dashboard";
 import { OfferCard } from "@/components/offer-card";
-import { bestValueOfferId, summarizeOfferPrices } from "@/lib/offer-comparison";
+import { lowestOtdOfferIdFor, summarizeOfferPrices, toCompareOffer } from "@/lib/offer-comparison";
+import { OfferComparison } from "@/components/offer-comparison";
 import { PurchasedCelebration } from "@/components/purchased-celebration";
 import { PostDealSurveyPrompt } from "@/components/post-deal-survey-prompt";
 import { SearchStatusTimeline } from "@/components/search-status-timeline";
@@ -204,7 +205,7 @@ export default async function DealPage({
   // of the old fixed "Actively searching…" line; other statuses keep theirs.
   const statusLine = deriveProgressNote(deal) ?? getStatusCopy(deal);
   const guaranteeTimeline = deriveGuaranteeTimeline(deal);
-  const bestOfferId = bestValueOfferId(deal.offers);
+  const bestOfferId = lowestOtdOfferIdFor(deal.offers);
   // At most one offer per search can be customer_accepted (2026-09-24), so
   // while one is, every pending card offers only Decline.
   const anOfferIsAccepted = deal.offers.some((o) => o.status === "customer_accepted");
@@ -248,6 +249,7 @@ export default async function DealPage({
             highlighted: o.status === "pending" && !!o.customerHighlightedAt,
             dealerName: o.dealerName,
             priceCents: o.offerPriceCents,
+            otd: o.otd,
             distanceMiles: o.distanceMiles,
             photoUrl: o.listingPhotoUrls[0] ?? o.photoUrl,
           })),
@@ -308,7 +310,7 @@ export default async function DealPage({
                   offer={acceptedOffer}
                   make={deal.make}
                   model={deal.model}
-                  isBestValue={acceptedOffer.id === bestOfferId}
+                  isLowestOtd={acceptedOffer.id === bestOfferId}
                   anotherOfferAccepted={false}
                   initiallyOpen={acceptedOffer.id === openOfferId}
                 />
@@ -384,6 +386,22 @@ export default async function DealPage({
                     ))}
                   </nav>
                 )}
+                {/* Offer entry, Chunk 10: shown with 2+ open offers. */}
+                {!showMap && (
+                  <OfferComparison
+                    picks={deal.customerPicks}
+                    columns={sortOffers(deal.offers, sort)
+                      .filter((o) => o.status === "pending" || o.status === "customer_accepted")
+                      .map((o) => ({
+                        offer: toCompareOffer(o),
+                        dealerName: o.dealerName,
+                        dealerCity: o.dealerCity,
+                        distanceMiles: o.distanceMiles,
+                        levrating: o.levrating,
+                        href: `/account/deal?searchId=${deal.searchId}&sort=${sort}&offer=${o.id}`,
+                      }))}
+                  />
+                )}
                 </div>
               </div>
               {/* Approved 2026-10-17 (Terry's feedback): offers are for the car they chose. */}
@@ -423,7 +441,7 @@ export default async function DealPage({
                       offer={offer}
                       make={deal.make}
                       model={deal.model}
-                      isBestValue={offer.id === bestOfferId}
+                      isLowestOtd={offer.id === bestOfferId}
                       anotherOfferAccepted={anOfferIsAccepted}
                       initiallyOpen={offer.id === openOfferId}
                     />
