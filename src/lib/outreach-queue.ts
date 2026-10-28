@@ -371,14 +371,17 @@ export interface OutreachSearch {
  * what's already been logged in `qualifying_offers` so nothing gets
  * duplicated.
  */
-export async function getOutreachQueue(): Promise<OutreachSearch[]> {
+export async function getOutreachQueue(
+  /** Offer entry (2026-10-27): one search, in any status, for the Log Offer page. Omitted: every searching search, as before. */
+  opts: { searchId?: string } = {},
+): Promise<OutreachSearch[]> {
   const supabase = createAdminClient();
 
-  const { data: searches, error: searchesError } = await supabase
+  let searchQuery = supabase
     .from("customer_searches")
-    .select("id, make, model, model_year, trim, colors, zip, customer_id, pickup_travel_choice, pickup_travel_miles")
-    .eq("search_status", "searching")
-    .order("created_at", { ascending: true });
+    .select("id, make, model, model_year, trim, colors, zip, customer_id, pickup_travel_choice, pickup_travel_miles");
+  searchQuery = opts.searchId ? searchQuery.eq("id", opts.searchId) : searchQuery.eq("search_status", "searching");
+  const { data: searches, error: searchesError } = await searchQuery.order("created_at", { ascending: true });
 
   if (searchesError) {
     throw new Error(`Failed to load outreach queue: ${searchesError.message}`);

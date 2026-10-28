@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:configurator": "node --test tests/configurator-mapping.test.mjs tests/marketcheck-names.test.mjs tests/cab-bed.test.mjs tests/body-split.test.mjs tests/dealer-installed.test.mjs tests/offer-parser.test.mjs tests/sticker-check.test.mjs tests/offer-pricing.test.mjs"
+    "test:configurator": "node --test tests/configurator-mapping.test.mjs tests/marketcheck-names.test.mjs tests/cab-bed.test.mjs tests/body-split.test.mjs tests/dealer-installed.test.mjs tests/offer-parser.test.mjs tests/sticker-check.test.mjs tests/offer-pricing.test.mjs tests/offer-breakdown.test.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",

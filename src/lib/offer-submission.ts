@@ -10,6 +10,7 @@ import { destinationAddonRefusal } from "./offer-parse-normalize";
 import { amountProblems, checkOutTheDoorTotal, type OfferFeeKind } from "./offer-pricing";
 import { offerWarnings, unconfirmedWarnings, type ExistingOffer, type OfferWarning } from "./offer-warnings";
 import { checkVin } from "./vin-check";
+import { randomUUID } from "crypto";
 
 /**
  * Offer entry, Chunk 3: save a draft, send it to the customer, discard a dealer's submission.
@@ -343,5 +344,22 @@ export async function discardSubmissionFor(agentId: string, submissionId: string
     { searchId: sub.customer_search_id as string, customerId: (search?.customer_id as string | undefined) ?? null },
     { submission_id: submissionId, reason: why },
   );
+  return { ok: true };
+}
+
+// ---- Offer sheet -------------------------------------------------------------------------
+
+/** Stores a sent offer's quote PDF as its offer sheet (as Log Offer does). Never undoes the offer. */
+export async function attachOfferSheetFor(offerId: string, pdf: File): Promise<{ ok: true } | { ok: false; error: string }> {
+  const admin = createAdminClient();
+  const { data: offer } = await admin.from("qualifying_offers").select("id, sent_by_agent_id").eq("id", offerId).maybeSingle();
+  if (!offer) return { ok: false, error: "That offer no longer exists." };
+  const path = `${offerId}/${randomUUID()}-${pdf.name}`;
+  const { error: uploadError } = await admin.storage.from("documents").upload(path, pdf, { contentType: pdf.type || undefined });
+  if (uploadError) return { ok: false, error: `Offer sent, but the quote PDF failed to upload: ${uploadError.message}.` };
+  const { error: docError } = await admin
+    .from("documents")
+    .insert({ qualifying_offer_id: offerId, type: "offer_sheet", storage_path: path, uploaded_at: new Date().toISOString() });
+  if (docError) return { ok: false, error: `Offer sent, but the quote PDF record failed to save: ${docError.message}.` };
   return { ok: true };
 }

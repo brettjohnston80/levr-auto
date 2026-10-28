@@ -41,8 +41,10 @@ export type OfferWarning =
 /** An offer the customer can still act on: not declined and not withdrawn. */
 const OPEN = new Set(["pending", "customer_accepted"]);
 
+// The same dealer record, or the same name. A name typed without a city becomes its own dealer
+// record, so ids alone miss the duplicate; this is a confirm tick, so erring towards asking is fine.
 function sameDealer(a: { dealerAliasId: string | null; dealerName: string }, b: ExistingOffer): boolean {
-  if (a.dealerAliasId && b.dealerAliasId) return a.dealerAliasId === b.dealerAliasId;
+  if (a.dealerAliasId && b.dealerAliasId && a.dealerAliasId === b.dealerAliasId) return true;
   return a.dealerName.trim().toLowerCase() === b.dealerName.trim().toLowerCase();
 }
 

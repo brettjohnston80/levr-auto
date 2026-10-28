@@ -1,0 +1,10 @@
+[
+  {
+    "make": "Tesla",
+    "fee": "Order fee",
+    "amount": 250,
+    "refundable": false,
+    "source": "tesla.com configurator data",
+    "since": "2026-10-25"
+  }
+]

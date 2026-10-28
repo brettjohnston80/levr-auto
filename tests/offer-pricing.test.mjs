@@ -190,8 +190,11 @@ describe("send warnings", () => {
     assert.deepEqual(W.offerWarnings(base, [other({ dealerAliasId: "alias-1", status: "customer_declined" })]), []);
     assert.deepEqual(W.offerWarnings(base, [other({ dealerAliasId: "alias-1", status: "withdrawn" })]), []);
   });
-  it("trusts dealer ids over names when both offers have one", () => {
-    assert.deepEqual(W.offerWarnings(base, [other({ dealerAliasId: "alias-9", dealerName: "Sunrise Toyota" })]), []);
+  it("warns on the same name even when the dealer records differ (a name typed without a city)", () => {
+    assert.equal(W.offerWarnings(base, [other({ dealerAliasId: "alias-9", dealerName: "Sunrise Toyota" })])[0].code, "duplicate_dealer");
+  });
+  it("doesn't warn for a different dealer", () => {
+    assert.deepEqual(W.offerWarnings(base, [other({ dealerAliasId: "alias-9", dealerName: "Lakeside Toyota" })]), []);
   });
   it("warns when the search isn't searching", () => {
     for (const s of ["purchased", "cancelled", "switched", "paused"]) {

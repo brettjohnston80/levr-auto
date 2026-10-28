@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import { RefreshInventoryButton } from "@/components/refresh-inventory-button";
 import { hasRole, requireAgent } from "@/lib/agent-auth";
@@ -22,7 +23,6 @@ import {
   type OutreachTrimPreference,
 } from "@/lib/outreach-queue";
 import { ResolveNotificationCallbackButton } from "@/components/resolve-notification-callback-button";
-import { LogOfferForm } from "@/components/log-offer-form";
 import { MarkSoldButton } from "@/components/mark-sold-button";
 import { MarkPurchasedButton } from "@/components/mark-purchased-button";
 import { WithdrawAcceptedOfferButton } from "@/components/withdraw-accepted-offer-button";
@@ -1148,14 +1148,12 @@ export default async function OutreachQueuePage() {
                     )}
                   </div>
 
-                  <LogOfferForm
-                    searchId={search.id}
-                    listings={search.listings}
-                    stickerRanges={search.stickerRanges}
-                    dealerInstalledItems={search.selections
-                      .filter((sel) => sel.dealerInstalled && !sel.excluded)
-                      .map((sel) => displayOptionName(sel.selection))}
-                  />
+                  <Link
+                    href={`/internal/outreach/${search.id}/offer`}
+                    className="mt-4 inline-block rounded-lg border border-white/10 px-4 py-2 text-sm text-white hover:bg-white/5"
+                  >
+                    Log an offer
+                  </Link>
                   <AgentSwitchSearchForm
                     searchId={search.id}
                     makeModelOptions={makeModelOptions}
