@@ -382,6 +382,13 @@ grant execute on function public.claim_dealer_offer_request(text, jsonb) to serv
 commit;
 ```
 
+### 3.3b Migration OE-4: recording the dealer's out-the-door quote (Chunk 9, applied by Brett 2026-10-27)
+
+- `notification_events` allows `otd_recorded` (the "Your out-the-door price from {dealer} is in" email).
+- `record_offer_otd()` records the dealer's quote on a sent offer: it replaces the fee lines, checks the total against the lines (within $1), stamps the quote and writes `offer_otd_recorded`, in one transaction. It never changes the price or the sticker.
+- **A recorded quote can't be recorded again (Brett, 2026-10-27).** If a dealer corrects a figure afterwards, the agent withdraws the offer and sends a corrected one.
+- **Later item:** editing a recorded out-the-door quote (with its own history), if withdrawing and re-sending proves clumsy in practice.
+
 ### 3.4 Migration OE-3: customer state for tax estimates
 
 ```sql
