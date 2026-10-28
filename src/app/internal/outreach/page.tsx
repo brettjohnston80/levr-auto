@@ -33,6 +33,8 @@ import { threadIsOpen } from "@/lib/offer-messages-shared";
 import { handoffAgentLabel, roundMiles, travelAgentLabel } from "@/lib/pickup-travel";
 import { MarkOfferActivityReviewedButton } from "@/components/mark-offer-activity-reviewed-button";
 import { AddOfferAddonForm } from "@/components/add-offer-addon-form";
+import { RecordOtdPanel } from "@/components/record-otd-panel";
+import { RECORD_OTD_COPY } from "@/lib/offer-entry-draft-copy";
 import { ResolveAddonRemovalForm } from "@/components/resolve-addon-removal-form";
 import { ConfirmAvailabilityButton } from "@/components/confirm-availability-button";
 import { ConfirmDepositForm } from "@/components/confirm-deposit-form";
@@ -1021,6 +1023,20 @@ export default async function OutreachQueuePage() {
                                   </li>
                                 ))}
                               </ul>
+                            )}
+                            {offer.sentToCustomerAt && (offer.status === "pending" || offer.status === "customer_accepted") && (
+                              <div className="ml-4">
+                                {offer.otdSource === "dealer_quote" && offer.otdTotalCents != null ? (
+                                  <p className="mt-1 text-xs text-zinc-400">{RECORD_OTD_COPY.recordedLine(`$${(offer.otdTotalCents / 100).toLocaleString()}`)}</p>
+                                ) : (
+                                  <RecordOtdPanel
+                                    offerId={offer.id}
+                                    offerPriceCents={offer.offerPriceCents}
+                                    addonsCents={offer.addons.map((a) => a.amountCents)}
+                                    taxPaidAtRegistration={offer.taxPaidAtRegistration}
+                                  />
+                                )}
+                              </div>
                             )}
                             <div className="ml-4">
                               <AddOfferAddonForm offerId={offer.id} />

@@ -370,3 +370,47 @@ export async function attachOfferSheetFor(offerId: string, pdf: File): Promise<{
   if (docError) return { ok: false, error: `Offer sent, but the quote PDF record failed to save: ${docError.message}.` };
   return { ok: true };
 }
+
+// ---- Record the dealer's out-the-door quote on a sent offer (OE-4) ------------------------
+
+export type RecordOtdResult = { ok: true; customerFirstName: string | null } | { ok: false; code: string };
+
+/**
+ * Records the dealer's out-the-door quote on an offer sent without one, which unblocks the
+ * customer's accept. The fee lines are replaced; the price and sticker never change. The
+ * database function checks the total against the lines; the email follows the commit.
+ */
+export async function recordOtdFor(
+  agentId: string,
+  offerId: string,
+  fees: OfferPayload["fees"],
+  otdTotalCents: number,
+  otherFeesNone: boolean,
+): Promise<RecordOtdResult> {
+  if (!Number.isInteger(otdTotalCents) || otdTotalCents <= 0) return { ok: false, code: "amounts_invalid" };
+  if (fees.some((f) => !Number.isInteger(f.amount_cents) || f.amount_cents < 0 || (f.kind === "other" && !f.label?.trim()))) {
+    return { ok: false, code: "amounts_invalid" };
+  }
+  const admin = createAdminClient();
+  const { error } = await admin.rpc("record_offer_otd", {
+    p_offer_id: offerId,
+    p_agent_id: agentId,
+    p_fees: fees,
+    p_otd_total_cents: otdTotalCents,
+    p_other_fees_none: otherFeesNone,
+  });
+  if (error) {
+    const code = /^[a-z_]+$/.test(error.message) ? error.message : "send_failed";
+    if (code === "send_failed") console.error("recordOtd: record_offer_otd failed", error.message);
+    return { ok: false, code };
+  }
+  const { data: offer } = await admin.from("qualifying_offers").select("customer_search_id, dealer_name").eq("id", offerId).single();
+  await logNotificationEvent({
+    customerSearchId: offer!.customer_search_id as string,
+    eventType: "otd_recorded",
+    eventData: { dealerName: offer!.dealer_name as string, otdTotalCents },
+  });
+  const { data: search } = await admin.from("customer_searches").select("customer_id").eq("id", offer!.customer_search_id).single();
+  const { data: customer } = await admin.from("customers").select("first_name").eq("id", search!.customer_id).maybeSingle();
+  return { ok: true, customerFirstName: (customer?.first_name as string | null) ?? null };
+}

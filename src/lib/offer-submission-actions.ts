@@ -6,6 +6,8 @@ import { SEND_REFUSALS } from "./offer-entry-copy";
 import {
   attachOfferSheetFor,
   discardSubmissionFor,
+  recordOtdFor,
+  type RecordOtdResult,
   saveOfferDraftFor,
   sendOfferFor,
   type DiscardResult,
@@ -53,4 +55,17 @@ export async function attachOfferSheet(formData: FormData): Promise<{ ok: true }
   const pdf = formData.get("pdf");
   if (!offerId || !(pdf instanceof File) || pdf.size === 0) return { ok: false, error: "No PDF to attach." };
   return attachOfferSheetFor(offerId, pdf);
+}
+
+export async function recordOfferOtd(
+  offerId: string,
+  fees: OfferPayload["fees"],
+  otdTotalCents: number,
+  otherFeesNone: boolean,
+): Promise<RecordOtdResult> {
+  const agent = await getAuthorizedAgent();
+  if (!agent) return { ok: false, code: "not_authorized" };
+  const result = await recordOtdFor(agent.id, offerId, fees, otdTotalCents, otherFeesNone);
+  if (result.ok) revalidatePath("/internal/outreach");
+  return result;
 }

@@ -314,6 +314,11 @@ export interface OutreachOffer {
   addons: OutreachAddon[];
   dealProgress: OutreachDealProgress | null;
   serviceAgreementSignedAt: string | null;
+  /** Offer entry: set when sent through the new flow (accept waits for the dealer's out-the-door quote). */
+  sentToCustomerAt: string | null;
+  otdSource: "dealer_quote" | "estimate" | null;
+  otdTotalCents: number | null;
+  taxPaidAtRegistration: boolean;
 }
 
 export interface OutreachSearch {
@@ -425,7 +430,7 @@ export async function getOutreachQueue(
         supabase
           .from("qualifying_offers")
           .select(
-            "id, customer_search_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at, vehicle_sold_at, withdrawn_at, withdrawn_by_agent_id, withdrawal_reason, customer_highlighted_at, handoff_method, dealer_zip, delivery_estimate_status, delivery_estimate_cents, delivery_estimate_note, delivery_estimate_requested_by"
+            "id, customer_search_id, dealer_name, offer_price_cents, msrp_cents, is_below_msrp, status, received_at, delivered_at, customer_responded_at, vehicle_sold_at, withdrawn_at, withdrawn_by_agent_id, withdrawal_reason, customer_highlighted_at, handoff_method, dealer_zip, delivery_estimate_status, delivery_estimate_cents, delivery_estimate_note, delivery_estimate_requested_by, sent_to_customer_at, otd_source, otd_total_cents, tax_paid_at_registration"
           )
           .in("customer_search_id", ids)
           .order("id")
@@ -778,6 +783,10 @@ export async function getOutreachQueue(
       addons: addonsByOfferId.get(offer.id) ?? [],
       dealProgress: dealProgressByOfferId.get(offer.id) ?? null,
       serviceAgreementSignedAt: serviceAgreementSignedAtByOfferId.get(offer.id) ?? null,
+      sentToCustomerAt: (offer.sent_to_customer_at as string | null) ?? null,
+      otdSource: (offer.otd_source as "dealer_quote" | "estimate" | null) ?? null,
+      otdTotalCents: (offer.otd_total_cents as number | null) ?? null,
+      taxPaidAtRegistration: (offer.tax_paid_at_registration as boolean | null) ?? false,
     });
     offersBySearchId.set(offer.customer_search_id, list);
   }
