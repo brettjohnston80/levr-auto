@@ -77,7 +77,7 @@ export async function assessSearch(searchId: string): Promise<AssessmentOutcome 
 
   const { data: offers, error: offersError } = await admin
     .from("qualifying_offers")
-    .select("is_below_msrp, delivered_at, customer_responded_at, vehicle_sold_at")
+    .select("is_below_msrp, delivered_at, customer_responded_at, vehicle_sold_at, status, withdrawal_reason_code")
     .eq("customer_search_id", searchId);
 
   if (offersError) {
@@ -91,6 +91,8 @@ export async function assessSearch(searchId: string): Promise<AssessmentOutcome 
         deliveredAt: offer.delivered_at,
         customerRespondedAt: offer.customer_responded_at,
         vehicleSoldAt: offer.vehicle_sold_at,
+        status: offer.status,
+        withdrawalReasonCode: offer.withdrawal_reason_code,
       }) === "counts"
   );
 

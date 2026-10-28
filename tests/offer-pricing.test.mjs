@@ -92,8 +92,46 @@ describe("guarantee price test", () => {
       deliveredAt: "2026-10-01T00:00:00Z",
       customerRespondedAt: null,
       vehicleSoldAt: null,
+      status: "pending",
+      withdrawalReasonCode: null,
     });
     assert.equal(verdict, "counts");
+  });
+});
+
+describe("withdrawn offers and the guarantee (Brett, 2026-10-27)", () => {
+  const delivered = "2026-10-01T00:00:00Z";
+  const base = { isBelowMsrp: true, deliveredAt: delivered, customerRespondedAt: null, vehicleSoldAt: null };
+  const hrs = (h) => new Date(Date.parse(delivered) + h * 3_600_000).toISOString();
+  it("a pending offer below the sticker counts (unchanged)", () => {
+    assert.equal(G.evaluateOfferGuaranteeContribution({ ...base, status: "pending", withdrawalReasonCode: null }), "counts");
+  });
+  for (const code of ["dealer_pulled", "correcting", "other", null]) {
+    it(`withdrawn for ${code ?? "no recorded reason"} doesn't count`, () => {
+      assert.equal(G.evaluateOfferGuaranteeContribution({ ...base, status: "withdrawn", withdrawalReasonCode: code }), "does_not_count");
+    });
+  }
+  it("accepted then released (not car sold) doesn't count", () => {
+    const o = { ...base, customerRespondedAt: hrs(2), status: "withdrawn", withdrawalReasonCode: "dealer_pulled" };
+    assert.equal(G.evaluateOfferGuaranteeContribution(o), "does_not_count");
+  });
+  it("car sold, the customer didn't respond within 24h: counts (the sold rule)", () => {
+    const o = { ...base, vehicleSoldAt: hrs(30), status: "withdrawn", withdrawalReasonCode: "car_sold" };
+    assert.equal(G.evaluateOfferGuaranteeContribution(o), "counts");
+  });
+  it("car sold, the customer responded within 24h: doesn't count (the sold rule)", () => {
+    const o = { ...base, customerRespondedAt: hrs(5), vehicleSoldAt: hrs(30), status: "withdrawn", withdrawalReasonCode: "car_sold" };
+    assert.equal(G.evaluateOfferGuaranteeContribution(o), "does_not_count");
+  });
+  it("car sold, responded after 24h: counts", () => {
+    const o = { ...base, customerRespondedAt: hrs(25), vehicleSoldAt: hrs(30), status: "withdrawn", withdrawalReasonCode: "car_sold" };
+    assert.equal(G.evaluateOfferGuaranteeContribution(o), "counts");
+  });
+  it("a withdrawn offer above the sticker is still not qualifying", () => {
+    assert.equal(G.evaluateOfferGuaranteeContribution({ ...base, isBelowMsrp: false, status: "withdrawn", withdrawalReasonCode: "car_sold" }), "not_qualifying");
+  });
+  it("a withdrawn offer never shown to the customer is not yet delivered", () => {
+    assert.equal(G.evaluateOfferGuaranteeContribution({ ...base, deliveredAt: null, status: "withdrawn", withdrawalReasonCode: "correcting" }), "not_yet_delivered");
   });
 });
 

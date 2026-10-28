@@ -819,7 +819,7 @@ export async function getDealDetails(searchId: string, customerId: string): Prom
   // vehicle_sold_at is deliberately not on DashboardOffer, so it's read here.
   const { data: guaranteeRows, error: guaranteeError } = await supabase
     .from("qualifying_offers")
-    .select("is_below_msrp, delivered_at, customer_responded_at, vehicle_sold_at")
+    .select("is_below_msrp, delivered_at, customer_responded_at, vehicle_sold_at, status, withdrawal_reason_code")
     .eq("customer_search_id", searchId);
   if (guaranteeError) {
     throw new Error(`Failed to load offers for the guarantee: ${guaranteeError.message}`);
@@ -832,6 +832,8 @@ export async function getDealDetails(searchId: string, customerId: string): Prom
           deliveredAt: o.delivered_at,
           customerRespondedAt: o.customer_responded_at,
           vehicleSoldAt: o.vehicle_sold_at,
+          status: o.status,
+          withdrawalReasonCode: o.withdrawal_reason_code,
         }) === "counts",
     )
     .map((o) => o.delivered_at as string)
