@@ -260,6 +260,13 @@ Notes:
 
 ### 3.3 Migration OE-2: submissions, dealer links, attempts, functions
 
+**Applied 2026-10-27 (Brett), with three changes to the draft below that he approved** (the applied text is `supabase/migrations/20261027120000_oe2_offer_submissions.sql` on the `offer-entry` branch; before check 9/9, after check as expected, rolled-back test 21/21):
+1. `offer_submissions.sent_qualifying_offer_id` is `on delete cascade`, so test resets and cleanups that delete offers before searches aren't blocked; a sent submission still can't be deleted while its offer exists.
+2. `dealer_offer_requests.listing_id` and `dealer_alias_id` are `on delete set null`, like `dealer_contacts.listing_id`.
+3. `revoke all` from anon, authenticated and service_role, then the exact grants, so service_role holds only the listed privileges before or after Supabase's 2026-10-30 change.
+
+`send_offer_submission` moved to its own migration, OE-2b (Chunk 3, `docs/sql/oe2b/` on the branch).
+
 ```sql
 -- OE-2 (draft).
 begin;
