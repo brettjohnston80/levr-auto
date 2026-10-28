@@ -45,11 +45,12 @@ export const OFFER_ENTRY_DRAFT_COPY = {
   } as Record<string, string>,
 };
 
-/** DRAFT (Chunk 9), agent-facing: deposit refused on an offer without the dealer's out-the-door quote. */
+/** APPROVED (Brett, 2026-10-27; Chunk 9), agent-facing: deposit refused on an offer without the dealer's out-the-door quote. */
 export const DEPOSIT_BLOCKED_AWAITING_OTD =
   "Record the dealer's out-the-door quote before confirming a deposit. The customer can't accept this offer until then.";
 
-/** DRAFT (Chunk 9), agent-facing: the Record out-the-door panel. */
+/** APPROVED (Brett, 2026-10-27; Chunk 9), agent-facing: the Record out-the-door panel. The
+ *  "already recorded" line was revised the same day for the withdraw step (OE-5). */
 export const RECORD_OTD_COPY = {
   waiting: "Waiting for the dealer's out-the-door quote. The customer can't accept until it's recorded.",
   totalLabel: "Out-the-door total (dealer's quote)",
@@ -58,7 +59,8 @@ export const RECORD_OTD_COPY = {
   refusals: {
     offer_not_sent: "This offer was logged before out-the-door pricing, so there's nothing to record.",
     offer_not_open: "This offer isn't open any more.",
-    otd_already_recorded: "The dealer's out-the-door quote is already recorded and can't be changed. To correct it, send a corrected offer.",
+    otd_already_recorded:
+      "The dealer's out-the-door quote is already recorded and can't be changed. To correct it, withdraw this offer and send a corrected one.",
     otd_mismatch: "The out-the-door total doesn't match the lines (within $1). Check for a missing or extra line.",
   } as Record<string, string>,
 };
