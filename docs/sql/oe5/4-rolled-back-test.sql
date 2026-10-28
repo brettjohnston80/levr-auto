@@ -1,4 +1,4 @@
--- OE-5 ROLLED-BACK TEST (revised). Run after the migration. One transaction ending in ROLLBACK.
+-- OE-5 ROLLED-BACK TEST. Run after the migration. One transaction ending in ROLLBACK.
 -- Scratch login on a test address; the agent is the persistent test admin (never Brett).
 -- Expected: every row pass = true.
 begin;
@@ -10,7 +10,8 @@ declare
   v_agent uuid;
   v_off uuid;
   v_search uuid;
-  v_a uuid; v_b uuid; v_c uuid; v_acc uuid;
+  v_pending uuid;
+  v_accepted uuid;
   v text;
 begin
   select id into v_agent from public.agents where email = 'claude-verify-admin@levrauto-test.invalid';
@@ -20,77 +21,48 @@ begin
   insert into public.customer_searches (customer_id, make, model, model_year) values (v_uid, 'Toyota', 'Camry', 2026)
   returning id into v_search;
   insert into public.qualifying_offers (customer_search_id, dealer_name, offer_price_cents, msrp_cents, delivered_at)
-  values (v_search, 'CLAUDE VERIFY OE5 A', 2810000, 3089500, now()) returning id into v_a;
-  insert into public.qualifying_offers (customer_search_id, dealer_name, offer_price_cents, msrp_cents, delivered_at)
-  values (v_search, 'CLAUDE VERIFY OE5 B', 2820000, 3089500, now()) returning id into v_b;
-  insert into public.qualifying_offers (customer_search_id, dealer_name, offer_price_cents, msrp_cents, delivered_at)
-  values (v_search, 'CLAUDE VERIFY OE5 C', 2830000, 3089500, now()) returning id into v_c;
+  values (v_search, 'CLAUDE VERIFY OE5 A', 2810000, 3089500, now()) returning id into v_pending;
   insert into public.qualifying_offers (customer_search_id, dealer_name, offer_price_cents, msrp_cents, delivered_at, status, customer_responded_at)
-  values (v_search, 'CLAUDE VERIFY OE5 D', 2850000, 3089500, now(), 'customer_accepted', now()) returning id into v_acc;
+  values (v_search, 'CLAUDE VERIFY OE5 B', 2850000, 3089500, now(), 'customer_accepted', now()) returning id into v_accepted;
 
   -- 1-2. Customers' roles can't run it.
-  begin execute 'set local role anon'; perform public.withdraw_pending_offer(v_a, v_agent, 'correcting', null); execute 'reset role'; v := 'allowed';
+  begin execute 'set local role anon'; perform public.withdraw_pending_offer(v_pending, v_agent, 'x'); execute 'reset role'; v := 'allowed';
   exception when insufficient_privilege then v := 'refused'; end;
   insert into oe5_test values (1, 'anon runs withdraw_pending_offer', 'refused', v);
-  begin execute 'set local role authenticated'; perform public.withdraw_pending_offer(v_a, v_agent, 'correcting', null); execute 'reset role'; v := 'allowed';
+  begin execute 'set local role authenticated'; perform public.withdraw_pending_offer(v_pending, v_agent, 'x'); execute 'reset role'; v := 'allowed';
   exception when insufficient_privilege then v := 'refused'; end;
   insert into oe5_test values (2, 'authenticated runs withdraw_pending_offer', 'refused', v);
 
-  -- 3-7. Refusals.
-  begin perform public.withdraw_pending_offer(v_a, v_agent, 'because', null); v := 'withdrawn';
+  -- 3-6. Refusals.
+  begin perform public.withdraw_pending_offer(v_pending, v_agent, '   '); v := 'withdrawn';
   exception when others then v := sqlerrm; end;
-  insert into oe5_test values (3, 'an unknown reason', 'reason_code_invalid', v);
-  begin perform public.withdraw_pending_offer(v_a, v_agent, 'other', '   '); v := 'withdrawn';
+  insert into oe5_test values (3, 'no reason', 'reason_required', v);
+  begin perform public.withdraw_pending_offer(v_accepted, v_agent, 'test'); v := 'withdrawn';
   exception when others then v := sqlerrm; end;
-  insert into oe5_test values (4, '"Other" without a note', 'note_required', v);
-  begin perform public.withdraw_pending_offer(v_acc, v_agent, 'correcting', null); v := 'withdrawn';
-  exception when others then v := sqlerrm; end;
-  insert into oe5_test values (5, 'an accepted offer (that is a release, not this)', 'offer_not_pending', v);
+  insert into oe5_test values (4, 'an accepted offer (that is a release, not this)', 'offer_not_pending', v);
   begin
     insert into public.agents (email, name, active, in_rotation) values ('claude-verify-oe5-off@levrauto-test.invalid', 'CLAUDE VERIFY OFF', false, false)
     returning id into v_off;
-    perform public.withdraw_pending_offer(v_a, v_off, 'correcting', null); v := 'withdrawn';
+    perform public.withdraw_pending_offer(v_pending, v_off, 'test'); v := 'withdrawn';
   exception when others then v := sqlerrm; end;
-  insert into oe5_test values (6, 'an inactive agent', 'agent_not_active', v);
-  select status into v from public.qualifying_offers where id = v_a;
-  insert into oe5_test values (7, 'after the refusals the offer is still pending', 'pending', v);
+  insert into oe5_test values (5, 'an inactive agent', 'agent_not_active', v);
+  select status into v from public.qualifying_offers where id = v_pending;
+  insert into oe5_test values (6, 'after the refusals the offer is still pending', 'pending', v);
 
-  -- 8-12. Good withdrawals.
-  begin perform public.withdraw_pending_offer(v_a, v_agent, 'correcting', null); v := 'withdrawn';
+  -- 7-9. A good withdrawal.
+  begin perform public.withdraw_pending_offer(v_pending, v_agent, '  Dealer corrected the doc fee  '); v := 'withdrawn';
   exception when others then v := 'error: ' || sqlerrm; end;
-  select v || '/' || q.withdrawal_reason_code || '/' || q.withdrawal_reason || '/' || (q.vehicle_sold_at is null)::text || '/' || (q.delivered_at is not null)::text
-    into v from public.qualifying_offers q where q.id = v_a;
-  insert into oe5_test values (8, '"Correcting the offer": label as the reason, not marked sold, delivered kept',
-                               'withdrawn/correcting/Correcting the offer/true/true', v);
-
-  begin perform public.withdraw_pending_offer(v_b, v_agent, 'car_sold', '  Sold to a walk-in  '); v := 'withdrawn';
-  exception when others then v := 'error: ' || sqlerrm; end;
-  select v || '/' || q.withdrawal_reason_code || '/' || q.withdrawal_reason || '/' || (q.vehicle_sold_at is not null)::text
-    into v from public.qualifying_offers q where q.id = v_b;
-  insert into oe5_test values (9, '"Car sold": note kept, vehicle_sold_at set', 'withdrawn/car_sold/Sold to a walk-in/true', v);
-
-  begin perform public.withdraw_pending_offer(v_c, v_agent, 'other', 'Wrong VIN on the quote'); v := 'withdrawn';
-  exception when others then v := 'error: ' || sqlerrm; end;
-  select v || '/' || q.withdrawal_reason_code || '/' || q.withdrawal_reason into v from public.qualifying_offers q where q.id = v_c;
-  insert into oe5_test values (10, '"Other" with a note', 'withdrawn/other/Wrong VIN on the quote', v);
-
+  insert into oe5_test values (7, 'a pending offer with a reason', 'withdrawn', v);
+  select q.status || '/' || (q.withdrawn_by_agent_id = v_agent)::text || '/' || q.withdrawal_reason || '/' || (q.delivered_at is not null)::text
+    into v from public.qualifying_offers q where q.id = v_pending;
+  insert into oe5_test values (8, 'withdrawn, by the agent, reason trimmed, delivered_at kept', 'withdrawn/true/Dealer corrected the doc fee/true', v);
   set constraints all immediate;
-  select count(*)::text into v from public.agent_activity_log where qualifying_offer_id in (v_a, v_b, v_c) and action = 'offer_withdrawn_pending';
-  insert into oe5_test values (11, 'one offer_withdrawn_pending activity row each', '3', v);
+  select count(*)::text into v from public.agent_activity_log where qualifying_offer_id = v_pending and action = 'offer_withdrawn_pending';
+  insert into oe5_test values (9, 'one offer_withdrawn_pending activity row', '1', v);
 
-  begin perform public.withdraw_pending_offer(v_a, v_agent, 'correcting', null); v := 'withdrawn again';
+  begin perform public.withdraw_pending_offer(v_pending, v_agent, 'again'); v := 'withdrawn again';
   exception when others then v := sqlerrm; end;
-  insert into oe5_test values (12, 'withdrawing it a second time', 'offer_not_pending', v);
-
-  -- 13. Today's live release (main) still works: a withdrawal written without a reason code.
-  begin update public.qualifying_offers set status = 'withdrawn', withdrawn_at = now(), withdrawn_by_agent_id = v_agent,
-          withdrawal_reason = 'Deal fell through' where id = v_acc; v := 'allowed';
-  exception when others then v := 'refused: ' || sqlerrm; end;
-  insert into oe5_test values (13, 'the live release path (no reason code) still works', 'allowed', v);
-
-  begin update public.qualifying_offers set withdrawal_reason_code = 'because' where id = v_acc; v := 'allowed';
-  exception when check_violation then v := 'refused'; end;
-  insert into oe5_test values (14, 'an unknown reason code on the column', 'refused', v);
+  insert into oe5_test values (10, 'withdrawing it a second time', 'offer_not_pending', v);
 end $$;
 
 set constraints all immediate;
