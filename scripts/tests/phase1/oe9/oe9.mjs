@@ -146,7 +146,11 @@ try {
   // First a wrong total, to see the mismatch line.
   await ap.focus('input[aria-label="Out-the-door total (dealer\'s quote)"]'); await ap.keyboard.type("30000");
   await waitText(ap, "Check for a missing or extra line.");
-  const panel = async () => ap.evaluateHandle(() => document.querySelector(".border-amber-500\\/30"));
+  // The offer's own block on the search card (the panel plus the offer line above it).
+  const panel = async () => ap.evaluateHandle(() => {
+    const p = [...document.querySelectorAll("p")].find((x) => x.textContent.startsWith("Waiting for the dealer's out-the-door quote") || x.textContent.startsWith("Out-the-door recorded."));
+    return p?.closest("li") ?? p?.parentElement?.parentElement ?? null;
+  });
   const shotPanel = async (name) => { for (const [w, h, tag] of [[1440, 900, "desktop"], [390, 844, "phone"]]) { await ap.setViewport({ width: w, height: h }); await sleep(800); const el = (await panel()).asElement(); await (el ? el.screenshot({ path: `${SHOTS}/${name}-${tag}.png` }) : ap.screenshot({ path: `${SHOTS}/${name}-${tag}.png` })); } await ap.setViewport({ width: 1440, height: 900 }); await sleep(300); };
   await shotPanel("03-agent-record-otd-mismatch");
   await ap.click('input[aria-label="Out-the-door total (dealer\'s quote)"]', { clickCount: 3 }); await ap.keyboard.type("30642");
