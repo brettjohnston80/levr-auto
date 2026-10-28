@@ -82,7 +82,10 @@ begin
 
   -- 10. Inactive agent.
   begin
-    insert into public.agents (email, name, active) values ('claude-verify-oe2b-off@levrauto-test.invalid', 'CLAUDE VERIFY OFF', false)
+    -- A throwaway inactive agent (never the persistent test admin). Out of rotation too, since an
+    -- inactive agent can't be in rotation (agents_deactivated_not_in_rotation).
+    insert into public.agents (email, name, active, in_rotation)
+    values ('claude-verify-oe2b-off@levrauto-test.invalid', 'CLAUDE VERIFY OFF', false, false)
     returning id into v_off_agent;
     perform public.send_offer_submission(v_sub, v_off_agent, base); v := 'sent';
   exception when others then v := sqlerrm; end;
