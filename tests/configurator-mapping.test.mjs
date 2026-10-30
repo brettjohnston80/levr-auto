@@ -221,6 +221,14 @@ describe("known corrections (Brett's decisions, 2026-10-16; research files stay 
     assert.equal(report.corrections.length, 4);
   });
 
+  it("Tesla Model Y L: model Model Y, trim L Premium (Tesla review, decision 4)", () => {
+    const rows = read("tesla-rivian-configurator-full-2026-10.csv").filter((r) => r.model === "Model Y L");
+    assert.equal(rows.length, 1, "the research file is unchanged");
+    const { rows: out, report } = M.mapConfiguratorRows(rows);
+    assert.deepEqual(out.map((r) => `${r.model} / ${r.trim}`), ["Model Y / L Premium"]);
+    assert.equal(report.corrections.length, 2);
+  });
+
   it("Audi 'performance' is lowercase everywhere", () => {
     const { rows } = M.mapConfiguratorRows(repass("vw-audi"));
     assert.deepEqual(rows.filter((r) => /performance/i.test(r.trim)).map((r) => `${r.model} ${r.trim}`).sort(),

@@ -386,6 +386,12 @@ export const KNOWN_CORRECTIONS: KnownCorrection[] = [
   cadillacV("Escalade", "2027"),
   cadillacV("Escalade ESV", "2026"),
   cadillacV("Escalade ESV", "2027"),
+  // Tesla review decision 4 (Brett, 2026-10-25): the Model Y L as model "Model Y", trim "L Premium",
+  // as the Matchmaker dataset already groups it.
+  { make: "Tesla", model: "Model Y L", trim: "Premium", modelYear: "2027", field: "model", from: "Model Y L", to: "Model Y",
+    why: "the Model Y L is grouped under the Model Y (Tesla review, decision 4)" },
+  { make: "Tesla", model: "Model Y L", trim: "Premium", modelYear: "2027", field: "trim", from: "Premium", to: "L Premium",
+    why: "the Model Y L is grouped under the Model Y as trim \"L Premium\" (Tesla review, decision 4)" },
   ...["Cooling system, heavy-duty", "Alternator, 155 amps", "Hitch Guidance", "Hitch Guidance with Hitch View",
     "Seats, heated rear outboard seating positions", "Air Ionizer"].map(xt5Unlink),
 ];
