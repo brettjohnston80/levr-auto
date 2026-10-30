@@ -14,6 +14,7 @@ import { findStickerRange, stickerWarnings, type StickerRange } from "@/lib/stic
 import { displayOptionName } from "@/lib/option-display";
 import type { OfferPayload } from "@/lib/offer-submission";
 import type { OfferWarning } from "@/lib/offer-warnings";
+import { colourMatch, pickerListings, vinLast8 } from "@/lib/listing-picker";
 import type { OutreachListing, OutreachSelection, OutreachTrimPreference } from "@/lib/outreach-queue";
 import type { ManufacturerFee, OfferEntryOtherOffer } from "@/lib/offer-entry-context";
 
@@ -63,6 +64,8 @@ export function OfferEntryForm(props: {
   customerFirstName: string | null;
   makeModel: string;
   listings: OutreachListing[];
+  /** The search's committed model year: the picker shows only that year's listings. */
+  modelYear: number | null;
   stickerRanges: StickerRange[];
   selections: OutreachSelection[];
   trimPreferences: OutreachTrimPreference[];
@@ -108,6 +111,7 @@ export function OfferEntryForm(props: {
 
   // Step 2: the car
   const [listingId, setListingId] = useState(p.listing_id ?? "");
+  const [allTrims, setAllTrims] = useState(false);
   const [dealerName, setDealerName] = useState(p.dealer_name ?? "");
   const [dealerStreet, setDealerStreet] = useState(p.dealer_street ?? "");
   const [dealerCity, setDealerCity] = useState(p.dealer_city ?? "");
@@ -183,6 +187,7 @@ export function OfferEntryForm(props: {
     if (l.msrpCents != null) setSticker(String(l.msrpCents / 100));
     if (l.trim) setTrim(l.trim);
     if (l.color) setExterior(l.color);
+    if (l.interiorColor) setInterior(l.interiorColor);
     setDealerStreet(l.dealerStreet ?? "");
     setDealerCity(l.dealerCity ?? "");
     setDealerState(l.dealerState ?? "");
@@ -387,16 +392,57 @@ export function OfferEntryForm(props: {
         {/* 2 Pick the car */}
         <section className={card}>
           <h2 className="text-sm font-semibold text-white">2 Pick the car</h2>
-          {props.listings.length > 0 && (
-            <select value={listingId} onChange={(e) => pickListing(e.target.value)} className={input}>
-              <option value="">Not listed — enter VIN by hand</option>
-              {props.listings.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.year} {l.trim ?? ""} {l.color ?? ""} — {l.dealerName ?? "?"} — {l.priceCents != null ? money(l.priceCents) : "no price"} — VIN …{(l.vin ?? "").slice(-8)}
-                </option>
-              ))}
-            </select>
-          )}
+          {props.listings.length > 0 && (() => {
+            const rows = pickerListings(props.listings, { modelYear: props.modelYear, customerTrims: rankedTrims, allTrims });
+            const mark = (c: string | null, picks: string[]) => {
+              const m = colourMatch(c, picks);
+              return m === "match" ? <span className="ml-1 text-emerald-400">✓ (their pick)</span> : m === "not_pick" ? <span className="ml-1 text-amber-400">not their pick</span> : null;
+            };
+            return (
+              <div className="mt-3">
+                <div className="flex flex-wrap gap-2 text-xs">
+                  {([false, true] as const).map((all) => (
+                    <button key={String(all)} type="button" aria-pressed={allTrims === all} onClick={() => setAllTrims(all)}
+                      className={`rounded-full px-3 py-1 ${allTrims === all ? "bg-white/10 font-semibold text-white" : "border border-white/10 text-zinc-400 hover:text-white"}`}>
+                      {all ? "All trims" : "Your customer's trims"}
+                    </button>
+                  ))}
+                  <button type="button" onClick={() => setListingId("")}
+                    className={`rounded-full px-3 py-1 ${listingId === "" ? "bg-white/10 font-semibold text-white" : "border border-white/10 text-zinc-400 hover:text-white"}`}>
+                    Not listed — enter VIN by hand
+                  </button>
+                </div>
+                <div className="mt-2 max-h-80 overflow-auto rounded-lg border border-white/10">
+                  <table className="w-full min-w-[720px] text-left text-xs">
+                    <thead className="sticky top-0 bg-zinc-900 text-zinc-400">
+                      <tr>
+                        {["", "Dealer", "Miles", "Exterior", "Interior", "Stock #", "VIN (last 8)", "Listed price"].map((h) => (
+                          <th key={h} className="px-2 py-1.5 font-semibold">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((l) => (
+                        <tr key={l.id} onClick={() => pickListing(l.id)}
+                          className={`cursor-pointer border-t border-white/5 ${listingId === l.id ? "bg-emerald-500/10" : "hover:bg-white/5"}`}>
+                          <td className="px-2 py-1.5">
+                            <input type="radio" name="listing" checked={listingId === l.id} onChange={() => pickListing(l.id)} aria-label={`${l.dealerName ?? ""} ${vinLast8(l.vin)}`} />
+                          </td>
+                          <td className="px-2 py-1.5 text-zinc-200">{l.dealerName ?? "—"}{!allTrims ? "" : l.trim ? <span className="block text-zinc-500">{l.trim}</span> : null}</td>
+                          <td className="px-2 py-1.5 text-zinc-300">{l.miles != null ? Math.round(l.miles) : "—"}</td>
+                          <td className="px-2 py-1.5 text-zinc-300">{l.color ?? "—"}{mark(l.color, exteriorPicks)}</td>
+                          <td className="px-2 py-1.5 text-zinc-300">{l.interiorColor ?? "—"}{mark(l.interiorColor, interiorPicks)}</td>
+                          <td className="px-2 py-1.5 text-zinc-300">{l.stockNumber ?? "—"}</td>
+                          <td className="px-2 py-1.5 font-mono text-zinc-300">{vinLast8(l.vin)}</td>
+                          <td className="px-2 py-1.5 text-zinc-200">{l.priceCents != null ? money(l.priceCents) : "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <div><label className={label}>Dealership</label><input value={dealerName} onChange={(e) => setDealerName(e.target.value)} className={input} /></div>
             <div className="grid grid-cols-[1fr_4rem_6rem] gap-2">

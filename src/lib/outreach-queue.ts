@@ -89,6 +89,9 @@ export interface OutreachListing {
   dealerState: string | null;
   dealerZip: string | null;
   stockNumber: string | null;
+  /** Offer entry, Chunk 6: MarketCheck's interior colour (raw_data), and ZIP-centroid miles from the customer. */
+  interiorColor: string | null;
+  miles: number | null;
 }
 
 export interface OutreachAddon {
@@ -415,7 +418,7 @@ export async function getOutreachQueue(
             supabase
               .from("listings")
               .select(
-                "id, vin, trim, year, color, price_cents, msrp_cents, dealer_name, dealer_phone, dealer_website, dealer_city, dealer_state, dealer_zip, dealer_street:raw_data->dealer->>street, stock_no:raw_data->>stock_no"
+                "id, vin, trim, year, color, price_cents, msrp_cents, dealer_name, dealer_phone, dealer_website, dealer_city, dealer_state, dealer_zip, dealer_street:raw_data->dealer->>street, stock_no:raw_data->>stock_no, interior:raw_data->>interior_color"
               )
               .eq("make", make)
               .eq("model", model)
@@ -864,6 +867,8 @@ export async function getOutreachQueue(
         dealerState: l.dealer_state,
         dealerZip: l.dealer_zip,
         stockNumber: (l.stock_no as string | null) ?? null,
+        interiorColor: (l.interior as string | null) ?? null,
+        miles: zipDistance(zipCoords, search.zip ?? null, l.dealer_zip),
       })),
       offers: offersBySearchId.get(search.id) ?? [],
       selections: selectionsBySearchId.get(search.id) ?? [],

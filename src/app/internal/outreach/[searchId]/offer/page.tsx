@@ -31,6 +31,7 @@ export default async function LogOfferPage({
           customerFirstName={ctx.customerFirstName}
           makeModel={`${search.make} ${search.model}`}
           listings={search.listings}
+          modelYear={ctx.modelYear ?? null}
           stickerRanges={search.stickerRanges}
           selections={search.selections}
           trimPreferences={search.trimPreferences}
