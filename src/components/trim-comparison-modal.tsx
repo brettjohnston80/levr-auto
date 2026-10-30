@@ -107,7 +107,7 @@ function Cell({ cell }: { cell: ComparisonCell }) {
  * expanded, the real rows underneath already say everything a per-trim
  * count would, so nothing renders in these cells then either.
  */
-// Screen-reader labels for the section toggles (BAE, 2026-10-29; approved except Performance's, a draft).
+// Screen-reader labels for the section toggles (BAE, 2026-10-29; approved).
 const TOGGLE_LABEL: Record<string, string> = {
   "Colors & Interior": "Show colors and interior",
   Performance: "Show performance",
@@ -138,12 +138,12 @@ function CategoryHeaderRow({
             onClick={onToggle}
             aria-expanded={expanded}
             aria-label={TOGGLE_LABEL[label] ?? label}
-            className="group flex w-full items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-300 hover:text-white"
+            className="group flex w-full items-center justify-between gap-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-300 hover:text-white"
           >
             {label}
             <span
               aria-hidden="true"
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-emerald-400 text-base font-bold leading-none text-emerald-400 transition-transform group-hover:bg-emerald-500/10 group-active:scale-90 group-active:bg-emerald-500/25"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-emerald-400 text-sm font-bold leading-none text-emerald-400 transition-transform group-hover:bg-emerald-500/10 group-active:scale-90 group-active:bg-emerald-500/25"
             >
               {expanded ? "−" : "+"}
             </span>
@@ -218,11 +218,16 @@ function ChoiceGroupLabel({
 function ChoiceRow({ row, trimOptions }: { row: ChoiceComparisonRow; trimOptions: TrimOption[] }) {
   return (
     <tr className="border-t border-white/5">
-      <th scope="row" className="sticky left-0 z-10 bg-zinc-950 py-2.5 pr-4 text-left align-top">
-        <span className="flex items-center gap-2">
+      {/* Phone (BAE, 2026-10-29): photo and swatch on one line, the name under them, so
+          nothing spills into the first trim column. */}
+      <th scope="row" className="sticky left-0 z-10 overflow-hidden bg-zinc-950 py-2.5 pr-4 text-left align-top">
+        <span className="flex flex-wrap items-center gap-2">
           <Thumb item={{ id: row.name, label: displayOptionName(row.name), imageUrl: row.imageUrl }} />
-          <ColorDot item={{ id: row.name, label: displayOptionName(row.name), swatch: row.swatch }} />
-          <span className="text-xs font-medium break-words text-zinc-300">
+          {/* On a phone the photo already shows the colour; the swatch only when there's no photo. */}
+          <span className={row.imageUrl ? "contents max-sm:hidden" : "contents"}>
+            <ColorDot item={{ id: row.name, label: displayOptionName(row.name), swatch: row.swatch }} />
+          </span>
+          <span className="min-w-0 text-xs font-medium break-words text-zinc-300 max-sm:basis-full">
             {displayOptionName(row.name)}
             {row.dealerInstalled ? <DealerInstalledTag className="ml-1.5 align-middle" /> : null}
           </span>
@@ -248,10 +253,10 @@ function ChoiceRow({ row, trimOptions }: { row: ChoiceComparisonRow; trimOptions
 function FeatureRow({ row, trimOptions }: { row: FeatureComparisonRow; trimOptions: TrimOption[] }) {
   return (
     <tr className="border-t border-white/5">
-      <th scope="row" className="sticky left-0 z-10 bg-zinc-950 py-3 pr-4 text-left align-top text-xs font-semibold text-zinc-400">
-        <span className="flex items-center gap-2">
+      <th scope="row" className="sticky left-0 z-10 overflow-hidden bg-zinc-950 py-3 pr-4 text-left align-top text-xs font-semibold text-zinc-400">
+        <span className="flex flex-wrap items-center gap-2">
           <Thumb item={{ id: row.name, label: displayOptionName(row.name), imageUrl: row.imageUrl }} />
-          <span>
+          <span className="min-w-0 break-words max-sm:basis-full">
             {displayOptionName(row.name)}
             {row.dealerInstalled ? <DealerInstalledTag className="ml-1.5 align-middle" /> : null}
           </span>
