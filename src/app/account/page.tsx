@@ -7,6 +7,7 @@ import { getCustomerDashboard, type DashboardSearch } from "@/lib/customer-dashb
 import { FinalizeEditForm } from "@/components/finalize-edit-form";
 import { AccountFaqSection } from "@/components/account-faq-section";
 import { AccountSettingsForm } from "@/components/account-settings-form";
+import { latestActiveSearch, searchDestination } from "@/lib/search-destination";
 import { ChangePasswordForm } from "@/components/change-password-form";
 import { SwitchChoice } from "@/components/switch-choice";
 import { ExtendSearchButton } from "@/components/extend-search-button";
@@ -166,6 +167,10 @@ export default async function AccountPage({
   const unpaidSearches = allSearches.filter((s) => isUnpaid(s));
   const latestUnpaid = unpaidSearches.at(-1) ?? null;
   const searches = allSearches.filter((s) => !isUnpaid(s) || s.id === latestUnpaid?.id);
+  // "Continue your search" (BAE #1): the same rule as sign-in's /account/continue.
+  const current = latestActiveSearch(searches);
+  const continueHref = current ? searchDestination(searches) : null;
+  const latestUnpaidIsCurrent = !!current && current.id === latestUnpaid?.id;
 
   // Only fetched when a search is actually in its edit window -- this
   // paginates the whole live vehicle dataset, and /account is force-dynamic,
@@ -205,19 +210,19 @@ export default async function AccountPage({
         )}
 
         {latestUnpaid && <FinishStartingCard search={latestUnpaid} />}
+        {/* BAE #1 (2026-10-30): straight to where the search stands. An unpaid search has its
+            own card above with the same destination, so the button isn't shown twice. */}
+        {continueHref && !latestUnpaidIsCurrent && (
+          <div className="mt-8 text-center">
+            <Link
+              href={continueHref}
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-emerald-500 px-8 py-3 text-base font-semibold text-zinc-950 transition-colors hover:bg-emerald-400"
+            >
+              Continue your search
+            </Link>
+          </div>
+        )}
 
-        <AccountSettingsForm
-          existing={{
-            firstName: customer?.first_name ?? null,
-            lastName: customer?.last_name ?? null,
-            phone: customer?.phone ?? null,
-            notifyByEmail: customer?.notify_by_email ?? true,
-            notifyByText: customer?.notify_by_text ?? false,
-            notifyByAgentCallback: customer?.notify_by_agent_callback ?? false,
-          }}
-        />
-
-        <ChangePasswordForm />
 
         {searches.length === 0 ? (
           <p className="mt-10 text-center text-zinc-400">
@@ -235,6 +240,21 @@ export default async function AccountPage({
             ))}
           </div>
         )}
+
+        {/* Settings below the searches (BAE #1, 2026-10-30): the search comes first. */}
+        <h2 className="mt-12 text-lg font-semibold text-white">Account settings</h2>
+        <AccountSettingsForm
+          existing={{
+            firstName: customer?.first_name ?? null,
+            lastName: customer?.last_name ?? null,
+            phone: customer?.phone ?? null,
+            notifyByEmail: customer?.notify_by_email ?? true,
+            notifyByText: customer?.notify_by_text ?? false,
+            notifyByAgentCallback: customer?.notify_by_agent_callback ?? false,
+          }}
+        />
+
+        <ChangePasswordForm continueHref={continueHref} />
 
         <AccountFaqSection customerEmail={customer?.email ?? user.email ?? ""} />
 

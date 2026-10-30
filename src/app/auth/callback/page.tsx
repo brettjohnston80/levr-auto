@@ -17,7 +17,7 @@ export default function AuthCallbackPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const next = new URLSearchParams(window.location.search).get("next") ?? "/account";
+    const next = new URLSearchParams(window.location.search).get("next") ?? "/account/continue";
     const hash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : "";
     const hashParams = new URLSearchParams(hash);
     const accessToken = hashParams.get("access_token");

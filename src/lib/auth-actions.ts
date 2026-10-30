@@ -6,11 +6,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { saveUnpaidSearch } from "@/lib/unpaid-search";
 import type { IntakeChoices } from "@/lib/intake-choices";
 import { passwordProblem } from "@/lib/password-rules";
+import { continueDestinationFor } from "@/lib/continue-destination";
 
 async function attemptLogin(email: string, password: string) {
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-  return { ok: !error, error: error?.message };
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  return { ok: !error, error: error?.message, userId: data?.user?.id ?? null };
 }
 
 async function attemptSignup(email: string, password: string, redirectPath: string, phone?: string) {
@@ -63,7 +64,9 @@ export async function login(formData: FormData) {
     redirect(`/login?error=${encodeURIComponent(result.error!)}${nextParam}`);
   }
 
-  redirect(isSafeRedirectPath(next) ? next : "/account");
+  // Without a next, straight on to where the search stands (BAE #1, 2026-10-30).
+  if (isSafeRedirectPath(next)) redirect(next);
+  redirect(result.userId ? await continueDestinationFor(result.userId) : "/account");
 }
 
 export async function signup(formData: FormData) {
@@ -212,7 +215,7 @@ export async function signupInline(
   // account settings and stay at their defaults until then.
   const passwordError = passwordProblem(password);
   if (passwordError) return { ok: false, error: passwordError, searchSaved: false };
-  const result = await attemptSignup(email, password, `/auth/callback?next=${encodeURIComponent("/account")}`, phone);
+  const result = await attemptSignup(email, password, `/auth/callback?next=${encodeURIComponent("/account/continue")}`, phone);
   if (!result.ok) return { ok: false, error: result.error, searchSaved: false };
 
   let searchSaved = false;

@@ -15,7 +15,8 @@ import { PASSWORD_REQUIREMENTS, passwordProblem } from "@/lib/password-rules";
  * /signup and /auth/reset-password (SignupForm, ResetPasswordPage) -- one
  * rule, not a fourth invented one.
  */
-export function ChangePasswordForm() {
+/** continueHref: where "Continue your search" goes after a change (BAE #1); null = no active search. */
+export function ChangePasswordForm({ continueHref = null }: { continueHref?: string | null }) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -115,6 +116,14 @@ export function ChangePasswordForm() {
         </button>
         {success && <span className="text-xs text-emerald-400">Password changed.</span>}
       </div>
+      {success && continueHref && (
+        <a
+          href={continueHref}
+          className="mt-3 inline-flex min-h-11 items-center justify-center rounded-full bg-emerald-500 px-6 py-2.5 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-400"
+        >
+          Continue your search
+        </a>
+      )}
       {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
     </form>
   );
