@@ -18,6 +18,7 @@ import { PriceTag, PackageNote } from "@/components/configurator-questions";
 import { displayOptionName } from "@/lib/option-display";
 import { ColorDot, Thumb } from "@/components/ranking-question";
 import { resolveWheelImage } from "@/lib/vehicle-wheel-images";
+import { listingsFoundCopy } from "@/lib/inventory-radius";
 
 // Single-trim detail modal (2026-09-19) -- the "Details" button's target,
 // both from the plain trim list and from trim-comparison-modal.tsx's
@@ -380,7 +381,7 @@ export function TrimDetailModal({
             {trim.maxPriceCents && trim.maxPriceCents !== trim.minPriceCents
               ? `–${formatCents(trim.maxPriceCents)}`
               : ""}{" "}
-            &middot; {trim.count} available nationwide
+            &middot; {listingsFoundCopy(trim.count)}
           </p>
 
           {/* Not read-only -- ranking/excluding here is the exact same

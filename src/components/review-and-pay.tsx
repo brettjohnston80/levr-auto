@@ -9,7 +9,7 @@ import { updateUnpaidSearch } from "@/lib/intake-actions";
 import { createCheckoutSession } from "@/lib/payment-actions";
 import { PickupTravelGauge } from "@/components/pickup-travel-gauge";
 import { PICKUP_TRAVEL_DEFAULT, PICKUP_TRAVEL_QUESTION, travelValueLabel } from "@/lib/pickup-travel";
-import { nearbyInventoryCopy } from "@/lib/inventory-radius";
+import { INVENTORY_SOURCE_NOTE, nearbyInventoryCopy } from "@/lib/inventory-radius";
 import { FLAT_PRICE } from "@/lib/vehicle-data";
 
 // "Review and pay" in Your Car (sign-up-to-payment fix, approved 2026-09-30,
@@ -35,11 +35,10 @@ const COPY = {
     "A flat $699 — no commission, no markup.",
     "At least one real offer below Total SRP within 30 days of your search going live, or your $699 back.",
   ],
-  next: "After you pay, you'll choose trim, color, and options, with 24 hours to change them. Your search goes live when that window closes.",
   nextUndecided: "After you pay, your agent will reach out to help you choose the vehicle.",
-  lockNote: "Your make and model lock once you pay.",
-  // Approved 2026-10-17 (Terry's feedback): choose first, then we search.
-  howItWorks: "Here's how it works: after you pay, you'll choose your exact trim, color and options. Your agent then goes to dealers for that car, so every offer is for what you chose. Still deciding? Try the ",
+  // One paragraph replacing "how it works", "after you pay" and the lock note, which repeated
+  // each other (BAE, 2026-10-29). Brett's draft, awaiting his sign-off.
+  howItWorks: "Here's how it works: after you pay, you'll choose your exact trim, color and options, and you can change them for 24 hours. Then your search goes live, and your agent goes to dealers for that exact car. Your make and model lock once you pay. Still deciding? Try the ",
   howItWorksLink: "Matchmaker",
   howItWorksEnd: " first.",
   pay: `Continue to payment — $${FLAT_PRICE}`,
@@ -59,14 +58,15 @@ export function ReviewAndPay({
   search,
   makeModelOptions,
   modelYearOptions,
-  nationwideCount,
+  syncedCount,
   nearbyCount,
 }: {
   search: ReviewAndPaySearch;
   makeModelOptions: MakeModelOptions;
   modelYearOptions: ModelYearOptions;
   /** Existing approved inventory lines; null = no count (hidden). */
-  nationwideCount: number | null;
+  /** Listings we've synced for the make and model (null if the count failed). */
+  syncedCount: number | null;
   nearbyCount: number | null;
 }) {
   const router = useRouter();
@@ -257,17 +257,13 @@ export function ReviewAndPay({
 
       {!undecided && !editing && (
         <div className="mt-3 space-y-1 text-xs text-zinc-400">
-          {nationwideCount !== null && (
-            <p>
-              {nationwideCount > 0
-                ? `${nationwideCount.toLocaleString()} ${search.make} ${search.model} listings nationwide (all trims)`
-                : `No ${search.make} ${search.model} listings currently tracked nationwide`}
-            </p>
-          )}
-          {nearbyCount !== null && (
-            <p>
-              {nearbyInventoryCopy(nearbyCount)}
-            </p>
+          {/* Our listings are a sample, never the nationwide market (BAE, 2026-10-29). */}
+          {syncedCount === 0 && <p>{nearbyInventoryCopy(0, 0)}</p>}
+          {syncedCount !== null && syncedCount > 0 && nearbyCount !== null && (
+            <>
+              <p>{nearbyInventoryCopy(nearbyCount, syncedCount)}</p>
+              <p className="text-zinc-500">{INVENTORY_SOURCE_NOTE}</p>
+            </>
           )}
         </div>
       )}
@@ -293,8 +289,7 @@ export function ReviewAndPay({
         )}
       </div>
 
-      <p className="mt-6 text-sm text-zinc-400">{undecided ? COPY.nextUndecided : COPY.next}</p>
-      {!undecided && <p className="mt-1 text-xs text-zinc-500">{COPY.lockNote}</p>}
+      {undecided && <p className="mt-6 text-sm text-zinc-400">{COPY.nextUndecided}</p>}
 
       {error && (
         <p className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</p>

@@ -21,8 +21,9 @@ import {
   type ComparisonCell,
   type FeatureComparisonRow,
 } from "@/lib/trim-comparison";
-import { ColorDot, Thumb } from "@/components/ranking-question";
+import { ColorDot, RANK_BUTTON, Thumb } from "@/components/ranking-question";
 import { resolveWheelImage } from "@/lib/vehicle-wheel-images";
+import { listingsFoundCopy } from "@/lib/inventory-radius";
 
 // The trim comparison view (2026-09-19) -- a decision aid for the trim
 // ranking step itself, distinct from combination-preferences (which only
@@ -106,6 +107,13 @@ function Cell({ cell }: { cell: ComparisonCell }) {
  * expanded, the real rows underneath already say everything a per-trim
  * count would, so nothing renders in these cells then either.
  */
+// Screen-reader labels for the section toggles (BAE, 2026-10-29; approved except Performance's, a draft).
+const TOGGLE_LABEL: Record<string, string> = {
+  "Colors & Interior": "Show colors and interior",
+  Performance: "Show performance",
+  Features: "Show features",
+};
+
 function CategoryHeaderRow({
   label,
   expanded,
@@ -123,13 +131,20 @@ function CategoryHeaderRow({
     <tr className="border-t border-white/10">
       <th scope="row" className="sticky left-0 z-10 bg-zinc-950 pt-5 pb-2 pr-4 text-left align-top">
         {onToggle ? (
+          // BAE (2026-10-29): the "+" wasn't noticed. Same space, but a green outlined circle
+          // with a pressed state; the whole row header is the button.
           <button
             type="button"
             onClick={onToggle}
-            className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-zinc-400 hover:text-zinc-200"
+            aria-expanded={expanded}
+            aria-label={TOGGLE_LABEL[label] ?? label}
+            className="group flex w-full items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-300 hover:text-white"
           >
             {label}
-            <span className="text-sm normal-case tracking-normal text-zinc-500">
+            <span
+              aria-hidden="true"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 border-emerald-400 text-base font-bold leading-none text-emerald-400 transition-transform group-hover:bg-emerald-500/10 group-active:scale-90 group-active:bg-emerald-500/25"
+            >
               {expanded ? "−" : "+"}
             </span>
           </button>
@@ -444,7 +459,7 @@ export function TrimComparisonModal({
                               : ""}
                           </p>
                           <p className="mt-0.5 text-[11px] text-zinc-500">
-                            {opt.count} available nationwide
+                            {listingsFoundCopy(opt.count)}
                           </p>
                           {!configuratorQuestions[opt.id] && (
                             <p className="mt-0.5 text-[11px] text-zinc-600">inventory only</p>
@@ -492,7 +507,7 @@ export function TrimComparisonModal({
                                 onClick={() => rank(opt.id)}
                                 className="rounded-full bg-emerald-500 px-2 py-0.5 text-[11px] font-semibold text-zinc-950 hover:bg-emerald-400"
                               >
-                                Rank #{ranked.length + 1}
+                                {RANK_BUTTON(ranked.length + 1)}
                               </button>
                               <button
                                 type="button"
@@ -658,6 +673,16 @@ export function TrimComparisonModal({
               )}
             </tbody>
           </table>
+        </div>
+        {/* BAE (2026-10-29): a clear way out. Ranking already saved as it happened. */}
+        <div className="mt-6 flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full rounded-full bg-emerald-500 px-8 py-3 text-sm font-semibold text-zinc-950 hover:bg-emerald-400 sm:w-auto"
+          >
+            Done
+          </button>
         </div>
       </div>
     </div>,
