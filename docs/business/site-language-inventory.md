@@ -346,3 +346,5 @@ Where: `src/lib/inventory-radius.ts` (counts), `src/components/review-and-pay.ts
 | `Done` | Bottom of the trim comparison | customers |
 | `Real dealer inventory, searched nationwide` | Homepage comparison table, "Where you're shopping" (was `Real, live inventory nationwide`) | customers |
 | `Out-the-door with delivery` | Offer comparison and "How the price adds up", for an offer taken by delivery (offer-entry branch, not live) | customers |
+| `Continue your search` | `/account` under the heading (when there's an active search that isn't the unpaid one, which has its own card), and under "Password changed." | customers |
+| `Account settings` | Heading above the settings and password forms on `/account`, now below the searches (replaces the form's own small label) | customers |
