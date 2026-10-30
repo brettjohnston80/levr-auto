@@ -6,18 +6,21 @@
 const path = require("path"); const fs = require("fs");
 const tests = path.resolve(__dirname, ".."); const root = path.resolve(tests, "../../..");
 const ts = require(root + "/node_modules/typescript");
-const start = ["agent-invite", "agent-accounts", "email", "runtime-env", "test-accounts", "agent-two-factor-reset", "agent-invite-lifetime", "agent-activity", "offer-submission", "guarantee-assessment"];
+const start = ["agent-invite", "agent-accounts", "email", "runtime-env", "test-accounts", "agent-two-factor-reset", "agent-invite-lifetime", "agent-activity", "offer-submission", "guarantee-assessment", "tester-sample-offers"];
 for (const [dir, admin] of [["real", "../../lib/admin.mjs"], ["spy", "../../c1g/spy-admin.mjs"]]) {
   const out = path.join(tests, "gen", dir); fs.mkdirSync(out, { recursive: true });
   const seen = new Set(); const queue = [...start];
   while (queue.length) {
     const f = queue.shift(); if (seen.has(f)) continue; seen.add(f);
+    // A module under src/lib/supabase/ (other than admin) is written flat, e.g. supabase-paged.mjs.
     let code = ts.transpileModule(fs.readFileSync(`${root}/src/lib/${f}.ts`, "utf8"),
       { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
     code = code.replace(/import "server-only";/g, "").replace(/from "react"/g, 'from "./stub-react.mjs"')
       .replace(/from "\.\/supabase\/admin"/g, `from "${admin}"`)
+      .replace(/from "\.\/supabase\/([a-z0-9-]+)"/g, (m, name) => { queue.push(`supabase/${name}`); return `from "./supabase-${name}.mjs"`; })
+      .replace(/from "\.\.\/([a-z0-9-]+)"/g, (m, name) => { queue.push(name); return `from "./${name}.mjs"`; })
       .replace(/from "\.\/([a-z0-9-]+)"/g, (m, name) => { queue.push(name); return `from "./${name}.mjs"`; });
-    fs.writeFileSync(`${out}/${f}.mjs`, code);
+    fs.writeFileSync(`${out}/${f.replace("/", "-")}.mjs`, code);
   }
   fs.writeFileSync(`${out}/stub-react.mjs`, "export const cache = (fn) => fn;\n");
   console.log(`gen/${dir}:`, [...seen].join(", "));

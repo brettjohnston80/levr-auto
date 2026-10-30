@@ -15,6 +15,12 @@ import { vehicleColorImageUrl } from "./vehicle-color-images";
 //   - the best value, within their pickup range;
 //   - one beyond their range, with a delivery estimate, so that flow shows;
 //   - a higher-priced one.
+// Offer entry (Chunk 11, 2026-10-29): each one is written the way a sent offer is,
+// so testers can try the new screens: interior, model year, good until, the
+// customer's ranked options ticked on or off the car (plus an extra on the
+// third), doc fee, sales tax and title lines, a removable add-on on the third,
+// and an out-the-door total recorded as the dealer's quote (an estimate
+// wouldn't let them accept). The figures are sample numbers, never a real quote.
 // Locations are real dealer locations from synced listings (city/state/ZIP
 // only, for distance and the map), but the dealer names are fictional
 // ("Sample Motors of {city}") so no made-up price is attached to a real
@@ -145,6 +151,16 @@ async function logSampleOffers(searchId: string): Promise<void> {
     (await zipsInBand(admin, home, range * 1.5, range * 2.5))[0] ??
     near;
 
+  const { data: picks } = await admin
+    .from("search_option_selections")
+    .select("id, category, selection, rank_position")
+    .eq("search_id", searchId)
+    .eq("excluded", false)
+    .in("category", ["interior", "feature"])
+    .order("rank_position");
+  const interiors = (picks ?? []).filter((p) => p.category === "interior").map((p) => p.selection as string);
+  const features = (picks ?? []).filter((p) => p.category === "feature").slice(0, 3);
+
   const colors = ((search.colors as string[] | null) ?? []).filter(Boolean);
   const withPhoto = colors.filter((c) =>
     vehicleColorImageUrl(make, model, "exterior_color", c),
@@ -158,6 +174,9 @@ async function logSampleOffers(searchId: string): Promise<void> {
       name: sampleName("Sample Motors", near),
       pct: 0.91,
       color: color1,
+      interior: interiors[0] ?? null,
+      optionsOn: features.length,
+      extra: false,
       forceDelivery: false,
     },
     {
@@ -165,6 +184,9 @@ async function logSampleOffers(searchId: string): Promise<void> {
       name: sampleName("Sample Motors", far),
       pct: 0.935,
       color: color2,
+      interior: interiors[1] ?? interiors[0] ?? null,
+      optionsOn: Math.min(1, features.length),
+      extra: false,
       forceDelivery: true,
     },
     {
@@ -172,6 +194,9 @@ async function logSampleOffers(searchId: string): Promise<void> {
       name: sampleName("Sample Auto Group", nearSecond),
       pct: 0.975,
       color: color1,
+      interior: interiors[0] ?? null,
+      optionsOn: features.length,
+      extra: true,
       forceDelivery: false,
     },
   ];
@@ -187,7 +212,15 @@ async function logSampleOffers(searchId: string): Promise<void> {
             delivery_estimate_provided_at: new Date().toISOString(),
           }
         : {};
-    const { error } = await admin.from("qualifying_offers").insert({
+    const addons = o.extra ? [{ description: "Nitrogen-filled tires", amountCents: 14900 }] : [];
+    const fees = [
+      { kind: "doc_fee", cents: 39900 },
+      { kind: "sales_tax", cents: Math.round((offerPriceCents * 0.07) / 100) * 100 },
+      { kind: "title_registration", cents: 25000 },
+    ];
+    const otdTotalCents = offerPriceCents + addons.reduce((t, a) => t + a.amountCents, 0) + fees.reduce((t, f) => t + f.cents, 0);
+    const now = new Date().toISOString();
+    const { data: inserted, error } = await admin.from("qualifying_offers").insert({
       customer_search_id: searchId,
       listing_id: null,
       dealer_name: o.name,
@@ -203,8 +236,46 @@ async function logSampleOffers(searchId: string): Promise<void> {
       dealer_zip: o.location.zip,
       vin: null,
       stock_number: null,
+      vehicle_interior_color: o.interior,
+      vehicle_model_year: (search.model_year as number | null) ?? null,
+      sent_to_customer_at: now,
+      good_until: new Date(Date.now() + 10 * 864e5).toISOString().slice(0, 10),
+      trim_match_confirmed: true,
+      addons_none_confirmed: addons.length === 0,
+      other_fees_none_confirmed: true,
+      otd_source: "dealer_quote",
+      otd_total_cents: otdTotalCents,
+      otd_recorded_at: now,
       ...delivery,
-    });
+    }).select("id").single();
+    if (!error && inserted) {
+      const offerId = inserted.id as string;
+      const writes = await Promise.all([
+        admin.from("offer_fees").insert(fees.map((f) => ({ qualifying_offer_id: offerId, fee_kind: f.kind, fee_amount_cents: f.cents }))),
+        addons.length
+          ? admin.from("offer_addons").insert(addons.map((a) => ({
+              qualifying_offer_id: offerId, description: a.description, amount_cents: a.amountCents,
+              addon_customer_wanted: false, addon_dealer_says_removable: true,
+            })))
+          : Promise.resolve({ error: null }),
+        (() => {
+          // Every row carries the same keys (a mixed-shape insert sends null for missing ones).
+          const rows = [
+            ...features.map((f, i) => ({
+              qualifying_offer_id: offerId, vehicle_option_name: f.selection as string, search_option_selection_id: f.id as string,
+              customer_asked_for: true, on_the_car: i < o.optionsOn, sticker_price_cents: null, install_kind: null,
+            })),
+            ...(o.extra
+              ? [{ qualifying_offer_id: offerId, vehicle_option_name: "All-weather floor mats", search_option_selection_id: null,
+                   customer_asked_for: false, on_the_car: true, sticker_price_cents: 15000, install_kind: "port" }]
+              : []),
+          ];
+          return rows.length ? admin.from("offer_vehicle_options").insert(rows) : Promise.resolve({ error: null });
+        })(),
+      ]);
+      const failed = writes.find((w) => w.error);
+      if (failed?.error) console.error("[tester-sample-offers] detail insert failed", searchId, failed.error.message);
+    }
     if (error) {
       console.error(
         "[tester-sample-offers] insert failed",
@@ -218,7 +289,7 @@ async function logSampleOffers(searchId: string): Promise<void> {
     await logNotificationEvent({
       customerSearchId: searchId,
       eventType: "offer_logged",
-      eventData: { dealerName: o.name, offerPriceCents, msrpCents },
+      eventData: { dealerName: o.name, offerPriceCents, msrpCents, sentFlow: true, otdTotalCents, otdSource: "dealer_quote" },
     });
   }
 }
