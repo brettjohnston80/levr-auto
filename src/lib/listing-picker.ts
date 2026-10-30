@@ -13,7 +13,8 @@ export interface PickerListing {
   miles: number | null;
 }
 
-const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+// Case, spacing and punctuation ignored (the same normalisation as the Log Offer form).
+const norm = (s: string | null | undefined) => (s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
 export function pickerListings<T extends PickerListing>(
   listings: T[],
@@ -30,12 +31,30 @@ export function pickerListings<T extends PickerListing>(
     });
 }
 
-/** "✓" when the listing's colour is one the customer ranked, "not their pick" otherwise, null with no picks or colour. */
-export function colourMatch(colour: string | null, picks: string[]): "match" | "not_pick" | null {
+/** Colours MarketCheck often lists in place of the manufacturer's name. */
+const GENERIC_COLOURS = new Set(["black", "white", "gray", "grey", "silver", "red", "blue", "green", "brown", "beige", "tan", "gold", "orange", "yellow", "purple", "other", "unknown"]);
+
+/**
+ * How a listed colour compares with the customer's ranked picks (Brett, 2026-10-30), for exterior
+ * and interior alike: "match" only when the names are the same (case and spacing ignored);
+ * "check" when one contains the other, or the listing gives a generic colour, so the agent
+ * confirms from the window sticker; "not_pick" when there's no overlap. Null with no colour or
+ * no picks.
+ */
+export function colourMatch(colour: string | null, picks: string[]): "match" | "check" | "not_pick" | null {
   const v = norm(colour);
   const p = picks.map(norm).filter(Boolean);
   if (!v || p.length === 0) return null;
-  return p.some((x) => v.includes(x) || x.includes(v)) ? "match" : "not_pick";
+  if (p.some((x) => x === v)) return "match";
+  if (GENERIC_COLOURS.has(v) || p.some((x) => v.includes(x) || x.includes(v))) return "check";
+  return "not_pick";
 }
+
+/** Approved agent wording (2026-10-30). */
+export const COLOUR_MARK = {
+  match: "✓ (their pick)",
+  check: (colour: string) => `Check: listed as ${colour}`,
+  notPick: "not their pick",
+};
 
 export const vinLast8 = (vin: string | null) => (vin ? `…${vin.slice(-8)}` : "—");

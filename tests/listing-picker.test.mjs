@@ -25,11 +25,16 @@ describe("listing picker", () => {
   it("with no ranked trims, shows every trim", () => {
     assert.equal(P.pickerListings(list, { modelYear: 2026, customerTrims: [], allTrims: false }).length, 5);
   });
-  it("marks colours against the customer's picks", () => {
-    assert.equal(P.colourMatch("Ice Cap", ["ice cap"]), "match");
+  it("marks colours in three states (Brett, 2026-10-30)", () => {
+    assert.equal(P.colourMatch(" ice  cap ", ["Ice Cap"]), "match");
+    assert.equal(P.colourMatch("Black SofTex/Fabric", ["black softex fabric"]), "match"); // punctuation ignored
+    assert.equal(P.colourMatch("Black", ["Black SofTex"]), "check"); // contained
+    assert.equal(P.colourMatch("Black SofTex trim", ["Black SofTex"]), "check");
+    assert.equal(P.colourMatch("Gray", ["Ice Cap"]), "check"); // generic
     assert.equal(P.colourMatch("Midnight Black Metallic", ["Ice Cap"]), "not_pick");
     assert.equal(P.colourMatch(null, ["Ice Cap"]), null);
     assert.equal(P.colourMatch("Ice Cap", []), null);
+    assert.equal(P.COLOUR_MARK.check("Black"), "Check: listed as Black");
   });
   it("shows the last 8 of the VIN", () => {
     assert.equal(P.vinLast8("1HGCM82633A004352"), "…3A004352");

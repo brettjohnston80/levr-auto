@@ -14,7 +14,7 @@ import { findStickerRange, stickerWarnings, type StickerRange } from "@/lib/stic
 import { displayOptionName } from "@/lib/option-display";
 import type { OfferPayload } from "@/lib/offer-submission";
 import type { OfferWarning } from "@/lib/offer-warnings";
-import { colourMatch, pickerListings, vinLast8 } from "@/lib/listing-picker";
+import { COLOUR_MARK, colourMatch, pickerListings, vinLast8 } from "@/lib/listing-picker";
 import type { OutreachListing, OutreachSelection, OutreachTrimPreference } from "@/lib/outreach-queue";
 import type { ManufacturerFee, OfferEntryOtherOffer } from "@/lib/offer-entry-context";
 
@@ -332,12 +332,7 @@ export function OfferEntryForm(props: {
     );
   }
 
-  const pickMark = (value: string, picks: string[]) => {
-    if (!value.trim() || picks.length === 0) return null;
-    const v = norm(value);
-    const hit = picks.some((pk) => v.includes(pk) || pk.includes(v));
-    return <span className={`ml-2 text-xs ${hit ? "text-emerald-400" : "text-amber-400"}`}>{hit ? "✓ (their pick)" : "not their pick"}</span>;
-  };
+  const pickMark = (value: string, picks: string[]) => <ColourMark colour={value} picks={picks} className="ml-2 text-xs" />;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -394,10 +389,7 @@ export function OfferEntryForm(props: {
           <h2 className="text-sm font-semibold text-white">2 Pick the car</h2>
           {props.listings.length > 0 && (() => {
             const rows = pickerListings(props.listings, { modelYear: props.modelYear, customerTrims: rankedTrims, allTrims });
-            const mark = (c: string | null, picks: string[]) => {
-              const m = colourMatch(c, picks);
-              return m === "match" ? <span className="ml-1 text-emerald-400">✓ (their pick)</span> : m === "not_pick" ? <span className="ml-1 text-amber-400">not their pick</span> : null;
-            };
+            const mark = (c: string | null, picks: string[]) => <ColourMark colour={c} picks={picks} />;
             return (
               <div className="mt-3">
                 <div className="flex flex-wrap gap-2 text-xs">
@@ -700,4 +692,13 @@ export function OfferEntryForm(props: {
       </aside>
     </div>
   );
+}
+
+/** ✓ / Check: listed as {colour} / not their pick (Brett, 2026-10-30), on the picker and step 2. */
+function ColourMark({ colour, picks, className = "ml-1" }: { colour: string | null; picks: string[]; className?: string }) {
+  const m = colourMatch(colour, picks);
+  if (!m || !colour) return null;
+  if (m === "match") return <span className={`${className} text-emerald-400`}>{COLOUR_MARK.match}</span>;
+  if (m === "check") return <span className={`${className} text-amber-400`}>{COLOUR_MARK.check(colour.trim())}</span>;
+  return <span className={`${className} text-zinc-400`}>{COLOUR_MARK.notPick}</span>;
 }
