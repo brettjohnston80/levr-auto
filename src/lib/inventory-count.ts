@@ -12,7 +12,9 @@ import { INVENTORY_RADIUS_MILES } from "./inventory-radius";
 // what a customer sees here is "how much is actually near you," not "how
 // much exists somewhere in the country."
 
-export type InventoryCountResult = { ok: true; count: number } | { ok: false; error: string };
+/** `synced`: every listing we hold for the make and model (0 = never synced), so the copy can
+ *  say nothing about numbers we don't have. */
+export type InventoryCountResult = { ok: true; count: number; synced: number } | { ok: false; error: string };
 
 /**
  * Counts real synced listings for make+model within INVENTORY_RADIUS_MILES
@@ -81,7 +83,7 @@ export async function countNearbyInventory(
     return distance <= INVENTORY_RADIUS_MILES ? total + 1 : total;
   }, 0);
 
-  return { ok: true, count };
+  return { ok: true, count, synced: (listings ?? []).length };
 }
 
 /**

@@ -77,7 +77,7 @@ export default function ConfirmPage() {
     if (type === "recovery") {
       window.location.href = "/auth/reset-password";
     } else {
-      window.location.href = next ?? "/account";
+      window.location.href = next ?? "/account/continue";
     }
   }
 

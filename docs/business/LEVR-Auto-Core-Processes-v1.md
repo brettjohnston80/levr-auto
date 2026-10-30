@@ -30,6 +30,8 @@ Either way — guarantee met or refunded — LEVR Auto continues fielding offers
 
 **Sold-to-someone-else edge case (resolved):** the customer gets a 24-hour response window from when a Qualifying Offer is delivered. If the customer doesn't respond within 24 hours and the unit sells before they do, the offer still counts — the guarantee is satisfied. If the customer responds within the window but the unit sells before the deal goes through anyway, it doesn't count, and LEVR keeps searching.
 
+**Withdrawn offers (decided 2026-10-27, Brett; applies once the offer-entry phase ships):** an offer withdrawn by an agent — before the customer accepted it, or an accepted offer released after the deal fell through — does **not** count toward the guarantee, with one exception: if it was withdrawn because the car sold, the sold rule above applies (it still counts if the customer didn't respond within 24 hours of delivery; it doesn't count if they responded in time). Every withdrawal therefore records a reason: Car sold, Dealer pulled the quote, Correcting the offer, or Other (with a note); "Car sold" also records when the car sold. A corrected offer the agent sends in its place counts on its own. A withdrawal after the Day 30 assessment has already resolved doesn't change that outcome. ⚠ **Attorney review:** the Terms and the service agreement must say that a withdrawn offer doesn't count (apart from the sold rule) before launch.
+
 ---
 
 ## 1a. Pricing

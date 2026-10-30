@@ -189,10 +189,12 @@ function MatchCounter({
   ready,
   loading,
   count,
+  synced,
 }: {
   ready: boolean;
   loading: boolean;
   count: number | null;
+  synced: number;
 }) {
   const [pulse, setPulse] = useState(false);
   const prevCount = useRef(count);
@@ -222,10 +224,19 @@ function MatchCounter({
     );
   }
 
+  // No listings synced for this model: no count, just that we search nationwide (BAE, 2026-10-29).
+  if (synced === 0) {
+    return (
+      <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-1.5 text-xs font-semibold text-zinc-300">
+        {nearbyInventoryCopy(0, 0)}
+      </div>
+    );
+  }
+
   if (count === 0) {
     return (
       <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-1.5 text-xs font-semibold text-amber-300">
-        {nearbyInventoryCopy(0)}
+        {nearbyInventoryCopy(0, synced)}
       </div>
     );
   }
@@ -239,7 +250,7 @@ function MatchCounter({
       }`}
     >
       <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-      {nearbyInventoryCopy(count)}
+      {nearbyInventoryCopy(count, synced)}
     </div>
   );
 }
@@ -291,6 +302,7 @@ export function IntakeFilter({
   const canSubmit = vehicleComplete && zipValid && pickupTravel !== "";
 
   const [matchCount, setMatchCount] = useState<number | null>(null);
+  const [matchSynced, setMatchSynced] = useState(0);
   const [matchLoading, setMatchLoading] = useState(false);
   const matchReady = vehicleComplete && zipValid;
 
@@ -311,6 +323,7 @@ export function IntakeFilter({
       if (cancelled) return;
       setMatchLoading(false);
       setMatchCount(result.ok ? result.count : null);
+      setMatchSynced(result.ok ? result.synced : 0);
     }, 400);
 
     return () => {
@@ -547,7 +560,7 @@ export function IntakeFilter({
         <div className="mt-12 space-y-6">
           <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-6 shadow-xl shadow-black/20 sm:p-8">
             <div className="mt-4">
-              <MatchCounter ready={matchReady} loading={matchLoading} count={matchCount} />
+              <MatchCounter ready={matchReady} loading={matchLoading} count={matchCount} synced={matchSynced} />
             </div>
 
             {/* An in-progress make/model is always kept selectable even if
@@ -642,9 +655,9 @@ export function IntakeFilter({
               <p className="text-2xl font-semibold text-white">${FLAT_PRICE} total</p>
               {matchReady && !matchLoading && matchCount !== null && (
                 <p
-                  className={`mt-1 text-xs font-medium ${matchCount === 0 ? "text-amber-400" : "text-emerald-400"}`}
+                  className={`mt-1 text-xs font-medium ${matchSynced === 0 ? "text-zinc-400" : matchCount === 0 ? "text-amber-400" : "text-emerald-400"}`}
                 >
-                  {nearbyInventoryCopy(matchCount)}
+                  {nearbyInventoryCopy(matchCount, matchSynced)}
                 </p>
               )}
             </div>

@@ -136,3 +136,28 @@ How each agent workflow works, written for the people who use it. One section pe
 7. **Timeline:** the search runs through Day 60 and can be extended for $100, as for any search. There's **no Day-30 check** and these searches never appear on Refunds due. If the customer asks about a refund, it's a cancellation conversation (section 8), not a guarantee refund.
 
 **What the customer sees:** the same Your Deal page and offers, with a "No money-back guarantee on this search" box in place of the guarantee timeline.
+
+## 12. Sending an offer (offer entry; built on the `offer-entry` branch, not live yet)
+- **For:** every agent. On a search card, click **Log an offer** to open the Log Offer page: 1 paste the quote, 2 pick the car (exterior and interior show whether they're the customer's pick), 3 tick each option the customer wants as on the car or not, add anything else on the sticker, and tick that the trim matches, 4 enter the sticker, price, fees, add-ons and the dealer's out-the-door total, 5 good until, dealer contact and a note to the customer. The right-hand side shows what the customer will see as you type. Tesla's $250 order fee is filled in for you.
+- **Steps:**
+  1. **Save draft** as often as you like. A draft is never shown to the customer.
+  2. **Send to customer** checks everything on the server first: the amounts, the VIN, the out-the-door total against the lines (within $1), good until (today to 60 days out), and whether a delivery estimate is needed.
+  3. If a warning applies (price not below the sticker, the same VIN or the same dealer already on an offer, a search that isn't active), tick it to send anyway. Only the warnings that apply are saved with the offer.
+  4. Confirm the trim matches what the customer chose; Send refuses without it.
+  5. The offer, its add-ons, fees and options all appear at once, and the customer's new-offer email goes out after that.
+- **Discard:** only a dealer's submission (from a dealer link), and you must say why. Your own drafts just stay as drafts.
+- **What the customer sees:** nothing until you send. With no out-the-door figure yet, they see "Out-the-door quote requested".
+
+## 13. Recording the dealer's out-the-door quote (offer entry; not live yet)
+- **For:** every agent, on an offer sent without an out-the-door figure. The customer can't accept it until you record the dealer's quote.
+- **Steps:** on the outreach page, under the offer, click **Record out-the-door**. Enter the doc fee, sales tax, title & registration and any other fees (or tick "No other fees"), then the dealer's out-the-door total. It must match the lines within $1. Click **Record out-the-door**.
+- **What the customer sees:** an email, "Your out-the-door price from {dealer} is in", and the offer becomes acceptable.
+- **Corrections:** a recorded quote can't be changed. Withdraw the offer and send a corrected one.
+
+## 14. Withdrawing an offer, or releasing an accepted one (offer entry; not live yet)
+- **For:** every agent.
+- **Withdraw a pending offer** (the customer hasn't accepted): under the offer on the outreach page, click **Withdraw this offer**, choose a reason (Car sold · Dealer pulled the quote · Correcting the offer · Other, which needs a note) and click **Withdraw it**. Use it when the dealer corrects a quote: withdraw, then send the corrected offer.
+- **Release an accepted offer** (the deal fell through): **Release this accepted offer**, the same reason choice, then **Confirm release**.
+- **What the customer sees:** an email, and the card reads "No longer available · withdrawn {date}". They never see your reason or note.
+- **The guarantee:** a withdrawn or released offer no longer counts toward the 30-day guarantee, unless the reason is **Car sold**. Then the sold rule decides: it counts if the customer hadn't responded within 24 hours of the offer reaching them. So pick "Car sold" only when the car really sold.
+

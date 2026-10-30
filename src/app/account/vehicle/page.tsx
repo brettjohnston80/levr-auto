@@ -56,7 +56,7 @@ async function ReviewAndPayView({ unpaid }: { unpaid: UnpaidSearchSummary }) {
           }}
           makeModelOptions={makeModelOptions}
           modelYearOptions={modelYearOptions}
-          nationwideCount={nationwide?.ok ? nationwide.count : null}
+          syncedCount={nationwide?.ok ? nationwide.count : null}
           nearbyCount={nearby?.ok ? nearby.count : null}
         />
       </div>

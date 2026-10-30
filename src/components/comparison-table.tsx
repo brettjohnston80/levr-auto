@@ -7,7 +7,7 @@ const ROWS = [
   {
     label: "Where you're shopping",
     usual: "Whatever's on the lot near you",
-    levr: "Real, live inventory nationwide",
+    levr: "Real dealer inventory, searched nationwide", // approved 2026-10-29 (was "Real, live inventory nationwide")
   },
   {
     label: "Who the dealer answers to",

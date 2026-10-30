@@ -50,6 +50,11 @@ export interface RankableItem {
   detail?: React.ReactNode;
 }
 
+/** The button that ranks an option in the next position (BAE, 2026-10-29): "Rank #1" read as a
+ *  status when two trims showed it at once. Approved 2026-10-29. Shared with the
+ *  trim comparison so the same action has one label. */
+export const RANK_BUTTON = (n: number) => `Make #${n}`;
+
 export function RankingQuestion({
   title,
   subtitle,
@@ -310,7 +315,7 @@ export function RankingQuestion({
                     onClick={() => rank(item.id)}
                     className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-semibold text-zinc-950 transition-colors hover:bg-emerald-400"
                   >
-                    Rank #{rankedItems.length + 1}
+                    {RANK_BUTTON(rankedItems.length + 1)}
                   </button>
                   <button
                     type="button"

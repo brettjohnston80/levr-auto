@@ -4,10 +4,20 @@
 // file may only export async functions -- a plain constant can't live there.
 export const INVENTORY_RADIUS_MILES = 100;
 
-// The nearby-inventory line (approved 2026-10-17): a count of what's for sale
-// near the customer, never a limit on where we search.
-export function nearbyInventoryCopy(count: number): string {
+// The nearby-inventory line: a count of the listings we've synced near the
+// customer, never a limit on where we search. BAE's feedback (2026-10-29):
+// our listings are a sample, not the market, so a count is shown only when we
+// have synced listings for the model, and never called the nationwide total.
+// Wording approved by Brett 2026-10-29.
+export function nearbyInventoryCopy(count: number, syncedForModel: number): string {
+  if (syncedForModel === 0) return "We search dealers nationwide.";
   return count === 0
-    ? "None for sale near you right now — we search dealers nationwide."
-    : `${count.toLocaleString()} for sale within ${INVENTORY_RADIUS_MILES} miles of you right now — and we search nationwide.`;
+    ? "None found near you yet — we search dealers nationwide."
+    : `${count.toLocaleString()} found within ${INVENTORY_RADIUS_MILES} miles of you so far — and we search dealers nationwide.`;
 }
+
+/** Shown under a count (approved 2026-10-29). */
+export const INVENTORY_SOURCE_NOTE = "Based on current dealer listings.";
+
+/** A synced count on the trim lists and Matchmaker (approved 2026-10-29): never "nationwide". */
+export const listingsFoundCopy = (n: number) => `${n.toLocaleString()} ${n === 1 ? "listing" : "listings"} found so far`;
