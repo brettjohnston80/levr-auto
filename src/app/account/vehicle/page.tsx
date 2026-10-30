@@ -15,6 +15,7 @@ import { ReviewAndPay } from "@/components/review-and-pay";
 import { getLatestUnpaidSearch, type UnpaidSearchSummary } from "@/lib/unpaid-search";
 import { getIntakeMakeModelOptions, getIntakeModelYearOptions } from "@/lib/intake-vehicle-options";
 import { countNationwideInventory, countNearbyInventory } from "@/lib/inventory-count";
+import { customerHasCurrentTerms } from "@/lib/terms-acceptance";
 import { travelFromColumns, travelToValue } from "@/lib/pickup-travel";
 import { FinalizeWindowEdit } from "@/components/finalize-window-edit";
 import { getFinalizeInitial } from "@/lib/finalize-edit-data";
@@ -34,13 +35,14 @@ const TERMINAL_STATUSES = ["switched", "cancelled", "closed"];
 // "Review and pay" (sign-up-to-payment fix, 2026-09-30): the customer's
 // saved, unpaid search, editable until they pay. Counts are the existing
 // approved inventory lines; a failed count is simply not shown.
-async function ReviewAndPayView({ unpaid }: { unpaid: UnpaidSearchSummary }) {
+async function ReviewAndPayView({ unpaid, customerId }: { unpaid: UnpaidSearchSummary; customerId: string }) {
   const decided = Boolean(unpaid.make && unpaid.model);
-  const [makeModelOptions, modelYearOptions, nationwide, nearby] = await Promise.all([
+  const [makeModelOptions, modelYearOptions, nationwide, nearby, termsAccepted] = await Promise.all([
     getIntakeMakeModelOptions(),
     getIntakeModelYearOptions(),
     decided ? countNationwideInventory(unpaid.make!, unpaid.model!) : null,
     decided && unpaid.zip ? countNearbyInventory(unpaid.make!, unpaid.model!, unpaid.zip) : null,
+    customerHasCurrentTerms(customerId),
   ]);
   return (
     <section className="bg-zinc-950 py-24">
@@ -58,6 +60,7 @@ async function ReviewAndPayView({ unpaid }: { unpaid: UnpaidSearchSummary }) {
           modelYearOptions={modelYearOptions}
           syncedCount={nationwide?.ok ? nationwide.count : null}
           nearbyCount={nearby?.ok ? nearby.count : null}
+          termsAccepted={termsAccepted}
         />
       </div>
     </section>
@@ -111,7 +114,7 @@ export default async function VehiclePage({
   // or when there's no paid search to show instead.
   const unpaid = await getLatestUnpaidSearch(admin, user.id);
   if (unpaid && (requestedSearchId === unpaid.id || nonTerminal.length === 0)) {
-    return <ReviewAndPayView unpaid={unpaid} />;
+    return <ReviewAndPayView unpaid={unpaid} customerId={user.id} />;
   }
 
   // No bounce to /account -- this tab is meant to be a stable, revisitable

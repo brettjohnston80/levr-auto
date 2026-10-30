@@ -1,5 +1,7 @@
 "use client";
 
+import { noGuaranteeLine } from "@/lib/guarantee-exception-copy";
+import { guaranteeExceptionMake } from "@/lib/guarantee-exceptions";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { GetStartedButton } from "@/components/get-started-button";
@@ -1264,6 +1266,10 @@ function ModelGroupCard({
             {priceEstimate}
           </span>
         </div>
+        {/* W12 (GX-3): exception brands are ranked normally, with this note. */}
+        {guaranteeExceptionMake(group.make) && (
+          <p className="mt-1 text-xs text-amber-300">{noGuaranteeLine(guaranteeExceptionMake(group.make)!)}</p>
+        )}
 
         {reasons?.why && (
           <div className="mt-2">

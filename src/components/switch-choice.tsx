@@ -1,5 +1,15 @@
 "use client";
 
+import { guaranteeExceptionMake } from "@/lib/guarantee-exceptions";
+import {
+  EXCEPTIONS_FINE_PRINT,
+  noGuaranteeLine,
+  SWITCH_TO_COVERED,
+  TERMS_AGREE_AFTER,
+  TERMS_AGREE_BEFORE,
+  TERMS_AGREE_LINK,
+  TERMS_REQUIRED,
+} from "@/lib/guarantee-exception-copy";
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -43,6 +53,12 @@ export function SwitchChoice({
   const [newYear, setNewYear] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [termsAccepted, setTermsAccepted] = useState(true);
+  const [agreed, setAgreed] = useState(false);
+  // W6 / W7 (GX-3): into an exception brand, or out of one.
+  const newException = guaranteeExceptionMake(newMake);
+  const oldException = guaranteeExceptionMake(make);
+  const guaranteeNote = newException ? noGuaranteeLine(newException) : oldException ? SWITCH_TO_COVERED : null;
 
   const makes = Object.keys(makeModelOptions).sort((a, b) => a.localeCompare(b));
   const models = makeModelOptions[newMake] ?? [];
@@ -74,6 +90,7 @@ export function SwitchChoice({
       setError(result.error);
       return;
     }
+    setTermsAccepted(result.termsAccepted);
     setMode(result.eligible ? "free-confirm" : "paid-warning");
   }
 
@@ -91,9 +108,13 @@ export function SwitchChoice({
   }
 
   async function handleContinueToPayment() {
+    if (!termsAccepted && !agreed) {
+      setError(TERMS_REQUIRED);
+      return;
+    }
     setBusy(true);
     setError(null);
-    const result = await createSwitchFeeCheckoutSession(searchId, newMake, newModel, Number(newYear));
+    const result = await createSwitchFeeCheckoutSession(searchId, newMake, newModel, Number(newYear), !termsAccepted && agreed);
     setBusy(false);
 
     if (!result.ok) {
@@ -130,6 +151,20 @@ export function SwitchChoice({
             clean against your new pick
           </li>
         </ul>
+        {guaranteeNote && <p className="mt-3 text-sm text-zinc-200">{guaranteeNote}</p>}
+        {!termsAccepted && (
+          <div className="mt-4">
+            <label className="flex items-start gap-3 text-sm text-zinc-200">
+              <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 h-5 w-5 shrink-0 accent-emerald-500" />
+              <span>
+                {TERMS_AGREE_BEFORE}
+                <a href="/terms" target="_blank" rel="noreferrer" className="text-emerald-400 underline hover:text-emerald-300">{TERMS_AGREE_LINK}</a>
+                {TERMS_AGREE_AFTER}
+              </span>
+            </label>
+            <p className="mt-1.5 pl-8 text-xs text-zinc-500">{EXCEPTIONS_FINE_PRINT}</p>
+          </div>
+        )}
 
         {error && <p className="mt-4 text-sm text-red-400">{error}</p>}
 
@@ -164,6 +199,7 @@ export function SwitchChoice({
           any offer already found on
           your current vehicle won&apos;t carry over.
         </p>
+        {guaranteeNote && <p className="mt-3 text-sm text-zinc-200">{guaranteeNote}</p>}
 
         {error && <p className="mt-4 text-sm text-red-400">{error}</p>}
 

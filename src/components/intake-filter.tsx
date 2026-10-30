@@ -1,5 +1,7 @@
 "use client";
 
+import { guaranteeExceptionMake } from "@/lib/guarantee-exceptions";
+import { noGuaranteeLine } from "@/lib/guarantee-exception-copy";
 import { useEffect, useRef, useState } from "react";
 import { MAKES_AND_MODELS as FALLBACK_MAKES_AND_MODELS, FLAT_PRICE, withCurrent } from "@/lib/vehicle-data";
 import type { MakeModelOptions, ModelYearOptions } from "@/lib/intake-vehicle-options";
@@ -605,6 +607,10 @@ export function IntakeFilter({
                 disabled={!vehicle.model}
               />
             </div>
+            {/* W1 (GX-3): under the make once an exception brand is picked. */}
+            {guaranteeExceptionMake(vehicle.make) && (
+              <p className="mt-3 text-sm text-amber-300">{noGuaranteeLine(guaranteeExceptionMake(vehicle.make)!)}</p>
+            )}
 
             <p className="mt-6 text-xs text-zinc-500">
               After checkout you&apos;ll choose your exact trim, color and options. Your agent then

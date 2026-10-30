@@ -1,7 +1,7 @@
 "use server";
 
 import { guaranteeExceptionMake } from "@/lib/guarantee-exceptions";
-import { ensureTermsAccepted } from "@/lib/terms-acceptance";
+import { customerHasCurrentTerms, ensureTermsAccepted } from "@/lib/terms-acceptance";
 import { applyGuaranteeState } from "@/lib/guarantee-state";
 import { after } from "next/server";
 import { assignSearchAtPayment } from "./search-assignment";
@@ -131,7 +131,8 @@ export async function requestSwitchCall(searchId: string): Promise<SwitchActionR
   return { ok: true };
 }
 
-export type EligibilityResult = { ok: true; eligible: boolean } | { ok: false; error: string };
+/** termsAccepted (GX-3): whether the paid-switch screen needs the W3 box. */
+export type EligibilityResult = { ok: true; eligible: boolean; termsAccepted: boolean } | { ok: false; error: string };
 
 const GRACE_PERIOD_DAYS = 5;
 
@@ -161,7 +162,7 @@ export async function checkSwitchEligibility(searchId: string): Promise<Eligibil
   graceWindowEnds.setDate(graceWindowEnds.getDate() + GRACE_PERIOD_DAYS);
 
   const eligible = customer.free_switch_used_at === null && new Date() <= graceWindowEnds;
-  return { ok: true, eligible };
+  return { ok: true, eligible, termsAccepted: await customerHasCurrentTerms(check.userId) };
 }
 
 export type ExecuteFreeSwitchResult = { ok: true; newSearchId: string } | { ok: false; error: string };

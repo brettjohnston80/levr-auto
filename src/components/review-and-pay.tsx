@@ -11,6 +11,15 @@ import { PickupTravelGauge } from "@/components/pickup-travel-gauge";
 import { PICKUP_TRAVEL_DEFAULT, PICKUP_TRAVEL_QUESTION, travelValueLabel } from "@/lib/pickup-travel";
 import { INVENTORY_SOURCE_NOTE, nearbyInventoryCopy } from "@/lib/inventory-radius";
 import { FLAT_PRICE } from "@/lib/vehicle-data";
+import { guaranteeExceptionMake } from "@/lib/guarantee-exceptions";
+import {
+  EXCEPTIONS_FINE_PRINT,
+  noGuaranteeLine,
+  TERMS_AGREE_AFTER,
+  TERMS_AGREE_BEFORE,
+  TERMS_AGREE_LINK,
+  TERMS_REQUIRED,
+} from "@/lib/guarantee-exception-copy";
 
 // "Review and pay" in Your Car (sign-up-to-payment fix, approved 2026-09-30,
 // docs/plans/signup-to-payment-plan.md): the one clear moment where a saved,
@@ -60,6 +69,7 @@ export function ReviewAndPay({
   modelYearOptions,
   syncedCount,
   nearbyCount,
+  termsAccepted,
 }: {
   search: ReviewAndPaySearch;
   makeModelOptions: MakeModelOptions;
@@ -68,6 +78,8 @@ export function ReviewAndPay({
   /** Listings we've synced for the make and model (null if the count failed). */
   syncedCount: number | null;
   nearbyCount: number | null;
+  /** GX-3: false until the customer has accepted the current terms (the W3 box then shows). */
+  termsAccepted: boolean;
 }) {
   const router = useRouter();
   const undecided = !search.make || !search.model;
@@ -80,6 +92,8 @@ export function ReviewAndPay({
   const [saving, setSaving] = useState(false);
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [agreed, setAgreed] = useState(false);
+  const exceptionBrand = guaranteeExceptionMake(search.make);
 
   const makes = Object.keys(makeModelOptions).sort();
   const models = make ? [...(makeModelOptions[make] ?? [])].sort() : [];
@@ -122,9 +136,13 @@ export function ReviewAndPay({
   }
 
   async function pay() {
+    if (!termsAccepted && !agreed) {
+      setError(TERMS_REQUIRED);
+      return;
+    }
     setPaying(true);
     setError(null);
-    const res = await createCheckoutSession(search.id);
+    const res = await createCheckoutSession(search.id, !termsAccepted && agreed);
     if (!res.ok) {
       setPaying(false);
       setError(res.error);
@@ -271,12 +289,20 @@ export function ReviewAndPay({
       <div className="mt-8">
         <h2 className="text-sm font-semibold text-zinc-300">{COPY.includedHeading}</h2>
         <ul className="mt-2 space-y-1.5 text-sm text-zinc-300">
-          {COPY.included.map((line) => (
-            <li key={line} className="flex gap-2">
-              <span className="text-emerald-400">✓</span>
-              {line}
-            </li>
-          ))}
+          {COPY.included.map((line, i) =>
+            // W2 (GX-3): an exception brand gets this in place of the guarantee bullet (the last one).
+            i === COPY.included.length - 1 && exceptionBrand ? (
+              <li key="no-guarantee" className="flex gap-2 text-zinc-400">
+                <span className="text-zinc-500">–</span>
+                {noGuaranteeLine(exceptionBrand)}
+              </li>
+            ) : (
+              <li key={line} className="flex gap-2">
+                <span className="text-emerald-400">✓</span>
+                {line}
+              </li>
+            ),
+          )}
         </ul>
         {!undecided && (
           <p className="mt-3 text-sm text-zinc-400">
@@ -290,6 +316,31 @@ export function ReviewAndPay({
       </div>
 
       {undecided && <p className="mt-6 text-sm text-zinc-400">{COPY.nextUndecided}</p>}
+
+      {/* W3 with W3a under it (GX-3): once, before the first payment, and again when the terms change. */}
+      {!termsAccepted && (
+        <div className="mt-6">
+          <label className="flex items-start gap-3 text-sm text-zinc-200">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(e) => {
+                setAgreed(e.target.checked);
+                if (e.target.checked && error === TERMS_REQUIRED) setError(null);
+              }}
+              className="mt-0.5 h-5 w-5 shrink-0 accent-emerald-500"
+            />
+            <span>
+              {TERMS_AGREE_BEFORE}
+              <a href="/terms" target="_blank" rel="noreferrer" className="text-emerald-400 underline hover:text-emerald-300">
+                {TERMS_AGREE_LINK}
+              </a>
+              {TERMS_AGREE_AFTER}
+            </span>
+          </label>
+          <p className="mt-1.5 pl-8 text-xs text-zinc-500">{EXCEPTIONS_FINE_PRINT}</p>
+        </div>
+      )}
 
       {error && (
         <p className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</p>

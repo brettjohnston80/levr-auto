@@ -1,3 +1,5 @@
+import { TERMS_APPLY, TERMS_APPLY_HREF } from "@/lib/guarantee-exception-copy";
+
 const ROWS = [
   {
     label: "Who talks to the dealer",
@@ -83,6 +85,8 @@ export function ComparisonTable() {
             </div>
           ))}
         </div>
+        {/* M5 (GX-3) */}
+        <p className="mt-4 text-center text-xs text-zinc-500"><a href={TERMS_APPLY_HREF} className="underline hover:opacity-80">{TERMS_APPLY}</a></p>
       </div>
     </section>
   );

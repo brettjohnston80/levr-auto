@@ -8,7 +8,9 @@ import { GUARANTEE_TIMELINE_HEADING, type GuaranteeTimelineInfo } from "@/lib/gu
 export function GuaranteeTimeline({ info }: { info: GuaranteeTimelineInfo }) {
   return (
     <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.02] px-4 pt-3 pb-4">
-      <h2 className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">{GUARANTEE_TIMELINE_HEADING}</h2>
+      {!info.noGuarantee && (
+        <h2 className="text-xs font-semibold tracking-wide text-zinc-400 uppercase">{GUARANTEE_TIMELINE_HEADING}</h2>
+      )}
       {info.bar && (
         <SearchStatusTimeline
           stages={info.bar.markers.map((m) => ({ key: m.label, label: m.label }))}

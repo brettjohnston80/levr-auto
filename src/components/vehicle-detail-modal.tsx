@@ -1,5 +1,7 @@
 "use client";
 
+import { noGuaranteeLine } from "@/lib/guarantee-exception-copy";
+import { guaranteeExceptionMake } from "@/lib/guarantee-exceptions";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Answers } from "@/lib/matchmaker-data";
@@ -228,6 +230,10 @@ export function VehicleDetailModal({
                 <p className="mt-1 text-xs text-zinc-500">
                   {listingsFoundCopy(nationwideCount)} (all trims). {INVENTORY_SOURCE_NOTE}
                 </p>
+              )}
+              {/* W12 (GX-3). */}
+              {guaranteeExceptionMake(vehicle.make) && (
+                <p className="mt-1 text-xs text-amber-300">{noGuaranteeLine(guaranteeExceptionMake(vehicle.make)!)}</p>
               )}
 
               {/* The old single-line auto-generated rationale sentence was

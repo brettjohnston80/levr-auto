@@ -51,6 +51,12 @@ const FAQS: FaqItem[] = [
     q: "What if you can't get me a deal below Total SRP?",
     a: "You get your full $699 back. Your 30-day guarantee window starts when your search goes live, and if it ends without a qualifying offer, we process your refund — no need to ask for it.",
   },
+  // M11 (GX-3, approved 2026-10-25); the homepage's "Terms apply." links here.
+  {
+    id: "guarantee-brands",
+    q: "Does the guarantee cover every brand?",
+    a: "Our money-back guarantee does not apply to Tesla, Rivian, Lucid or Polestar. These brands sell directly at prices they set, so there's no dealer discount to negotiate. We'll still find the best available price on your exact car, including demo and inventory cars and current manufacturer offers, and handle the order for you.",
+  },
   {
     q: "Why not just use a cheaper subscription tool instead?",
     a: "Some tools can send messages to dealers for a few dollars a month — but sending a message isn't the same as getting you a result. LEVR Auto is done for you, start to finish: a real negotiation, real offers landing in your account, and a real person you can reach if something needs attention. And unlike a subscription, we put our fee on the line — if we can't bring you at least one real offer below Total SRP, you get your $699 back.",

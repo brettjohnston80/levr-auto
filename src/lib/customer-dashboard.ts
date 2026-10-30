@@ -745,6 +745,8 @@ export interface DealDetails {
   guaranteeResolvedAt: string | null;
   guaranteeDeliveredAt: string | null;
   searchDeadline: string | null;
+  /** GX-3: the brand when the guarantee doesn't apply. */
+  guaranteeExceptionMake: string | null;
   /** Offer comparison (offer entry, Chunk 10): the colours the customer ranked (not excluded),
    *  so each offer's exterior and interior can show "✓" or "not your pick". */
   customerPicks: { exterior: string[]; interior: string[] };
@@ -774,7 +776,7 @@ export async function getDealDetails(searchId: string, customerId: string): Prom
   const { data: search, error: searchError } = await supabase
     .from("customer_searches")
     .select(
-      "id, make, model, trim, zip, search_status, paid_at, solidified_at, paused_at, purchased_qualifying_offer_id, pickup_travel_choice, pickup_travel_miles, guarantee_status, guarantee_resolved_at, search_deadline_at"
+      "id, make, model, trim, zip, search_status, paid_at, solidified_at, paused_at, purchased_qualifying_offer_id, pickup_travel_choice, pickup_travel_miles, guarantee_status, guarantee_resolved_at, search_deadline_at, guarantee_exception_make"
     )
     .eq("id", searchId)
     .eq("customer_id", customerId)
@@ -871,6 +873,7 @@ export async function getDealDetails(searchId: string, customerId: string): Prom
     offers: offersBySearchId.get(searchId) ?? [],
     guaranteeStatus: search.guarantee_status as string,
     guaranteeResolvedAt: (search.guarantee_resolved_at as string | null) ?? null,
+    guaranteeExceptionMake: (search.guarantee_exception_make as string | null) ?? null,
     guaranteeDeliveredAt: countingDeliveries[0] ?? null,
     searchDeadline: search.solidified_at
       ? effectiveDeadline({

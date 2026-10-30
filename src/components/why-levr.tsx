@@ -1,3 +1,5 @@
+import { TERMS_APPLY, TERMS_APPLY_HREF } from "@/lib/guarantee-exception-copy";
+
 const REASONS = [
   {
     title: "Nationwide reach",
@@ -6,6 +8,7 @@ const REASONS = [
   {
     title: "One flat fee, refundable if we don't deliver.",
     body: "You know the cost upfront — no surprises.",
+    termsApply: true, // M3 (GX-3)
   },
   {
     title: "No dealership pressure.",
@@ -31,7 +34,10 @@ export function WhyLevr() {
               <span className="mt-1 h-2 w-2 flex-none rounded-full bg-emerald-500" />
               <div>
                 <h3 className="text-lg font-semibold text-white">{reason.title}</h3>
-                <p className="mt-1 text-sm leading-relaxed text-zinc-400">{reason.body}</p>
+                <p className="mt-1 text-sm leading-relaxed text-zinc-400">
+                  {reason.body}
+                  {"termsApply" in reason && reason.termsApply && <> <a href={TERMS_APPLY_HREF} className="underline hover:opacity-80">{TERMS_APPLY}</a></>}
+                </p>
                 {reason.bold && (
                   <p className="mt-1 text-sm leading-relaxed font-semibold text-zinc-300">{reason.bold}</p>
                 )}

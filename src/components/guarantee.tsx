@@ -1,3 +1,5 @@
+import { TERMS_APPLY, TERMS_APPLY_HREF } from "@/lib/guarantee-exception-copy";
+
 const TIMELINE = [
   {
     day: "Day 0",
@@ -28,7 +30,7 @@ export function Guarantee() {
           full sticker price, including destination, before tax, title, and
           fees — within 30 days of your search going live, you get your $699 back. No
           questions asked. And you&apos;re never obligated to buy anything, even if we do find
-          you a great deal.
+          you a great deal. {/* M1 (GX-3) */}<a href={TERMS_APPLY_HREF} className="underline hover:opacity-80">{TERMS_APPLY}</a>
         </p>
 
         <div className="relative mt-14">

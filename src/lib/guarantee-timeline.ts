@@ -1,4 +1,5 @@
 import { formatLongDate } from "./dashboard-format";
+import { noGuaranteeDealLine } from "./guarantee-exception-copy";
 
 // Guarantee timeline on Your Deal (2026-09-27, plan:
 // docs/plans/guarantee-progress-notifications-plan.md). Derived at read time
@@ -21,6 +22,8 @@ export interface GuaranteeTimelineInput {
   guaranteeDeliveredAt: string | null;
   /** effectiveDeadline() as ISO. */
   searchDeadline: string | null;
+  /** GX-3: set on a search the guarantee doesn't apply to (guarantee_status not_applicable). */
+  guaranteeExceptionMake?: string | null;
 }
 
 export type GuaranteeMarkerState = "reached" | "muted" | "upcoming";
@@ -34,6 +37,8 @@ export interface GuaranteeTimelineInfo {
     fill: number;
   } | null;
   lines: string[];
+  /** GX-3: W8 in place of the timeline (no "Your guarantee" heading). */
+  noGuarantee?: boolean;
 }
 
 const MARKER_LABELS = ["Search started", "Day 30", "Day 60"];
@@ -50,6 +55,11 @@ export function deriveGuaranteeTimeline(
 ): GuaranteeTimelineInfo | null {
   if (!input.solidifiedAt || !input.searchDeadline) return null;
   if (["cancelled", "switched", "closed"].includes(input.searchStatus)) return null;
+  // W8 (GX-3, approved 2026-10-25): in place of the timeline, while the search runs.
+  if (input.guaranteeStatus === "not_applicable" && input.guaranteeExceptionMake) {
+    if (input.searchStatus === "purchased") return null;
+    return { bar: null, lines: [noGuaranteeDealLine(input.guaranteeExceptionMake, formatLongDate(input.searchDeadline))], noGuarantee: true };
+  }
 
   const refunded = input.guaranteeStatus === "refunded";
   // "met" is locked; before Day 30 a counting offer is provisionally delivered.
