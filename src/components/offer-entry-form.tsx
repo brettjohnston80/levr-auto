@@ -389,7 +389,7 @@ export function OfferEntryForm(props: {
           <h2 className="text-sm font-semibold text-white">2 Pick the car</h2>
           {props.listings.length > 0 && (() => {
             const rows = pickerListings(props.listings, { modelYear: props.modelYear, customerTrims: rankedTrims, allTrims });
-            const mark = (c: string | null, picks: string[]) => <ColourMark colour={c} picks={picks} />;
+            const mark = (c: string | null, picks: string[]) => <ColourMark colour={c} picks={picks} colourShown />;
             return (
               <div className="mt-3">
                 <div className="flex flex-wrap gap-2 text-xs">
@@ -695,10 +695,11 @@ export function OfferEntryForm(props: {
 }
 
 /** ✓ / Check: listed as {colour} / not their pick (Brett, 2026-10-30), on the picker and step 2. */
-function ColourMark({ colour, picks, className = "ml-1" }: { colour: string | null; picks: string[]; className?: string }) {
+function ColourMark({ colour, picks, className = "ml-1", colourShown = false }: { colour: string | null; picks: string[]; className?: string; colourShown?: boolean }) {
   const m = colourMatch(colour, picks);
   if (!m || !colour) return null;
   if (m === "match") return <span className={`${className} text-emerald-400`}>{COLOUR_MARK.match}</span>;
-  if (m === "check") return <span className={`${className} text-amber-400`}>{COLOUR_MARK.check(colour.trim())}</span>;
+  if (m === "check")
+    return <span className={`${className} text-amber-400`}>{colourShown ? `· ${COLOUR_MARK.checkShort}` : COLOUR_MARK.check(colour.trim())}</span>;
   return <span className={`${className} text-zinc-400`}>{COLOUR_MARK.notPick}</span>;
 }

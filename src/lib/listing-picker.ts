@@ -54,6 +54,8 @@ export function colourMatch(colour: string | null, picks: string[]): "match" | "
 export const COLOUR_MARK = {
   match: "✓ (their pick)",
   check: (colour: string) => `Check: listed as ${colour}`,
+  /** Where the colour is already shown in the same cell (approved 2026-10-30): "Black · Check". */
+  checkShort: "Check",
   notPick: "not their pick",
 };
 
