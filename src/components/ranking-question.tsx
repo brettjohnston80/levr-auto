@@ -51,7 +51,7 @@ export interface RankableItem {
 }
 
 /** The button that ranks an option in the next position (BAE, 2026-10-29): "Rank #1" read as a
- *  status when two trims showed it at once. DRAFT, awaiting Brett's sign-off. Shared with the
+ *  status when two trims showed it at once. Approved 2026-10-29. Shared with the
  *  trim comparison so the same action has one label. */
 export const RANK_BUTTON = (n: number) => `Make #${n}`;
 

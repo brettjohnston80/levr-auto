@@ -37,7 +37,7 @@ const COPY = {
   ],
   nextUndecided: "After you pay, your agent will reach out to help you choose the vehicle.",
   // One paragraph replacing "how it works", "after you pay" and the lock note, which repeated
-  // each other (BAE, 2026-10-29). Brett's draft, awaiting his sign-off.
+  // each other (BAE, 2026-10-29). Approved by Brett 2026-10-29.
   howItWorks: "Here's how it works: after you pay, you'll choose your exact trim, color and options, and you can change them for 24 hours. Then your search goes live, and your agent goes to dealers for that exact car. Your make and model lock once you pay. Still deciding? Try the ",
   howItWorksLink: "Matchmaker",
   howItWorksEnd: " first.",
