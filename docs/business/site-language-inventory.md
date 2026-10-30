@@ -329,3 +329,20 @@ Where: on the `offer-entry` branch (not deployed). Agent lines: `WITHDRAW_COPY` 
 | `An update on your offer from {dealer}` · `Your agent withdrew the offer from {dealer}, so it can no longer be accepted. If there's a corrected offer, you'll find it in Your Deal. Your agent will be in touch about what happened.` | Email when a pending offer is withdrawn | customers |
 | `Your agent withdrew the offer from {dealer}` | Daily-update line (exists so the list stays complete; highlights aren't in the daily update) | customers |
 | `No longer available · withdrawn {date}` | Offer card for any withdrawn offer (withdrawn or released) | customers |
+
+## 20. Listing counts, Review your search, trim ranking and comparison (BAE's tester feedback) — approved 2026-10-29, live 2026-10-30
+Where: `src/lib/inventory-radius.ts` (counts), `src/components/review-and-pay.tsx`, `src/components/ranking-question.tsx` and `trim-comparison-modal.tsx`, `src/components/comparison-table.tsx`. Our listing counts are a synced sample, never the nationwide market, so they're never called "nationwide".
+
+| Text | Where it appears | Audience |
+|---|---|---|
+| `We search dealers nationwide.` | Intake badge and price line, Review your search: no listings synced for the model (no count) | customers |
+| `None found near you yet — we search dealers nationwide.` | Same places: synced, none within 100 miles | customers |
+| `{N} found within 100 miles of you so far — and we search dealers nationwide.` | Same places: synced, some nearby | customers |
+| `Based on current dealer listings.` | Under a count (Review your search, Matchmaker detail) | customers |
+| `{N} listings found so far` | Finalize trim list, trim comparison header, trim detail; Matchmaker detail adds `(all trims).` | customers |
+| `Here's how it works: after you pay, you'll choose your exact trim, color and options, and you can change them for 24 hours. Then your search goes live, and your agent goes to dealers for that exact car. Your make and model lock once you pay. Still deciding? Try the Matchmaker first.` | Review your search (replaces the how-it-works, after-you-pay and lock lines) | customers |
+| `Make #{N}` | The button that ranks an option next (trim comparison and every ranking list; was `Rank #{N}`) | customers |
+| `Show colors and interior` · `Show performance` · `Show features` | Screen-reader labels on the comparison's section toggles | customers |
+| `Done` | Bottom of the trim comparison | customers |
+| `Real dealer inventory, searched nationwide` | Homepage comparison table, "Where you're shopping" (was `Real, live inventory nationwide`) | customers |
+| `Out-the-door with delivery` | Offer comparison and "How the price adds up", for an offer taken by delivery (offer-entry branch, not live) | customers |
