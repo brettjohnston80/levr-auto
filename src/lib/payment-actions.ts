@@ -1,5 +1,7 @@
 "use server";
 
+import { guaranteeExceptionMake } from "@/lib/guarantee-exceptions";
+import { ensureTermsAccepted } from "@/lib/terms-acceptance";
 import { createClient } from "@/lib/supabase/server";
 import { getStripe } from "@/lib/stripe";
 import { FLAT_PRICE } from "@/lib/vehicle-data";
@@ -11,7 +13,9 @@ export type CreateCheckoutResult = { ok: true; url: string } | { ok: false; erro
 // only happens once Stripe confirms payment via the webhook
 // (checkout.session.completed). This action just verifies ownership and
 // hands back a Checkout URL to redirect to — price is always flat $699.
-export async function createCheckoutSession(searchId: string): Promise<CreateCheckoutResult> {
+// GX-2: acceptTerms is the Review your search checkbox (W3); the server refuses a customer
+// without a current acceptance (W4).
+export async function createCheckoutSession(searchId: string, acceptTerms = false): Promise<CreateCheckoutResult> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -36,6 +40,9 @@ export async function createCheckoutSession(searchId: string): Promise<CreateChe
   if (row.paid_at !== null) {
     return { ok: false, error: "This search has already been paid for." };
   }
+  const terms = await ensureTermsAccepted(user.id, acceptTerms);
+  if (!terms.ok) return terms;
+  const exceptionBrand = guaranteeExceptionMake(row.make as string | null);
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
@@ -57,6 +64,8 @@ export async function createCheckoutSession(searchId: string): Promise<CreateChe
         quantity: 1,
       },
     ],
+    // W5 (approved 2026-10-25): exception brands only.
+    ...(exceptionBrand ? { custom_text: { submit: { message: `Our money-back guarantee does not apply to ${exceptionBrand}.` } } } : {}),
     metadata: {
       type: "search_payment",
       customer_id: user.id,

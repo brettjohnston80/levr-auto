@@ -2,6 +2,7 @@ import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isNotOfferedModel } from "@/lib/not-offered-models";
+import { whileInventoryLastsFilter } from "@/lib/inventory-lasts";
 
 /**
  * Make -> models map powering the intake form's two cascading selects.
@@ -104,8 +105,13 @@ const loadLiveVehicleRows = cache(
 // Models no longer offered (not-offered-models.ts), dropped after the cache
 // so a change takes effect on the next deploy rather than up to 15 minutes
 // later.
-const loadOfferedVehicleRows = async (): Promise<LiveRow[]> =>
-  (await loadLiveVehicleRows()).filter((r) => !isNotOfferedModel(r.make, r.model));
+// While inventory lasts (GX-2): a listed make/model/year drops out once no listings remain.
+// Read per request (never inside the 15-minute cache), so it follows the listings.
+const loadOfferedVehicleRows = cache(async (): Promise<LiveRow[]> => {
+  const rows = (await loadLiveVehicleRows()).filter((r) => !isNotOfferedModel(r.make, r.model));
+  const keep = await whileInventoryLastsFilter(rows, (r) => r.model_year ?? null);
+  return rows.filter(keep);
+});
 
 export async function getIntakeMakeModelOptions(): Promise<MakeModelOptions> {
   const rows = await loadOfferedVehicleRows();

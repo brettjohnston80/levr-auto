@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isNotOfferedModel } from "@/lib/not-offered-models";
+import { whileInventoryLastsFilter } from "@/lib/inventory-lasts";
 import type { VehicleType } from "./matchmaker-data";
 import {
   SCORE_COLUMN_TO_LABEL,
@@ -178,7 +179,10 @@ export async function getLiveVehicles(): Promise<MatchmakerVehicle[]> {
   if (error) throw new Error(`getLiveVehicles: ${error.message}`);
   if (!liveBatch) return [];
   // Models no longer offered (Ford Escape) never reach Matchmaker either.
-  return (await getVehiclesForBatch(liveBatch.id)).filter((v) => !isNotOfferedModel(v.make, v.model));
+  const vehicles = (await getVehiclesForBatch(liveBatch.id)).filter((v) => !isNotOfferedModel(v.make, v.model));
+  // While inventory lasts (GX-2): checked at build, so it catches up on the next deploy.
+  const keep = await whileInventoryLastsFilter(vehicles, (v) => v.modelYear ?? null);
+  return vehicles.filter(keep);
 }
 
 /**

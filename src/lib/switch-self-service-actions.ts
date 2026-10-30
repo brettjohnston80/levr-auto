@@ -1,5 +1,8 @@
 "use server";
 
+import { guaranteeExceptionMake } from "@/lib/guarantee-exceptions";
+import { ensureTermsAccepted } from "@/lib/terms-acceptance";
+import { applyGuaranteeState } from "@/lib/guarantee-state";
 import { after } from "next/server";
 import { assignSearchAtPayment } from "./search-assignment";
 import { revalidatePath } from "next/cache";
@@ -209,6 +212,8 @@ export async function executeFreeSwitch(
   // The new paid row inherits the old row's agent; if the old row was never assigned, assign it
   // now, after the response (never throws; the hourly sweep is the backstop).
   const newSearchId = (newSearch as { id: string }).id;
+  // GX-2: the new search's guarantee state from its brand (finalizing sets it again as a backstop).
+  await applyGuaranteeState(admin, newSearchId);
   after(() => assignSearchAtPayment(newSearchId, { previousSearchId: searchId }));
   // An open switch call request on the old search is closed by the customer's own switch.
   await resolveCallByCustomer(searchId, "switch");
@@ -270,7 +275,8 @@ export async function createSwitchFeeCheckoutSession(
   searchId: string,
   newMake: string,
   newModel: string,
-  newModelYear: number | null
+  newModelYear: number | null,
+  acceptTerms = false,
 ): Promise<CreateSwitchFeeCheckoutResult> {
   const check = await getOwnedSwitchableSearch(searchId);
   if (!check.ok) return check;
@@ -283,12 +289,19 @@ export async function createSwitchFeeCheckoutSession(
   if (eligibility.eligible) {
     return { ok: false, error: "This switch is actually free — go back and confirm the free switch instead." };
   }
+  // GX-2: the standard terms, as at the first payment (a customer who paid before they existed
+  // ticks the box here).
+  const terms = await ensureTermsAccepted(check.userId, acceptTerms);
+  if (!terms.ok) return terms;
+  const exceptionBrand = guaranteeExceptionMake(target.make);
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
   const session = await getStripe().checkout.sessions.create({
     mode: "payment",
     customer_email: check.userEmail ?? undefined,
+    // W5 (approved 2026-10-25): exception brands only.
+    ...(exceptionBrand ? { custom_text: { submit: { message: `Our money-back guarantee does not apply to ${exceptionBrand}.` } } } : {}),
     line_items: [
       {
         price_data: {

@@ -1,5 +1,6 @@
 "use server";
 
+import { applyGuaranteeState } from "@/lib/guarantee-state";
 import { revalidatePath } from "next/cache";
 import { getAuthorizedAgent } from "./agent-auth";
 import { createAdminClient } from "./supabase/admin";
@@ -110,6 +111,8 @@ export async function switchCustomerSearch(formData: FormData): Promise<SwitchSe
   // The new paid row inherits the old row's agent; if the old row was never assigned, assign it
   // now, after the response (never throws; the hourly sweep is the backstop).
   const newSearchId = (newSearch as { id?: string } | null)?.id;
+  // GX-2: the new search's guarantee state from its brand (finalizing sets it again as a backstop).
+  if (newSearchId) await applyGuaranteeState(admin, newSearchId);
   if (newSearchId) after(() => assignSearchAtPayment(newSearchId, { previousSearchId: oldSearchId }));
   // An open switch call request on this search is resolved by the switch itself (outcome switched).
   await resolveCallAutomatically(oldSearchId, "switch", agent.id);

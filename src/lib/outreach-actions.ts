@@ -1,5 +1,7 @@
 "use server";
 
+import { applyGuaranteeState } from "@/lib/guarantee-state";
+import { guaranteeColumns } from "@/lib/guarantee-exceptions";
 import { travelFromColumns, travelFromValue, travelToColumns } from "./pickup-travel";
 import { deliveryEstimateStandard } from "./delivery-estimate";
 import { randomUUID } from "crypto";
@@ -1069,6 +1071,8 @@ export async function finalizeSearchByAgent(
   if (!updated) {
     return { ok: false, error: "This search is no longer awaiting finalization." };
   }
+  // GX-2 backstop: the guarantee state from the brand, before the search goes live.
+  await applyGuaranteeState(admin, searchId);
 
   await logAgentActivity(agent.id, "search_finalized_by_agent", await searchLinks(admin, searchId), {
     trim: details.trim || null,
@@ -1169,6 +1173,8 @@ export async function finalizeUndecidedSearch(
       pickup_travel_set_at: new Date().toISOString(),
       finalized_at: new Date().toISOString(),
       search_status: "pending_refinement",
+      // GX-2: the undecided buyer's brand fixes the guarantee state now.
+      ...guaranteeColumns(make),
     })
     .eq("id", searchId)
     .is("make", null) // guard: only ever applies to a genuinely undecided row

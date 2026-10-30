@@ -2,6 +2,8 @@ import { NextResponse, after } from "next/server";
 import Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { guaranteeColumns } from "@/lib/guarantee-exceptions";
+import { applyGuaranteeState } from "@/lib/guarantee-state";
 import { syncListingsForMakeModel } from "@/lib/marketcheck-sync";
 import { addDays, effectiveDeadline } from "@/lib/day60-extension";
 import { recordPayment } from "@/lib/payments";
@@ -77,6 +79,15 @@ export async function POST(request: Request) {
 
     const admin = createAdminClient();
 
+    // GX-2: the guarantee state is fixed at payment from the search's brand, in the same write
+    // that marks it paid (an undecided search, with no make yet, stays pending until it's chosen).
+    const { data: before } = await admin
+      .from("customer_searches")
+      .select("make")
+      .eq("id", searchId)
+      .eq("customer_id", customerId)
+      .maybeSingle();
+
     // paid_at IS NULL guard makes this idempotent -- Stripe can and does
     // redeliver the same event.
     const { data, error } = await admin
@@ -84,6 +95,7 @@ export async function POST(request: Request) {
       .update({
         paid_at: new Date().toISOString(),
         stripe_checkout_session_id: session.id,
+        ...guaranteeColumns((before?.make as string | null) ?? null),
       })
       .eq("id", searchId)
       .eq("customer_id", customerId)
@@ -212,6 +224,11 @@ async function handleSwitchFeePayment(session: Stripe.Checkout.Session): Promise
       console.log(
         `Stripe webhook: switch_fee session ${session.id} already processed (search ${oldSearchId} already switched) -- treating as idempotent retry`
       );
+      // GX-2: the first delivery may have stopped before the new row's guarantee state was set.
+      const { data: old } = await admin.from("customer_searches").select("superseded_by_id").eq("id", oldSearchId).maybeSingle();
+      if (old?.superseded_by_id && !(await applyGuaranteeState(admin, old.superseded_by_id as string))) {
+        return NextResponse.json({ error: "Guarantee state not set" }, { status: 500 });
+      }
       return NextResponse.json({ received: true, skipped: "already switched" });
     }
 
@@ -220,6 +237,12 @@ async function handleSwitchFeePayment(session: Stripe.Checkout.Session): Promise
   }
 
   console.log(`Stripe webhook: switched search ${oldSearchId} to ${newMake} ${newModel} for session ${session.id}`);
+
+  // GX-2: the new search's guarantee state, from its brand. A failure returns 500 so Stripe
+  // retries; the retry lands in the already-switched branch above, which sets it.
+  if (newSearch && !(await applyGuaranteeState(admin, newSearch.id as string))) {
+    return NextResponse.json({ error: "Guarantee state not set" }, { status: 500 });
+  }
 
   if (newSearch) {
     // The new (paid) row inherits the old row's agent inside switch_customer_search. If the old

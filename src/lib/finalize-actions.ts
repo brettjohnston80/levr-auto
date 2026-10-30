@@ -1,5 +1,7 @@
 "use server";
 
+import { applyGuaranteeState } from "@/lib/guarantee-state";
+import { guaranteeColumns } from "@/lib/guarantee-exceptions";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -258,6 +260,8 @@ export async function updateSearchVehicle(
       // Carried over from Matchmaker, and they described the old vehicle.
       matchmaker_price_cents: null,
       matchmaker_model_year: null,
+      // GX-2: the guarantee state follows the corrected brand (before the search goes live).
+      ...guaranteeColumns(make),
     })
     .eq("id", searchId)
     .in("search_status", VEHICLE_EDITABLE_STATUSES)
@@ -1257,6 +1261,8 @@ export async function finalizeSelfService(
   if (error) {
     return { ok: false, error: `Failed to finalize: ${error.message}` };
   }
+  // GX-2 backstop: the guarantee state from the brand, before the search goes live.
+  await applyGuaranteeState(admin, searchId);
 
   // No revalidatePath here (2026-10-10). Any revalidatePath in a server
   // action also re-renders the page the customer is on, and /finalize
