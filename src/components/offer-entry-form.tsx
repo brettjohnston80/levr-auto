@@ -433,7 +433,7 @@ export function OfferEntryForm(props: {
                           <td className="px-2 py-1.5 text-zinc-300">{l.color ?? "—"}{mark(l.color, exteriorPicks)}</td>
                           <td className="px-2 py-1.5 text-zinc-300">{l.interiorColor ?? "—"}{mark(l.interiorColor, interiorPicks)}</td>
                           <td className="px-2 py-1.5 text-zinc-300">{l.stockNumber ?? "—"}</td>
-                          <td className="px-2 py-1.5 font-mono text-zinc-300">{vinLast8(l.vin)}</td>
+                          <td className="whitespace-nowrap px-2 py-1.5 font-mono text-zinc-300">{vinLast8(l.vin)}</td>
                           <td className="px-2 py-1.5 text-zinc-200">{l.priceCents != null ? money(l.priceCents) : "—"}</td>
                         </tr>
                       ))}
