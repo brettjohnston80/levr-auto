@@ -348,3 +348,26 @@ Where: `src/lib/inventory-radius.ts` (counts), `src/components/review-and-pay.ts
 | `Out-the-door with delivery` | Offer comparison and "How the price adds up", for an offer taken by delivery (offer-entry branch, not live) | customers |
 | `Continue your search` | `/account` under the heading (when there's an active search that isn't the unpaid one, which has its own card), and under "Password changed." | customers |
 | `Account settings` | Heading above the settings and password forms on `/account`, now below the searches (replaces the form's own small label) | customers |
+
+## 21. Guarantee exceptions: Tesla, Rivian, Lucid, Polestar (GX-3, GX-4) — approved 2026-10-25, built on the `gx` branch (not live)
+Where: `src/lib/guarantee-exception-copy.ts` (customer lines), the agent screens, `src/lib/terms-acceptance.ts`. W13 (the terms clause) waits for attorney review and isn't built.
+
+| # | Text | Where it appears | Audience |
+|---|---|---|---|
+| W1 | `Our money-back guarantee does not apply to {Brand}.` | Intake, under the make | customers |
+| W2 | same | Review your search, in place of the guarantee bullet | customers |
+| W3 | `I agree to the Terms of Service.` (link) | Review your search, and the paid-switch screen for a customer who hasn't accepted the current terms | customers |
+| W3a | `Money-back guarantee does not apply to Tesla, Rivian, Lucid or Polestar.` | Under W3 | customers |
+| W4 | `Please agree to the Terms of Service to continue.` | Box not ticked (page and server) | customers |
+| W5 | `Our money-back guarantee does not apply to {Brand}.` | Stripe checkout, above Pay, exception brands only | customers |
+| W6 | same | Switch screens, switching into an exception brand | customers |
+| W7 | `Your new search is covered by our money-back guarantee.` | Switch screens, switching out of one | customers |
+| W8 | `Our money-back guarantee does not apply to {Brand}. Your search runs through {date}, and you can extend it for $100 per 30 days.` | Your Deal, in place of the guarantee timeline | customers |
+| W12 | `Our money-back guarantee does not apply to {Brand}.` | Matchmaker card and detail | customers |
+| M1, M3, M5 | `Terms apply.` (link to `/faq#guarantee-brands`) | Homepage: end of the guarantee paragraph, the "One flat fee" card, under the comparison table | customers |
+| M11 | Q `Does the guarantee cover every brand?` A `Our money-back guarantee does not apply to Tesla, Rivian, Lucid or Polestar. These brands sell directly at prices they set, so there's no dealer discount to negotiate. We'll still find the best available price on your exact car, including demo and inventory cars and current manufacturer offers, and handle the order for you.` | FAQ, after "What if you can't get me a deal below Total SRP?" | customers |
+| M26 | `Money-back guarantee does not apply to Tesla, Rivian, Lucid or Polestar.` | End of the published article's guarantee section (SQL for Brett, not run) | customers |
+| W14 | `No guarantee: {Brand} (direct sale)` | Agent active-search card | agents |
+| W15 | `No guarantee for this brand.` | Log Offer page, in place of the guarantee line | agents |
+| W16 | `Not applicable` | Admin table, new Guarantee column (heading `Guarantee` is a draft) | agents |
+| draft | `We couldn't save your agreement. Please try again.` | Terms acceptance failed to save (server) | customers |
