@@ -94,7 +94,7 @@ try {
   await p3.screenshot({ path: path.join(OUT, "agent-1f-rehearsal-B-after-relink.png") });
   { const pcu = await ctxPage(); await go(pcu, NEW + "/login"); await pcu.type('input[name="email"]', custEmail); await pcu.type('input[name="password"]', pwOld);
     await submit(pcu, 'form:has(input[name="password"]) button[type="submit"]', () => location.pathname !== "/login");
-    ok("B6: old login still works as a CUSTOMER on the new code (→ /account)", at(pcu) === "/account", at(pcu));
+    ok("B6: old login still works as a CUSTOMER on the new code (→ where the search stands)", ["/", "/account"].includes(at(pcu)) || at(pcu).startsWith("/account/"), at(pcu));
     await go(pcu, NEW + "/internal/outreach"); ok("B7: …and can't reach /internal", at(pcu) === "/agent", at(pcu)); }
 
   // ---------- Rollback recipe (if the new code has to be rolled back after the relink)

@@ -68,7 +68,7 @@ try {
   // ---- sessions
   const pNone = await ctxPage(); await go(pNone, "/agent");
   const pCust = await ctxPage(); await go(pCust, "/login"); await pCust.type('input[name="email"]', custEmail); await pCust.type('input[name="password"]', pw);
-  await submitAndWait(pCust, () => location.pathname !== "/login"); ok("customer signed in", path_(pCust) === "/account", path_(pCust));
+  await submitAndWait(pCust, () => location.pathname !== "/login"); ok("customer signed in (→ where the search stands: / with none)", ["/", "/account"].includes(path_(pCust)) || path_(pCust).startsWith("/account/"), path_(pCust));
   const pP = await ctxPage(); await signIn(pP, P.email); ok("plain agent signed in (two-factor)", path_(pP) === "/internal/outreach");
   const pPW = await ctxPage(); await signIn(pPW, PW.email, false); ok("password-only agent at the code step", path_(pPW) === "/agent" && !!(await pPW.$('input[name="code"]')));
   const pL = await ctxPage(); await signIn(pL, L.email); ok("lead signed in", path_(pL) === "/internal/outreach");

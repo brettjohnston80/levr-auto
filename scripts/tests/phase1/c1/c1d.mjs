@@ -53,7 +53,7 @@ try {
   // 2. customer login: normal customer sign-in still works; /internal refused
   { const p = await ctxPage(); await go(p, "/login"); await p.type('input[name="email"]', emailC); await p.type('input[name="password"]', pw);
     await submitAndWait(p, () => location.pathname !== "/login");
-    ok("customer: /login still signs a customer in (→ /account)", path_(p) === "/account", path_(p));
+    ok("customer: /login still signs a customer in (→ where the search stands)", ["/", "/account"].includes(path_(p)) || path_(p).startsWith("/account/"), path_(p));
     await go(p, "/internal/outreach"); ok("customer: /internal/outreach → /agent", path_(p) === "/agent", path_(p));
     ok("customer: lookup action refused", refused(await callSearchCustomers(p, emailC)));
     await p.browserContext().close(); }

@@ -13,7 +13,7 @@ try {
   const { data: u, error } = await a.auth.admin.createUser({ email, email_confirm: true, password: pw }); if (error) throw error; uid = u.user.id;
   const other = await page(); await go(other, NEW + "/login"); await other.type('input[name="email"]', email); await other.type('input[name="password"]', pw);
   await other.click('form:has(input[name="password"]) button[type="submit"]'); await other.waitForFunction(() => location.pathname !== "/login", { timeout: 240000 }).catch(() => {});
-  ok("customer signed in on another device", at(other) === "/account", at(other));
+  ok("customer signed in on another device", ["/", "/account"].includes(at(other)) || at(other).startsWith("/account/"), at(other));
   const { data: gl } = await a.auth.admin.generateLink({ type: "recovery", email });
   const q = await page(); await go(q, `${NEW}/agent/accept?token_hash=${gl.properties.hashed_token}&purpose=reset`);
   await q.click('form button[type="submit"]'); await q.waitForFunction(() => !!document.querySelector('[role="alert"]'), { timeout: 240000 }).catch(() => {});

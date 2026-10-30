@@ -151,7 +151,7 @@ try {
   for (const u of ["/internal/dealerships", "/internal/articles", "/internal/social", "/internal/agents", "/internal/outreach"]) await go(p, u);
   const pc = await ctxPage(); await go(pc, "/login"); await pc.type('input[name="email"]', custEmail); await pc.type('input[name="password"]', pw);
   await submit(pc, () => location.pathname !== "/login"); await go(pc, "/account/deal"); await go(pc, "/account/messages");
-  ok("customer signed in", at(pc).startsWith("/account"), at(pc));
+  ok("customer signed in", at(pc) === "/" || at(pc).startsWith("/account"), at(pc));
   IDS = actionIds();
   const offerLinks = (o, s) => ({ qualifying_offer_id: o, search_id: s, customer_id: C });
 
