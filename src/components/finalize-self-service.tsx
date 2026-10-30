@@ -28,6 +28,7 @@ import { TrimComparisonModal } from "@/components/trim-comparison-modal";
 import { TrimDetailModal } from "@/components/trim-detail-modal";
 import { hasAtLeastOneRanked } from "@/lib/ranked-list";
 import { displayOptionName } from "@/lib/option-display";
+import { listingsFoundCopy } from "@/lib/inventory-radius";
 
 type Step =
   | "trim"
@@ -835,7 +836,7 @@ export function FinalizeSelfService({
                         ? `–${formatCents(opt.maxPriceCents)}`
                         : ""}
                       {" · "}
-                      {opt.count} available nationwide
+                      {listingsFoundCopy(opt.count)}
                     </span>
                   ),
                 }))}

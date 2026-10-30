@@ -11,7 +11,9 @@ import { INVENTORY_RADIUS_MILES } from "./inventory-radius";
 // what a customer sees here is "how much is actually near you," not "how
 // much exists somewhere in the country."
 
-export type InventoryCountResult = { ok: true; count: number } | { ok: false; error: string };
+/** `synced`: every listing we hold for the make and model (0 = never synced), so the copy can
+ *  say nothing about numbers we don't have. */
+export type InventoryCountResult = { ok: true; count: number; synced: number } | { ok: false; error: string };
 
 /**
  * Counts real synced listings for make+model within INVENTORY_RADIUS_MILES
@@ -36,14 +38,21 @@ export async function countNearbyInventory(
 ): Promise<InventoryCountResult> {
   const admin = createAdminClient();
 
-  const { data: listings, error: listingsError } = await admin
-    .from("listings")
-    .select("dealer_zip")
-    .eq("make", make)
-    .eq("model", model);
-
-  if (listingsError) {
-    return { ok: false, error: listingsError.message };
+  // Paged: PostgREST stops a plain select at 1,000 rows without saying so.
+  const listings: { dealer_zip: string | null }[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error: listingsError } = await admin
+      .from("listings")
+      .select("dealer_zip")
+      .eq("make", make)
+      .eq("model", model)
+      .order("id")
+      .range(from, from + 999);
+    if (listingsError) {
+      return { ok: false, error: listingsError.message };
+    }
+    listings.push(...(data ?? []));
+    if ((data ?? []).length < 1000) break;
   }
 
   const dealerZips = Array.from(
@@ -75,7 +84,7 @@ export async function countNearbyInventory(
     return distance <= INVENTORY_RADIUS_MILES ? total + 1 : total;
   }, 0);
 
-  return { ok: true, count };
+  return { ok: true, count, synced: (listings ?? []).length };
 }
 
 /**

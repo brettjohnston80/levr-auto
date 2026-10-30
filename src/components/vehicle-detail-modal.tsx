@@ -6,6 +6,7 @@ import type { Answers } from "@/lib/matchmaker-data";
 import { formatPriceEstimate, fuelTypeToPowertrain, type MatchmakerVehicle } from "@/lib/matchmaker-vehicle-display";
 import { SilhouetteIcon } from "@/components/vehicle-silhouette";
 import { countNationwideInventory } from "@/lib/inventory-count";
+import { INVENTORY_SOURCE_NOTE, listingsFoundCopy } from "@/lib/inventory-radius";
 import { ScoreLegendButton } from "@/components/score-legend";
 import { priorityBreakdown, prioritiesForType } from "@/lib/matchmaker-explain";
 import {
@@ -221,11 +222,11 @@ export function VehicleDetailModal({
                   "tracked" framing (not "available") already used by the
                   intake match-counter's own zero state, since this table only
                   reflects what's been synced, not the true nationwide market. */}
-              {nationwideCount !== null && (
+              {/* BAE (2026-10-29): our synced listings are a sample, never the nationwide
+                  market, so no count without synced listings and never "nationwide". */}
+              {nationwideCount !== null && nationwideCount > 0 && (
                 <p className="mt-1 text-xs text-zinc-500">
-                  {nationwideCount > 0
-                    ? `${nationwideCount.toLocaleString()} ${vehicle.make} ${vehicle.model} listings nationwide (all trims)`
-                    : `No ${vehicle.make} ${vehicle.model} listings currently tracked nationwide`}
+                  {listingsFoundCopy(nationwideCount)} (all trims). {INVENTORY_SOURCE_NOTE}
                 </p>
               )}
 
