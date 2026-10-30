@@ -1,5 +1,5 @@
 import type { DashboardOffer } from "./customer-dashboard";
-import { deliveryEstimatePending, totalPriceCents } from "./delivery-estimate";
+import { deliveryEstimatePending, takesDelivery, totalPriceCents } from "./delivery-estimate";
 import { lowestOtdOfferId, type CompareOffer } from "./offer-comparison-rows";
 
 export interface OfferSavings {
@@ -42,6 +42,8 @@ export function toCompareOffer(offer: DashboardOffer): CompareOffer {
     fees: offer.fees.map((f) => ({ kind: f.kind, amountCents: f.amountCents })),
     options: offer.options,
     totalPriceCents: totalPriceCents(offer),
+    takesDelivery: takesDelivery(offer),
+    deliveryEstimateCents: offer.deliveryEstimate?.status === "provided" ? offer.deliveryEstimate.cents : null,
     deliveryPending: deliveryEstimatePending(offer),
   };
 }

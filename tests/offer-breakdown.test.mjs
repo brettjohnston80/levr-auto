@@ -45,3 +45,16 @@ describe("breakdown rows", () => {
     assert.deepEqual(B.removableAddonNotes(ex), ["Don't want the nitrogen fill? The dealer will remove it. Just tell your agent."]);
   });
 });
+
+describe("delivery in the breakdown (Brett, 2026-10-29)", () => {
+  it("shows Out-the-door, then the estimate, then Out-the-door with delivery", () => {
+    const rows = B.breakdownRows({ ...ex, deliveryCents: 50_000 });
+    assert.deepEqual(rows.slice(-3).map((r) => [r.kind, r.amountCents]), [["otd", 3_074_200], ["delivery", 50_000], ["otd_with_delivery", 3_124_200]]);
+  });
+  it("without an out-the-door figure, just the estimate", () => {
+    const rows = B.breakdownRows({ ...ex, otd: null, deliveryCents: 50_000 });
+    assert.equal(rows.at(-1).kind, "delivery");
+    assert.equal(rows.some((r) => r.kind === "otd_with_delivery"), false);
+  });
+});
+

@@ -15,7 +15,7 @@ const offer = (o = {}) => ({
     { name: "Moonroof", customerAskedFor: true, onTheCar: false },
     { name: "Mudguards", customerAskedFor: false, onTheCar: true },
   ],
-  totalPriceCents: 2_810_000, deliveryPending: false, ...o,
+  totalPriceCents: 2_810_000, takesDelivery: false, deliveryEstimateCents: null, deliveryPending: false, ...o,
 });
 const picks = { exterior: ["Ice Cap"], interior: ["Cockpit Red"] };
 
@@ -91,5 +91,37 @@ describe("Best total price sort and column order", () => {
   it("pins the badge's offer first in the comparison and leaves out closed offers", () => {
     const list = [offer({ id: "x" }), offer({ id: "y", otd: { totalCents: 100, source: "dealer_quote" } }), offer({ id: "z", status: "withdrawn" })];
     assert.deepEqual(C.comparisonOrder(list).map((o) => o.id), ["y", "x"]);
+  });
+});
+
+describe("delivery (Brett, 2026-10-29)", () => {
+  // A: $30,742 out-the-door, picked up. B: $30,393 out-the-door but $500 delivery = $30,893.
+  const pickup = offer({ id: "pickup" });
+  const deliv = offer({ id: "deliv", otd: { totalCents: 3_039_300, source: "dealer_quote" }, takesDelivery: true, deliveryEstimateCents: 50_000 });
+  it("compares out-the-door + delivery for an offer taken by delivery, out-the-door alone within range", () => {
+    assert.equal(C.comparedTotalCents(pickup), 3_074_200);
+    assert.equal(C.comparedTotalCents(deliv), 3_089_300);
+    assert.equal(C.comparedTotalCents(offer({ deliveryEstimateCents: 50_000 })), 3_074_200); // estimate, but picked up
+  });
+  it("gives the badge to the lower compared total", () => {
+    assert.equal(C.lowestOtdOfferId([pickup, deliv]), "pickup");
+    assert.equal(C.lowestOtdOfferId([pickup, { ...deliv, deliveryEstimateCents: 0 }]), "deliv");
+  });
+  it("an offer by delivery still waiting on its estimate can't get the badge", () => {
+    const waiting = { ...deliv, deliveryEstimateCents: null, deliveryPending: true, otd: { totalCents: 100, source: "dealer_quote" } };
+    assert.equal(C.lowestOtdOfferId([pickup, waiting]), "pickup");
+  });
+  it("sorts by the compared total", () => {
+    assert.deepEqual([deliv, pickup].sort(C.compareByOtd).map((o) => o.id), ["pickup", "deliv"]);
+  });
+  it("shows the estimate and the delivery total as rows when an offer comes by delivery", () => {
+    const rows = C.comparisonRows([pickup, deliv], picks);
+    const get = (k) => rows.find((r) => r.key === k)?.cells.map((c) => c.lines[0]);
+    assert.deepEqual(get("delivery"), ["—", "+$500"]);
+    assert.deepEqual(get("otd_with_delivery"), ["—", "$30,893"]);
+    assert.equal(rows.find((r) => r.key === "otd_with_delivery").label, "Out-the-door with delivery");
+    assert.equal(C.comparisonRows([pickup], picks).some((r) => r.key === "delivery"), false);
+    const pend = C.comparisonRows([{ ...deliv, deliveryEstimateCents: null, deliveryPending: true }], picks);
+    assert.deepEqual(pend.find((r) => r.key === "delivery").cells[0].lines, ["Requested"]);
   });
 });

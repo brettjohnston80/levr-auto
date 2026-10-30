@@ -299,7 +299,7 @@ describe("held models (out of the import until Brett releases them, 2026-10-16)"
 
   it("reads the one shared list in data/held-models.json", () => {
     assert.deepEqual(heldModels.map((h) => `${h.make} ${h.model} ${h.trim ?? "*"} ${h.modelYear ?? "*"}`).sort(),
-      ["Cadillac Vistiq * 2026", "Dodge Charger Daytona Scat Pack 2027", "Maserati GT2 Stradale * *", "Maserati MCPURA * *", "Volvo EX40 * *"]);
+      ["Cadillac Vistiq * 2026", "Dodge Charger Daytona Scat Pack 2027", "Maserati GT2 Stradale * *", "Maserati MCPURA * *", "Rivian R2 * *", "Volvo EX40 * *"]);
     assert.throws(() => M.heldModelsFromJson('{"make":"Volvo"}'));
     // A typo'd key would otherwise hold every year of the model.
     assert.throws(() => M.heldModelsFromJson('[{"make":"Cadillac","model":"Vistiq","modelYear":"2026"}]'), /unknown key "modelYear"/);

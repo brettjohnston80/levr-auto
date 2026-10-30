@@ -58,7 +58,7 @@ try {
   logins.push(cu.id); customerId = cu.id;
   must(await a.from("customers").update({ first_name: "Jordan", last_name: "Verify", phone: "555-0142" }).eq("id", cu.id), "name");
   const now = new Date().toISOString();
-  const sid = must(await a.from("customer_searches").insert({ customer_id: cu.id, zip: "66213", make: "Toyota", model: "Camry", model_year: 2026, trim: "SE", search_status: "searching", paid_at: now, finalized_at: now, solidified_at: now }).select("id").single(), "search").id;
+  const sid = must(await a.from("customer_searches").insert({ customer_id: cu.id, zip: "66213", make: "Toyota", model: "Camry", model_year: 2026, trim: "SE", search_status: "searching", paid_at: now, finalized_at: now, solidified_at: now, pickup_travel_choice: "distance", pickup_travel_miles: 25 }).select("id").single(), "search").id;
   searches.push(sid);
   const sel = must(await a.from("search_option_selections").insert([
     { search_id: sid, category: "exterior_color", question_kind: "ranked", selection: "Ice Cap", rank_position: 1, excluded: false, price_unknown: false },
@@ -83,8 +83,8 @@ try {
   const oQuote = await send(base(D("QUOTE"), "Overland Park", "66210", "1HGCM82633A004352", "Ice Cap", "Black SofTex", 2810000, {
     payload: { addons: [{ description: "Nitrogen fill", amount_cents: 14900, customer_wanted: false, dealer_says_removable: true }], addons_none_confirmed: false,
       fees, otd_source: "dealer_quote", otd_total_cents: 2810000 + 14900 + 39900 + 185000 + 24400 } }));
-  const oEst = await send(base(D("ESTIMATE"), "Olathe", "66061", "1M8GDM9AXKP042788", "Wind Chill Pearl", "Black SofTex", 2790000, {
-    moon: true, payload: { fees, otd_source: "estimate", otd_total_cents: 2790000 + 39900 + 185000 + 24400 } }));
+  const oEst = await send(base(D("ESTIMATE"), "Wichita", "67202", "1M8GDM9AXKP042788", "Wind Chill Pearl", "Black SofTex", 2790000, {
+    moon: true, payload: { delivery_estimate_status: "provided", delivery_estimate_cents: 50000, fees, otd_source: "estimate", otd_total_cents: 2790000 + 39900 + 185000 + 24400 } }));
   const oWait = await send(base(D("WAITING"), "Lee's Summit", "64063", "11111111111111111", "Ice Cap", "Cockpit Red", 2775000, { payload: {} }));
   const oOld = must(await a.from("qualifying_offers").insert({ customer_search_id: sid, dealer_name: D("OLD"), offer_price_cents: 2890000, msrp_cents: 3089500, logged_by_agent_id: L.id }).select("id").single(), "old").id;
   ok("setup: three offers sent (a dealer quote, an estimate, one waiting) and one logged the old way", !!(oQuote && oEst && oWait && oOld));
@@ -97,11 +97,12 @@ try {
   // 1. Default sort and the badge.
   await go(cp, `/account/deal?searchId=${sid}`); await waitText(cp, D("QUOTE"));
   const t1 = await bodyText(cp);
-  const order = [D("ESTIMATE"), D("QUOTE"), D("WAITING"), D("OLD")].map((n) => t1.indexOf(n));
-  ok("default sort is Best total price: by out-the-door, offers without one after", order.every((x, i) => x >= 0 && (i === 0 || x > order[i - 1])), order.join(","));
+  // ESTIMATE: $30,393 out-the-door + $500 delivery (beyond the 25-mile range) = $30,893 > QUOTE $30,742.
+  const order = [D("QUOTE"), D("ESTIMATE"), D("WAITING"), D("OLD")].map((n) => t1.indexOf(n));
+  ok("default sort is Best total price: out-the-door (+ delivery when it comes by delivery), offers without one after", order.every((x, i) => x >= 0 && (i === 0 || x > order[i - 1])), order.join(","));
   const sortCurrent = await cp.evaluate(() => document.querySelector('nav [aria-current="true"]')?.textContent ?? "");
   ok("the Best total price pill is the current one and comes first", sortCurrent.includes("Best total price") || t1.indexOf("Best total price") < t1.indexOf("Best discount"));
-  ok("\"Lowest out-the-door\" on the estimate offer, \"Best value\" gone", t1.includes("Lowest out-the-door") && !t1.includes("Best value"));
+  ok("\"Lowest out-the-door\" on the dealer-quote offer (the delivery one costs more), \"Best value\" gone", t1.includes("Lowest out-the-door") && !t1.includes("Best value"));
   await shot(cp, "01-your-deal-sorted");
 
   // 2. Desktop comparison.
@@ -109,11 +110,11 @@ try {
   await waitText(cp, "Compare your offers");
   const t2 = await cp.evaluate(() => document.querySelector('[role="dialog"]').innerText);
   const want = ["Exterior", "Interior", "Options you want", "Also on the car", "Window sticker", "Discount", "Car price", "Dealer add-ons", "Doc fee", "Sales tax",
-    "Title & registration", "Out-the-door", "Figures from", "Good until", "Ice Cap ✓", "not your pick", "1 of 2", "2 of 2", "can be removed", "Dealer's quote", "Our estimate", "Requested", "View and accept", "New to LEVR — no rating yet"];
+    "Title & registration", "Out-the-door", "Figures from", "Good until", "Ice Cap ✓", "not your pick", "1 of 2", "2 of 2", "can be removed", "Dealer's quote", "Our estimate", "Requested", "View and accept", "New to LEVR — no rating yet", "Delivery estimate", "+$500", "Out-the-door with delivery", "$30,893"];
   const miss = want.filter((w) => !t2.toLowerCase().includes(w.toLowerCase()));
   ok("desktop table: every approved row, the marks and the figures sources", miss.length === 0, miss.join(" | "));
   const firstCol = await cp.evaluate(() => document.querySelector('[role="dialog"] thead th:nth-child(2)')?.innerText ?? "");
-  ok("the Lowest out-the-door offer is pinned first", firstCol.includes("Lowest out-the-door") && firstCol.includes(D("ESTIMATE")), firstCol.slice(0, 80));
+  ok("the Lowest out-the-door offer is pinned first", firstCol.includes("Lowest out-the-door") && firstCol.includes(D("QUOTE")), firstCol.slice(0, 80));
   for (const [w, tag] of [[1280, "desktop"]]) { await cp.setViewport({ width: w, height: 1600 }); await sleep(800); await (await cp.$('[role="dialog"]')).screenshot({ path: `${SHOTS}/02-compare-${tag}.png` }); }
 
   // 3. Phone two-up with the pager.
@@ -130,7 +131,21 @@ try {
   ok("phone: › swaps in the next offer", /1 and 3 of \d/.test(t4), t4.match(/\d and \d of \d/)?.[0] ?? "none");
   await (await cp.$('[role="dialog"]')).screenshot({ path: `${SHOTS}/04-compare-phone-swapped.png` });
 
-  // 4. View and accept opens that offer's detail.
+  // 4. The breakdown for the delivery offer shows the total the badge compares.
+  await go(cp, `/account/deal?searchId=${sid}&offer=${oEst}`); await cp.setViewport({ width: 1280, height: 900 });
+  await waitText(cp, "How the price adds up");
+  const t5 = await cp.evaluate(() => document.querySelector('[role="dialog"]').innerText);
+  ok("breakdown by delivery: Out-the-door $30,393, Delivery estimate +$500, Out-the-door with delivery $30,893",
+     /Out-the-door\s*\$30,393/.test(t5) && /Delivery estimate\s*\+\$500/.test(t5) && /Out-the-door with delivery\s*\$30,893/.test(t5));
+  await shotDialog(cp, "05-breakdown-by-delivery");
+  await go(cp, `/account/deal?searchId=${sid}&offer=${oQuote}`); await waitText(cp, "How the price adds up");
+  const t6 = await cp.evaluate(() => document.querySelector('[role="dialog"]').innerText);
+  ok("breakdown within range: no delivery rows", !t6.includes("Out-the-door with delivery"));
+  await go(cp, `/account/deal?searchId=${sid}`); await cp.setViewport({ width: 390, height: 844 }); await sleep(1500);
+  await cp.evaluate(() => [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Compare offers").click());
+  await waitText(cp, "Compare your offers");
+
+  // 6. View and accept opens that offer's detail.
   const href = await cp.evaluate(() => [...document.querySelectorAll('[role="dialog"] a')].find((x) => x.textContent.trim() === "View and accept").getAttribute("href"));
   ok("View and accept links to the offer's detail view", /offer=/.test(href), href);
 } catch (e) {

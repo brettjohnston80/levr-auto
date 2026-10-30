@@ -12,7 +12,8 @@ export interface BreakdownInput {
   priceCents: number;
   addons: { description: string; amountCents: number; dealerSaysRemovable?: boolean | null }[];
   fees: { kind: BreakdownFeeKind; label?: string | null; amountCents: number }[];
-  /** A provided delivery estimate; null when there's none or it isn't a figure. */
+  /** A provided delivery estimate, passed only when the customer would take the car by delivery
+   *  (Brett, 2026-10-29); null otherwise. */
   deliveryCents: number | null;
   /** The out-the-door total and where it came from; null = not recorded yet (requested). */
   otd: { totalCents: number; source: "dealer_quote" | "estimate" } | null;
@@ -20,7 +21,7 @@ export interface BreakdownInput {
 
 export type BreakdownRowKind =
   | "sticker" | "discount" | "price" | "addons" | "doc_fee" | "sales_tax" | "title_registration" | "other_fees"
-  | "delivery" | "otd";
+  | "delivery" | "otd" | "otd_with_delivery";
 
 export interface BreakdownRow {
   kind: BreakdownRowKind;
@@ -44,6 +45,8 @@ const LABELS: Record<BreakdownRowKind, string> = {
   other_fees: "Other fees",
   delivery: "Delivery estimate",
   otd: "Out-the-door",
+  /** DRAFT, awaiting sign-off (2026-10-29). */
+  otd_with_delivery: "Out-the-door with delivery",
 };
 
 export function breakdownRows(input: BreakdownInput): BreakdownRow[] {
@@ -68,8 +71,12 @@ export function breakdownRows(input: BreakdownInput): BreakdownRow[] {
   }
   const other = input.fees.filter((f) => f.kind === "other");
   if (other.length > 0) rows.push(row("other_fees", sum(other)));
-  if (input.deliveryCents != null) rows.push(row("delivery", input.deliveryCents));
+  // The dealer's out-the-door, then (by delivery) the estimate and the total compared across offers.
   if (input.otd) rows.push(row("otd", input.otd.totalCents));
+  if (input.deliveryCents != null) {
+    rows.push(row("delivery", input.deliveryCents));
+    if (input.otd) rows.push(row("otd_with_delivery", input.otd.totalCents + input.deliveryCents));
+  }
   return rows;
 }
 

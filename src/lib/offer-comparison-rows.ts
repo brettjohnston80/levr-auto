@@ -20,8 +20,22 @@ export interface CompareOffer {
   options: { name: string; customerAskedFor: boolean; onTheCar: boolean }[];
   /** Price plus the delivery estimate when the customer takes delivery and it's known. */
   totalPriceCents: number;
+  /** The customer would take this car by delivery (beyond their pickup range, or they chose delivery). */
+  takesDelivery: boolean;
+  /** The dealer's delivery estimate, when provided (0 = free). */
+  deliveryEstimateCents: number | null;
   /** Takes delivery but the estimate isn't in yet. */
   deliveryPending: boolean;
+}
+
+/**
+ * What the badge and "Best total price" compare (Brett, 2026-10-29): out-the-door plus the
+ * delivery estimate for an offer the customer would take by delivery, out-the-door alone within
+ * the pickup range. Null without an out-the-door figure.
+ */
+export function comparedTotalCents(o: CompareOffer): number | null {
+  if (!o.otd) return null;
+  return o.otd.totalCents + (o.takesDelivery && o.deliveryEstimateCents != null ? o.deliveryEstimateCents : 0);
 }
 
 /** Offers the customer can still act on. Declined and withdrawn offers aren't compared. */
@@ -30,6 +44,8 @@ export const isOpen = (o: { status: string }) => OPEN_STATUSES.includes(o.status
 
 export const COMPARE_COPY = {
   button: "Compare offers",
+  /** DRAFT, awaiting sign-off (2026-10-29): the delivery-inclusive total row. */
+  otdWithDelivery: "Out-the-door with delivery",
   title: "Compare your offers",
   badge: "Lowest out-the-door",
   viewAndAccept: "View and accept",
@@ -57,7 +73,7 @@ export function lowestOtdOfferId(offers: CompareOffer[]): string | null {
   if (withOtd.length < 2) return null;
   const eligible = withOtd.filter((o) => !o.deliveryPending);
   if (eligible.length === 0) return null;
-  const best = [...eligible].sort((a, b) => a.otd!.totalCents - b.otd!.totalCents || a.totalPriceCents - b.totalPriceCents)[0];
+  const best = [...eligible].sort((a, b) => comparedTotalCents(a)! - comparedTotalCents(b)! || a.totalPriceCents - b.totalPriceCents)[0];
   return best.id;
 }
 
@@ -71,7 +87,8 @@ export function compareByOtd(a: CompareOffer, b: CompareOffer): number {
   if (ga !== gb) return ga - gb;
   const pa = a.deliveryPending ? 1 : 0, pb = b.deliveryPending ? 1 : 0;
   if (pa !== pb) return pa - pb;
-  if (a.otd && b.otd && a.otd.totalCents !== b.otd.totalCents) return a.otd.totalCents - b.otd.totalCents;
+  const ta = comparedTotalCents(a), tb = comparedTotalCents(b);
+  if (ta != null && tb != null && ta !== tb) return ta - tb;
   return a.totalPriceCents - b.totalPriceCents;
 }
 
@@ -149,6 +166,19 @@ export function comparisonRows(offers: CompareOffer[], picks: { exterior: string
     row("sales_tax", "Sales tax", (o) => feeCell(o, "sales_tax")),
     row("title_registration", "Title & registration", (o) => feeCell(o, "title_registration")),
     row("otd", "Out-the-door", (o) => (o.otd ? cell(money(o.otd.totalCents)) : dash())),
+    // Only when some offer would come by delivery: the estimate, then the total the badge uses.
+    ...(offers.some((o) => o.takesDelivery)
+      ? [
+          row("delivery", "Delivery estimate", (o) => {
+            if (!o.takesDelivery) return dash();
+            if (o.deliveryEstimateCents != null) return cell(`+${money(o.deliveryEstimateCents)}`);
+            return o.deliveryPending ? cell(COMPARE_COPY.figuresFrom.requested, "muted") : dash();
+          }),
+          row("otd_with_delivery", COMPARE_COPY.otdWithDelivery, (o) =>
+            o.takesDelivery && o.otd && o.deliveryEstimateCents != null ? cell(money(comparedTotalCents(o)!)) : dash(),
+          ),
+        ]
+      : []),
     row("figures_from", "Figures from", (o) => {
       if (o.otd) return cell(COMPARE_COPY.figuresFrom[o.otd.source], o.otd.source === "dealer_quote" ? "good" : "plain");
       return o.sentToCustomerAt ? cell(COMPARE_COPY.figuresFrom.requested, "muted") : dash();

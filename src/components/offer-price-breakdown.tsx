@@ -17,10 +17,10 @@ export function OfferPriceBreakdown({ input, tone = "dark" }: { input: Breakdown
       <h3 className={`text-sm font-semibold ${text}`}>How the price adds up</h3>
       <ol className="mt-3 space-y-2">
         {rows.map((r) => {
-          const isTotal = r.kind === "otd" || r.kind === "price";
-          const sign = r.kind === "discount" ? "−" : ["sticker", "price", "otd"].includes(r.kind) ? "" : "+";
+          const isTotal = r.kind === "otd" || r.kind === "otd_with_delivery" || r.kind === "price";
+          const sign = r.kind === "discount" ? "−" : ["sticker", "price", "otd", "otd_with_delivery"].includes(r.kind) ? "" : "+";
           const barColor =
-            r.kind === "discount" ? "bg-emerald-500" : r.kind === "otd" ? "bg-sky-500" : isTotal ? "bg-zinc-400" : "bg-zinc-500/70";
+            r.kind === "discount" ? "bg-emerald-500" : r.kind === "otd" || r.kind === "otd_with_delivery" ? "bg-sky-500" : isTotal ? "bg-zinc-400" : "bg-zinc-500/70";
           return (
             <li key={r.kind} className="text-sm">
               <div className="flex items-baseline justify-between gap-3">

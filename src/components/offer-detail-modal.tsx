@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 import { respondToOffer } from "@/lib/offer-response-actions";
 import { computeOfferSavings } from "@/lib/offer-comparison";
 import { DeliveryEstimateLine } from "@/components/delivery-estimate-line";
-import { DELIVERY_ESTIMATE_COPY, deliveryEstimatePending } from "@/lib/delivery-estimate";
+import { DELIVERY_ESTIMATE_COPY, deliveryEstimatePending, takesDelivery } from "@/lib/delivery-estimate";
 import { formatCents, formatDayMonth } from "@/lib/dashboard-format";
 import { OfferPriceBreakdown } from "@/components/offer-price-breakdown";
 import { awaitingOtdQuote } from "@/lib/offer-accept-gate";
@@ -238,7 +238,9 @@ export function OfferDetailModal({
                       priceCents: offer.offerPriceCents,
                       addons: offer.addons.map((a) => ({ description: a.description, amountCents: a.amountCents, dealerSaysRemovable: a.dealerSaysRemovable })),
                       fees: offer.fees,
-                      deliveryCents: offer.deliveryEstimate?.status === "provided" ? offer.deliveryEstimate.cents : null,
+                      // Only when the customer would take it by delivery (Brett, 2026-10-29).
+                      deliveryCents:
+                        takesDelivery(offer) && offer.deliveryEstimate?.status === "provided" ? offer.deliveryEstimate.cents : null,
                       otd: offer.otd,
                     }}
                   />
