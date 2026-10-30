@@ -332,6 +332,8 @@ export interface OutreachSearch {
   colors: string[];
   zip: string | null;
   customerEmail: string | null;
+  /** GX-4: the brand when the guarantee doesn't apply to this search (W14, W15). */
+  guaranteeExceptionMake: string | null;
   /** Tester-program row -- flagged, never hidden. See isTest note below. */
   isTest: boolean;
   /** Customer's pickup range (2026-09-26); null = not answered yet. */
@@ -387,7 +389,7 @@ export async function getOutreachQueue(
 
   let searchQuery = supabase
     .from("customer_searches")
-    .select("id, make, model, model_year, trim, colors, zip, customer_id, pickup_travel_choice, pickup_travel_miles");
+    .select("id, make, model, model_year, trim, colors, zip, customer_id, pickup_travel_choice, pickup_travel_miles, guarantee_exception_make");
   searchQuery = opts.searchId ? searchQuery.eq("id", opts.searchId) : searchQuery.eq("search_status", "searching");
   const { data: searches, error: searchesError } = await searchQuery.order("created_at", { ascending: true });
 
@@ -843,6 +845,7 @@ export async function getOutreachQueue(
       trim: search.trim,
       colors: search.colors,
       zip: search.zip,
+      guaranteeExceptionMake: (search.guarantee_exception_make as string | null) ?? null,
       customerEmail: customerEmailById.get(search.customer_id) ?? null,
       isTest: isTestEmail(customerEmailById.get(search.customer_id) ?? null),
       customerId: search.customer_id,

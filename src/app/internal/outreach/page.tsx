@@ -117,6 +117,16 @@ function OfferStatusLabel({ status, respondedAt }: { status: string; respondedAt
   }
 }
 
+/** W14 (GX-4, approved 2026-10-25). */
+function NoGuaranteeBadge({ make }: { make?: string | null }) {
+  if (!make) return null;
+  return (
+    <span className="ml-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-[11px] font-semibold text-sky-300">
+      No guarantee: {make} (direct sale)
+    </span>
+  );
+}
+
 function TestBadge({ isTest }: { isTest: boolean }) {
   if (!isTest) return null;
   return (
@@ -419,7 +429,10 @@ export default async function OutreachQueuePage() {
                 <div key={search.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <h3 className="text-base font-semibold text-white">Vehicle not yet chosen</h3>
-                    <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}<TestBadge isTest={search.isTest} /></span>
+                    <span className="text-sm text-zinc-400">
+                      {search.customerEmail ?? "unknown customer"}
+                      <TestBadge isTest={search.isTest} />
+                    </span>
                   </div>
                   <p className="mt-1 text-xs text-zinc-500">Paid {formatDate(search.paidAt)}</p>
                   <AgentUndecidedFinalizeForm
@@ -615,7 +628,10 @@ export default async function OutreachQueuePage() {
                       <h3 className="text-base font-semibold text-white">
                         {search.modelYear ?? "Year not set"} {search.make} {search.model}
                       </h3>
-                      <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}<TestBadge isTest={search.isTest} /></span>
+                      <span className="text-sm text-zinc-400">
+                      {search.customerEmail ?? "unknown customer"}
+                      <TestBadge isTest={search.isTest} />
+                    </span>
                     </div>
                     <p className="mt-1 text-sm text-amber-300">
                       {search.block.kind === "year"
@@ -683,7 +699,10 @@ export default async function OutreachQueuePage() {
                     <h3 className="text-base font-semibold text-white">
                       {search.make} {search.model}
                     </h3>
-                    <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}<TestBadge isTest={search.isTest} /></span>
+                    <span className="text-sm text-zinc-400">
+                      {search.customerEmail ?? "unknown customer"}
+                      <TestBadge isTest={search.isTest} />
+                    </span>
                   </div>
                   <p className="mt-1 text-xs text-zinc-500">
                     Requested {formatDate(search.callRequestedAt)}
@@ -716,7 +735,10 @@ export default async function OutreachQueuePage() {
                     <h3 className="text-base font-semibold text-white">
                       {search.make} {search.model}
                     </h3>
-                    <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}<TestBadge isTest={search.isTest} /></span>
+                    <span className="text-sm text-zinc-400">
+                      {search.customerEmail ?? "unknown customer"}
+                      <TestBadge isTest={search.isTest} />
+                    </span>
                   </div>
                   <p className="mt-1 text-xs text-zinc-500">
                     Requested {formatDate(search.switchCallRequestedAt)}
@@ -747,7 +769,10 @@ export default async function OutreachQueuePage() {
                     <h3 className="text-base font-semibold text-white">
                       {search.make} {search.model}
                     </h3>
-                    <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}<TestBadge isTest={search.isTest} /></span>
+                    <span className="text-sm text-zinc-400">
+                      {search.customerEmail ?? "unknown customer"}
+                      <TestBadge isTest={search.isTest} />
+                    </span>
                   </div>
                   <p className="mt-1 text-xs text-zinc-500">
                     Requested {formatDate(search.cancellationCallRequestedAt)}
@@ -832,7 +857,10 @@ export default async function OutreachQueuePage() {
                     <h3 className="text-base font-semibold text-white">
                       {search.make} {search.model}
                     </h3>
-                    <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}<TestBadge isTest={search.isTest} /></span>
+                    <span className="text-sm text-zinc-400">
+                      {search.customerEmail ?? "unknown customer"}
+                      <TestBadge isTest={search.isTest} />
+                    </span>
                   </div>
                   <p className="mt-1 text-xs text-amber-400">{formatHoursOverdue(search.paidAt)}</p>
                 </div>
@@ -855,7 +883,10 @@ export default async function OutreachQueuePage() {
                     <h3 className="text-base font-semibold text-white">
                       {search.make} {search.model}
                     </h3>
-                    <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}<TestBadge isTest={search.isTest} /></span>
+                    <span className="text-sm text-zinc-400">
+                      {search.customerEmail ?? "unknown customer"}
+                      <TestBadge isTest={search.isTest} />
+                    </span>
                   </div>
                   <p className="mt-1 text-xs text-amber-400">
                     {formatDaysRemaining(search.daysRemaining, search.pausedAt)}
@@ -923,7 +954,11 @@ export default async function OutreachQueuePage() {
                       {search.make} {search.model}
                       {search.trim ? ` — ${search.trim}` : ""}
                     </h2>
-                    <span className="text-sm text-zinc-400">{search.customerEmail ?? "unknown customer"}<TestBadge isTest={search.isTest} /></span>
+                    <span className="text-sm text-zinc-400">
+                      {search.customerEmail ?? "unknown customer"}
+                      <TestBadge isTest={search.isTest} />
+                      <NoGuaranteeBadge make={search.guaranteeExceptionMake} />
+                    </span>
                   </div>
                   {/* General thread (2026-09-27): always open, not tied to an offer. */}
                   <AgentOfferThread offerId={null} customerId={search.customerId} messages={search.generalMessages} open />

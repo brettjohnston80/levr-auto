@@ -86,6 +86,8 @@ export function AdminSearchesTable({ searches }: { searches: AdminSearchRow[] })
                 <th className="px-4 py-3 font-medium">Customer</th>
                 <th className="px-4 py-3 font-medium">Make/Model</th>
                 <th className="px-4 py-3 font-medium">Status</th>
+                {/* GX-4: heading DRAFT, awaiting sign-off; "Not applicable" is W16 (approved). */}
+                <th className="px-4 py-3 font-medium">Guarantee</th>
                 <th className="px-4 py-3 font-medium">Assigned Agent</th>
                 <th className="px-4 py-3 font-medium">Paid</th>
                 <th className="px-4 py-3 font-medium">Deadline</th>
@@ -113,6 +115,7 @@ export function AdminSearchesTable({ searches }: { searches: AdminSearchRow[] })
                     {row.make && row.model ? `${row.make} ${row.model}` : "Undecided"}
                   </td>
                   <td className="px-4 py-3 text-zinc-300">{row.searchStatus}</td>
+                  <td className="px-4 py-3 text-zinc-400">{row.guaranteeStatus === "not_applicable" ? "Not applicable" : row.guaranteeStatus}</td>
                   <td className="px-4 py-3 text-zinc-400">{row.assignedAgentName ?? "—"}</td>
                   <td className="px-4 py-3 text-zinc-400">{formatDate(row.paidAt)}</td>
                   <td className="px-4 py-3 text-zinc-400">{formatDate(row.searchDeadlineAt)}</td>

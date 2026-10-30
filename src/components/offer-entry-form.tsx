@@ -66,6 +66,8 @@ export function OfferEntryForm(props: {
   listings: OutreachListing[];
   /** The search's committed model year: the picker shows only that year's listings. */
   modelYear: number | null;
+  /** GX-4: set when the guarantee doesn't apply (W15). */
+  guaranteeExceptionMake?: string | null;
   stickerRanges: StickerRange[];
   selections: OutreachSelection[];
   trimPreferences: OutreachTrimPreference[];
@@ -526,7 +528,10 @@ export function OfferEntryForm(props: {
             </div>
           </div>
           {stickerNotes.map((w) => <p key={w.kind} className="mt-2 text-xs text-amber-400">{w.message}</p>)}
-          {below != null && (
+          {/* W15 (GX-4): no guarantee line to work towards on an exception search. */}
+          {props.guaranteeExceptionMake ? (
+            <p className="mt-3 text-sm text-sky-300">No guarantee for this brand.</p>
+          ) : below != null && (
             <p className={`mt-3 text-sm ${below && trimMatch ? "text-emerald-400" : "text-amber-400"}`}>
               {!trimMatch
                 ? "Confirm the trim matches before sending."

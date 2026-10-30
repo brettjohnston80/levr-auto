@@ -21,6 +21,8 @@ export interface AdminSearchRow {
   assignedAgentName: string | null;
   paidAt: string | null;
   searchDeadlineAt: string | null;
+  /** GX-4: pending | met | refunded | not_applicable. */
+  guaranteeStatus: string;
   pausedAt: string | null;
 }
 
@@ -55,7 +57,7 @@ export async function getAdminSearches(): Promise<AdminSearchRow[]> {
     searches = await fetchAllPages((from, to) =>
       admin
         .from("customer_searches")
-        .select("id, customer_id, make, model, search_status, paid_at, search_deadline_at, paused_at, assigned_agent_id")
+        .select("id, customer_id, make, model, search_status, paid_at, search_deadline_at, paused_at, assigned_agent_id, guarantee_status")
         .order("created_at", { ascending: false })
         .order("id", { ascending: true })
         .range(from, to),
@@ -127,6 +129,7 @@ export async function getAdminSearches(): Promise<AdminSearchRow[]> {
       assignedAgentName,
       paidAt: search.paid_at,
       searchDeadlineAt: search.search_deadline_at,
+      guaranteeStatus: search.guarantee_status as string,
       pausedAt: search.paused_at,
     };
   });
