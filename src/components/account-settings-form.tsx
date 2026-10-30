@@ -68,7 +68,7 @@ export function AccountSettingsForm({ existing }: { existing: AccountSettingsExi
 
   return (
     <form onSubmit={handleSubmit} className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-      <p className="text-xs font-semibold text-zinc-400 uppercase">Account settings</p>
+      {/* The "Account settings" heading is on /account above this form (BAE #1, 2026-10-30). */}
 
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
