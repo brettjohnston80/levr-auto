@@ -1,4 +1,4 @@
-# Em dash inventory (MH's tester note), 2026-10-30
+# Em dash inventory (Micah (MH)'s tester note), 2026-10-30
 
 Status: **inventory only, nothing changed.** The sweep happens after the GX deploy, so the branch copy is included once (Brett, 2026-10-30). Every rewrite below is a proposal; customer-facing wording needs Brett's sign-off before it's built, and approved wording in `docs/business/site-language-inventory.md` gets updated in the same commit as the sweep.
 
@@ -408,7 +408,7 @@ The September and October articles are live; the November one goes live 2026-11-
 
 ## Appendix A. Agent-facing hits (for the record)
 
-Not part of MH's note. The new standing rule covers new agent copy; these can go in the same sweep if Brett wants.
+Not part of Micah (MH)'s note. The new standing rule covers new agent copy; these can go in the same sweep if Brett wants.
 
 | File:line | Branch | Current |
 |---|---|---|

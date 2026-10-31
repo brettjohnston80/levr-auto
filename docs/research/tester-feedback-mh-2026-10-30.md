@@ -1,8 +1,8 @@
-# Tester feedback: MH (outside tester round, 2026-10-30)
+# Tester feedback: Micah (MH) (outside tester round, 2026-10-30)
 
 Same round as Terry and BAE. Recorded as received from Brett.
 
-1. **Em dashes read as AI-written.** MH noticed the long dashes (—) throughout the site's copy.
+1. **Em dashes read as AI-written.** Micah noticed the long dashes (—) throughout the site's copy.
 
 ## Status (2026-10-30)
 | # | Item | Status |

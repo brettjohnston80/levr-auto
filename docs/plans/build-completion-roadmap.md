@@ -60,7 +60,7 @@ Both are backfilled first with everything already approved in agent dashboard Ph
 
 ## From tester feedback: Terry (decided 2026-10-17, Brett)
 
-**Status (2026-10-30):** the pickup-range wording is live (2026-10-17). Interior and options on offers, out-the-door pricing and the side-by-side comparison are built on the `offer-entry` branch (chunks 4, 9, 10, 11), not deployed. "Ask my agent" messages and the out-the-door to-do belong to the Phase 3 work queue (not started). BAE's feedback (2026-10-29): `docs/research/tester-feedback-bae-2026-10-29.md`, items 1 to 7 resolved (live 2026-10-30), item 8 (the riders question) planned. MH (2026-10-30, em dashes): `docs/research/tester-feedback-mh-2026-10-30.md`, inventory done, sweep after the GX deploy.
+**Status (2026-10-30):** the pickup-range wording is live (2026-10-17). Interior and options on offers, out-the-door pricing and the side-by-side comparison are built on the `offer-entry` branch (chunks 4, 9, 10, 11), not deployed. "Ask my agent" messages and the out-the-door to-do belong to the Phase 3 work queue (not started). BAE's feedback (2026-10-29): `docs/research/tester-feedback-bae-2026-10-29.md`, items 1 to 7 resolved (live 2026-10-30), item 8 (the riders question) planned. Micah (MH) (2026-10-30, em dashes): `docs/research/tester-feedback-mh-2026-10-30.md`, inventory done, sweep after the GX deploy.
 
 Review: `docs/research/tester-feedback-terry-2026-10-17.md`. Customer-facing wording for every item needs Brett's sign-off.
 
