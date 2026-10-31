@@ -1,6 +1,11 @@
 # Plan: guarantee exceptions for direct-sale brands (Tesla, Rivian, Lucid, Polestar)
 
-**Status:** plan only (2026-10-24; Brett's answers folded in 2026-10-25). No data, app code or migration has changed. Each build chunk waits for Brett's go; every wording line waits for his sign-off; the terms change waits for attorney review.
+**Status (2026-10-30):**
+- **Done, on the `gx` branch (not deployed):** GX-1 (applied by Brett 2026-10-30, `supabase/migrations/20261030120000_gx1_guarantee_exceptions.sql`), GX-2 (the data files, the state set wherever a brand is set, terms checked on the server at both checkouts, W5 on Stripe, while-inventory-lasts), GX-3 (customer screens and copy, FAQ M11, "Terms apply." links, article prompts M24/M25), GX-4 (agent screens; admin Guarantee column). All wording approved (2026-10-25, plus "Guarantee" and the save-failed line 2026-10-30). Browser tests: `scripts/tests/phase1/gx/` 15/15, 19/19, Matchmaker dialog 4/4.
+- **One change from section 3 (approved 2026-10-30):** the app sets the state at every point a brand is set (payment write, undecided pick, correction, both switches and the webhook retry, finalizing as a backstop), because the brand list is a file the database can't read; the trigger refuses any write where the status and the brand disagree.
+- **GX-5 so far:** Tesla (`8d5b36e0…`, 10 trims) and Rivian (`0ff3211a…`, 6 trims, R2 held) imported unpromoted, with the Rivian battery-name fix and the Model Y L corrections (on `gx`, reaching `main` with it).
+- **Held until the GX deploy:** promoting Lucid, Polestar, Tesla and Rivian; the first inventory syncs (about 21 MarketCheck calls, Brett's OK with the exact count); M26 (`docs/sql/gx3-article/`).
+- **Left:** deploy after offer entry (GX-1 is applied, so the code can't deploy before it); GX-6 after attorney review.
 
 **⚠ Hard rule (Brett, 2026-10-25): before Stripe goes live, GX-1 to GX-6 must be built and live, and the real, attorney-reviewed Terms of Service published** (customers agree to them before paying; today's page is a placeholder). Until then nobody can really pay (Stripe is in test mode), so the four brands stay in intake and Matchmaker as they are today.
 

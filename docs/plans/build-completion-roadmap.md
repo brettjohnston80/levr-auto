@@ -60,6 +60,8 @@ Both are backfilled first with everything already approved in agent dashboard Ph
 
 ## From tester feedback: Terry (decided 2026-10-17, Brett)
 
+**Status (2026-10-30):** the pickup-range wording is live (2026-10-17). Interior and options on offers, out-the-door pricing and the side-by-side comparison are built on the `offer-entry` branch (chunks 4, 9, 10, 11), not deployed. "Ask my agent" messages and the out-the-door to-do belong to the Phase 3 work queue (not started). BAE's feedback (2026-10-29): `docs/research/tester-feedback-bae-2026-10-29.md`, all seven items resolved (live 2026-10-30).
+
 Review: `docs/research/tester-feedback-terry-2026-10-17.md`. Customer-facing wording for every item needs Brett's sign-off.
 
 **Offer-entry phase:**
@@ -77,7 +79,7 @@ Review: `docs/research/tester-feedback-terry-2026-10-17.md`. Customer-facing wor
     - offer card: sticker, price and discount;
     - offer detail and acceptance: the full breakdown and the out-the-door total;
     - side-by-side comparison: all three levels.
-  - **The tax, title, registration and fee numbers come from the dealer.** Still no LEVR-computed tax estimate.
+  - **The tax, title, registration and fee numbers come from the dealer.** (Later, 2026-10-18: OE-3 plans an "our estimate" sales tax and title figure, labelled as estimates that never unblock acceptance; parked until the tax research exists.)
   - **Wording to settle when it's built** (all needs Brett's sign-off): the "requested" state, the breakdown labels, the acceptance block, and whether the card's "Excludes tax, title, registration, doc fee and add-ons" line changes once a total exists.
   - **FAQ "What will I actually pay?" redraft, for sign-off once the feature is built** (the live text stays until then):
     > "Every offer shows three things: the sticker price (Total Suggested Retail Price), the price your agent negotiated for the car, and the dealer's out-the-door total. The out-the-door total adds sales tax, title and registration, the dealer's documentation fee, delivery if you need it, and any add-ons you keep, itemized by the dealer. You'll see the full breakdown before you accept. If a dealer hasn't sent it yet, the offer says "Out-the-door quote requested," and you can accept once it arrives. Our guarantee compares only the negotiated price with the sticker price. Taxes and fees never count toward it."
@@ -95,7 +97,7 @@ Review: `docs/research/tester-feedback-terry-2026-10-17.md`. Customer-facing wor
     2. **What the agent types as the offer price is unchecked.** A price typed net of destination (without using an add-on line) makes an offer look further below sticker than it is. One that already includes doc fee or add-ons makes it look less so. Only the out-the-door breakdown above can catch either.
     3. **What the agent types as sticker is unchecked**, and the label says "MSRP". A base MSRP without destination and options understates sticker, so a real discount can look smaller. A sticker that includes a dealer addendum (add-ons, "market adjustment") **overstates it, which can make an offer qualify when it shouldn't.** Suggest relabelling it "Total SRP (window sticker total, no dealer addendum)" and warning when it differs from the linked listing or the dataset price (agent wording needs sign-off).
     4. **The listing pre-fill:** whether MarketCheck's `msrp` is the Monroney total, base MSRP, or includes a dealer addendum hasn't been verified. Worth checking against a few window stickers before relying on it.
-  - **Withdrawn offers (decided, Brett, 2026-10-17): kept as is.** A delivered below-sticker offer that is later withdrawn still counts toward the guarantee. Pinned by a test in `tests/sticker-check.test.mjs`.
+  - ~~**Withdrawn offers (decided, Brett, 2026-10-17): kept as is.**~~ **Superseded 2026-10-27 (Brett):** a withdrawn offer doesn't count toward the guarantee unless the reason is "Car sold", when the sold rule decides (offer-entry plan 3.3c; built on `offer-entry`). The live site on `main` still counts withdrawn offers until offer entry deploys.
   - **Sticker integrity (approved 2026-10-17; branch `sticker-integrity`):**
     - The agent's field is now labelled "Total SRP (window sticker total, no dealer addendum)".
     - It warns, never blocks, when the typed sticker:
@@ -111,7 +113,7 @@ Review: `docs/research/tester-feedback-terry-2026-10-17.md`. Customer-facing wor
       - **No sign of dealer addenda as a pattern.** The larger gaps are explained by trim names covering two powertrains (Civic Sport gas and hybrid), option prices our data lacks (Ford and GM engines, cabs and beds; Honda paint priced at $0), and a few data errors (one Telluride at $438,800).
       - So a linked listing is the best check. Our own range is incomplete for some makes, which is why its upper tolerance is wide: it would flag about 4.5% of real listings, and about 4% on the low side.
       - **Limitation:** a typical $1,000 to $5,000 dealer addendum on a car without a linked listing will usually stay under the upper threshold. The offer-entry phase's itemized out-the-door breakdown is the stronger safeguard.
-- **No LEVR-computed tax estimate.**
+- ~~**No LEVR-computed tax estimate.**~~ Revised 2026-10-18: OE-3 plans labelled tax and title estimates (parked until the tax research).
 
 **Work-queue phase (Phase 3):**
 - **"Ask my agent" messages** from the customer (e.g. about other trims or options) land in the agent's queue.

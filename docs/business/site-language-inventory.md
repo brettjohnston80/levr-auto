@@ -234,3 +234,171 @@ Where: `src/components/log-offer-form.tsx`, text and thresholds in `src/lib/stic
 | `You entered {typed}, but the linked listing's sticker is {listing}. Check the window sticker's total — it should match the listing.` | Under the field, when the sticker differs from the linked listing by more than $100 | agents |
 | `You entered {typed}, which is below this trim's base price plus destination ({low}). Check the window sticker's total, which includes destination.` | Under the field, when more than $500 below base + destination for the typed trim | agents |
 | `You entered {typed}, well above what this trim should cost with every factory option we know of ({low}–{high}). If the sticker includes a dealer addendum, enter only the manufacturer's total.` | Under the field, when above the range by more than the greater of $5,000 or 15% | agents |
+
+## 16. Sending an offer: draft, send, discard (agent; offer entry Chunk 3) — approved 2026-10-27
+Where: `src/lib/offer-entry-copy.ts` on the `offer-entry` branch (not deployed). The first three lines are from the offer-entry plan, section 6.1; the rest approved by Brett 2026-10-27.
+
+| Text | Where it appears | Audience |
+|---|---|---|
+| `Draft saved. The customer can't see it.` | After Save draft | agents |
+| `Sent to {customer first name}.` (`Sent to the customer.` when there's no first name) | After Send | agents |
+| `No out-the-door figures yet. The customer will see "Out-the-door quote requested", and can't accept until you record the dealer's quote.` | After Send, when no out-the-door figure was recorded | agents |
+| `Your agent account isn't active, so you can't send offers.` | Send refused: agent not active | agents |
+| `This draft no longer exists. Reload the page.` | Send refused: submission not found | agents |
+| `This offer has already been sent or discarded. Reload the page.` | Send or discard refused: already sent or discarded | agents |
+| `This search isn't active. Tick the warning to send it anyway.` | Send refused: search not `searching` | agents |
+| `Confirm the trim matches what the customer chose before sending.` | Send refused: trim not confirmed | agents |
+| `The price isn't below the sticker, so this offer won't count toward the guarantee. Tick the warning to send it anyway.` | Send refused: price at or above the sticker, warning not ticked | agents |
+| `List the add-ons, or tick "No add-ons".` | Send refused | agents |
+| `List any other fees, or tick "No other fees".` | Send refused | agents |
+| `Tick each warning to send this offer.` | Send refused: a warning isn't ticked | agents |
+| `That VIN isn't valid. Check for a mistyped character.` | Send refused: VIN check | agents |
+| `Check the amounts: the sticker and price must be above $0, add-ons above $0, and no line over $250,000.` | Send refused: amounts | agents |
+| `The out-the-door total doesn't match the lines (within $1). Check for a missing or extra line.` | Send refused: out-the-door mismatch | agents |
+| `Good until must be today or later, and no more than 60 days out.` | Send refused | agents |
+| `This dealer is beyond the customer's pickup range (or they prefer delivery), so a delivery estimate is standard: enter the dealer's fee, mark it requested from the dealer, or mark that the dealer doesn't deliver.` (Log Offer's existing line, reused) | Send refused: delivery estimate needed | agents |
+| `That search no longer exists.` | Send refused | agents |
+| `Enter the dealer's name.` | Send refused | agents |
+| `Say why you're discarding this submission.` | Discard refused: no reason | agents |
+| `Only a dealer's submission can be discarded.` | Discard refused: an agent's own draft | agents |
+| `The offer wasn't sent. Nothing reached the customer. Try again.` | Send failed unexpectedly | agents |
+| `You're signed out. Sign in again to continue.` | Any of the three, signed out | agents |
+
+## 17. Log Offer page (agent; offer entry Chunk 4) — approved 2026-10-27
+Where: `/internal/outreach/[searchId]/offer` on the `offer-entry` branch (not deployed): `src/components/offer-entry-form.tsx`, new lines in `src/lib/offer-entry-draft-copy.ts`. The page also uses the offer-entry plan's approved lines (sections 6.1 and 6.4: button "Log an offer", the page title, step names, tiles, guarantee lines, the trim tick, fee labels, add-on ticks, "No add-ons" / "No other fees", "What the customer will see", Step 5 labels, the four send warnings and "Yes, send it") and Log Offer's existing lines (sticker warnings, AI parse, delivery estimate).
+
+| Text | Where it appears | Audience |
+|---|---|---|
+| `Back to outreach` | Top of the page; after a send | agents |
+| `Drafts on this search` · `{dealer}` (or `No dealer yet`) · `saved {date}` | Drafts list | agents |
+| `Paste text` | Step 1 choice (next to `Attach quote`) | agents |
+| Step 1 help without `Attach the window sticker if you have it.` (until the window-sticker upload exists) | Step 1 | agents |
+| `Trim on the car` | Step 2 field | agents |
+| `The customer didn't rank any options.` | Step 3, nothing ranked | agents |
+| `Option name` · `Installed by: not sure` / `Factory` / `Dealer-installed` / `Port-installed` · `Remove` | Step 3 extra row | agents |
+| `Dealer add-ons` · `Add-on` · `+ Add an add-on` | Step 4 | agents |
+| `Fee name` · `+ Add a fee` | Step 4 other fees | agents |
+| `Prefilled: {make}'s ${amount} {fee} (non-refundable). Change or remove it if the store's paperwork differs.` | Step 4, e.g. Tesla's order fee | agents |
+| `Your lines add up to {$X}` (from the dealer page, plan 6.2) | Step 4 | agents |
+| `The lines add up to {$X}, but the out-the-door total is {$Y}. Check for a missing or extra line.` | Step 4, totals differ by more than $1 | agents |
+| `Notes for agents (not shown to the customer)` | Step 5 | agents |
+| `Mark each option the customer wants as on the car or not on the car.` | Send blocked, options unticked | agents |
+| `Trims` · `Exterior` · `Interior` · `Options` | Sidebar, what the customer wants | agents |
+| `No other offers yet.` · `{dealer} · {status} · Out-the-door {$X}` / `Out-the-door requested` / `no out-the-door yet` | Sidebar, other offers | agents |
+| `Waiting on the customer` · `Accepted` · `Declined` · `Released` | Offer statuses in the sidebar | agents |
+| `Offer sent, but the quote PDF failed to upload: {error}.` / `Offer sent, but the quote PDF record failed to save: {error}.` | After a send with a quote PDF | agents |
+
+## 18. Offers sent through offer entry: customer card, detail, accept gating, out-the-door (offer entry Chunk 9) — approved 2026-10-27
+Where: on the `offer-entry` branch (not deployed). Customer lines: `src/lib/offer-customer-copy.ts`, all from the offer-entry plan (6.3 signed off 2026-10-25, 6.4, 5.0). Agent lines: `src/lib/offer-entry-draft-copy.ts`. Offers logged the old way show none of the customer lines below except the LEVRating chip.
+
+| Text | Where it appears | Audience |
+|---|---|---|
+| `Trim: {trim} · Color: {exterior} · Interior: {interior}` | Offer card | customers |
+| `LEVRating {n.n} ({count})` / `New to LEVR — no rating yet` | Beside the dealer, card and detail (every offer) | customers |
+| `Negotiated price for the car.` | Card, under the price, once the out-the-door line is on the card | customers |
+| `Out-the-door: {$X} · Dealer's quote` / `Out-the-door quote requested` | Card | customers |
+| `Good until {date}` | Card and detail | customers |
+| `Options you wanted: {N} of {M}` | Card | customers |
+| `How the price adds up` · `Window sticker · Discount · Car price · Dealer add-ons · Doc fee · Sales tax · Title & registration · Other fees · Delivery estimate · Out-the-door` | Detail chart | customers |
+| `Don't want the {add-on}? The dealer will remove it. Just tell your agent.` · `Delivery isn't part of the car price.` | Under the chart | customers |
+| `Options on this car` · `What you asked for` · `Also on this car` · `✓ On the car` · `✗ Not on this car` · `Your agent hasn't recorded this car's options yet.` | Detail (new-flow offers only) | customers |
+| `View the window sticker` · `A note from your agent` | Detail | customers |
+| `Out-the-door quote requested — you can accept once it arrives.` | Detail footer, and the server's refusal | customers |
+| `Your out-the-door price` | Above the accept explanation once the quote is in | customers |
+| `Out-the-door: {$X} ({dealer's quote / our estimate}).` / `The dealer's out-the-door quote is on its way.` | New-offer email (new-flow offers) | customers |
+| `Your out-the-door price from {dealer} is in` · `{dealer} sent their out-the-door price for your {make} {model}: {$X}. You can now accept this offer. Go to Your Deal.` | Out-the-door email | customers |
+| `Record the dealer's out-the-door quote before confirming a deposit. The customer can't accept this offer until then.` | Deposit refused | agents |
+| `Waiting for the dealer's out-the-door quote. The customer can't accept until it's recorded.` · `Record out-the-door` · `The price and sticker can't change on a sent offer. Log a new offer instead.` · `Out-the-door total (dealer's quote)` | Record out-the-door panel | agents |
+| `Out-the-door recorded. {first name} can now accept this offer.` (`The customer` without a first name) · `Out-the-door {$X} · Dealer's quote` | After recording | agents |
+| `This offer was logged before out-the-door pricing, so there's nothing to record.` · `This offer isn't open any more.` · `The dealer's out-the-door quote is already recorded and can't be changed. To correct it, withdraw this offer and send a corrected one.` · `The out-the-door total doesn't match the lines (within $1). Check for a missing or extra line.` | Record refused | agents |
+
+
+## 19. Withdrawing an offer, and the reason choice on release (agent and customer; offer entry, OE-5/OE-5b) — approved 2026-10-27/28
+Where: on the `offer-entry` branch (not deployed). Agent lines: `WITHDRAW_COPY` / `WITHDRAW_REASONS` in `src/lib/offer-entry-draft-copy.ts`; email in `src/lib/notifications.ts`.
+
+| Text | Where it appears | Audience |
+|---|---|---|
+| `Withdraw this offer` | Button under a pending offer (outreach) | agents |
+| `Why are you withdrawing this offer? The customer won't see your reason.` | Heading of the reason fields (withdraw and release) | agents |
+| `Reason` · `Car sold` · `Dealer pulled the quote` · `Correcting the offer` · `Other` | Reason choice (withdraw and release) | agents |
+| `Note (required for Other). The customer won't see it.` | Note field | agents |
+| `Withdraw it` | Confirm button | agents |
+| `Offer withdrawn. {first name} has been told.` (`The customer` without a first name) | After withdrawing | agents |
+| `Choose a reason.` · `Add a note for "Other".` · `Only an offer the customer hasn't accepted can be withdrawn. To release an accepted offer, use "Release this accepted offer".` | Refusals | agents |
+| `Withdrew an offer before the customer accepted` | Activity log label | agents |
+| `An update on your offer from {dealer}` · `Your agent withdrew the offer from {dealer}, so it can no longer be accepted. If there's a corrected offer, you'll find it in Your Deal. Your agent will be in touch about what happened.` | Email when a pending offer is withdrawn | customers |
+| `Your agent withdrew the offer from {dealer}` | Daily-update line (exists so the list stays complete; highlights aren't in the daily update) | customers |
+| `No longer available · withdrawn {date}` | Offer card for any withdrawn offer (withdrawn or released) | customers |
+
+## 20. Listing counts, Review your search, trim ranking and comparison (BAE's tester feedback) — approved 2026-10-29, live 2026-10-30
+Where: `src/lib/inventory-radius.ts` (counts), `src/components/review-and-pay.tsx`, `src/components/ranking-question.tsx` and `trim-comparison-modal.tsx`, `src/components/comparison-table.tsx`. Our listing counts are a synced sample, never the nationwide market, so they're never called "nationwide".
+
+| Text | Where it appears | Audience |
+|---|---|---|
+| `We search dealers nationwide.` | Intake badge and price line, Review your search: no listings synced for the model (no count) | customers |
+| `None found near you yet — we search dealers nationwide.` | Same places: synced, none within 100 miles | customers |
+| `{N} found within 100 miles of you so far — and we search dealers nationwide.` | Same places: synced, some nearby | customers |
+| `Based on current dealer listings.` | Under a count (Review your search, Matchmaker detail) | customers |
+| `{N} listings found so far` | Finalize trim list, trim comparison header, trim detail; Matchmaker detail adds `(all trims).` | customers |
+| `Here's how it works: after you pay, you'll choose your exact trim, color and options, and you can change them for 24 hours. Then your search goes live, and your agent goes to dealers for that exact car. Your make and model lock once you pay. Still deciding? Try the Matchmaker first.` | Review your search (replaces the how-it-works, after-you-pay and lock lines) | customers |
+| `Make #{N}` | The button that ranks an option next (trim comparison and every ranking list; was `Rank #{N}`) | customers |
+| `Show colors and interior` · `Show performance` · `Show features` | Screen-reader labels on the comparison's section toggles | customers |
+| `Done` | Bottom of the trim comparison | customers |
+| `Real dealer inventory, searched nationwide` | Homepage comparison table, "Where you're shopping" (was `Real, live inventory nationwide`) | customers |
+| `Out-the-door with delivery` | Offer comparison and "How the price adds up", for an offer taken by delivery (offer-entry branch, not live) | customers |
+| `Continue your search` | `/account` under the heading (when there's an active search that isn't the unpaid one, which has its own card), and under "Password changed." | customers |
+| `Account settings` | Heading above the settings and password forms on `/account`, now below the searches (replaces the form's own small label) | customers |
+
+## 21. Guarantee exceptions: Tesla, Rivian, Lucid, Polestar (GX-3, GX-4) — approved 2026-10-25 (two lines 2026-10-30), built on the `gx` branch (not live)
+Where: `src/lib/guarantee-exception-copy.ts` (customer lines), the agent screens, `src/lib/terms-acceptance.ts`. W13 (the terms clause) waits for attorney review and isn't built.
+
+| # | Text | Where it appears | Audience |
+|---|---|---|---|
+| W1 | `Our money-back guarantee does not apply to {Brand}.` | Intake, under the make | customers |
+| W2 | same | Review your search, in place of the guarantee bullet | customers |
+| W3 | `I agree to the Terms of Service.` (link) | Review your search, and the paid-switch screen for a customer who hasn't accepted the current terms | customers |
+| W3a | `Money-back guarantee does not apply to Tesla, Rivian, Lucid or Polestar.` | Under W3 | customers |
+| W4 | `Please agree to the Terms of Service to continue.` | Box not ticked (page and server) | customers |
+| W5 | `Our money-back guarantee does not apply to {Brand}.` | Stripe checkout, above Pay, exception brands only | customers |
+| W6 | same | Switch screens, switching into an exception brand | customers |
+| W7 | `Your new search is covered by our money-back guarantee.` | Switch screens, switching out of one | customers |
+| W8 | `Our money-back guarantee does not apply to {Brand}. Your search runs through {date}, and you can extend it for $100 per 30 days.` | Your Deal, in place of the guarantee timeline | customers |
+| W12 | `Our money-back guarantee does not apply to {Brand}.` | Matchmaker card and detail | customers |
+| M1, M3, M5 | `Terms apply.` (link to `/faq#guarantee-brands`) | Homepage: end of the guarantee paragraph, the "One flat fee" card, under the comparison table | customers |
+| M11 | Q `Does the guarantee cover every brand?` A `Our money-back guarantee does not apply to Tesla, Rivian, Lucid or Polestar. These brands sell directly at prices they set, so there's no dealer discount to negotiate. We'll still find the best available price on your exact car, including demo and inventory cars and current manufacturer offers, and handle the order for you.` | FAQ, after "What if you can't get me a deal below Total SRP?" | customers |
+| M26 | `Money-back guarantee does not apply to Tesla, Rivian, Lucid or Polestar.` | End of the published article's guarantee section (SQL for Brett, not run) | customers |
+| W14 | `No guarantee: {Brand} (direct sale)` | Agent active-search card | agents |
+| W15 | `No guarantee for this brand.` | Log Offer page, in place of the guarantee line | agents |
+| W16 | `Not applicable` | Admin table, new Guarantee column (heading `Guarantee`, approved 2026-10-30) | agents |
+| — | `We couldn't save your agreement. Please try again.` | Terms acceptance failed to save (server); approved 2026-10-30 | customers |
+
+## 22. Offer comparison, badge and sort (customer; offer entry Chunk 10) — approved 2026-10-25 (plan 6.3/6.4), delivery rows 2026-10-29, pager labels 2026-10-29; on the `offer-entry` branch (not live)
+Where: `src/lib/offer-comparison-rows.ts` (`COMPARE_COPY`, row labels), `src/components/offer-comparison.tsx`, `src/lib/offer-sort.ts`.
+
+| Text | Where it appears | Audience |
+|---|---|---|
+| `Compare offers` | Your Deal, with 2+ open offers | customers |
+| `Compare your offers` | Comparison title | customers |
+| `Exterior` · `Interior` · `Options you want` · `Also on the car` · `Window sticker` · `Discount` · `Car price` · `Dealer add-ons` · `Doc fee` · `Sales tax` · `Title & registration` · `Out-the-door` · `Figures from` · `Good until` | Comparison rows (approved order) | customers |
+| `Delivery estimate` · `Out-the-door with delivery` | Extra rows when an offer would come by delivery; also in "How the price adds up" | customers |
+| `✓` · `not your pick` · `{N} of {M}` · `can be removed` | Comparison cells | customers |
+| `Dealer's quote` · `Our estimate` · `Requested` | "Figures from" values | customers |
+| `{dealer} · {city} · {N} miles · LEVRating {n.n} ({count})` / `New to LEVR — no rating yet` | Column header | customers |
+| `View and accept` | Column button (opens the offer's detail view) | customers |
+| `Lowest out-the-door` | Badge (replaces `Best value`) | customers |
+| `{a} and {b} of {N}` · `Previous offer` · `Next offer` (screen-reader) | Phone two-up pager | customers |
+| `Best total price` (now the default, sorts by out-the-door) · `Best discount` · `Closest` | Your Deal sort | customers |
+
+## 23. Log Offer listing picker (agent; offer entry Chunk 6) — approved 2026-10-25 (plan 6.1), colour marks 2026-10-30; on the `offer-entry` branch (not live)
+Where: `src/components/offer-entry-form.tsx`, `COLOUR_MARK` in `src/lib/listing-picker.ts`.
+
+| Text | Where it appears | Audience |
+|---|---|---|
+| `Your customer's trims` · `All trims` | Picker filter | agents |
+| `Dealer` · `Miles` · `Exterior` · `Interior` · `Stock #` · `VIN (last 8)` · `Listed price` | Picker columns | agents |
+| `✓ (their pick)` | Exact colour match (case, spacing, punctuation ignored) | agents |
+| `· Check` | Picker cell where the colour is shown next to it: one name contains the other, or a generic colour | agents |
+| `Check: listed as {colour}` | Step 2 field marks, same rule, where the colour isn't next to the mark | agents |
+| `not their pick` | No overlap | agents |
+| `Not listed — enter VIN by hand` | Picker fallback | agents |
+

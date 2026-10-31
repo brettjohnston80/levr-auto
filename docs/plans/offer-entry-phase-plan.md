@@ -1,6 +1,11 @@
 # Offer entry phase: plan (drafted 2026-10-18)
 
-**Updated 2026-10-18 with Brett's answers (section 8).** Planning only. Nothing here is built, no migration has been run, and no branch exists for it. The SQL is draft text for review. **Every piece of wording in section 6 needs Brett's sign-off before it ships.**
+**Status (2026-10-30):**
+- **Built and tested on the `offer-entry` branch (not deployed):** the fast track (section 5.0) — chunks 1 (OE-1, OE-2, OE-2b, OE-4 applied), 2, 3, 4, 6 (listing picker), 9, 10 (comparison, "Lowest out-the-door", out-the-door + delivery), 11 (sample offers) — plus withdraw and release (OE-5, OE-5b applied) and the guarantee rule for withdrawn offers (section 3.3c). All wording used is signed off (site-language inventory sections 16–19). Browser tests oe3, oe4, oe5b, oe6, oe9, oe10, oe11 all pass.
+- **Left for this phase:** merge `main` into the branch and re-run the oe tests; deploy after Phase 1; OE-5c (reason code required on every withdrawn offer) right after the deploy; chunk 12 close-out.
+- **Parked (later phase):** chunk 5 (parser extension; needs 5 real window-sticker samples), chunks 7–8 (dealer links and the dealer page; need `DEALER_LINK_HASH_SECRET`), OE-3 and 4.D (tax estimates; need the tax research), 4.E (the "Hard to beat sticker" watch list), editing a recorded out-the-door quote.
+
+**Updated 2026-10-18 with Brett's answers (section 8).** Originally planning only; the build status above supersedes this line. The SQL here was draft text for review; every migration actually applied is in `supabase/migrations/` with Brett's results.
 
 Inputs:
 - Brett's decisions 1–10 (2026-10-18) and the offer-entry items in `docs/plans/build-completion-roadmap.md`: price structure, out-the-door rule, sticker integrity, withdrawn offers kept as is.
@@ -260,6 +265,13 @@ Notes:
 
 ### 3.3 Migration OE-2: submissions, dealer links, attempts, functions
 
+**Applied 2026-10-27 (Brett), with three changes to the draft below that he approved** (the applied text is `supabase/migrations/20261027120000_oe2_offer_submissions.sql` on the `offer-entry` branch; before check 9/9, after check as expected, rolled-back test 21/21):
+1. `offer_submissions.sent_qualifying_offer_id` is `on delete cascade`, so test resets and cleanups that delete offers before searches aren't blocked; a sent submission still can't be deleted while its offer exists.
+2. `dealer_offer_requests.listing_id` and `dealer_alias_id` are `on delete set null`, like `dealer_contacts.listing_id`.
+3. `revoke all` from anon, authenticated and service_role, then the exact grants, so service_role holds only the listed privileges before or after Supabase's 2026-10-30 change.
+
+`send_offer_submission` moved to its own migration, OE-2b (Chunk 3, `docs/sql/oe2b/` on the branch).
+
 ```sql
 -- OE-2 (draft).
 begin;
@@ -374,6 +386,31 @@ grant execute on function public.claim_dealer_offer_request(text, jsonb) to serv
 
 commit;
 ```
+
+### 3.3b Migration OE-4: recording the dealer's out-the-door quote (Chunk 9, applied by Brett 2026-10-27)
+
+- `notification_events` allows `otd_recorded` (the "Your out-the-door price from {dealer} is in" email).
+- `record_offer_otd()` records the dealer's quote on a sent offer: it replaces the fee lines, checks the total against the lines (within $1), stamps the quote and writes `offer_otd_recorded`, in one transaction. It never changes the price or the sticker.
+- **A recorded quote can't be recorded again (Brett, 2026-10-27).** If a dealer corrects a figure afterwards, the agent withdraws the offer and sends a corrected one.
+- **Later item:** editing a recorded out-the-door quote (with its own history), if withdrawing and re-sending proves clumsy in practice.
+
+### 3.3c Migrations OE-5 and OE-5b: withdrawing an offer, with a reason (Brett, 2026-10-27/28)
+
+- **Why:** a recorded out-the-door quote can't be changed, so a dealer's correction means withdrawing the offer and sending a corrected one. Before this only an accepted offer could be released.
+- **OE-5 (APPLIED by Brett 2026-10-27, as first written; before 5/5, after OK, rolled-back 10/10; `supabase/migrations/20261027160000_oe5_withdraw_pending_offer.sql`):** activity type `offer_withdrawn_pending`, and `withdraw_pending_offer(offer, agent, reason)` with a free-text reason. It was applied before the reason choice was decided.
+- **OE-5b (`docs/sql/oe5b/` on the branch, not applied):** adds `qualifying_offers.withdrawal_reason_code` (`car_sold` / `dealer_pulled` / `correcting` / `other`, checked for its values only), drops the three-argument function and creates `withdraw_pending_offer(offer, agent, reason code, note)` (pending offers only; "Other" needs a note; "Car sold" sets `vehicle_sold_at`; service_role only, PUBLIC revoked), so only one version exists. Also revokes REFERENCES and TRIGGER from anon and authenticated on every table (the grants lock-down leftover). The live release on `main` keeps working: it writes a withdrawal without a code (rolled-back case 13). PGlite dry run: before/after as expected, rolled-back 14/14.
+- **OE-5c (after the offer-entry deploy):** `check (status <> 'withdrawn' or withdrawal_reason_code is not null)`, once every withdrawn row has a code (production had 0 withdrawn offers on 2026-10-28).
+- **App:**
+  - "Withdraw this offer" on pending offers (outreach card): the reason choice (Car sold · Dealer pulled the quote · Correcting the offer · Other, with a note), then the customer email.
+  - "Release this accepted offer" gets the same reason choice, writes the code, and "Car sold" sets `vehicle_sold_at` there too.
+  - The customer card for a withdrawn offer: "No longer available · withdrawn {date}" (approved 2026-10-27).
+- **Guarantee rule (decided 2026-10-27, Brett):** a withdrawn offer doesn't count, unless the reason is "Car sold", when the existing sold rule decides (it counts if the customer didn't respond within 24 hours of delivery). Core Processes updated; Terms and service agreement flagged for attorney review.
+- **Guarantee change (approved by Brett 2026-10-28; built on the branch, `437c070`; 11 unit tests pass; the real-data run is in `scripts/tests/phase1/oe5b/`, run after OE-5b is applied):**
+  1. `evaluateOfferGuaranteeContribution` (`src/lib/guarantee.ts`) takes the offer's `status` and `withdrawalReasonCode`. A withdrawn offer whose code isn't `car_sold` returns `does_not_count` (including any old withdrawn row with no code). `car_sold` falls through to the unchanged sold rule, with `vehicle_sold_at` set by the withdrawal.
+  2. Its callers read the two new columns: the Day-30 check (`guarantee-assessment.ts`) and the customer's guarantee timeline (`customer-dashboard.ts`, which also feeds `search-timeline.ts`; that file doesn't call it itself).
+  3. Unit tests: pending/accepted unchanged; withdrawn for each of the four reasons; "Car sold" with the customer responding inside and outside 24 hours; an old withdrawn row with no code; a withdrawn offer above the sticker.
+  4. A real-data run: a disposable search with one withdrawn offer (Correcting) and nothing else assesses as `refunded`; with a "Car sold" withdrawal and no response it assesses as `met`.
+  5. Nothing changes for any search already resolved, because the Day-30 check only touches `guarantee_status = 'pending'`.
 
 ### 3.4 Migration OE-3: customer state for tax estimates
 
