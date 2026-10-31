@@ -86,7 +86,7 @@ export function AdminSearchesTable({ searches }: { searches: AdminSearchRow[] })
                 <th className="px-4 py-3 font-medium">Customer</th>
                 <th className="px-4 py-3 font-medium">Make/Model</th>
                 <th className="px-4 py-3 font-medium">Status</th>
-                {/* GX-4: heading DRAFT, awaiting sign-off; "Not applicable" is W16 (approved). */}
+                {/* GX-4: heading approved 2026-10-30; "Not applicable" is W16 (approved). */}
                 <th className="px-4 py-3 font-medium">Guarantee</th>
                 <th className="px-4 py-3 font-medium">Assigned Agent</th>
                 <th className="px-4 py-3 font-medium">Paid</th>

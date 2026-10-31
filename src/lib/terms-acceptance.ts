@@ -25,7 +25,7 @@ export async function ensureTermsAccepted(customerId: string, acceptedNow: boole
     .eq("id", customerId);
   if (error) {
     console.error("[terms] acceptance not saved", customerId, error.message);
-    return { ok: false, error: "We couldn't save your agreement. Please try again." }; // DRAFT wording, awaiting sign-off
+    return { ok: false, error: "We couldn't save your agreement. Please try again." }; // approved 2026-10-30
   }
   return { ok: true };
 }
