@@ -1,5 +1,16 @@
 # Tester feedback: Terry (2026-10-17)
 
+**Status (2026-10-30):**
+| # | Item | Status |
+|---|---|---|
+| 1 | Pickup range: does changing it start a new search? | Wording approved and **live** (2026-10-17; inventory section 14) |
+| 2 | Interior colour and included options on offers | **Built on `offer-entry`** (chunks 4 and 9; "Options you wanted: N of M", options section), not deployed |
+| 3 | Going back to change options after offers arrive | Decided as "Ask my agent" messages in the Phase 3 work queue (roadmap); **not started** |
+| 4 | Side-by-side offer comparison | **Built on `offer-entry`** (chunk 10), not deployed |
+| 5 | Total purchase price (taxes and fees) | **Built on `offer-entry`** (out-the-door breakdown, accept gating on the dealer's quote), not deployed; LEVR tax estimates (OE-3) parked |
+
+The original review follows. Its wording was drafts at the time; what was approved is in `docs/business/site-language-inventory.md`.
+
 Read-only review. No code was changed. **Every wording below is a draft for Brett's sign-off.** Nothing ships until he approves it.
 
 **About Terry:** recently retired engineer. He buys cars rarely and has never bought one new. He used a tester account, so his search started instantly with three sample offers.
