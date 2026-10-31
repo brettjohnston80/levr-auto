@@ -107,9 +107,9 @@ How each agent workflow works, written for the people who use it. One section pe
 
 ---
 
-## 11. Working a direct-sale search (Tesla, Rivian, Lucid, Polestar) — DRAFT for Brett's review (2026-10-24, not built)
+## 11. Working a direct-sale search (Tesla, Rivian, Lucid, Polestar) — DRAFT for Brett's review (2026-10-24); the screens are built on `gx` (not live)
 
-**Status:** draft. Nothing here is built; the plan is `docs/plans/guarantee-exceptions-plan.md`.
+**Status:** the workflow text below is still a draft for Brett's review. The screens it relies on are built on the `gx` branch: the badge "No guarantee: {Brand} (direct sale)" on the search card, "No guarantee for this brand." on Log Offer, and "Not applicable" in the admin Guarantee column. Plan: `docs/plans/guarantee-exceptions-plan.md`.
 
 **What's different:** these brands sell at prices the maker sets (Polestar through dealers acting as its agents at its set price), so there's no discount to negotiate, and **the money-back guarantee doesn't apply** to these searches. The customer was told before paying and ticked a box agreeing to it. Your job is to find the best real price on their exact car and take the ordering work off their hands.
 
@@ -160,4 +160,11 @@ How each agent workflow works, written for the people who use it. One section pe
 - **Release an accepted offer** (the deal fell through): **Release this accepted offer**, the same reason choice, then **Confirm release**.
 - **What the customer sees:** an email, and the card reads "No longer available · withdrawn {date}". They never see your reason or note.
 - **The guarantee:** a withdrawn or released offer no longer counts toward the 30-day guarantee, unless the reason is **Car sold**. Then the sold rule decides: it counts if the customer hadn't responded within 24 hours of the offer reaching them. So pick "Car sold" only when the car really sold.
+
+## 15. Picking the car on Log Offer (offer entry; not live yet)
+- **For:** every agent, step 2 of Log Offer.
+- **The picker** lists the synced listings for the search's make, model and committed year, the customer's ranked trims first ("All trims" shows the rest), nearest dealer first. Click a row to fill in the dealer, address, VIN, stock number, trim, exterior and interior.
+- **Colour marks:** "✓ (their pick)" only on an exact match. Amber "Check" means the listing's colour only partly matches (or is a generic colour like "Black"), so confirm it from the window sticker. "not their pick" means it isn't one the customer ranked.
+- **Not listed:** "Not listed — enter VIN by hand", then type the details.
+- **No MarketCheck calls:** the picker only reads what's already synced.
 

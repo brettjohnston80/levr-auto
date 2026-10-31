@@ -1,6 +1,11 @@
 # Offer entry phase: plan (drafted 2026-10-18)
 
-**Updated 2026-10-18 with Brett's answers (section 8).** Planning only. Nothing here is built, no migration has been run, and no branch exists for it. The SQL is draft text for review. **Every piece of wording in section 6 needs Brett's sign-off before it ships.**
+**Status (2026-10-30):**
+- **Built and tested on the `offer-entry` branch (not deployed):** the fast track (section 5.0) — chunks 1 (OE-1, OE-2, OE-2b, OE-4 applied), 2, 3, 4, 6 (listing picker), 9, 10 (comparison, "Lowest out-the-door", out-the-door + delivery), 11 (sample offers) — plus withdraw and release (OE-5, OE-5b applied) and the guarantee rule for withdrawn offers (section 3.3c). All wording used is signed off (site-language inventory sections 16–19). Browser tests oe3, oe4, oe5b, oe6, oe9, oe10, oe11 all pass.
+- **Left for this phase:** merge `main` into the branch and re-run the oe tests; deploy after Phase 1; OE-5c (reason code required on every withdrawn offer) right after the deploy; chunk 12 close-out.
+- **Parked (later phase):** chunk 5 (parser extension; needs 5 real window-sticker samples), chunks 7–8 (dealer links and the dealer page; need `DEALER_LINK_HASH_SECRET`), OE-3 and 4.D (tax estimates; need the tax research), 4.E (the "Hard to beat sticker" watch list), editing a recorded out-the-door quote.
+
+**Updated 2026-10-18 with Brett's answers (section 8).** Originally planning only; the build status above supersedes this line. The SQL here was draft text for review; every migration actually applied is in `supabase/migrations/` with Brett's results.
 
 Inputs:
 - Brett's decisions 1–10 (2026-10-18) and the offer-entry items in `docs/plans/build-completion-roadmap.md`: price structure, out-the-door rule, sticker integrity, withdrawn offers kept as is.

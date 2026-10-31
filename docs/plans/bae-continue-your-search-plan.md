@@ -1,6 +1,6 @@
 # Plan: "Continue your search" after sign-in (BAE #1, 2026-10-30)
 
-For Brett's sign-off. Not built. Main (customer side, live now); the same change ports to `offer-entry`.
+**Status: done and live on www (2026-10-30, `8af0f0e`); ported to `offer-entry` (`f575a6a`) and in the Phase 1 branch through the `main` merge.** One change from the plan: `login()` works out the destination itself instead of redirecting through `/account/continue` (a server action can't follow a redirect into a page that redirects again); `/account/continue` serves the email links. Verified on www with disposable customers, 7/7.
 
 ## What BAE hit
 

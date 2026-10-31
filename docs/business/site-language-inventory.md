@@ -349,7 +349,7 @@ Where: `src/lib/inventory-radius.ts` (counts), `src/components/review-and-pay.ts
 | `Continue your search` | `/account` under the heading (when there's an active search that isn't the unpaid one, which has its own card), and under "Password changed." | customers |
 | `Account settings` | Heading above the settings and password forms on `/account`, now below the searches (replaces the form's own small label) | customers |
 
-## 21. Guarantee exceptions: Tesla, Rivian, Lucid, Polestar (GX-3, GX-4) — approved 2026-10-25, built on the `gx` branch (not live)
+## 21. Guarantee exceptions: Tesla, Rivian, Lucid, Polestar (GX-3, GX-4) — approved 2026-10-25 (two lines 2026-10-30), built on the `gx` branch (not live)
 Where: `src/lib/guarantee-exception-copy.ts` (customer lines), the agent screens, `src/lib/terms-acceptance.ts`. W13 (the terms clause) waits for attorney review and isn't built.
 
 | # | Text | Where it appears | Audience |
@@ -369,5 +369,36 @@ Where: `src/lib/guarantee-exception-copy.ts` (customer lines), the agent screens
 | M26 | `Money-back guarantee does not apply to Tesla, Rivian, Lucid or Polestar.` | End of the published article's guarantee section (SQL for Brett, not run) | customers |
 | W14 | `No guarantee: {Brand} (direct sale)` | Agent active-search card | agents |
 | W15 | `No guarantee for this brand.` | Log Offer page, in place of the guarantee line | agents |
-| W16 | `Not applicable` | Admin table, new Guarantee column (heading `Guarantee` is a draft) | agents |
-| draft | `We couldn't save your agreement. Please try again.` | Terms acceptance failed to save (server) | customers |
+| W16 | `Not applicable` | Admin table, new Guarantee column (heading `Guarantee`, approved 2026-10-30) | agents |
+| — | `We couldn't save your agreement. Please try again.` | Terms acceptance failed to save (server); approved 2026-10-30 | customers |
+
+## 22. Offer comparison, badge and sort (customer; offer entry Chunk 10) — approved 2026-10-25 (plan 6.3/6.4), delivery rows 2026-10-29, pager labels 2026-10-29; on the `offer-entry` branch (not live)
+Where: `src/lib/offer-comparison-rows.ts` (`COMPARE_COPY`, row labels), `src/components/offer-comparison.tsx`, `src/lib/offer-sort.ts`.
+
+| Text | Where it appears | Audience |
+|---|---|---|
+| `Compare offers` | Your Deal, with 2+ open offers | customers |
+| `Compare your offers` | Comparison title | customers |
+| `Exterior` · `Interior` · `Options you want` · `Also on the car` · `Window sticker` · `Discount` · `Car price` · `Dealer add-ons` · `Doc fee` · `Sales tax` · `Title & registration` · `Out-the-door` · `Figures from` · `Good until` | Comparison rows (approved order) | customers |
+| `Delivery estimate` · `Out-the-door with delivery` | Extra rows when an offer would come by delivery; also in "How the price adds up" | customers |
+| `✓` · `not your pick` · `{N} of {M}` · `can be removed` | Comparison cells | customers |
+| `Dealer's quote` · `Our estimate` · `Requested` | "Figures from" values | customers |
+| `{dealer} · {city} · {N} miles · LEVRating {n.n} ({count})` / `New to LEVR — no rating yet` | Column header | customers |
+| `View and accept` | Column button (opens the offer's detail view) | customers |
+| `Lowest out-the-door` | Badge (replaces `Best value`) | customers |
+| `{a} and {b} of {N}` · `Previous offer` · `Next offer` (screen-reader) | Phone two-up pager | customers |
+| `Best total price` (now the default, sorts by out-the-door) · `Best discount` · `Closest` | Your Deal sort | customers |
+
+## 23. Log Offer listing picker (agent; offer entry Chunk 6) — approved 2026-10-25 (plan 6.1), colour marks 2026-10-30; on the `offer-entry` branch (not live)
+Where: `src/components/offer-entry-form.tsx`, `COLOUR_MARK` in `src/lib/listing-picker.ts`.
+
+| Text | Where it appears | Audience |
+|---|---|---|
+| `Your customer's trims` · `All trims` | Picker filter | agents |
+| `Dealer` · `Miles` · `Exterior` · `Interior` · `Stock #` · `VIN (last 8)` · `Listed price` | Picker columns | agents |
+| `✓ (their pick)` | Exact colour match (case, spacing, punctuation ignored) | agents |
+| `· Check` | Picker cell where the colour is shown next to it: one name contains the other, or a generic colour | agents |
+| `Check: listed as {colour}` | Step 2 field marks, same rule, where the colour isn't next to the mark | agents |
+| `not their pick` | No overlap | agents |
+| `Not listed — enter VIN by hand` | Picker fallback | agents |
+

@@ -52,7 +52,79 @@ This file exists so any Claude Code session (yours, your collaborator's, or a fu
   - **⚠ THE ONE QUERY IT DOES CONTAMINATE: a bare `select count(*) from customers`.** There is **no `is_test` flag anywhere in this schema** — confirmed by grep, no such column and no naming convention checked in code — so nothing excludes it automatically. **Any future "how many real customers do we have" check must subtract it** (or filter `email not like '%@levrauto.invalid'`). Searches, paid searches and payments are all unaffected, so the pre-launch "zero real money has moved" checks stay valid as-is: at the time of writing `customers = 3` (Brett's two accounts plus this one) while `customer_searches = 0`, `paid searches = 0` and `payments = 0`. **Update (Phase 1 Step 15):** `is_test_customer()` now treats every `.invalid` address (this account included) as a test account, so it's never auto-assigned; a bare customer count still includes it.
   - **Discipline when Brett uses it himself:** create whatever searches/rows a verification needs, then delete them afterwards and confirm by count. Leave the account itself in place — it is meant to persist. If a proper `is_test` flag is ever wanted, that is a migration plus edits to each enumeration surface, and should be its own reviewed change rather than a column nothing reads.
 
-## ⭐ START HERE — current state (2026-10-14)
+## ⭐ START HERE — current state (2026-10-30, handoff for a fresh planning chat)
+
+Read this first; `docs/business/how-brett-works.md` covers how Brett wants work done. The 2026-10-14 section below is the detailed record (Phase 1 database, sign-in model, rules every change must keep); where the two differ, this one wins. Check `git log` and the code before relying on any older line.
+
+### Live on www.levrauto.com now (`main`)
+- Everything in the 2026-10-14 "Live on www" list below (33 configurator makes, Matchmaker **v22**, sign-up-to-payment, delivery estimates, Your Deal empty states, the Portland region).
+- **BAE's tester fixes (live 2026-10-30):** listing counts are never called "nationwide" (no count without synced listings; "{N} found within 100 miles of you so far" plus "Based on current dealer listings."; "{N} listings found so far" on the trim lists), one merged how-it-works paragraph on Review your search, the green outlined "+" and "Done" on the trim comparison, "Make #{N}" for the rank button, "Real dealer inventory, searched nationwide" on the homepage table. Wording: inventory section 20.
+- **"Continue your search" (BAE #1, live 2026-10-30):** sign-in goes straight to where the search stands (`src/lib/search-destination.ts`), `/account/continue` for the email links, the button on `/account` and after a password change, "Account settings" moved below the searches.
+- **Not live:** everything on the branches below (Phase 1, offer entry, GX). Stripe is in test mode; the terms page is a placeholder.
+
+### Branches (all pushed to `origin` unless marked)
+| Branch | What's on it | Tests | Previews |
+|---|---|---|---|
+| `agent-dashboard-phase1-code` (`be70af1`) | Phase 1, Chunks 0–8 (agent sign-in, assignment, alerts, refunds, call resolution, queues). `main` merged in 2026-10-30 (`da195fa`; `auth-actions.ts` and `inventory-count.ts` resolved as on `offer-entry`). | Full Chunk 8 pass 2026-10-30: every suite green, incl. c1f-rehearsal 21/21 (the script has 21 checks since the 2026-10-25 rebuild; the 2026-10-14 "24/24" was the older script). Safety check clean. | off (`vercel.json`) |
+| `offer-entry` (`726fc3c`) | Cut from the Phase 1 branch. Offer-entry fast track: chunks 1, 2, 3, 4, 6, 9, 10, 11, plus withdraw and release with the reason choice and the guarantee rule for withdrawn offers; BAE fixes and "Continue your search" ported. 22 commits behind `main` (docs, the grants lock-down record): merge `main` before deploy. | oe3 25/25, oe4 17/17, oe5b 14/14, oe6 6/6, oe9 14/14, oe10 11/11, oe11 10/10; 220+ unit tests | off |
+| `gx` (`4e1cde6`) | Cut from `offer-entry`. GX-1 to GX-4 (guarantee exceptions), the Matchmaker detail dialog fix, GX-5's mapping fixes (Rivian battery names `3a227be`, Model Y L corrections `4aa30d3`). | gx 15/15, gx2 19/19, Matchmaker dialog 4/4 | **⚠ ON: `vercel.json` doesn't list `gx`, so Vercel has built ~20 preview deployments of it** (they share the production database; Phase 1's Chunk 0 rails stop previews sending email or running jobs). Turning them off is a `vercel.json` change: needs Brett's go. |
+| `configurator-mapping` (local only, never pushed) | One commit, `ddd5ff5` (the Rivian battery-name fix). Its content is on `gx` as `3a227be`, so it reaches `main` with `gx`; the branch itself can be deleted after that. | — | — |
+| `bae-fixes`, `bae-continue` (local only) | Merged into `main` 2026-10-30; can be deleted. | — | — |
+Worktrees: `levr-auto-phase1` (Phase 1, dev server :3100), `levr-auto-offer-entry` (:3400), `levr-auto-gx` (:3600), `levr-auto-bae` (finished). Production builds in a worktree need `next build --webpack`.
+
+### Migrations applied by hand in production since 2026-10-24
+| Date (Brett) | Migration | File | On branch |
+|---|---|---|---|
+| 2026-10-24 | Offers customer-read lock (agent notes no longer readable by customers) | `20261025025800_offers_customer_read_lock.sql` | `main` (and all three branches) |
+| 2026-10-25 | OE-1 offer details (fees, options, out-the-door columns, LEVRating) | `20261026120000_oe1_offer_details.sql` | `offer-entry`, `gx` |
+| 2026-10-27 | OE-2 offer submissions | `20261027120000_oe2_offer_submissions.sql` | `offer-entry`, `gx` |
+| 2026-10-27 | OE-2b `send_offer_submission` | `20261027130000_oe2b_send_offer_submission.sql` | `offer-entry`, `gx` |
+| 2026-10-27 | OE-4 record the dealer's out-the-door quote | `20261027140000_oe4_record_offer_otd.sql` | `offer-entry`, `gx` |
+| 2026-10-27 | Grants lock-down (explicit grants; anon/authenticated reads only where meant) | `20261027150000_lock_default_grants.sql` | `main`, Phase 1 (reaches `offer-entry`/`gx` with the next `main` merge) |
+| 2026-10-27 | OE-5 withdraw a pending offer (first version) | `20261027160000_oe5_withdraw_pending_offer.sql` | `offer-entry`, `gx` |
+| 2026-10-29 | OE-5b the reason choice; REFERENCES/TRIGGER revoked | `20261029120000_oe5b_withdraw_reason_choice.sql` | `offer-entry`, `gx` |
+| 2026-10-30 | GX-1 guarantee exceptions (`not_applicable`, exception make, terms columns, guard trigger, refund refusal) | `20261030120000_gx1_guarantee_exceptions.sql` | `gx` |
+Each was checked safe with the live `main` code before it ran. **Still to write and run:** OE-5c (every withdrawn offer must carry a reason code), right after the offer-entry deploy.
+
+### Deploy order and gates (Brett, 2026-10-30)
+1. **The tester round ends** (Brett says so; tester7 signed in 2026-10-30, so it's still running). Until then nothing touches `tester1`–`tester11`.
+2. **Tester cleanup**, Brett chooses: **A** delete their data only (5 searches, 12 sample offers, 4 test-mode payments, 19 option selections, 9 trim and 5 combination preferences, 13 notification events, 1 offer message; the 11 logins stay and can sign in to an empty account) or **B** data and the 11 logins (testers lose access). Either way: turn off `ALLOW_TEST_SEEDING` and `TESTER_INSTANT_START_ENABLED`.
+3. **Phase 1 deploy session** (code plan section 5.2, Brett's cutover 5.3). The `training@levrauto.com` Zoho alias is set up and tested (2026-10-30).
+4. **Offer-entry deploy** (merge `main` first, re-run the oe tests), then **OE-5c** straight after.
+5. **GX deploy** (GX-1 is already applied; the GX code writes its columns, so never before it).
+6. **GX-5:** promote Lucid, Polestar, Tesla and Rivian; the first inventory syncs (about 21 MarketCheck calls: ask Brett with the exact count then); M26, the article fine print (`docs/sql/gx3-article/`).
+7. **Attorney-reviewed Terms of Service published, and GX-6** (the terms clause, W13).
+8. **Stripe live checklist** (launch decision 4).
+
+### Decisions log, 2026-10-18 to 2026-10-30 (Brett)
+- **The guarantee is tied to make, model and trim only,** measured against that car's own window sticker (Total SRP); options, colour, add-ons, taxes, fees and delivery never count. The agent confirms the trim matches on each offer. (2026-10-18)
+- **Accept gating:** an offer sent through the new flow can be accepted only once the dealer's out-the-door quote is recorded; "our estimate" doesn't unblock it. Offers logged before offer entry stay acceptable. (2026-10-18 / 10-25)
+- **Customers see dealer names and the LEVRating** (an unconfirmed dealer shows "New to LEVR — no rating yet"). (2026-10-18)
+- **Dealer links (later phase):** every field required, nothing saved until submit, an agent always reviews before the customer sees it, 7-day links cancelled when the search stops. (2026-10-18)
+- **"Lowest out-the-door" replaces "Best value"; "Best total price" is the default sort.** Both compare out-the-door plus the delivery estimate for an offer the customer would take by delivery (out-the-door alone within the pickup range); an offer waiting on its estimate can't get the badge. Shown as "Delivery estimate" and "Out-the-door with delivery" rows. (2026-10-25 / 10-29)
+- **Withdrawn offers don't count toward the guarantee**, unless the reason is "Car sold", when the existing sold rule decides. The reason is a required choice (Car sold, Dealer pulled the quote, Correcting the offer, Other with a note); "Car sold" sets the vehicle-sold time. A recorded out-the-door quote can't be changed: withdraw and send a corrected offer. (2026-10-27; replaces the 2026-10-17 "withdrawn offers still count")
+- **Guarantee exceptions: Tesla, Rivian, Lucid and Polestar** are full $699 services with no money-back guarantee; the discretionary cancellation refund is unchanged; disclosed in the standard terms every customer accepts once before their first payment (and again when the terms change), with "Our money-back guarantee does not apply to {Brand}." where the brand matters, "Terms apply." on the homepage and the FAQ entry "Does the guarantee cover every brand?". The state is fixed when a search's brand is set (payment, undecided pick, correction, switch) and never changed by later list edits. **No other brand-level no-guarantee list:** other hard-to-beat cars go on the agent-only "Hard to beat sticker" watch list (offer-entry plan 4.E, not built). (2026-10-24/25/30)
+- **Polestar is offered while inventory lasts** (and the 2026 Rivian R1T/R1S); hidden automatically with no listings. **The Rivian R2 is held** until public ordering opens. (2026-10-25)
+- **Listing counts are a synced sample,** never shown as the nationwide market. (2026-10-29)
+- **Sign-in goes to where the search stands.** (2026-10-30)
+- **The training agent (LEVRID 2) is a real agent login**, kept out of rotation and deactivated between uses. (2026-10-30)
+- **The tester round is still running.** (2026-10-30)
+
+### ⚠ Attorney-review items (one list)
+1. **Terms of Service** (today a placeholder): needed before Stripe goes live; customers accept them before paying.
+2. **W13, the guarantee-exceptions clause** (Tesla, Rivian, Lucid, Polestar; when a search's coverage is fixed), and whether the disclosure is clear and prominent enough next to an advertised guarantee.
+3. **M23, the service agreement** line naming the four brands.
+4. **The guarantee tied to make, model and trim only**, against that car's own sticker (changed 2026-10-18 from make/model/trim/required options): the Terms and service agreement must match.
+5. **Withdrawn offers don't count** (apart from the sold rule): the Terms and service agreement must say so.
+6. **Core Processes overall** is marked "not ready for real customers until an attorney has reviewed it" (the guarantee and refund language, and the broker-licensing question).
+7. **Sweepstakes question** for the post-purchase mailer/giveaway (deferred feature).
+
+### Pending reminders
+- **2026-11-01:** if nothing's wrong with Matchmaker v22, ask Brett to delete the v21 rollback batch `9b458ac3…`, and say the first v21 import `a421adb5…` and v20 `c94ee1ab…` also exist (re-check none is live first).
+- **Parked, later phase:** the parser (chunk 5; needs 5 real window-sticker samples), dealer links (chunks 7–8; need `DEALER_LINK_HASH_SECRET`), tax estimates (OE-3; need the tax research), the customer-session reads plan (`docs/plans/customer-session-reads-plan.md`, waits for Brett's go), editing a recorded out-the-door quote, the agent-only "Hard to beat sticker" list.
+- **Right after deploys:** OE-5c (after offer entry); the held MarketCheck syncs for test accounts (after the tester round, 2026-10-14 list below).
+
+## Detailed record as of 2026-10-14 (superseded by the 2026-10-30 section above where they differ)
 
 Read this first; `docs/business/how-brett-works.md` covers how Brett wants work done. The sections below this one are the detailed record (older entries can be stale; check `git log` and the code before relying on them). **Live site vs. branch:** everything under "Agent dashboard Phase 1 — code" is on the branch `agent-dashboard-phase1-code` and is **not deployed**. Until the Phase 1 deploy, www.levrauto.com runs `main`, so older descriptions of the live site (e.g. call-request emails going to every active agent, a read-only refunds-due page) are still true there.
 
