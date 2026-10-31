@@ -44,7 +44,7 @@ export const isOpen = (o: { status: string }) => OPEN_STATUSES.includes(o.status
 
 export const COMPARE_COPY = {
   button: "Compare offers",
-  /** DRAFT, awaiting sign-off (2026-10-29): the delivery-inclusive total row. */
+  /** Approved 2026-10-29: the delivery-inclusive total row. */
   otdWithDelivery: "Out-the-door with delivery",
   title: "Compare your offers",
   badge: "Lowest out-the-door",

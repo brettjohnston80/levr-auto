@@ -45,7 +45,7 @@ const LABELS: Record<BreakdownRowKind, string> = {
   other_fees: "Other fees",
   delivery: "Delivery estimate",
   otd: "Out-the-door",
-  /** DRAFT, awaiting sign-off (2026-10-29). */
+  /** Approved 2026-10-29. */
   otd_with_delivery: "Out-the-door with delivery",
 };
 
