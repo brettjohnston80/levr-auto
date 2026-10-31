@@ -8,6 +8,7 @@ How Brett (founder, LEVR Auto) likes work done on this project. Read this before
 - **Brett gives the go-ahead on pushes and promotions.** Don't push to `main` or promote a configurator batch (or any dataset) without his say-so for that specific change.
 - **Brett runs all migrations.** Write the migration, review it, paste the SQL in chat as a plain code block, and wait. Brett runs it in the Supabase SQL Editor (project `couiovhducwytlckfgvo`). Then confirm from the app's side that it took effect.
 - **Brett signs off on all customer-facing wording.** Any new or changed text a customer can see is flagged for approval before it ships. Quote the exact strings.
+- **No em dashes (—) in new customer-, dealer- or agent-facing copy** (Brett, 2026-10-30, after MH's tester note that they read as AI-written). Use a period, comma, colon or parentheses instead, and say so when quoting wording for sign-off. This covers page text, emails, buttons, page titles, Stripe line items, and the article and social generator prompts. Existing copy is listed in `docs/plans/em-dash-inventory-2026-10-30.md` and swept once after the GX deploy.
 
 ## Verifying work
 
