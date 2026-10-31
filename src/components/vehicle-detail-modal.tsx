@@ -2,7 +2,7 @@
 
 import { noGuaranteeLine } from "@/lib/guarantee-exception-copy";
 import { guaranteeExceptionMake } from "@/lib/guarantee-exceptions";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Answers } from "@/lib/matchmaker-data";
 import { formatPriceEstimate, fuelTypeToPowertrain, type MatchmakerVehicle } from "@/lib/matchmaker-vehicle-display";
@@ -103,6 +103,15 @@ export function VehicleDetailModal({
   // failed" -- neither should render a misleading count, so the line is
   // simply absent in both cases rather than showing a stale/wrong number.
   const [nationwideCount, setNationwideCount] = useState<number | null>(null);
+  // A real dialog for screen readers (Brett, 2026-10-30): focus moves into it on open and back to
+  // whatever opened it (the card's "More info" button) on close. Mounted only while open.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const headingId = useId();
+  useEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.focus();
+    return () => opener?.focus();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -161,7 +170,12 @@ export function VehicleDetailModal({
     >
       <div className="flex min-h-full items-center justify-center">
         <div
-          className="relative w-full max-w-4xl rounded-3xl border border-white/10 bg-zinc-950 p-6 shadow-2xl shadow-black/60 sm:p-8"
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={headingId}
+          tabIndex={-1}
+          className="relative w-full max-w-4xl rounded-3xl border border-white/10 bg-zinc-950 p-6 shadow-2xl shadow-black/60 outline-none sm:p-8"
           onClick={(e) => e.stopPropagation()}
         >
           <button
@@ -209,7 +223,7 @@ export function VehicleDetailModal({
               <p className="text-xs font-semibold tracking-wide text-emerald-400 uppercase">
                 {vehicle.bodyStyle} · {vehicle.fuelType ?? "—"}
               </p>
-              <h2 className="mt-1 text-2xl font-semibold text-white">
+              <h2 id={headingId} className="mt-1 text-2xl font-semibold text-white">
                 {vehicle.make} {vehicle.model} {vehicle.trim}
               </h2>
               <p className="mt-1 text-sm font-semibold text-emerald-400">{priceEstimate}</p>
